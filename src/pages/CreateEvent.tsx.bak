@@ -1,0 +1,241 @@
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '../components/ui/Button';
+import { 
+  Calendar, 
+  MapPin, 
+  Users, 
+  Ticket,
+  Image,
+  Clock,
+  Tag
+} from 'lucide-react';
+
+const CreateEvent = () => {
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    date: '',
+    time: '',
+    location: '',
+    category: '',
+    capacity: '',
+    ticketPrice: '',
+    imageUrl: ''
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | React.ChangeEvent<HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // In a real app, this would create an event via an API
+    console.log('Creating event:', formData);
+    // Navigate to a success page or back to dashboard after creation
+    navigate('/dashboard/organizer/events');
+  };
+
+  return (
+    <div className="py-8">
+      <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold">Create New Event</h1>
+          <p className="text-gray-600 dark:text-gray-300">
+            Fill in the details below to create your event
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-6">
+            {/* Event Title */}
+            <div>
+              <label htmlFor="title" className="block text-sm font-medium mb-1">
+                Event Title *
+              </label>
+              <input
+                type="text"
+                id="title"
+                name="title"
+                value={formData.title}
+                onChange={handleChange}
+                required
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="Enter event title"
+              />
+            </div>
+
+            {/* Event Description */}
+            <div>
+              <label htmlFor="description" className="block text-sm font-medium mb-1">
+                Description
+              </label>
+              <textarea
+                id="description"
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                rows={4}
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="Describe your event"
+              />
+            </div>
+
+            {/* Date and Time */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="date" className="block text-sm font-medium mb-1">
+                  Date *
+                </label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    id="date"
+                    name="date"
+                    value={formData.date}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-3 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="time" className="block text-sm font-medium mb-1">
+                  Time *
+                </label>
+                <div className="relative">
+                  <input
+                    type="time"
+                    id="time"
+                    name="time"
+                    value={formData.time}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-3 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                </div>
+              </div>
+            </div>
+
+            {/* Location */}
+            <div>
+              <label htmlFor="location" className="block text-sm font-medium mb-1">
+                Location *
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  id="location"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-3 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Enter event location"
+                />
+                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+              </div>
+            </div>
+
+            {/* Category and Capacity */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="category" className="block text-sm font-medium mb-1">
+                  Category
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    id="category"
+                    name="category"
+                    value={formData.category}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="e.g. Conference, Concert"
+                  />
+                  <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="capacity" className="block text-sm font-medium mb-1">
+                  Capacity
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    id="capacity"
+                    name="capacity"
+                    value={formData.capacity}
+                    onChange={handleChange}
+                    min="1"
+                    className="w-full px-3 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="Number of attendees"
+                  />
+                  <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                </div>
+              </div>
+            </div>
+
+            {/* Ticket Price */}
+            <div>
+              <label htmlFor="ticketPrice" className="block text-sm font-medium mb-1">
+                Ticket Price (₦)
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  id="ticketPrice"
+                  name="ticketPrice"
+                  value={formData.ticketPrice}
+                  onChange={handleChange}
+                  min="0"
+                  className="w-full px-3 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="0.00"
+                />
+                <Ticket className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+              </div>
+            </div>
+
+            {/* Image Upload */}
+            <div>
+              <label htmlFor="imageUrl" className="block text-sm font-medium mb-1">
+                Event Image URL
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  id="imageUrl"
+                  name="imageUrl"
+                  value={formData.imageUrl}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="https://example.com/event-image.jpg"
+                />
+                <Image className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-4 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate('/dashboard/organizer/events')}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">
+                Create Event
+              </Button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default CreateEvent;
