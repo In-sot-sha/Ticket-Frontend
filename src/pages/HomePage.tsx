@@ -4,6 +4,7 @@ import { Calendar, MapPin, Users, Ticket, Search, Star, TrendingUp, Clock, Tag, 
 import { Button } from '../components/ui/Button';
 import EventCarousel from '../components/carousel/EventCarousel';
 import { motion } from 'framer-motion';
+import EventCard from '../components/EventCard';
 
 const HomePage = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -279,86 +280,13 @@ const HomePage = () => {
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
             {featuredEvents.map((event, index) => (
-              <motion.div
+              <EventCard
                 key={event.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: index * 0.1 }}
-              >
-                <Link
-                  to={`/events/${event.id}`}
-                  className="group block bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 border border-gray-100 dark:border-gray-700 hover:border-primary"
-                >
-                  {/* Image Section */}
-                  <div className="relative overflow-hidden">
-                    <div className="aspect-[16/10] overflow-hidden">
-                      <img
-                        src={event.image}
-                        alt={event.title}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                      />
-                    </div>
-                    {/* Gradient Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    
-                    {/* Category Badge */}
-                    <div className="absolute top-4 left-4">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-semibold rounded-full shadow-lg">
-                        <Tag className="h-3 w-3" />
-                        {event.category}
-                      </span>
-                    </div>
-                    
-                    {/* Rating Badge */}
-                    <div className="absolute top-4 right-4">
-                      <div className="flex items-center gap-1 px-2.5 py-1.5 bg-white dark:bg-gray-900 rounded-full shadow-lg">
-                        <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
-                        <span className="text-xs font-bold text-gray-900 dark:text-white">{event.rating}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Content Section */}
-                  <div className="p-5">
-                    {/* Title and Price */}
-                    <div className="mb-4">
-                      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 line-clamp-2  transition-colors">
-                        {event.title}
-                      </h3>
-                      <div className="flex items-center justify-between">
-                        <span className="text-2xl font-bold">{event.price}</span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">per ticket</span>
-                      </div>
-                    </div>
-
-                    {/* Event Details */}
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                        <Calendar className="h-4 w-4 mr-2  flex-shrink-0" />
-                        <span className="truncate">{new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                      </div>
-                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                        <MapPin className="h-4 w-4 mr-2  flex-shrink-0" />
-                        <span className="truncate">{event.location}</span>
-                      </div>
-                    </div>
-
-                    {/* Footer */}
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-700">
-                      <div className="flex items-center gap-1.5 text-sm">
-                        <Users className="h-4 w-4 text-gray-400" />
-                        <span className="text-gray-600 dark:text-gray-300 font-medium">{event.ticketsAvailable}</span>
-                        <span className="text-gray-400 dark:text-gray-500">left</span>
-                      </div>
-                      <div className="flex items-center gap-2 font-semibold text-sm group-hover:gap-3 transition-all">
-                        <span>View Event</span>
-                        <ArrowRight className="h-4 w-4" />
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              </motion.div>
+                event={event}
+                variant="featured"
+                showRating={true}
+                showTicketsAvailable={true}
+              />
             ))}
           </motion.div>
         </div>

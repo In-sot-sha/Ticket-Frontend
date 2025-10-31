@@ -3,6 +3,7 @@ import { Mail, MapPin, Calendar, Users, Globe, Phone, Building2, Star, ArrowRigh
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { motion } from 'framer-motion';
+import EventCard from '../components/EventCard';
 
 const OrganizerPage: React.FC = () => {
   // Mock organizer profile
@@ -253,65 +254,12 @@ const OrganizerPage: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {organizerEvents.map((event, index) => (
-              <motion.div
+              <EventCard
                 key={event.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.3 + index * 0.1 }}
-              >
-                <Link
-                  to={`/events/${event.id}`}
-                  className="group block bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 border border-gray-100 dark:border-gray-700 hover:border-primary"
-                >
-                  {/* Image */}
-                  <div className="relative overflow-hidden aspect-[16/10]">
-                    <img
-                      src={event.image}
-                      alt={event.title}
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    
-                    {/* Date Badge */}
-                    <div className="absolute bottom-4 left-4">
-                      <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-900 rounded-full shadow-lg">
-                        <Calendar className="h-3.5 w-3.5 text-primary" />
-                        <span className="text-xs font-bold text-gray-900 dark:text-white">
-                          {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Content */}
-                  <div className="p-5">
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3 line-clamp-2 group-hover:text-primary transition-colors">
-                      {event.title}
-                    </h3>
-
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                        <MapPin className="h-4 w-4 mr-2 text-primary flex-shrink-0" />
-                        <span className="truncate">{event.location}</span>
-                      </div>
-                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                        <Users className="h-4 w-4 mr-2 text-primary flex-shrink-0" />
-                        <span>{event.attendees} attendees expected</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-700">
-                      <span className="text-xl font-bold text-primary">
-                        {event.price}
-                      </span>
-                      <div className="flex items-center gap-2 text-primary font-semibold text-sm group-hover:gap-3 transition-all">
-                        <span>View Event</span>
-                        <ArrowRight className="h-4 w-4" />
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              </motion.div>
+                event={event}
+                variant="organizer"
+                showPrice={true}
+              />
             ))}
           </div>
         </motion.section>
