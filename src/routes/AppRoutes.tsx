@@ -17,6 +17,7 @@ import Login from '../pages/Login';
 import Register from '../pages/Register';
 import TermsOfService from '../pages/TermsOfService';
 import PrivacyPolicy from '../pages/PrivacyPolicy';
+import OrganizerPage from '../pages/OrganizerPage';
 
 // Protected pages
 import Dashboard from '../pages/Dashboard';
@@ -99,6 +100,10 @@ const AppRoutes: React.FC = () => {
         {
           path: "privacy",
           element: <PrivacyPolicy />,
+        },
+        {
+          path: "organizers",
+          element: <OrganizerPage />,
         },
       ],
     },
