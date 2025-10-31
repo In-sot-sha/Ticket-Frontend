@@ -31,6 +31,7 @@ interface AuthContextType {
   logout: () => void;
   register: (email: string, password: string, firstName: string, lastName: string) => Promise<boolean>;
   isAuthenticated: boolean;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,17 +43,49 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true); // Add loading state
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if user is logged in on initial load
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
-    }
+    // Check if user is logged in on initial load and validate token
+    const initializeAuth = async () => {
+      const storedToken = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
+      
+      if (storedToken && storedUser) {
+        setToken(storedToken);
+        setUser(JSON.parse(storedUser));
+        
+        // Validate the token with the backend
+        try {
+          // Make a request to validate the token via the verify endpoint
+          const response = await api.auth.verify();
+          
+          if (response.data) {
+            // Token is valid, update user data if it has changed
+            setUser(response.data);
+            localStorage.setItem('user', JSON.stringify(response.data));
+          } else {
+            // Token is invalid, clear the auth state
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setToken(null);
+            setUser(null);
+          }
+        } catch (error) {
+          // Token validation failed, clear the auth state
+          console.error('Token validation failed:', error);
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setToken(null);
+          setUser(null);
+        }
+      }
+      
+      setLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
@@ -115,7 +148,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const isAuthenticated = !!token;
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, register, isAuthenticated }}>
+    <AuthContext.Provider value={{ user, token, login, logout, register, isAuthenticated, loading }}>
       {children}
     </AuthContext.Provider>
   );

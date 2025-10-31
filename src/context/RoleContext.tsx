@@ -41,44 +41,7 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
     availableRoles.push('ADMIN');
   }
 
-  // Determine current role from URL route
-  // useEffect(() => {
-  //   const pathParts = location.pathname.split('/');
-  //   const dashboardIndex = pathParts.indexOf('dashboard');
-    
-  //   if (dashboardIndex !== -1 && pathParts.length > dashboardIndex + 1) {
-  //     const roleSegment = pathParts[dashboardIndex + 1].toUpperCase() as RoleType;
-      
-  //     if (availableRoles.includes(roleSegment)) {
-  //       setCurrentRole(roleSegment);
-  //       // Save to localStorage for persistence
-  //       localStorage.setItem('preferredRole', roleSegment);
-  //     } else {
-  //       // Default to user role if invalid role in URL
-  //       const savedRole = localStorage.getItem('preferredRole') as RoleType;
-  //       const defaultRole = (savedRole && availableRoles.includes(savedRole)) ? savedRole : availableRoles[0];
-  //       setCurrentRole(defaultRole);
-        
-  //       // Redirect to correct URL
-  //       if (defaultRole !== 'USER') {
-  //         navigate(`/organizer`);
-  //       } else {
-  //         navigate('/user');
-  //       }
-  //     }
-  //   } else if (location.pathname === '/dashboard') {
-  //     // On main dashboard route, determine appropriate default
-  //     const savedRole = localStorage.getItem('preferredRole') as RoleType;
-  //     const defaultRole = (savedRole && availableRoles.includes(savedRole)) ? savedRole : 
-  //                        (availableRoles.includes('ORGANIZER') ? 'ORGANIZER' : availableRoles[0]);
-  //     setCurrentRole(defaultRole);
-      
-  //     // Redirect to appropriate role route
-  //     if (defaultRole !== 'USER') {
-  //       navigate(`/organizer`);
-  //     }
-  //   }
-  // }, [location.pathname, user, availableRoles, navigate]);
+  
 
   // Function to switch roles
   const handleSetCurrentRole = (role: RoleType) => {

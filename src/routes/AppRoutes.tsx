@@ -36,12 +36,20 @@ import ApplyAsVendor from '../pages/ApplyAsVendor';
 import VendorApplications from '../pages/VendorApplications';
 import MyVendorApplications from '../pages/MyVendorApplications';
 import UserDashboardWithTabs from '../pages/UserDashboardWithTabs';
-import OrganizerSidebar from '../components/layout/OrganizerSidebar';
 import UserDashboard from '../components/layout/UserDashboard';
 
 // Route guard component for protected routes
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
+  
+  // If still loading the auth state, show a loading indicator
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -55,11 +63,21 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 // Route guard component for public routes (redirects if already logged in)
 const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   
-  // if (isAuthenticated) {
-  //   return <Navigate to="/dashboard" replace />;
-  // }
+  // If still loading the auth state, show a loading indicator
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+  
+  // Uncomment if you want to redirect authenticated users away from login/register pages
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
   
   return <>{children}</>;
 };
@@ -86,6 +104,14 @@ const AppRoutes: React.FC = () => {
         },
         {
           path: "events/create",
+          element: (
+            <ProtectedRoute>
+              <CreateEvent />
+            </ProtectedRoute>
+          ),
+        },
+        {
+          path: "events/create/:id",
           element: (
             <ProtectedRoute>
               <CreateEvent />
@@ -144,6 +170,10 @@ const AppRoutes: React.FC = () => {
         },
         {
           path: "events/create",
+          element: <CreateEvent />,
+        },
+        {
+          path: "events/create/:id",
           element: <CreateEvent />,
         },
         {

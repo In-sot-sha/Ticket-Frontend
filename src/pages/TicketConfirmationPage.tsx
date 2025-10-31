@@ -138,7 +138,7 @@ const TicketConfirmationPage = () => {
             {/* Action Buttons */}
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
               <Button 
-                onClick={() => navigate('/dashboard/organizer/events')}
+                onClick={() => navigate('/organizer/events')}
                 className="flex-1"
               >
                 View Dashboard

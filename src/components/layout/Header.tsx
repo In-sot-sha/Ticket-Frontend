@@ -382,9 +382,9 @@ const Header = () => {
               {isAuthenticated ? (
                 <>
                   {/* Create Event Button for mobile */}
-                  {(user?.role === 'ORGANIZER' || location.pathname.startsWith('/dashboard/organizer')) && (
+                  {(user?.role === 'ORGANIZER' || location.pathname.startsWith('/organizer')) && (
                     <Link 
-                      to="/dashboard/organizer/events/create" 
+                      to="/organizer/events/create" 
                       className="py-2 px-3 rounded-md hover:bg-accent transition-colors flex items-center"
                       onClick={() => setIsMenuOpen(false)}
                     >

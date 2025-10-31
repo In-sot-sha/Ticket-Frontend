@@ -104,6 +104,8 @@ export const api = {
     
     getProfile: () => apiRequest<any>('GET', '/users/profile'),
     
+    verify: () => apiRequest<any>('GET', '/users/profile'),
+    
     updateProfile: (userData: Partial<{
       firstName: string;
       lastName: string;
@@ -150,7 +152,19 @@ export const api = {
     
     create: (eventData: any) => apiRequest<any>('POST', '/events', eventData),
     
+    createWithImage: (formData: FormData) => apiClient.post('/events', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
+    
     update: (id: number, eventData: any) => apiRequest<any>('PUT', `/events/${id}`, eventData),
+    
+    updateWithImage: (id: number, formData: FormData) => apiClient.put(`/events/${id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
     
     delete: (id: number) => apiRequest<any>('DELETE', `/events/${id}`),
     

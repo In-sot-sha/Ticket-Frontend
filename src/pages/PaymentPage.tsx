@@ -291,7 +291,7 @@ const PaymentPage = () => {
                 </Button>
                 <Button 
                   variant="outline"
-                  onClick={() => navigate('/dashboard/organizer/events')}
+                  onClick={() => navigate('/organizer/events')}
                   className="w-full"
                 >
                   View Dashboard
