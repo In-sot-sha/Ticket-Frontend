@@ -112,11 +112,11 @@ const OrganizerPage: React.FC = () => {
                   </h1>
                   <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-300">
                     <span className="inline-flex items-center gap-1.5">
-                      <MapPin className="h-4 w-4 text-primary" /> 
+                      <MapPin className="h-4 w-4 " /> 
                       {organizer.location}
                     </span>
                     <span className="inline-flex items-center gap-1.5">
-                      <Users className="h-4 w-4 text-primary" /> 
+                      <Users className="h-4 w-4 " /> 
                       {organizer.followers.toLocaleString()} followers
                     </span>
                     <span className="inline-flex items-center gap-1.5">
@@ -154,7 +154,7 @@ const OrganizerPage: React.FC = () => {
                   {organizer.specialties.map((specialty, index) => (
                     <span
                       key={index}
-                      className="px-3 py-1.5 bg-primary/10 text-primary text-sm font-medium rounded-full"
+                      className="px-3 py-1.5 bg-primary/10  text-sm font-medium rounded-full"
                     >
                       {specialty}
                     </span>
@@ -166,7 +166,7 @@ const OrganizerPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                   <div className="p-2 bg-primary/10 rounded-lg">
-                    <Mail className="h-5 w-5 text-primary" />
+                    <Mail className="h-5 w-5 " />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Email</div>
@@ -178,7 +178,7 @@ const OrganizerPage: React.FC = () => {
 
                 <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                   <div className="p-2 bg-primary/10 rounded-lg">
-                    <Phone className="h-5 w-5 text-primary" />
+                    <Phone className="h-5 w-5 " />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Phone</div>
@@ -190,7 +190,7 @@ const OrganizerPage: React.FC = () => {
 
                 <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                   <div className="p-2 bg-primary/10 rounded-lg">
-                    <Building2 className="h-5 w-5 text-primary" />
+                    <Building2 className="h-5 w-5 " />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Location</div>
@@ -218,7 +218,7 @@ const OrganizerPage: React.FC = () => {
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="p-2 bg-primary/10 rounded-lg">
-                  <stat.icon className="h-5 w-5 text-primary" />
+                  <stat.icon className="h-5 w-5 " />
                 </div>
               </div>
               <div className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-1">
@@ -247,7 +247,7 @@ const OrganizerPage: React.FC = () => {
                 Discover what we have planned for you
               </p>
             </div>
-            <Link to="/events" className="text-primary hover:underline flex items-center gap-1 font-semibold">
+            <Link to="/events" className=" hover:underline flex items-center gap-1 font-semibold">
               View all <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
