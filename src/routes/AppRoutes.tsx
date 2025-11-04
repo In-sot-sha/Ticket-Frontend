@@ -17,6 +17,8 @@ import Login from '../pages/Login';
 import Register from '../pages/Register';
 import TermsOfService from '../pages/TermsOfService';
 import PrivacyPolicy from '../pages/PrivacyPolicy';
+import OrganizerPage from '../pages/OrganizerPage';
+import HelpPage from '../pages/HelpPage';
 
 // Protected pages
 import Dashboard from '../pages/Dashboard';
@@ -126,6 +128,10 @@ const AppRoutes: React.FC = () => {
           path: "privacy",
           element: <PrivacyPolicy />,
         },
+        {
+          path: "organizers",
+          element: <OrganizerPage />,
+        },
       ],
     },
     // Public auth routes without header/footer
@@ -155,9 +161,9 @@ const AppRoutes: React.FC = () => {
     {
       path: "/organizer",
       element: (
-        <ProtectedRoute>
+        // <ProtectedRoute>
           <DashboardLayout />
-        </ProtectedRoute>
+        // </ProtectedRoute>
       ),
       children: [
         {

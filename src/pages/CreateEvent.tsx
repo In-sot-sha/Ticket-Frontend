@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
+import { Spinner } from '../components/ui/Spinner';
+import { Calendar as ShadcnCalendar } from '../components/ui/Calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { api } from '../services/api';
 import { 
-  Calendar, 
+  Calendar,
   MapPin, 
   Users, 
   Ticket,
@@ -27,6 +30,7 @@ import {
 } from 'lucide-react';
 import { useToast, ToastViewport } from '../components/ui/Toast';
 import { Switch } from '../components/ui/Switch';
+// import { Calendar } from '@/components/ui/Calendar';
 
 const CreateEvent = () => {
   const navigate = useNavigate();
@@ -165,12 +169,14 @@ const CreateEvent = () => {
             website: event.website || '',
             publishStatus: event.isPublished ? 'published' : 'draft',
             allowVendors: event.allowVendors || false,
-            vendorTypes: event.stallType && event.maxVendors ? [{
-              id: 1,
-              name: event.stallType || '',
-              fee: event.stallFee ? String(event.stallFee) : '',
-              maxVendors: event.maxVendors ? String(event.maxVendors) : ''
-            }] : [{ id: 1, name: '', fee: '', maxVendors: '' }],
+            vendorTypes: event.vendorTypes && event.vendorTypes.length > 0 ? 
+              event.vendorTypes.map((vt: any) => ({
+                id: vt.id,
+                name: vt.name || '',
+                fee: vt.fee ? String(vt.fee) : '',
+                maxVendors: vt.maxVendors ? String(vt.maxVendors) : ''
+              })) : 
+              [{ id: 1, name: '', fee: '', maxVendors: '' }],
             vendorDeadline: event.vendorDeadline ? new Date(event.vendorDeadline).toISOString().split('T')[0] : '',
             // Add recurring event fields
             isRecurring: event.isRecurring || false,
@@ -278,6 +284,13 @@ const CreateEvent = () => {
       e.preventDefault();
     }
     
+    // Set appropriate loading state based on publish status
+    if (formData.publishStatus === 'published') {
+      setPublishLoading(true);
+    } else {
+      setSaveDraftLoading(true);
+    }
+    
     try {
       // Create FormData object to send multipart data
       const eventFormData = new FormData();
@@ -319,13 +332,8 @@ const CreateEvent = () => {
       // Add vendor fields to FormData
       eventFormData.append('allowVendors', formData.allowVendors ? 'true' : 'false');
       
-      // Handle multiple vendor types - for now, just use the first one to maintain compatibility with backend
-      if (formData.vendorTypes.length > 0) {
-        const firstVendorType = formData.vendorTypes[0];
-        eventFormData.append('stallType', firstVendorType.name);
-        eventFormData.append('stallFee', firstVendorType.fee);
-        eventFormData.append('maxVendors', firstVendorType.maxVendors);
-      }
+      // Add vendor types array to FormData as JSON
+      eventFormData.append('vendorTypes', JSON.stringify(formData.vendorTypes));
       
       if (formData.vendorDeadline) {
         eventFormData.append('vendorDeadline', new Date(formData.vendorDeadline).toISOString());
@@ -361,6 +369,10 @@ const CreateEvent = () => {
         description: error.response?.data?.message || error.message || 'Failed to save event. Please try again.',
         variant: "destructive",
       });
+    } finally {
+      // Reset loading states
+      setPublishLoading(false);
+      setSaveDraftLoading(false);
     }
   };
 
@@ -409,13 +421,8 @@ const CreateEvent = () => {
         eventFormData.append('ticketTypes', JSON.stringify(formData.tickets));
         eventFormData.append('allowVendors', formData.allowVendors ? 'true' : 'false');
         
-        // Handle multiple vendor types - for now, just use the first one to maintain compatibility with backend
-        if (formData.vendorTypes.length > 0) {
-          const firstVendorType = formData.vendorTypes[0];
-          eventFormData.append('stallType', firstVendorType.name);
-          eventFormData.append('stallFee', firstVendorType.fee);
-          eventFormData.append('maxVendors', firstVendorType.maxVendors);
-        }
+        // Add vendor types array to FormData as JSON
+        eventFormData.append('vendorTypes', JSON.stringify(formData.vendorTypes));
         
         if (formData.vendorDeadline) {
           eventFormData.append('vendorDeadline', new Date(formData.vendorDeadline).toISOString());
@@ -458,17 +465,30 @@ const CreateEvent = () => {
     }
   };
 
+  // State for loading states
+  const [nextStepLoading, setNextStepLoading] = useState(false);
+  const [publishLoading, setPublishLoading] = useState(false);
+  const [saveDraftLoading, setSaveDraftLoading] = useState(false);
+
   // Navigation functions
   const goToNextStep = async () => {
     if (currentStep < 3) {
       // Save the current step's data before moving to the next step
       if (isStepComplete(currentStep)) {
+        setNextStepLoading(true);
         const saveResult = await saveEventData(currentStep);
         if (saveResult) {
+          // If this is the first step and we're creating a new event, 
+          // add the event ID to the URL
+          if (currentStep === 1 && !id && saveResult.event?.id) {
+            // Update the URL to include the event ID for continued editing
+            navigate(`/events/create/${saveResult.event.id}`, { replace: true });
+          }
           setCurrentStep(currentStep + 1);
         } else {
           // Error already shown in saveEventData
         }
+        setNextStepLoading(false);
       } else {
         toast({
           title: "Incomplete Step",
@@ -485,118 +505,244 @@ const CreateEvent = () => {
     }
   };
 
-  // Check if required fields are completed for each step
+  // Check if required fields are completed for each step with improved validation
   const isStepComplete = (step: number): boolean => {
     switch(step) {
       case 1: // Build Event (Event Basics, Date & Time, Venue)
-        return formData.title.length > 0 && 
-               formData.description.length > 0 && 
-               formData.date.length > 0 && 
-               formData.startTime.length > 0 && 
-               formData.endTime.length > 0 && 
-               (formData.locationType === 'online' || (formData.location.length > 0 && formData.capacity.length > 0));
+        // Validate event basics
+        if (!formData.title.trim() || formData.title.trim().length < 3) return false;
+        if (!formData.description.trim() || formData.description.trim().length < 10) return false;
+        if (!formData.category) return false;
+        
+        // Validate date and time
+        if (!formData.date) return false;
+        if (!formData.startTime) return false;
+        if (!formData.endTime) return false;
+        
+        // Validate that end time is after start time
+        const startDate = new Date(`${formData.date}T${formData.startTime}`);
+        const endDate = new Date(`${formData.date}T${formData.endTime}`);
+        if (endDate <= startDate) return false;
+        
+        // Validate location based on type
+        if (formData.locationType === 'physical') {
+          if (!formData.location.trim()) return false;
+          if (!formData.capacity || isNaN(Number(formData.capacity)) || Number(formData.capacity) <= 0) return false;
+        } else if (formData.locationType === 'online') {
+          if (!formData.onlineUrl.trim() || !isValidUrl(formData.onlineUrl)) return false;
+        }
+        
+        return true;
+        
       case 2: // Tickets
         // Check if tickets are properly filled
         const ticketsValid = formData.tickets.length > 0 && 
-                            formData.tickets.every(ticket => ticket.name.length > 0 && ticket.quantity.length > 0);
+                            formData.tickets.every(ticket => 
+                              ticket.name.trim().length > 0 && 
+                              ticket.quantity && 
+                              !isNaN(Number(ticket.quantity)) && 
+                              Number(ticket.quantity) > 0 &&
+                              (ticket.isFree || (ticket.price && !isNaN(Number(ticket.price)) && Number(ticket.price) >= 0))
+                            );
         
         // If vendors are enabled, check vendor fields too
         const vendorsValid = !formData.allowVendors || 
-                            (formData.vendorTypes[0]?.name.trim().length > 0 && 
-                             formData.vendorTypes[0]?.maxVendors.length > 0);
+                            (formData.vendorTypes.length > 0 && 
+                             formData.vendorTypes.every(vt => 
+                               vt.name.trim().length > 0 && 
+                               vt.maxVendors && 
+                               !isNaN(Number(vt.maxVendors)) && 
+                               Number(vt.maxVendors) > 0 &&
+                               (vt.fee === '' || (vt.fee && !isNaN(Number(vt.fee)) && Number(vt.fee) >= 0))
+                             ));
         
         return ticketsValid && vendorsValid;
+        
       case 3: // Publish
-        return formData.title.length > 0; // At least the title should be set
+        return formData.title.trim().length > 0; // At least the title should be set
+        
       default:
         return false;
     }
   };
   
-  // Check if all required fields for publishing are completed
+  // Helper function to validate URLs
+  const isValidUrl = (urlString: string): boolean => {
+    try {
+      const url = new URL(urlString);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch (err) {
+      return false;
+    }
+  };
+  
+  // Check if all required fields for publishing are completed with improved validation
   const isPublishComplete = (): boolean => {
     // Basic required fields
-    if (!formData.title.trim() || !formData.description.trim() || 
-        !formData.date || !formData.startTime || !formData.endTime || 
-        !imagePreview || !formData.tickets.length) {
-      return false;
-    }
+    if (!formData.title.trim() || formData.title.trim().length < 3) return false;
+    if (!formData.description.trim() || formData.description.trim().length < 10) return false;
+    if (!formData.category) return false;
+    if (!formData.date) return false;
+    if (!formData.startTime) return false;
+    if (!formData.endTime) return false;
     
-    // For physical events
-    if (formData.locationType === 'physical' && (!formData.location.trim() || !formData.capacity)) {
-      return false;
-    }
+    // Validate that end time is after start time
+    const startDate = new Date(`${formData.date}T${formData.startTime}`);
+    const endDate = new Date(`${formData.date}T${formData.endTime}`);
+    if (endDate <= startDate) return false;
     
-    // For online events
-    if (formData.locationType === 'online' && !formData.website.trim()) {
-      return false;
-    }
+    // Image is required for publish
+    if (!imagePreview) return false;
     
     // Check tickets
-    if (!formData.tickets.every(ticket => ticket.name.trim() && ticket.quantity)) {
-      return false;
+    if (!formData.tickets.length || !formData.tickets.every(ticket => 
+      ticket.name.trim().length > 0 && 
+      ticket.quantity && 
+      !isNaN(Number(ticket.quantity)) && 
+      Number(ticket.quantity) > 0 &&
+      (ticket.isFree || (ticket.price && !isNaN(Number(ticket.price)) && Number(ticket.price) >= 0))
+    )) return false;
+    
+    // Validate location based on type
+    if (formData.locationType === 'physical') {
+      if (!formData.location.trim()) return false;
+      if (!formData.capacity || isNaN(Number(formData.capacity)) || Number(formData.capacity) <= 0) return false;
+    } else if (formData.locationType === 'online') {
+      if (!formData.website.trim() || !isValidUrl(formData.website)) return false;
     }
     
     // If vendors are allowed, check required vendor fields
-    if (formData.allowVendors && (!formData.stallType.trim() || !formData.maxVendors)) {
-      return false;
+    if (formData.allowVendors) {
+      if (!formData.vendorTypes.length || !formData.vendorTypes.every(vt => 
+        vt.name.trim().length > 0 && 
+        vt.maxVendors && 
+        !isNaN(Number(vt.maxVendors)) && 
+        Number(vt.maxVendors) > 0 &&
+        (vt.fee === '' || (vt.fee && !isNaN(Number(vt.fee)) && Number(vt.fee) >= 0))
+      )) return false;
+      
+      // Vendor deadline should be before event date if provided
+      if (formData.vendorDeadline) {
+        const vendorDeadline = new Date(formData.vendorDeadline);
+        const eventDate = new Date(formData.date);
+        if (vendorDeadline >= eventDate) return false;
+      }
     }
     
     return true;
   };
   
-  // Function to validate and navigate to missing field
+  // Function to validate and navigate to missing field with improved validation
   const validateAndPublish = () => {
-    if (!formData.title.trim()) {
+    // Validate event basics
+    if (!formData.title.trim() || formData.title.trim().length < 3) {
       setCurrentStep(1);
       toast({
         title: "Validation Error",
-        description: "Please add a title for your event",
+        description: "Please add a title for your event (at least 3 characters)",
         variant: "destructive",
       });
       return;
     }
     
-    if (!formData.description.trim()) {
+    if (!formData.description.trim() || formData.description.trim().length < 10) {
       setCurrentStep(1);
       toast({
         title: "Validation Error",
-        description: "Please add a description for your event",
+        description: "Please add a description for your event (at least 10 characters)",
         variant: "destructive",
       });
       return;
     }
     
-    if (!formData.date || !formData.startTime || !formData.endTime) {
+    if (!formData.category) {
       setCurrentStep(1);
       toast({
         title: "Validation Error",
-        description: "Please add a date and time for your event",
+        description: "Please select a category for your event",
         variant: "destructive",
       });
       return;
     }
     
-    if (formData.locationType === 'physical' && (!formData.location.trim() || !formData.capacity)) {
+    // Validate date and time
+    if (!formData.date) {
       setCurrentStep(1);
       toast({
         title: "Validation Error",
-        description: "Please add a location and capacity for your event",
+        description: "Please add a date for your event",
         variant: "destructive",
       });
       return;
     }
     
-    if (formData.locationType === 'online' && !formData.website.trim()) {
+    if (!formData.startTime) {
       setCurrentStep(1);
       toast({
         title: "Validation Error",
-        description: "Please add an online event platform URL",
+        description: "Please add a start time for your event",
         variant: "destructive",
       });
       return;
     }
     
+    if (!formData.endTime) {
+      setCurrentStep(1);
+      toast({
+        title: "Validation Error",
+        description: "Please add an end time for your event",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Validate that end time is after start time
+    const startDate = new Date(`${formData.date}T${formData.startTime}`);
+    const endDate = new Date(`${formData.date}T${formData.endTime}`);
+    if (endDate <= startDate) {
+      setCurrentStep(1);
+      toast({
+        title: "Validation Error",
+        description: "End time must be after start time",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Validate location based on type
+    if (formData.locationType === 'physical') {
+      if (!formData.location.trim()) {
+        setCurrentStep(1);
+        toast({
+          title: "Validation Error",
+          description: "Please add a location for your event",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (!formData.capacity || isNaN(Number(formData.capacity)) || Number(formData.capacity) <= 0) {
+        setCurrentStep(1);
+        toast({
+          title: "Validation Error",
+          description: "Please add a valid capacity for your event",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else if (formData.locationType === 'online') {
+      if (!formData.website.trim() || !isValidUrl(formData.website)) {
+        setCurrentStep(1);
+        toast({
+          title: "Validation Error",
+          description: "Please add a valid online event platform URL",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    
+    // Image is required for publish
     if (!imagePreview) {
       setCurrentStep(1);
       toast({
@@ -607,25 +753,55 @@ const CreateEvent = () => {
       return;
     }
     
-    if (!formData.tickets.length || !formData.tickets.every(ticket => ticket.name.trim() && ticket.quantity)) {
+    // Check tickets
+    if (!formData.tickets.length || !formData.tickets.every(ticket => 
+      ticket.name.trim().length > 0 && 
+      ticket.quantity && 
+      !isNaN(Number(ticket.quantity)) && 
+      Number(ticket.quantity) > 0 &&
+      (ticket.isFree || (ticket.price && !isNaN(Number(ticket.price)) && Number(ticket.price) >= 0))
+    )) {
       setCurrentStep(2);
       toast({
         title: "Validation Error",
-        description: "Please add at least one ticket type with a name and quantity",
+        description: "Please add at least one ticket type with a name and valid quantity",
         variant: "destructive",
       });
       return;
     }
     
     // If vendors are allowed, validate vendor fields
-    if (formData.allowVendors && (!formData.vendorTypes[0]?.name.trim() || !formData.vendorTypes[0]?.maxVendors)) {
-      setCurrentStep(2);
-      toast({
-        title: "Validation Error",
-        description: "Please specify stall type and max vendors when allowing vendors",
-        variant: "destructive",
-      });
-      return;
+    if (formData.allowVendors) {
+      if (!formData.vendorTypes.length || !formData.vendorTypes.every(vt => 
+        vt.name.trim().length > 0 && 
+        vt.maxVendors && 
+        !isNaN(Number(vt.maxVendors)) && 
+        Number(vt.maxVendors) > 0 &&
+        (vt.fee === '' || (vt.fee && !isNaN(Number(vt.fee)) && Number(vt.fee) >= 0))
+      )) {
+        setCurrentStep(2);
+        toast({
+          title: "Validation Error",
+          description: "Please specify valid vendor types with names and max vendors",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Vendor deadline should be before event date if provided
+      if (formData.vendorDeadline) {
+        const vendorDeadline = new Date(formData.vendorDeadline);
+        const eventDate = new Date(formData.date);
+        if (vendorDeadline >= eventDate) {
+          setCurrentStep(2);
+          toast({
+            title: "Validation Error",
+            description: "Vendor registration deadline must be before the event date",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
     }
     
     // If all validations pass, submit the event
@@ -676,23 +852,27 @@ const CreateEvent = () => {
             {/* Event Image Section */}
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-5">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Event Image</h2>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                  Event Image
+                </h2>
                 <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
                   <Image className="h-3 w-3 mr-1" />
                   <span>Required for publish</span>
                 </div>
               </div>
-              
+
               <div className="space-y-3">
-                <div 
+                <div
                   className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3 text-center cursor-pointer hover:border-primary transition-colors"
-                  onClick={() => document.getElementById('image-upload')?.click()}
+                  onClick={() =>
+                    document.getElementById("image-upload")?.click()
+                  }
                 >
                   {imagePreview ? (
                     <div className="relative">
-                      <img 
-                        src={imagePreview} 
-                        alt="Event preview" 
+                      <img
+                        src={imagePreview}
+                        alt="Event preview"
                         className="w-full h-64 object-cover rounded-lg"
                       />
                       <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center rounded-lg opacity-0 hover:opacity-100 transition-opacity">
@@ -715,7 +895,7 @@ const CreateEvent = () => {
                           JPG, GIF, or PNG. 1920x1080 recommended.
                         </p>
                       </div>
-                      <button 
+                      <button
                         type="button"
                         className="mt-4 inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
                       >
@@ -725,7 +905,7 @@ const CreateEvent = () => {
                     </div>
                   )}
                 </div>
-                
+
                 <input
                   type="file"
                   accept="image/*"
@@ -733,20 +913,28 @@ const CreateEvent = () => {
                   id="image-upload"
                   onChange={handleImageChange}
                 />
-                
+
                 <div className="text-sm text-gray-500 dark:text-gray-400">
-                  <p>Make sure your image is at least 2160x1080 pixels to look sharp on high-resolution displays. Max file size: 10MB.</p>
+                  <p>
+                    Make sure your image is at least 2160x1080 pixels to look
+                    sharp on high-resolution displays. Max file size: 10MB.
+                  </p>
                 </div>
               </div>
             </div>
 
             {/* Event Basics Section */}
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3">Event Basics</h2>
-              
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3">
+                Event Basics
+              </h2>
+
               <div className="space-y-3">
                 <div>
-                  <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label
+                    htmlFor="title"
+                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                  >
                     Event Title *
                   </label>
                   <input
@@ -756,16 +944,27 @@ const CreateEvent = () => {
                     value={formData.title}
                     onChange={handleChange}
                     required
+                    aria-required="true"
+                    aria-describedby="title-error"
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
                     placeholder="Give it a title that tells people what it is"
                   />
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Names that include date, location, or ticket type will be rejected
+                    Names that include date, location, or ticket type will be
+                    rejected
                   </p>
+                  {formData.title.length > 0 && formData.title.length < 3 && (
+                    <p id="title-error" className="mt-1 text-xs text-red-500">
+                      Title must be at least 3 characters
+                    </p>
+                  )}
                 </div>
 
                 <div>
-                  <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label
+                    htmlFor="description"
+                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                  >
                     Description *
                   </label>
                   <textarea
@@ -774,6 +973,8 @@ const CreateEvent = () => {
                     value={formData.description}
                     onChange={handleChange}
                     required
+                    aria-required="true"
+                    aria-describedby="description-error"
                     rows={4}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
                     placeholder="Tell people more about your event"
@@ -781,33 +982,70 @@ const CreateEvent = () => {
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     Include highlights and details about your event
                   </p>
+                  {formData.description.length > 0 &&
+                    formData.description.length < 10 && (
+                      <p
+                        id="description-error"
+                        className="mt-1 text-xs text-red-500"
+                      >
+                        Description must be at least 10 characters
+                      </p>
+                    )}
                 </div>
 
                 <div>
-                  <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Category
                   </label>
-                  <div className="relative">
-                    <select
-                      id="category"
-                      name="category"
-                      value={formData.category}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary appearance-none"
-                    >
-                      <option value="">Select a category</option>
-                      <option value="business">Business</option>
-                      <option value="tech">Technology</option>
-                      <option value="music">Music</option>
-                      <option value="art">Art & Culture</option>
-                      <option value="food">Food & Drink</option>
-                      <option value="health">Health & Wellness</option>
-                      <option value="education">Education</option>
-                    </select>
-                    <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { value: "business", label: "Business" },
+                      { value: "tech", label: "Technology" },
+                      { value: "music", label: "Music" },
+                      { value: "art", label: "Art & Culture" },
+                      { value: "food", label: "Food & Drink" },
+                      { value: "health", label: "Health & Wellness" },
+                      { value: "education", label: "Education" },
+                      { value: "sports", label: "Sports" },
+                      { value: "conference", label: "Conference" },
+                      { value: "workshop", label: "Workshop" },
+                      { value: "networking", label: "Networking" },
+                      { value: "charity", label: "Charity" },
+                      { value: "entertainment", label: "Entertainment" },
+                    ].map((category) => (
+                      <button
+                        key={category.value}
+                        type="button"
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            category: category.value,
+                          }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setFormData((prev) => ({
+                              ...prev,
+                              category: category.value,
+                            }));
+                          }
+                        }}
+                        tabIndex={0}
+                        role="radio"
+                        aria-checked={formData.category === category.value}
+                        className={`px-3 py-1.5 text-sm rounded-full ${
+                          formData.category === category.value
+                            ? "bg-primary text-white"
+                            : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600"
+                        }`}
+                      >
+                        {category.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
-                
+
                 {/* Tags Section */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -816,7 +1054,10 @@ const CreateEvent = () => {
                   <div className="relative">
                     <div className="flex flex-wrap gap-2 mb-2">
                       {formData.tags.map((tag, index) => (
-                        <div key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                        <div
+                          key={index}
+                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary"
+                        >
                           {tag}
                           <button
                             type="button"
@@ -828,7 +1069,8 @@ const CreateEvent = () => {
                         </div>
                       ))}
                     </div>
-                    <div className="flex">
+                    <div className="relative flex">
+                      <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
                       <input
                         type="text"
                         value={tagInput}
@@ -851,7 +1093,6 @@ const CreateEvent = () => {
                         Add
                       </button>
                     </div>
-                    <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
                   </div>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     Add relevant tags to help users find your event
@@ -862,30 +1103,55 @@ const CreateEvent = () => {
 
             {/* Date & Time Section */}
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3">Date & Time</h2>
-              
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3">
+                Date & Time
+              </h2>
+
               <div className="space-y-3">
                 <div>
-                  <label htmlFor="date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label
+                    htmlFor="date"
+                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                  >
                     Date *
                   </label>
                   <div className="relative">
-                    <input
-                      type="date"
-                      id="date"
-                      name="date"
-                      value={formData.date}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={"outline"}
+                          className={`w-full justify-start text-left font-normal ${
+                            !formData.date && "text-muted-foreground"
+                          }`}
+                        >
+                          <Calendar className="mr-2 h-4 w-4" />
+                          {formData.date ? new Date(formData.date).toLocaleDateString() : "Pick a date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <ShadcnCalendar
+                          mode="single"
+                          selected={formData.date ? new Date(formData.date) : undefined}
+                          onSelect={(date) => setFormData(prev => ({ ...prev, date: date ? date.toISOString().split('T')[0] : '' }))}
+                          disabled={(date) => date < new Date()}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
+                  {!formData.date && (
+                    <p id="date-error" className="mt-1 text-xs text-red-500">
+                      Please select a date for your event
+                    </p>
+                  )}
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="startTime" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label
+                      htmlFor="startTime"
+                      className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                    >
                       Start Time *
                     </label>
                     <div className="relative">
@@ -896,14 +1162,19 @@ const CreateEvent = () => {
                         value={formData.startTime}
                         onChange={handleChange}
                         required
+                        aria-required="true"
+                        aria-describedby="time-error"
                         className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                       <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
                     </div>
                   </div>
-                  
+
                   <div>
-                    <label htmlFor="endTime" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label
+                      htmlFor="endTime"
+                      className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                    >
                       End Time *
                     </label>
                     <div className="relative">
@@ -914,15 +1185,40 @@ const CreateEvent = () => {
                         value={formData.endTime}
                         onChange={handleChange}
                         required
+                        aria-required="true"
+                        aria-describedby="time-error"
                         className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                       <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
                     </div>
                   </div>
                 </div>
+                {formData.date && formData.startTime && formData.endTime && (
+                  <div className="mt-1">
+                    {(() => {
+                      const startDate = new Date(
+                        `${formData.date}T${formData.startTime}`
+                      );
+                      const endDate = new Date(
+                        `${formData.date}T${formData.endTime}`
+                      );
+                      if (endDate <= startDate) {
+                        return (
+                          <p id="time-error" className="text-xs text-red-500">
+                            End time must be after start time
+                          </p>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                )}
 
                 <div>
-                  <label htmlFor="timezone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label
+                    htmlFor="timezone"
+                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                  >
                     Timezone
                   </label>
                   <div className="relative">
@@ -933,7 +1229,9 @@ const CreateEvent = () => {
                       onChange={handleChange}
                       className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary appearance-none"
                     >
-                      <option value="Africa/Lagos">West Africa Time (WAT)</option>
+                      <option value="Africa/Lagos">
+                        West Africa Time (WAT)
+                      </option>
                       <option value="Africa/Accra">Ghana Time</option>
                       <option value="UTC">UTC</option>
                     </select>
@@ -945,63 +1243,94 @@ const CreateEvent = () => {
 
             {/* Venue Section */}
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3">Venue</h2>
-              
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3">
+                Venue
+              </h2>
+
               <div className="space-y-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, locationType: 'physical' }))}
+                    onClick={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        locationType: "physical",
+                      }))
+                    }
                     className={`py-3 px-3 rounded-lg border ${
-                      formData.locationType === 'physical'
-                        ? 'border-primary ring-2 ring-primary/20 bg-primary/5 dark:bg-primary/10'
-                        : 'border-gray-300 dark:border-gray-600 hover:border-primary'
+                      formData.locationType === "physical"
+                        ? "border-primary ring-2 ring-primary/20 bg-primary/5 dark:bg-primary/10"
+                        : "border-gray-300 dark:border-gray-600 hover:border-primary"
                     }`}
                   >
                     <div className="flex flex-col items-center">
-                      <MapPin className={`h-5 w-5 mb-1 ${
-                        formData.locationType === 'physical' 
-                          ? 'text-primary' 
-                          : 'text-gray-500'
-                      }`} />
-                      <span className={`font-medium text-sm ${
-                        formData.locationType === 'physical' 
-                          ? 'text-primary' 
-                          : 'text-gray-700 dark:text-gray-300'
-                      }`}>Physical venue</span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">In-person event</span>
+                      <MapPin
+                        className={`h-5 w-5 mb-1 ${
+                          formData.locationType === "physical"
+                            ? "text-primary"
+                            : "text-gray-500"
+                        }`}
+                      />
+                      <span
+                        className={`font-medium text-sm ${
+                          formData.locationType === "physical"
+                            ? "text-primary"
+                            : "text-gray-700 dark:text-gray-300"
+                        }`}
+                      >
+                        Physical venue
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        In-person event
+                      </span>
                     </div>
                   </button>
-                  
+
                   <button
                     type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, locationType: 'online' }))}
+                    onClick={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        locationType: "online",
+                      }))
+                    }
                     className={`py-3 px-3 rounded-lg border ${
-                      formData.locationType === 'online'
-                        ? 'border-primary ring-2 ring-primary/20 bg-primary/5 dark:bg-primary/10'
-                        : 'border-gray-300 dark:border-gray-600 hover:border-primary'
+                      formData.locationType === "online"
+                        ? "border-primary ring-2 ring-primary/20 bg-primary/5 dark:bg-primary/10"
+                        : "border-gray-300 dark:border-gray-600 hover:border-primary"
                     }`}
                   >
                     <div className="flex flex-col items-center">
-                      <LinkIcon className={`h-5 w-5 mb-1 ${
-                        formData.locationType === 'online' 
-                          ? 'text-primary' 
-                          : 'text-gray-500'
-                      }`} />
-                      <span className={`font-medium text-sm ${
-                        formData.locationType === 'online' 
-                          ? 'text-primary' 
-                          : 'text-gray-700 dark:text-gray-300'
-                      }`}>Online event</span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Live online event</span>
+                      <LinkIcon
+                        className={`h-5 w-5 mb-1 ${
+                          formData.locationType === "online"
+                            ? "text-primary"
+                            : "text-gray-500"
+                        }`}
+                      />
+                      <span
+                        className={`font-medium text-sm ${
+                          formData.locationType === "online"
+                            ? "text-primary"
+                            : "text-gray-700 dark:text-gray-300"
+                        }`}
+                      >
+                        Online event
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        Live online event
+                      </span>
                     </div>
                   </button>
                 </div>
-                
-                {formData.locationType === 'physical' ? (
+
+                {formData.locationType === "physical" ? (
                   <div className="space-y-3">
                     <div>
-                      <label htmlFor="location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label
+                        htmlFor="location"
+                        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                      >
                         Event Location *
                       </label>
                       <div className="relative">
@@ -1012,15 +1341,28 @@ const CreateEvent = () => {
                           value={formData.location}
                           onChange={handleChange}
                           required
+                          aria-required="true"
+                          aria-describedby="location-error"
                           placeholder="Enter event location"
                           className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                         <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
                       </div>
+                      {!formData.location && (
+                        <p
+                          id="location-error"
+                          className="mt-1 text-xs text-red-500"
+                        >
+                          Please enter the event location
+                        </p>
+                      )}
                     </div>
-                    
+
                     <div>
-                      <label htmlFor="capacity" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label
+                        htmlFor="capacity"
+                        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                      >
                         Capacity
                       </label>
                       <div className="relative">
@@ -1031,16 +1373,30 @@ const CreateEvent = () => {
                           value={formData.capacity}
                           onChange={handleChange}
                           min="1"
+                          aria-describedby="capacity-error"
                           placeholder="Number of attendees"
                           className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                         <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
                       </div>
+                      {formData.capacity &&
+                        (isNaN(Number(formData.capacity)) ||
+                          Number(formData.capacity) <= 0) && (
+                          <p
+                            id="capacity-error"
+                            className="mt-1 text-xs text-red-500"
+                          >
+                            Please enter a valid capacity (greater than 0)
+                          </p>
+                        )}
                     </div>
                   </div>
                 ) : (
                   <div>
-                    <label htmlFor="onlineUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label
+                      htmlFor="onlineUrl"
+                      className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                    >
                       Online Event Platform *
                     </label>
                     <div className="relative">
@@ -1051,6 +1407,8 @@ const CreateEvent = () => {
                         value={formData.onlineUrl}
                         onChange={handleChange}
                         required
+                        aria-required="true"
+                        aria-describedby="onlineUrl-error"
                         placeholder="https://meet.jit.si/my-event"
                         className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
                       />
@@ -1059,12 +1417,23 @@ const CreateEvent = () => {
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                       Enter the URL where your online event will take place
                     </p>
+                    {formData.onlineUrl && !isValidUrl(formData.onlineUrl) && (
+                      <p
+                        id="onlineUrl-error"
+                        className="mt-1 text-xs text-red-500"
+                      >
+                        Please enter a valid URL (e.g., https://example.com)
+                      </p>
+                    )}
                   </div>
                 )}
-                
+
                 {/* Event Website Field for both venue types */}
                 <div>
-                  <label htmlFor="eventWebsite" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label
+                    htmlFor="eventWebsite"
+                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                  >
                     Event Website (Optional)
                   </label>
                   <div className="relative">
@@ -1083,12 +1452,14 @@ const CreateEvent = () => {
                     Enter your event website if you have one
                   </p>
                 </div>
-                
+
                 {/* Recurring Event Toggle */}
                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-sm font-medium text-gray-900 dark:text-white">Recurring Event</h3>
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                        Recurring Event
+                      </h3>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
                         Make this a recurring event
                       </p>
@@ -1096,14 +1467,22 @@ const CreateEvent = () => {
                     <Switch
                       id="isRecurring"
                       checked={formData.isRecurring}
-                      onCheckedChange={(checked: boolean) => setFormData(prev => ({ ...prev, isRecurring: checked }))}
+                      onCheckedChange={(checked: boolean) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          isRecurring: checked,
+                        }))
+                      }
                     />
                   </div>
-                  
+
                   {formData.isRecurring && (
                     <div className="mt-3 space-y-3">
                       <div>
-                        <label htmlFor="recurrencePattern" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label
+                          htmlFor="recurrencePattern"
+                          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                        >
                           Recurrence Pattern
                         </label>
                         <select
@@ -1119,10 +1498,13 @@ const CreateEvent = () => {
                           <option value="YEARLY">Yearly</option>
                         </select>
                       </div>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
-                          <label htmlFor="recurrenceInterval" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label
+                            htmlFor="recurrenceInterval"
+                            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                          >
                             Interval
                           </label>
                           <input
@@ -1139,19 +1521,36 @@ const CreateEvent = () => {
                             How often to repeat (e.g. every 2 weeks)
                           </p>
                         </div>
-                        
+
                         <div>
-                          <label htmlFor="recurrenceEnd" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label
+                            htmlFor="recurrenceEnd"
+                            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                          >
                             End Date
                           </label>
-                          <input
-                            type="date"
-                            id="recurrenceEnd"
-                            name="recurrenceEnd"
-                            value={formData.recurrenceEnd}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant={"outline"}
+                                className={`w-full justify-start text-left font-normal ${
+                                  !formData.recurrenceEnd && "text-muted-foreground"
+                                }`}
+                              >
+                                <Calendar className="mr-2 h-4 w-4" />
+                                {formData.recurrenceEnd ? new Date(formData.recurrenceEnd).toLocaleDateString() : "Pick a date"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <ShadcnCalendar
+                                mode="single"
+                                selected={formData.recurrenceEnd ? new Date(formData.recurrenceEnd) : undefined}
+                                onSelect={(date) => setFormData(prev => ({ ...prev, recurrenceEnd: date ? date.toISOString().split('T')[0] : '' }))}
+                                disabled={(date) => date < new Date()}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
                           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                             When the recurrence should end
                           </p>
@@ -1376,15 +1775,28 @@ const CreateEvent = () => {
                       </div>
                     </div>
                     <div className="relative">
-                      <input
-                        type="date"
-                        id="vendorDeadline"
-                        name="vendorDeadline"
-                        value={formData.vendorDeadline}
-                        onChange={handleChange}
-                        className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                      <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant={"outline"}
+                            className={`w-full justify-start text-left font-normal ${
+                              !formData.vendorDeadline && "text-muted-foreground"
+                            }`}
+                          >
+                            <Calendar className="mr-2 h-4 w-4" />
+                            {formData.vendorDeadline ? new Date(formData.vendorDeadline).toLocaleDateString() : "Pick a date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <ShadcnCalendar
+                            mode="single"
+                            selected={formData.vendorDeadline ? new Date(formData.vendorDeadline) : undefined}
+                            onSelect={(date) => setFormData(prev => ({ ...prev, vendorDeadline: date ? date.toISOString().split('T')[0] : '' }))}
+                            disabled={(date) => date < new Date()}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </div>
                 </div>
@@ -1514,8 +1926,12 @@ const CreateEvent = () => {
                   {formData.allowVendors && (
                     <div className="mt-4">
                       <h5 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Vendors</h5>
-                      <div className="text-sm text-gray-600 dark:text-gray-300">
-                        {formData.stallType || 'Vendor stalls'} • {formData.stallFee ? `₦${formData.stallFee} fee` : 'Free stalls'} • Up to {formData.maxVendors || 'unlimited'} vendors
+                      <div className="space-y-1">
+                        {formData.vendorTypes.map((vt, index) => (
+                          <div key={index} className="text-sm text-gray-600 dark:text-gray-300">
+                            {vt.name || 'Vendor stall'} • {vt.fee ? `₦${vt.fee} fee` : 'Free stall'} • Up to {vt.maxVendors || 'unlimited'} vendors
+                          </div>
+                        ))}
                       </div>
                       {formData.vendorDeadline && (
                         <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
@@ -1582,9 +1998,9 @@ const CreateEvent = () => {
   };
 
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+      <div className=" bg-gray-50 dark:bg-gray-900 flex flex-col">
         {/* Fixed Header */}
-        <header className="b dark:bg-gray-800 shadow-sm py-4 px-6 z-10 ">
+        {/* <header className="bg-white dark:bg-gray-800 shadow-sm py-4 px-6 z-10 ">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -1595,14 +2011,17 @@ const CreateEvent = () => {
               </p>
             </div>
           </div>
-        </header>
-        <div></div>
-        <div className="flex flex-1 overflow-hidden">
+        </header> */}
+        {/* <div></div> */}
+        <div className="flex flex-1 overflow-hidde">
           {/* Fixed Sidebar */}
-          <div className="w-64 bg-white dark:bg-gray-800 shadow-sm p-4 overflow-y-auto flex-shrink-0 sticky top-16 h-[calc(100vh-4rem)]">
+          <div className="w-64 bg-white dark:bg-gray-800 shadow-sm p-4 overflow-y-auto flex-shrink-0 sticky top-2 h-[calc(100vh-20rem)]">
             <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-              Event Setup
+              Event Setup Create an event
             </h2>
+            <p className="text-xs text-gray-600 dark:text-gray-400">
+              Fill out the information below to create your event.
+            </p>
             <nav className="space-y-1">
               {sidebarItems.map((item) => {
                 const Icon = item.icon;
@@ -1646,9 +2065,9 @@ const CreateEvent = () => {
           </div>
 
           {/* Scrollable Form Content */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-aut p-4">
             <div className="max-w-4xl mx-auto">
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidde">
                 <div className="p-4">
                   <form onSubmit={currentStep === 3 ? handleSubmit : undefined}>
                     {renderStep()}
@@ -1680,30 +2099,65 @@ const CreateEvent = () => {
                             type="button"
                             className="text-sm"
                             onClick={goToNextStep}
-                            disabled={!isStepComplete(currentStep)}
+                            disabled={
+                              !isStepComplete(currentStep) || nextStepLoading
+                            }
                           >
-                            Save and Continue
+                            {nextStepLoading ? (
+                              <>
+                                <Spinner className="mr-2 h-4 w-4" />
+                                Saving...
+                              </>
+                            ) : (
+                              "Save and Continue"
+                            )}
                           </Button>
                         ) : (
+                          // </div>
                           <div className="flex space-x-2">
                             <Button
                               type="button"
                               variant="outline"
                               onClick={() => {
-                                setFormData(prev => ({ ...prev, publishStatus: 'draft' }));
-                                handleSubmit(new Event('submit') as unknown as React.FormEvent);
+                                setSaveDraftLoading(true);
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  publishStatus: "draft",
+                                }));
+                                handleSubmit(
+                                  new Event(
+                                    "submit"
+                                  ) as unknown as React.FormEvent
+                                ).finally(() => {
+                                  setSaveDraftLoading(false);
+                                });
                               }}
                               className="text-sm"
+                              disabled={saveDraftLoading}
                             >
-                              Save as Draft
+                              {saveDraftLoading ? (
+                                <>
+                                  <Spinner className="mr-2 h-4 w-4" />
+                                  Saving...
+                                </>
+                              ) : (
+                                "Save as Draft"
+                              )}
                             </Button>
                             <Button
                               type="button"
                               className="text-sm"
                               onClick={validateAndPublish}
-                              disabled={!isPublishComplete()}
+                              disabled={!isPublishComplete() || publishLoading}
                             >
-                              Publish
+                              {publishLoading ? (
+                                <>
+                                  <Spinner className="mr-2 h-4 w-4" />
+                                  Publishing...
+                                </>
+                              ) : (
+                                "Publish"
+                              )}
                             </Button>
                           </div>
                         )}
@@ -1715,9 +2169,9 @@ const CreateEvent = () => {
             </div>
           </div>
         </div>
-        
+
         {/* Toast viewport */}
-        <ToastViewport toasts={toasts} dismiss={dismiss} />
+        {/* <ToastViewport toasts={toasts} dismiss={dismiss} /> */}
       </div>
     );
 };

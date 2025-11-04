@@ -152,11 +152,7 @@ const Sidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = ({
           <p className="text-xs text-gray-500 dark:text-gray-400">
             © {new Date().getFullYear()} Eventify. All rights reserved.
           </p>
-          {user && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Role: {user.role}
-            </p>
-          )}
+          
         </div>
       </div>
     </>

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Calendar, MapPin, Users, Filter, Search } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Calendar, MapPin, Users, Filter, Search, X, ArrowRight } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { motion, AnimatePresence } from 'framer-motion';
+import EventCard from '../components/EventCard';
 
 // Mock data for events
 const mockEvents = [
@@ -68,9 +70,10 @@ const mockEvents = [
 ];
 
 const EventsPage = () => {
+  const [searchParams] = useSearchParams();
   const [events, setEvents] = useState(mockEvents);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+  const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || 'all');
   const [showFilters, setShowFilters] = useState(false);
   
   // Extract unique categories
@@ -94,36 +97,73 @@ const EventsPage = () => {
     setEvents(filtered);
   }, [searchTerm, selectedCategory]);
 
+  // Update URL when search term or category changes
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (searchTerm) {
+      params.set('search', searchTerm);
+    } else {
+      params.delete('search');
+    }
+    if (selectedCategory !== 'all') {
+      params.set('category', selectedCategory);
+    } else {
+      params.delete('category');
+    }
+    
+    // Update the URL without causing a page reload
+    const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
+    window.history.replaceState({}, '', newUrl);
+  }, [searchTerm, selectedCategory]);
+
   return (
-    <div className="min-h-screen py-8">
+    <div className="min-h-screen py-8 bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4">
         {/* Page header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Upcoming Events</h1>
-          <p className="text-gray-600 dark:text-gray-300">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="mb-8"
+        >
+          <h1 className="text-4xl md:text-5xl font-bold mb-3">Upcoming Events</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-300">
             Discover and book tickets for events happening near you
           </p>
-        </div>
+        </motion.div>
 
         {/* Search and filters */}
-        <div className="mb-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="mb-8"
+        >
           <div className="flex flex-col md:flex-row gap-4 items-center">
             {/* Search bar */}
             <div className="relative flex-grow max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <input
                 type="text"
                 placeholder="Search events or locations..."
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full pl-11 pr-10 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
             
             {/* Filter toggle for mobile */}
             <Button
               variant="outline"
-              className="md:hidden flex items-center"
+              className="md:hidden flex items-center shadow-sm"
               onClick={() => setShowFilters(!showFilters)}
             >
               <Filter className="h-4 w-4 mr-2" />
@@ -132,83 +172,83 @@ const EventsPage = () => {
           </div>
           
           {/* Category filters - hidden on mobile unless toggled */}
-          <div className={`mt-4 md:mt-6 ${showFilters ? 'block' : 'hidden md:block'}`}>
-            <div className="flex flex-wrap gap-2">
-              {categories.map(category => (
-                <button
-                  key={category}
-                  className={`px-4 py-2 rounded-full text-sm font-medium ${
-                    selectedCategory === category
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                  onClick={() => setSelectedCategory(category)}
-                >
-                  {category.charAt(0).toUpperCase() + category.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+          <AnimatePresence>
+            {(showFilters || window.innerWidth >= 768) && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-6 overflow-hidden"
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <Filter className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter by category:</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map(category => (
+                    <motion.button
+                      key={category}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all shadow-sm ${
+                        selectedCategory === category
+                          ? 'bg-primary text-primary-foreground shadow-md'
+                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
+                      }`}
+                      onClick={() => setSelectedCategory(category)}
+                    >
+                      {category.charAt(0).toUpperCase() + category.slice(1)}
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
 
         {/* Events grid */}
         {events.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {events.map(event => (
-              <div key={event.id} className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow">
-                <img 
-                  src={event.image} 
-                  alt={event.title} 
-                  className="w-full h-48 object-cover"
-                />
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="text-xl font-bold">{event.title}</h3>
-                    <span className="bg-primary/10 text-primary text-sm font-medium px-2 py-1 rounded">
-                      ₦{event.price.toLocaleString()}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center text-gray-600 dark:text-gray-300 mb-2">
-                    <Calendar className="h-4 w-4 mr-2" />
-                    <span>{new Date(event.date).toLocaleDateString()}</span>
-                  </div>
-                  
-                  <div className="flex items-center text-gray-600 dark:text-gray-300 mb-2">
-                    <MapPin className="h-4 w-4 mr-2" />
-                    <span>{event.location}</span>
-                  </div>
-                  
-                  <div className="flex items-center text-gray-600 dark:text-gray-300 mb-4">
-                    <Users className="h-4 w-4 mr-2" />
-                    <span>{event.ticketsAvailable} tickets left</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <span className="inline-block bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-xs px-2 py-1 rounded">
-                      {event.category}
-                    </span>
-                    <Link to={`/events/${event.id}`}>
-                      <Button>View Details</Button>
-                    </Link>
-                  </div>
-                </div>
-              </div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          >
+            {events.map((event, index) => (
+              <EventCard
+                key={event.id}
+                event={event}
+                showPrice={true}
+                showTicketsAvailable={true}
+              />
             ))}
-          </div>
+          </motion.div>
         ) : (
-          <div className="text-center py-12">
-            <h3 className="text-xl font-medium mb-2">No events found</h3>
-            <p className="text-gray-600 dark:text-gray-300 mb-4">
-              Try adjusting your search or filter criteria
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="text-center py-20 bg-white dark:bg-gray-800 rounded-2xl shadow-lg"
+          >
+            <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Search className="h-10 w-10 text-gray-400" />
+            </div>
+            <h3 className="text-2xl font-bold mb-2">No events found</h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-6 max-w-md mx-auto">
+              We couldn't find any events matching your criteria. Try adjusting your search or filters.
             </p>
-            <Button onClick={() => {
-              setSearchTerm('');
-              setSelectedCategory('all');
-            }}>
-              Clear Filters
+            <Button
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedCategory('all');
+                // Clear URL parameters
+                window.history.replaceState({}, '', window.location.pathname);
+              }}
+              size="lg"
+            >
+              Clear All Filters
             </Button>
-          </div>
+          </motion.div>
         )}
       </div>
     </div>

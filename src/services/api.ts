@@ -190,14 +190,22 @@ export const api = {
   vendors: {
     register: (vendorData: {
       eventId: number;
+      vendorId: number;
+      vendorTypeId?: number;
+      vendorType?: string;
+      paymentAmount?: number;
+    }) => apiRequest<any>('POST', '/vendors/register', vendorData),
+    
+    create: (vendorData: {
       businessName: string;
       description: string;
       contactEmail: string;
       contactPhone: string;
-      paymentAmount?: number;
-    }) => apiRequest<any>('POST', '/vendors/register', vendorData),
+      website?: string;
+      category?: string;
+    }) => apiRequest<any>('POST', '/vendors/profiles', vendorData),
     
-    getAll: () => apiRequest<any[]>('GET', '/vendors'),
+    getAll: () => apiRequest<any[]>('GET', '/user-roles/my-vendor-applications'), // Changed to get user's vendor applications
     
     getById: (id: number) => apiRequest<any>('GET', `/vendors/${id}`),
     
@@ -207,6 +215,25 @@ export const api = {
     }) => apiRequest<any>('PUT', `/vendors/${id}`, statusData),
     
     delete: (id: number) => apiRequest<any>('DELETE', `/vendors/${id}`),
+  },
+
+  // Vendor type endpoints
+  vendorTypes: {
+    getAllForEvent: (eventId: number) => apiRequest<any[]>('GET', `/vendor-types/event/${eventId}`),
+    
+    create: (eventId: number, vendorTypeData: {
+      name: string;
+      fee?: number;
+      maxVendors?: number;
+    }) => apiRequest<any>('POST', `/vendor-types/event/${eventId}`, vendorTypeData),
+    
+    update: (id: number, vendorTypeData: {
+      name?: string;
+      fee?: number;
+      maxVendors?: number;
+    }) => apiRequest<any>('PUT', `/vendor-types/${id}`, vendorTypeData),
+    
+    delete: (id: number) => apiRequest<any>('DELETE', `/vendor-types/${id}`),
   },
 };
 

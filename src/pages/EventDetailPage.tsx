@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, Clock, Users, Ticket, Share2, Heart, CheckCircle, Store, User, Mail, Building } from 'lucide-react';
+import { Calendar, MapPin, Clock, Users, Ticket, Share2, Heart, CheckCircle, Store, User, Mail, Building, ArrowLeft } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import QRCode from 'qrcode.react';
+import { motion } from 'framer-motion';
 
 // Mock event data
 const mockEvent = {
@@ -120,61 +121,115 @@ const EventDetailPage = () => {
   };
 
   return (
-    <div className="min-h-screen py-8">
+    <div className="min-h-screen py-8 bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4">
+        {/* Back Button */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4 }}
+          className="mb-6"
+        >
+          <Button
+            variant="ghost"
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 hover:gap-3 transition-all"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Events
+          </Button>
+        </motion.div>
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Main content */}
-          <div className="lg:w-2/3">
-            <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-lg">
-              <img 
-                src={event.image} 
-                alt={event.title} 
-                className="w-full h-64 md:h-96 object-cover"
-              />
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="lg:w-2/3"
+          >
+            <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-xl">
+              <div className="relative">
+                <img
+                  src={event.image}
+                  alt={event.title}
+                  className="w-full h-64 md:h-96 object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+              </div>
               
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <h1 className="text-3xl font-bold">{event.title}</h1>
+              <div className="p-6 md:p-8">
+                <div className="flex justify-between items-start mb-6">
+                  <div className="flex-1">
+                    <h1 className="text-3xl md:text-4xl font-bold mb-3">{event.title}</h1>
+                    <span className="inline-block px-4 py-1.5 bg-primary/10 text-primary rounded-full text-sm font-medium">
+                      {event.category}
+                    </span>
+                  </div>
                   <div className="flex space-x-2">
-                    <Button variant="outline" size="icon">
-                      <Heart className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="icon">
-                      <Share2 className="h-4 w-4" />
-                    </Button>
+                    <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                      <Button variant="outline" size="icon" className="rounded-full">
+                        <Heart className="h-4 w-4" />
+                      </Button>
+                    </motion.div>
+                    <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                      <Button variant="outline" size="icon" className="rounded-full">
+                        <Share2 className="h-4 w-4" />
+                      </Button>
+                    </motion.div>
                   </div>
                 </div>
                 
-                <div className="flex flex-wrap gap-4 mb-6">
-                  <div className="flex items-center">
-                    <Calendar className="h-5 w-5 mr-2 text-primary" />
-                    <span>{formatDate(event.date)}</span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 p-6 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <Calendar className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Date</div>
+                      <div className="font-medium">{formatDate(event.date)}</div>
+                    </div>
                   </div>
-                  <div className="flex items-center">
-                    <Clock className="h-5 w-5 mr-2 text-primary" />
-                    <span>{event.startTime} - {event.endTime}</span>
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <Clock className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Time</div>
+                      <div className="font-medium">{event.startTime} - {event.endTime}</div>
+                    </div>
                   </div>
-                  <div className="flex items-center">
-                    <MapPin className="h-5 w-5 mr-2 text-primary" />
-                    <span>{event.location}</span>
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <MapPin className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Location</div>
+                      <div className="font-medium">{event.location}</div>
+                    </div>
                   </div>
                 </div>
                 
                 <div className="prose dark:prose-invert max-w-none mb-8">
-                  <h2 className="text-xl font-semibold mb-3">About this event</h2>
-                  <p className="text-gray-700 dark:text-gray-300">
+                  <h2 className="text-2xl font-bold mb-4">About this event</h2>
+                  <p className="leading-relaxed text-gray-700 dark:text-gray-300 text-lg">
                     {event.description}
                   </p>
                   
-                  <h3 className="text-lg font-semibold mt-6 mb-3">What's Included</h3>
-                  <ul className="space-y-2">
+                  <h3 className="text-xl font-bold mt-8 mb-4">What's Included</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {event.amenities.map((amenity, index) => (
-                      <li key={index} className="flex items-center">
-                        <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
-                        <span>{amenity}</span>
-                      </li>
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.4, delay: index * 0.1 }}
+                        className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg"
+                      >
+                        <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                        <span className="font-medium">{amenity}</span>
+                      </motion.div>
                     ))}
-                  </ul>
+                  </div>
                 </div>
                 
                 {/* Vendor Applications Section */}
@@ -244,38 +299,53 @@ const EventDetailPage = () => {
                 )}
               </div>
             </div>
-          </div>
+          </motion.div>
           
           {/* Sidebar */}
-          <div className="lg:w-1/3">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 sticky top-24">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold">₦{event.price.toLocaleString()}</h2>
-                <span className="bg-primary/10 text-primary text-sm font-medium px-2 py-1 rounded">
-                  {event.ticketsAvailable} tickets left
-                </span>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="lg:w-1/3"
+          >
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 md:p-8 sticky top-24">
+              <div className="mb-6">
+                <div className="flex items-baseline gap-2 mb-2">
+                  <h2 className="text-3xl font-bold">₦{event.price.toLocaleString()}</h2>
+                  <span className="text-gray-500 dark:text-gray-400">/ ticket</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div 
+                      className="bg-primary h-2 rounded-full transition-all"
+                      style={{ width: `${(event.ticketsAvailable / 300) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-sm font-medium text-primary">
+                    {event.ticketsAvailable} left
+                  </span>
+                </div>
               </div>
-              
-              <p className="text-gray-600 dark:text-gray-300 mb-6">
-                Includes access to all conference sessions, lunch, and networking events.
-              </p>
+
               
               {/* Ticket selection */}
               <div className="mb-6">
-                <h3 className="font-semibold mb-3">Select Ticket Type</h3>
+                <h3 className="font-bold text-lg mb-4">Select Ticket Type</h3>
                 <div className="space-y-3">
                   {event.ticketTypes.map(ticket => (
-                    <label 
+                    <motion.label 
                       key={ticket.id}
-                      className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer ${
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className={`flex items-center justify-between p-4 border-2 rounded-xl cursor-pointer transition-all ${
                         selectedTicket === ticket.id 
-                          ? 'border-primary bg-primary/5' 
-                          : 'border-gray-200 dark:border-gray-700 hover:border-primary'
+                          ? 'border-primary bg-primary/5 shadow-md' 
+                          : 'border-gray-200 dark:border-gray-700 hover:border-primary/50'
                       }`}
                     >
-                      <div>
-                        <div className="font-medium">{ticket.name}</div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                      <div className="flex-1">
+                        <div className="font-semibold text-lg">{ticket.name}</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                           ₦{ticket.price.toLocaleString()}
                         </div>
                       </div>
@@ -285,20 +355,20 @@ const EventDetailPage = () => {
                         value={ticket.id}
                         checked={selectedTicket === ticket.id}
                         onChange={() => setSelectedTicket(ticket.id)}
-                        className="h-4 w-4 text-primary focus:ring-primary"
+                        className="h-5 w-5 text-primary focus:ring-primary"
                       />
-                    </label>
+                    </motion.label>
                   ))}
                 </div>
               </div>
               
               <div className="mb-6">
-                <label className="block font-medium mb-2">Quantity</label>
-                <div className="flex items-center">
+                <label className="block font-bold text-lg mb-3">Quantity</label>
+                <div className="flex items-center justify-center gap-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                   <Button
                     variant="outline"
                     size="icon"
-                    className="h-9 w-9 rounded-r-none"
+                    className="h-12 w-12 rounded-full"
                     onClick={() => setTicketQuantity(q => Math.max(1, q - 1))}
                   >
                     -
@@ -309,12 +379,12 @@ const EventDetailPage = () => {
                     max="10"
                     value={ticketQuantity}
                     onChange={(e) => setTicketQuantity(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
-                    className="h-9 w-16 border-y text-center [-moz-appearance:_textfield] [&::-webkit-outer-spin-button]:m-0 [&::-webkit-inner-spin-button]:m-0"
+                    className="h-12 w-20 text-center text-xl font-bold bg-transparent border-0 focus:outline-none [-moz-appearance:_textfield] [&::-webkit-outer-spin-button]:m-0 [&::-webkit-inner-spin-button]:m-0"
                   />
                   <Button
                     variant="outline"
                     size="icon"
-                    className="h-9 w-9 rounded-l-none"
+                    className="h-12 w-12 rounded-full"
                     onClick={() => setTicketQuantity(q => Math.min(10, q + 1))}
                   >
                     +
@@ -322,36 +392,38 @@ const EventDetailPage = () => {
                 </div>
               </div>
               
-              <Button 
-                className="w-full mb-4" 
-                size="lg"
-                onClick={handlePurchaseTicket}
-              >
-                <Ticket className="h-5 w-5 mr-2" />
-                Purchase Ticket
-              </Button>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button 
+                  className="w-full mb-4 h-14 text-lg font-semibold shadow-lg" 
+                  size="lg"
+                  onClick={handlePurchaseTicket}
+                >
+                  <Ticket className="h-5 w-5 mr-2" />
+                  Purchase Ticket
+                </Button>
+              </motion.div>
               
-              <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                You agree to the Terms of Service and Privacy Policy.
+              <p className="text-xs text-gray-500 dark:text-gray-400 text-center leading-relaxed">
+                🔒 Secure checkout • You agree to the Terms of Service and Privacy Policy.
               </p>
             </div>
             
             {/* Organizer info */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mt-6">
-              <h3 className="font-semibold mb-3">Organized by</h3>
-              <div className="flex items-center">
-                <div className="bg-gray-200 dark:bg-gray-700 rounded-full w-12 h-12 flex items-center justify-center mr-3">
-                  <span className="font-bold">{event.organizer.name.charAt(0)}</span>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 mt-6">
+              <h3 className="font-bold text-lg mb-4">Organized by</h3>
+              <div className="flex items-center gap-4">
+                <div className="bg-gradient-to-br from-primary to-primary/80 rounded-full w-14 h-14 flex items-center justify-center flex-shrink-0">
+                  <span className="font-bold text-white text-xl">{event.organizer.name.charAt(0)}</span>
                 </div>
-                <div>
-                  <div className="font-medium">{event.organizer.name}</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    Contact: {event.organizer.email}
+                <div className="flex-1">
+                  <div className="font-semibold text-lg">{event.organizer.name}</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    {event.organizer.email}
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
         
         {/* Vendor Application Modal */}

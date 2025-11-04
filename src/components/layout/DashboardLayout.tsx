@@ -12,7 +12,7 @@ const DashboardLayout: React.FC = () => {
   };
 
   return (
-    <>
+    <div className='max-h-screen overflow-hidden'>
       <Header/>
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
       {/* Mobile menu button */}
@@ -34,14 +34,14 @@ const DashboardLayout: React.FC = () => {
       
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden md:ml-0">
-        <main className="flex-1 overflow-y-auto p-4 md:p-5">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 overflow-y-auto p-2 md:p-3">
+          <div className="max-w-7x mx-auto">
             <Outlet />
           </div>
         </main>
       </div>
     </div>
-    </>
+    </div>
   );
 };
 

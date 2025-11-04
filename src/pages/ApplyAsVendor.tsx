@@ -3,19 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import { User, Building, FileText, Phone, CheckCircle, Mail } from 'lucide-react';
-
-// Mock event data (in a real app, this would come from an API)
-const mockEvent = {
-  id: 1,
-  title: "Tech Conference 2023",
-  date: "2023-12-15",
-  location: "Lagos, Nigeria",
-  allowVendors: true,
-  maxVendors: 50,
-  vendorDeadline: "2023-12-01",
-  stallType: "Tech Products",
-  stallFee: 50000,
-};
+import { api } from '../services/api';
 
 const ApplyAsVendor = () => {
   const { eventId } = useParams<{ eventId: string }>();
@@ -27,57 +15,40 @@ const ApplyAsVendor = () => {
   const [description, setDescription] = useState('');
   const [contactEmail, setContactEmail] = useState(user?.email || '');
   const [contactPhone, setContactPhone] = useState(user?.phone || '');
+  const [vendorTypes, setVendorTypes] = useState<{id: number, name: string, fee: number}[]>([]);
+  const [selectedVendorType, setSelectedVendorType] = useState<number | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
-  // Set payment amount based on event stall fee
+  // Fetch event details and vendor types
   useEffect(() => {
-    if (mockEvent.stallFee) {
-      setPaymentAmount(mockEvent.stallFee);
-    }
-  }, []);
+    const fetchEventData = async () => {
+      try {
+        const eventResponse = await api.events.getById(Number(eventId));
+        const event = eventResponse.data;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    try {
-      const response = await fetch('/api/vendors/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          eventId: parseInt(eventId as string),
-          name,
-          businessName,
-          description,
-          contactEmail,
-          contactPhone,
-          paymentAmount
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess(true);
-        setTimeout(() => {
-          navigate(`/events/${eventId}`);
-        }, 2000);
-      } else {
-        setError(data.message || 'Error submitting vendor application');
+        if (event.vendorTypes && event.vendorTypes.length > 0) {
+          setVendorTypes(event.vendorTypes);
+          // Set the first vendor type as default selection
+          if (event.vendorTypes.length > 0) {
+            setSelectedVendorType(event.vendorTypes[0].id);
+            setPaymentAmount(event.vendorTypes[0].fee);
+          }
+        } else {
+          setError('No vendor types available for this event');
+        }
+      } catch (err) {
+        setError('Failed to load event data. Please try again later.');
+        console.error('Error fetching event data:', err);
       }
-    } catch (err) {
-      setError('Network error. Please try again.');
-    } finally {
-      setLoading(false);
+    };
+
+    if (eventId) {
+      fetchEventData();
     }
-  };
+  }, [eventId]);
 
   if (success) {
     return (
@@ -99,6 +70,50 @@ const ApplyAsVendor = () => {
     );
   }
 
+  // Submit vendor application
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      // First, get the user's vendor profiles
+      const vendorProfilesResponse = await api.vendors.getAll();
+      let vendorId = null;
+
+      if (vendorProfilesResponse.data.length > 0) {
+        // If user already has a vendor profile, use the first one
+        vendorId = vendorProfilesResponse.data[0].id;
+      } else {
+        // If user doesn't have a vendor profile, create one
+        const newVendorResponse = await api.vendors.create({
+          businessName,
+          description,
+          contactEmail,
+          contactPhone
+        });
+        vendorId = newVendorResponse.data.vendor.id;
+      }
+
+      // Submit the vendor application with the selected vendor type
+      const response = await api.vendors.register({
+        eventId: Number(eventId),
+        vendorId,
+        vendorTypeId: selectedVendorType,
+        paymentAmount
+      });
+
+      setSuccess(true);
+      setTimeout(() => {
+        navigate(`/events/${eventId}`);
+      }, 2000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Error submitting vendor application');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen py-8">
       <div className="container mx-auto px-4 max-w-3xl">
@@ -112,23 +127,6 @@ const ApplyAsVendor = () => {
             ← Back
           </Button>
           <h1 className="text-2xl font-bold">Apply as Vendor</h1>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-2">{mockEvent.title}</h2>
-          <div className="flex flex-wrap gap-4 text-sm text-gray-600 dark:text-gray-300">
-            <div className="flex items-center">
-              <span>📅 {new Date(mockEvent.date).toLocaleDateString()}</span>
-            </div>
-            <div className="flex items-center">
-              <span>📍 {mockEvent.location}</span>
-            </div>
-            {mockEvent.stallFee && (
-              <div className="flex items-center">
-                <span>💰 ₦{mockEvent.stallFee.toLocaleString()}</span>
-            </div>
-            )}
-          </div>
         </div>
 
         {error && (
@@ -223,17 +221,49 @@ const ApplyAsVendor = () => {
               </div>
             </div>
 
-            {mockEvent.stallFee && (
+            {/* Vendor Type Selection */}
+            {vendorTypes.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Vendor Type
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {vendorTypes.map((vt) => (
+                    <div 
+                      key={vt.id}
+                      className={`border rounded-lg p-3 cursor-pointer transition-colors ${
+                        selectedVendorType === vt.id 
+                          ? 'border-primary bg-primary/10' 
+                          : 'border-gray-300 dark:border-gray-600 hover:border-primary'
+                      }`}
+                      onClick={() => {
+                        setSelectedVendorType(vt.id);
+                        setPaymentAmount(vt.fee);
+                      }}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">{vt.name}</span>
+                        <span className="text-sm">
+                          {vt.fee ? `₦${vt.fee.toLocaleString()}` : 'Free'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedVendorType && paymentAmount && (
               <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg border border-yellow-200 dark:border-yellow-800">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h3 className="font-medium">Stall Fee</h3>
+                    <h3 className="font-medium">Application Fee</h3>
                     <p className="text-sm text-gray-600 dark:text-gray-300">
                       Payment required for vendor application
                     </p>
                   </div>
                   <div className="text-lg font-bold">
-                    ₦{mockEvent.stallFee.toLocaleString()}
+                    ₦{paymentAmount.toLocaleString()}
                   </div>
                 </div>
               </div>
@@ -242,7 +272,7 @@ const ApplyAsVendor = () => {
             <div className="flex justify-end pt-4">
               <Button 
                 type="submit" 
-                disabled={loading}
+                disabled={loading || !selectedVendorType}
                 className="w-full md:w-auto"
               >
                 {loading ? 'Submitting Application...' : 'Submit Application'}
