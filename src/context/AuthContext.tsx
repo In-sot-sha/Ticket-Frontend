@@ -31,6 +31,7 @@ interface AuthContextType {
   loginWithGoogle: (credential: string) => Promise<boolean>;
   logout: () => void;
   register: (email: string, password: string, firstName: string, lastName: string) => Promise<boolean>;
+  updateUser: (updatedUser: User) => void;
   isAuthenticated: boolean;
   loading: boolean;
 }
@@ -46,6 +47,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true); // Add loading state
   const navigate = useNavigate();
+
+  const updateUser = (updatedUser: User) => {
+    setUser(updatedUser);
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+  };
 
   useEffect(() => {
     // Check if user is logged in on initial load and validate token
@@ -171,7 +177,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const isAuthenticated = !!token;
 
   return (
-    <AuthContext.Provider value={{ user, token, login, loginWithGoogle, logout, register, isAuthenticated, loading }}>
+    <AuthContext.Provider value={{ user, token, login, loginWithGoogle, logout, register, updateUser, isAuthenticated, loading }}>
       {children}
     </AuthContext.Provider>
   );

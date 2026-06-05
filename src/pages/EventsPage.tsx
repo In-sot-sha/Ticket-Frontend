@@ -11,16 +11,17 @@ import {
   List as ListIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import EventCard from '../components/EventCard';
+import EventCard, { Event } from '../components/EventCard';
 import MapComponent from '../components/MapComponent';
+import { api } from '../services/api';
 
 // Mock data for events
 const mockEvents = [
   {
     id: 1,
-    title: 'Tech Conference 2023',
-    date: '2023-12-15',
-    location: 'Lagos, Nigeria',
+    title: 'AI & Web3 Developer Summit',
+    date: '2026-06-15',
+    location: 'BUK Convocation Arena, Kano, Nigeria',
     category: 'Technology',
     price: 5000,
     ticketsAvailable: 250,
@@ -30,9 +31,9 @@ const mockEvents = [
   },
   {
     id: 2,
-    title: 'Music Festival',
-    date: '2023-11-20',
-    location: 'Abuja, Nigeria',
+    title: 'Afrobeats Live Fest',
+    date: '2026-07-20',
+    location: 'Sani Abacha Stadium, Kofar Mata, Kano, Nigeria',
     category: 'Music',
     price: 10000,
     ticketsAvailable: 500,
@@ -42,9 +43,9 @@ const mockEvents = [
   },
   {
     id: 3,
-    title: 'Food & Wine Expo',
-    date: '2024-01-10',
-    location: 'Port Harcourt, Nigeria',
+    title: 'Street Food Carnival',
+    date: '2026-08-10',
+    location: 'Kano Golf Club, Club Road, Kano, Nigeria',
     category: 'Food',
     price: 7500,
     ticketsAvailable: 180,
@@ -54,9 +55,9 @@ const mockEvents = [
   },
   {
     id: 4,
-    title: 'Art & Culture Summit',
-    date: '2023-12-05',
-    location: 'Ibadan, Nigeria',
+    title: 'Contemporary Art Showcase',
+    date: '2026-09-05',
+    location: 'Gidan Makama Museum, Kano, Nigeria',
     category: 'Arts',
     price: 3000,
     ticketsAvailable: 320,
@@ -67,8 +68,8 @@ const mockEvents = [
   {
     id: 5,
     title: 'Business Leadership Conference',
-    date: '2024-02-15',
-    location: 'Kano, Nigeria',
+    date: '2026-10-15',
+    location: 'Bristol Palace Hotel, Kano, Nigeria',
     category: 'Business',
     price: 8000,
     ticketsAvailable: 120,
@@ -78,10 +79,10 @@ const mockEvents = [
   },
   {
     id: 6,
-    title: 'Environmental Sustainability Summit',
-    date: '2024-03-20',
-    location: 'Enugu, Nigeria',
-    category: 'Environment',
+    title: 'Kano Durbar Soundwave',
+    date: '2026-11-20',
+    location: 'Gidan Rumfa (Emir\'s Palace), Kano, Nigeria',
+    category: 'Music',
     price: 4500,
     ticketsAvailable: 200,
     rating: 4.4,
@@ -100,32 +101,76 @@ const categories = [
   { name: 'Environment', icon: '🌍' },
 ];
 
+const mapApiEventToFrontendEvent = (apiEvent: any): Event => {
+  const ticketsAvailable = apiEvent.ticketTypes
+    ? apiEvent.ticketTypes.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0)
+    : 100;
+  return {
+    id: apiEvent.id,
+    title: apiEvent.title,
+    date: apiEvent.startDate,
+    location: apiEvent.location || 'Online',
+    image: apiEvent.imageUrl || 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?q=80&w=800',
+    category: apiEvent.category || 'Other',
+    ticketsAvailable,
+    price: apiEvent.price ?? 0,
+    rating: apiEvent.rating || 4.5 + (apiEvent.id % 5) * 0.1,
+    attendees: apiEvent.attendees || 0
+  };
+};
+
 const EventsPage = () => {
   const [searchParams] = useSearchParams();
-  const [events, setEvents] = useState(mockEvents);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [selectedCategory, setSelectedCategory] = useState(
     searchParams.get('category') || 'All'
   );
+  const [locationFilter, setLocationFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const [hoveredEventId, setHoveredEventId] = useState<number | null>(null);
 
-  // Filter events
+  // Fetch events
   useEffect(() => {
-    let filtered = mockEvents;
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (event) =>
-          event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          event.location.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    if (selectedCategory !== 'All') {
-      filtered = filtered.filter((event) => event.category === selectedCategory);
-    }
-    setEvents(filtered);
-  }, [searchTerm, selectedCategory]);
+    const fetchEvents = async () => {
+      setLoading(true);
+      try {
+        const params: any = {};
+        if (searchTerm) params.search = searchTerm;
+        if (selectedCategory !== 'All') params.category = selectedCategory;
+        if (locationFilter) params.location = locationFilter;
+
+        const response = await api.events.getAll(params);
+        const apiEvents = response.data?.events || [];
+        setEvents(apiEvents.map(mapApiEventToFrontendEvent));
+      } catch (error) {
+        console.error('Failed to fetch events from API, falling back to mocks:', error);
+        let filtered = mockEvents;
+        if (searchTerm) {
+          filtered = filtered.filter(
+            (event) =>
+              event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              event.location.toLowerCase().includes(searchTerm.toLowerCase())
+          );
+        }
+        if (selectedCategory !== 'All') {
+          filtered = filtered.filter((event) => event.category === selectedCategory);
+        }
+        if (locationFilter) {
+          filtered = filtered.filter((event) =>
+            event.location.toLowerCase().includes(locationFilter.toLowerCase())
+          );
+        }
+        setEvents(filtered);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEvents();
+  }, [searchTerm, selectedCategory, locationFilter]);
 
   // Update URL
   useEffect(() => {
@@ -219,6 +264,8 @@ const EventsPage = () => {
                     <input
                       type="text"
                       placeholder="Location"
+                      value={locationFilter}
+                      onChange={(e) => setLocationFilter(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
                     />
                   </div>
@@ -267,16 +314,17 @@ const EventsPage = () => {
                   : 'All Upcoming Events'}
               </h1>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                {events.length} event{events.length !== 1 ? 's' : ''} found
+                {loading ? 'Loading...' : `${events.length} event${events.length !== 1 ? 's' : ''} found`}
               </p>
             </div>
 
             <div className="flex items-center gap-3">
-              {(searchTerm || selectedCategory !== 'All') && (
+              {(searchTerm || selectedCategory !== 'All' || locationFilter) && (
                 <button
                   onClick={() => {
                     setSearchTerm('');
                     setSelectedCategory('All');
+                    setLocationFilter('');
                     window.history.replaceState({}, '', window.location.pathname);
                   }}
                   className="text-xs font-bold text-rose-500 hover:underline"
@@ -301,7 +349,24 @@ const EventsPage = () => {
           </div>
 
           {/* Events Grid */}
-          {events.length > 0 ? (
+          {loading ? (
+            <div className={`grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 ${
+              showMap
+                ? 'lg:grid-cols-2 xl:grid-cols-3'
+                : 'md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+            }`}>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="aspect-square rounded-2xl bg-neutral-200 dark:bg-neutral-800" />
+                  <div className="mt-3 space-y-2">
+                    <div className="h-4 bg-neutral-200 dark:bg-neutral-800 rounded w-3/4" />
+                    <div className="h-3 bg-neutral-200 dark:bg-neutral-800 rounded w-1/2" />
+                    <div className="h-3 bg-neutral-200 dark:bg-neutral-800 rounded w-1/3" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : events.length > 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

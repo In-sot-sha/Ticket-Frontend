@@ -146,7 +146,7 @@ export const api = {
       search?: string;
       category?: string;
       location?: string;
-    }) => apiRequest<any[]>('GET', '/events', undefined, { params }),
+    }) => apiRequest<any>('GET', '/events', undefined, { params }),
     
     getById: (id: number) => apiRequest<any>('GET', `/events/${id}`),
     
@@ -173,7 +173,7 @@ export const api = {
 
   // Ticket endpoints
   tickets: {
-    getAll: () => apiRequest<any[]>('GET', '/tickets'),
+    getAll: (params?: { userId?: number; eventId?: number }) => apiRequest<any[]>('GET', '/tickets', undefined, { params }),
     
     getById: (id: number) => apiRequest<any>('GET', `/tickets/${id}`),
     

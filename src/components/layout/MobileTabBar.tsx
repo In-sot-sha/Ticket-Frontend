@@ -35,17 +35,12 @@ const MobileTabBar: React.FC = () => {
     {
       label: 'Wishlists',
       icon: <Heart className="h-6 w-6" />,
-      path: '/events?wishlist=true'
+      path: '/wishlist'
     },
     {
       label: 'Tickets',
       icon: <Ticket className="h-6 w-6" />,
       path: isAuthenticated ? '/user/tickets' : '/login'
-    },
-    {
-      label: 'Vendor',
-      icon: <MessageSquare className="h-6 w-6" />,
-      path: isAuthenticated ? '/user/vendors' : '/login'
     },
     {
       label: 'Profile',

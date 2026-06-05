@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -40,11 +41,11 @@ const BookingPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const preselectedData = location.state || {};
+  const { user, isAuthenticated } = useAuth();
 
   // Booking details state
   const [eventData, setEventData] = useState<any>(mockEvent);
-  const [selectedTicketTypeId, setSelectedTicketTypeId] = useState<number>(preselectedData.ticketTypeId || 1);
-  const [ticketQuantity, setTicketQuantity] = useState<number>(preselectedData.quantity || 1);
+  const [selectedTickets, setSelectedTickets] = useState<Record<number, number>>({});
 
   // Guest details state
   const [guestFirstName, setGuestFirstName] = useState('');
@@ -65,33 +66,44 @@ const BookingPage = () => {
       try {
         const response = await api.events.getById(Number(eventId));
         if (response.data) {
-          // If backend returns data, use it; ensure ticketTypes structure matches fallback
           const fetched = response.data;
           if (!fetched.ticketTypes || fetched.ticketTypes.length === 0) {
             fetched.ticketTypes = mockEvent.ticketTypes;
           }
           setEventData(fetched);
-          if (fetched.ticketTypes && fetched.ticketTypes.length > 0) {
-            // Keep user preselection if it exists, otherwise fall back to first type
-            const preselectedExists = fetched.ticketTypes.some((t: any) => Number(t.id) === Number(preselectedData.ticketTypeId));
-            if (preselectedExists) {
-              setSelectedTicketTypeId(Number(preselectedData.ticketTypeId));
-            } else {
-              setSelectedTicketTypeId(fetched.ticketTypes[0].id);
-            }
+
+          // Initialize selectedTickets with preselected type or first type
+          const preselectedTypeId = Number(preselectedData.ticketTypeId);
+          const preselectedQty = Number(preselectedData.quantity) || 1;
+          const preselectedExists = fetched.ticketTypes.some((t: any) => Number(t.id) === preselectedTypeId);
+
+          if (preselectedExists) {
+            setSelectedTickets({ [preselectedTypeId]: preselectedQty });
+          } else if (fetched.ticketTypes.length > 0) {
+            setSelectedTickets({ [fetched.ticketTypes[0].id]: 1 });
           }
         }
       } catch (err) {
         console.warn('Failed to load event from API, using fallback data:', err);
-        // Set fallback matching ID
         setEventData({
           ...mockEvent,
           id: Number(eventId)
         });
+        setSelectedTickets({ [mockEvent.ticketTypes[0].id]: 1 });
       }
     };
     fetchEvent();
   }, [eventId]);
+
+  // Pre-fill guest details from logged-in user
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      if (user.firstName && !guestFirstName) setGuestFirstName(user.firstName);
+      if (user.lastName && !guestLastName) setGuestLastName(user.lastName);
+      if (user.email && !guestEmail) setGuestEmail(user.email);
+      if (user.phone && !guestPhone) setGuestPhone(user.phone);
+    }
+  }, [isAuthenticated, user]);
 
   // Dynamically load Paystack script for Step 3
   useEffect(() => {
@@ -107,8 +119,13 @@ const BookingPage = () => {
   }, [step]);
 
   // Derived state calculations
-  const selectedTicketType = eventData.ticketTypes?.find((t: any) => Number(t.id) === Number(selectedTicketTypeId)) || eventData.ticketTypes?.[0] || mockEvent.ticketTypes[0];
-  const subtotal = (mockEvent?.price || 0) * ticketQuantity;
+  const totalTicketsCount = Object.values(selectedTickets).reduce((acc, qty) => acc + qty, 0);
+
+  const subtotal = eventData.ticketTypes?.reduce((acc: number, t: any) => {
+    const qty = selectedTickets[t.id] || 0;
+    return acc + (t.price || 0) * qty;
+  }, 0) || 0;
+
   const serviceFee = Math.round(subtotal * 0.05);
   const totalAmount = subtotal + serviceFee;
 
@@ -129,27 +146,32 @@ const BookingPage = () => {
   const handlePaymentSuccess = async () => {
     setIsPaying(true);
     try {
+      const items = Object.entries(selectedTickets)
+        .filter(([_, qty]) => qty > 0)
+        .map(([id, qty]) => ({ ticketTypeId: Number(id), quantity: qty }));
+
       const checkoutRes = await api.post<any>('/tickets/checkout/guest', {
         firstName: guestFirstName,
         lastName: guestLastName,
         email: guestEmail,
         phone: guestPhone,
         eventId: Number(eventData.id),
-        ticketTypeId: Number(selectedTicketTypeId),
-        quantity: ticketQuantity
+        items
       });
 
       if (checkoutRes.status === 201) {
         const confirmedOrder = {
           eventId: eventData.id,
           eventName: eventData.title,
-          ticketType: selectedTicketType?.name || 'General Admission',
-          quantity: ticketQuantity,
+          eventDate: eventData.date,
+          eventTime: `${eventData.startTime || '09:00 AM'} - ${eventData.endTime || '06:00 PM'}`,
+          eventLocation: eventData.location,
+          eventImageUrl: eventData.imageUrl,
+          quantity: totalTicketsCount,
           totalAmount: totalAmount,
           currency: 'NGN',
           tickets: checkoutRes.data.tickets
         };
-        // Clear inputs
         navigate('/ticket-confirmation', { state: confirmedOrder });
       }
     } catch (err: any) {
@@ -165,7 +187,6 @@ const BookingPage = () => {
       return;
     }
     
-    // Test public key
     const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_d3000676b7db0bc43f07a4a2fa44a8ad8d1b6ee8';
     
     const handler = (window as any).PaystackPop.setup({
@@ -198,6 +219,10 @@ const BookingPage = () => {
     try {
       const orderId = `OPAY_${Date.now()}_${eventData.id}`;
       
+      const items = Object.entries(selectedTickets)
+        .filter(([_, qty]) => qty > 0)
+        .map(([id, qty]) => ({ ticketTypeId: Number(id), quantity: qty }));
+
       // Store checkout metadata in localstorage so we can complete checkout when returning
       localStorage.setItem(`opay_order_${orderId}`, JSON.stringify({
         firstName: guestFirstName,
@@ -205,11 +230,9 @@ const BookingPage = () => {
         email: guestEmail,
         phone: guestPhone,
         eventId: Number(eventData.id),
-        ticketTypeId: Number(selectedTicketTypeId),
-        quantity: ticketQuantity,
+        items,
         totalAmount: totalAmount,
-        eventName: eventData.title,
-        ticketType: selectedTicketType?.name
+        eventName: eventData.title
       }));
 
       const res = await api.post<any>('/payments/opay/create', {
@@ -231,35 +254,9 @@ const BookingPage = () => {
     }
   };
 
-  const executePayment = () => {
-    // Skip Paystack and OPay backend execution for testing, directly navigate to download ticket confirmation and return
-    const confirmedOrder = {
-      eventId: eventData.id,
-      eventName: eventData.title,
-      eventDate: eventData.date,
-      eventTime: `${eventData.startTime || '09:00 AM'} - ${eventData.endTime || '06:00 PM'}`,
-      eventLocation: eventData.location,
-      eventImageUrl: eventData.imageUrl,
-      ticketType: selectedTicketType?.name || 'General Admission',
-      quantity: ticketQuantity,
-      totalAmount: totalAmount,
-      currency: 'NGN',
-      firstName: guestFirstName,
-      lastName: guestLastName,
-      email: guestEmail,
-      phone: guestPhone,
-      tickets: Array.from({ length: ticketQuantity }, (_, index) => ({
-        id: index + 1,
-        eventId: eventData.id,
-        qrCode: null,
-        ticketType: {
-          name: selectedTicketType?.name || 'General Admission',
-          price: selectedTicketType?.price || 5000
-        }
-      }))
-    };
-    navigate('/ticket-confirmation', { state: confirmedOrder });
-    return;
+  const executePayment = async () => {
+    // Use the real backend checkout instead of mock data
+    await handlePaymentSuccess();
   };
 
   // Step validations
@@ -274,6 +271,30 @@ const BookingPage = () => {
       return false;
     }
     return true;
+  };
+
+  const updateTicketQty = (id: number, delta: number) => {
+    setSelectedTickets(prev => {
+      const currentQty = prev[id] || 0;
+      const newQty = Math.max(0, currentQty + delta);
+      
+      // Enforce total transaction limit (max 10 tickets)
+      const currentTotal = Object.entries(prev).reduce((acc, [k, v]) => acc + (Number(k) === id ? 0 : v), 0);
+      if (currentTotal + newQty > 10) {
+        alert('You can select a maximum of 10 tickets per order.');
+        return prev;
+      }
+
+      if (newQty === 0) {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      }
+      return {
+        ...prev,
+        [id]: newQty
+      };
+    });
   };
 
   return (
@@ -342,57 +363,50 @@ const BookingPage = () => {
                   exit={{ opacity: 0, y: -12 }}
                   className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-850 rounded-3xl p-6 shadow-sm"
                 >
-                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-6">Select your ticket</h2>
+                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Select your tickets</h2>
+                  <p className="text-xs text-neutral-500 mb-6">Select the quantity for each ticket type you want to order.</p>
                   
                   <div className="space-y-4">
-                    {/* Ticket Type drop down selection */}
-                    <div className="rounded-2xl border border-neutral-200 dark:border-neutral-855 overflow-hidden">
-                      <div className="border-b border-neutral-200 dark:border-neutral-850 p-4">
-                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-neutral-400 block mb-1">Ticket Type</label>
-                        <select
-                          value={selectedTicketTypeId}
-                          onChange={(e) => setSelectedTicketTypeId(Number(e.target.value))}
-                          className="w-full bg-transparent text-sm font-semibold text-neutral-900 dark:text-white focus:outline-none appearance-none cursor-pointer"
-                        >
-                          {eventData.ticketTypes?.map((t: any) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name} — ₦{t.price.toLocaleString()}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      
-                      {/* Ticket quantity stepper */}
-                      <div className="p-4 flex items-center justify-between">
-                        <div>
-                          <p className="text-[10px] font-extrabold uppercase tracking-wider text-neutral-400">Number of tickets</p>
-                          <p className="text-xs text-neutral-500">Max 10 tickets per transaction</p>
+                    {eventData.ticketTypes?.map((t: any) => {
+                      const qty = selectedTickets[t.id] || 0;
+                      return (
+                        <div key={t.id} className="p-4 flex items-center justify-between border border-neutral-200 dark:border-neutral-800 rounded-2xl hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors">
+                          <div>
+                            <p className="font-extrabold text-sm text-neutral-900 dark:text-white">{t.name}</p>
+                            <p className="text-xs font-bold text-rose-500 mt-1">₦{t.price.toLocaleString()}</p>
+                          </div>
+                          
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => updateTicketQty(t.id, -1)}
+                              className="border border-neutral-300 dark:border-neutral-700 rounded-full p-1.5 hover:border-neutral-500 dark:hover:border-neutral-500 transition-colors disabled:opacity-30"
+                              disabled={qty <= 0}
+                            >
+                              <Minus className="h-4 w-4 text-neutral-600 dark:text-neutral-350" />
+                            </button>
+                            <span className="text-sm font-bold w-6 text-center text-neutral-900 dark:text-white">
+                              {qty}
+                            </span>
+                            <button
+                              onClick={() => updateTicketQty(t.id, 1)}
+                              className="border border-neutral-300 dark:border-neutral-700 rounded-full p-1.5 hover:border-neutral-500 dark:hover:border-neutral-500 transition-colors"
+                            >
+                              <Plus className="h-4 w-4 text-neutral-600 dark:text-neutral-350" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={() => setTicketQuantity((q) => Math.max(1, q - 1))}
-                            className="border border-neutral-300 dark:border-neutral-700 rounded-full p-1.5 hover:border-neutral-500 dark:hover:border-neutral-500 transition-colors disabled:opacity-30"
-                            disabled={ticketQuantity <= 1}
-                          >
-                            <Minus className="h-4.5 w-4.5 text-neutral-600 dark:text-neutral-305" />
-                          </button>
-                          <span className="text-base font-bold w-6 text-center text-neutral-900 dark:text-white">
-                            {ticketQuantity}
-                          </span>
-                          <button
-                            onClick={() => setTicketQuantity((q) => Math.min(10, q + 1))}
-                            className="border border-neutral-300 dark:border-neutral-700 rounded-full p-1.5 hover:border-neutral-500 dark:hover:border-neutral-500 transition-colors disabled:opacity-30"
-                            disabled={ticketQuantity >= 10}
-                          >
-                            <Plus className="h-4.5 w-4.5 text-neutral-600 dark:text-neutral-305" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                      );
+                    })}
                   </div>
 
                   <button
-                    onClick={() => setStep(2)}
+                    onClick={() => {
+                      if (totalTicketsCount <= 0) {
+                        alert('Please select at least one ticket.');
+                        return;
+                      }
+                      setStep(2);
+                    }}
                     className="mt-8 flex items-center justify-center gap-2 h-12 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-xs font-extrabold px-6 shadow-md hover:shadow-lg transition-transform active:scale-98"
                   >
                     Continue to Details
@@ -646,14 +660,24 @@ const BookingPage = () => {
               <div className="space-y-3 pt-2">
                 <h4 className="text-xs font-bold text-neutral-900 dark:text-white">Price Details</h4>
                 
-                <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
-                  <span>
-                    ₦{(selectedTicketType?.price || 0).toLocaleString()} × {ticketQuantity} ticket{ticketQuantity > 1 ? 's' : ''}
-                  </span>
-                  <span className="font-bold text-neutral-900 dark:text-white">
-                    ₦{subtotal.toLocaleString()}
-                  </span>
-                </div>
+                {eventData.ticketTypes?.map((t: any) => {
+                  const qty = selectedTickets[t.id] || 0;
+                  if (qty <= 0) return null;
+                  return (
+                    <div key={t.id} className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
+                      <span>
+                        {t.name} (₦{t.price.toLocaleString()} × {qty})
+                      </span>
+                      <span className="font-bold text-neutral-900 dark:text-white">
+                        ₦{(t.price * qty).toLocaleString()}
+                      </span>
+                    </div>
+                  );
+                })}
+
+                {totalTicketsCount === 0 && (
+                  <p className="text-xs text-neutral-400">No tickets selected</p>
+                )}
 
                 <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
                   <span className="underline">Service Fee (5%)</span>

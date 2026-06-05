@@ -14,7 +14,8 @@ import {
   Building,
   User,
   HelpCircle,
-  Plus
+  Plus,
+  Heart
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -83,19 +84,7 @@ const Header = () => {
           </div>
         </div>
 
-        {/* Mobile Search Pill (Mobile view, occupies center space) */}
-        <div className="md:hidden flex-1 mx-4">
-          <div 
-            onClick={() => navigate('/events')}
-            className="flex items-center border border-gray-200 dark:border-gray-800 rounded-full py-2 px-4 shadow-sm hover:shadow-md bg-white dark:bg-gray-900 cursor-pointer w-full"
-          >
-            <Search className="h-4 w-4 text-rose-500 mr-3 stroke-[2.5]" />
-            <div className="flex flex-col text-left">
-              <span className="text-xs font-extrabold text-neutral-800 dark:text-neutral-200 leading-none mb-0.5">Where to?</span>
-              <span className="text-[10px] text-neutral-400 dark:text-neutral-500 leading-none">Anywhere &bull; Any Date &bull; Add events</span>
-            </div>
-          </div>
-        </div>
+
 
         {/* Right side controls */}
         <div className="flex items-center gap-3">
@@ -162,37 +151,43 @@ const Header = () => {
                         Account settings
                       </Link>
 
+                      <Link 
+                        to="/user/tickets" 
+                        className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        <Ticket className="h-4 w-4 mr-3 text-gray-400" />
+                        My tickets
+                      </Link>
+
+                      <Link 
+                        to="/wishlist" 
+                        className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        <Heart className="h-4 w-4 mr-3 text-gray-400" />
+                        Wishlist
+                      </Link>
+
                       {location.pathname.startsWith('/organizer') ? (
                         <Link 
                           to="/user/tickets" 
-                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
                           onClick={() => setIsUserMenuOpen(false)}
                         >
-                          <User className="h-4 w-4 mr-3 text-gray-400" />
-                          My tickets (Guest view)
+                          <User className="h-4 w-4 mr-3 text-rose-500" />
+                          Switch to Guest Mode
                         </Link>
                       ) : (
                         <Link 
                           to="/organizer" 
-                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
                           onClick={() => setIsUserMenuOpen(false)}
                         >
-                          <Building className="h-4 w-4 mr-3 text-gray-400" />
-                          Organizer dashboard
+                          <Building className="h-4 w-4 mr-3 text-rose-500" />
+                          Switch to Host Mode
                         </Link>
                       )}
-                      
-                      {/* Switch role menu item */}
-                      <button
-                        onClick={() => {
-                          handleSwitchRole();
-                          setIsUserMenuOpen(false);
-                        }}
-                        className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
-                      >
-                        <Building className="h-4 w-4 mr-3 text-rose-500" />
-                        {location.pathname.startsWith('/organizer') ? 'Switch to Guest Mode' : 'Switch to Host Mode'}
-                      </button>
                     </div>
 
                     <div className="border-t border-gray-100 dark:border-gray-850 my-1"></div>

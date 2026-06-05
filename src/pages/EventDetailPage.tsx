@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -20,20 +20,66 @@ import {
   ChevronRight,
   Minus,
   Plus,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
+import { api } from '../services/api';
 
-// Mock event data
-const mockEvent = {
+interface TicketType {
+  id: number;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+interface Organizer {
+  name: string;
+  email: string;
+  phone: string;
+  eventsHosted: number;
+  joinedYear: number;
+  responseRate: number;
+  avatar: string;
+}
+
+interface Highlight {
+  icon: string;
+  label: string;
+}
+
+interface EventDetail {
+  id: number;
+  title: string;
+  description: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  category: string;
+  price: number;
+  ticketsAvailable: number;
+  rating: number;
+  reviewCount: number;
+  images: string[];
+  organizer: Organizer;
+  ticketTypes: TicketType[];
+  amenities: string[];
+  highlights: Highlight[];
+  vendorApplicationsAllowed: boolean;
+  vendorApplications: any[];
+}
+
+// Fallback mock event data (used if API fails)
+const fallbackEvent: EventDetail = {
   id: 1,
-  title: 'Tech Conference 2023',
+  title: 'AI & Web3 Developer Summit',
   description:
-    "Join us for the largest technology conference in Nigeria. Network with industry leaders, attend workshops, and learn about the latest trends in tech. This event brings together over 500 professionals from across West Africa for two days of immersive learning and networking.",
-  date: '2023-12-15',
+    "Join us for the largest technology conference in Kano. Network with industry leaders, attend workshops, and learn about the latest trends in tech. This event brings together over 500 professionals from across West Africa for two days of immersive learning and networking.",
+  date: '2026-07-15',
   startTime: '09:00 AM',
   endTime: '06:00 PM',
-  location: 'Eko Convention Centre, Lagos, Nigeria',
+  location: 'BUK Convocation Arena, Kano, Nigeria',
   category: 'Technology',
   price: 5000,
   ticketsAvailable: 250,
@@ -47,13 +93,13 @@ const mockEvent = {
     'https://images.unsplash.com/photo-1591115765373-5207764f72e7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
   ],
   organizer: {
-    name: 'Tech Events Nigeria',
-    email: 'info@techevents.com',
+    name: 'Kano Event Hub',
+    email: 'hello@kanoeventhub.com',
     phone: '+234 801 234 5678',
     eventsHosted: 24,
-    joinedYear: 2019,
+    joinedYear: 2024,
     responseRate: 98,
-    avatar: 'T',
+    avatar: 'K',
   },
   ticketTypes: [
     { id: 1, name: 'General Admission', price: 5000, quantity: 200 },
@@ -75,16 +121,50 @@ const mockEvent = {
     { icon: '📜', label: 'Certificate' },
   ],
   vendorApplicationsAllowed: true,
-  vendorApplications: [
-    {
-      id: 1,
-      vendorName: 'Tech Gadgets Ltd',
-      businessName: 'Tech Gadgets Nigeria',
-      category: 'Electronics',
-      description: 'Latest tech gadgets and accessories',
-      status: 'pending',
+  vendorApplications: [] as any[],
+};
+
+// Map API response to the shape used by the page
+const mapApiEventToDetail = (apiEvent: any): EventDetail => {
+  const startDate = new Date(apiEvent.startDate);
+  const endDate = new Date(apiEvent.endDate);
+  const formatTime = (d: Date) =>
+    d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  const imageUrl = apiEvent.imageUrl || fallbackEvent.images[0];
+  const images = [imageUrl, ...fallbackEvent.images.slice(1)];
+
+  return {
+    id: apiEvent.id,
+    title: apiEvent.title,
+    description: apiEvent.description || '',
+    date: apiEvent.startDate,
+    startTime: formatTime(startDate),
+    endTime: formatTime(endDate),
+    location: apiEvent.location || 'Online',
+    category: apiEvent.category || 'Other',
+    price: apiEvent.price ?? 0,
+    ticketsAvailable: apiEvent.ticketTypes
+      ? apiEvent.ticketTypes.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0)
+      : 0,
+    rating: 4.5 + (apiEvent.id % 5) * 0.1,
+    reviewCount: 20 + (apiEvent.id % 50) * 3,
+    images,
+    organizer: {
+      name: apiEvent.organization?.name || 'Event Organizer',
+      email: 'hello@kanoeventhub.com',
+      phone: '+234 801 234 5678',
+      eventsHosted: 24,
+      joinedYear: 2024,
+      responseRate: 98,
+      avatar: (apiEvent.organization?.name || 'E')[0].toUpperCase(),
     },
-  ],
+    ticketTypes: apiEvent.ticketTypes || [],
+    amenities: fallbackEvent.amenities,
+    highlights: fallbackEvent.highlights,
+    vendorApplicationsAllowed: apiEvent.allowVendors || false,
+    vendorApplications: apiEvent.vendorApplications || [],
+  };
 };
 
 const EventDetailPage = () => {
@@ -95,8 +175,42 @@ const EventDetailPage = () => {
   const [ticketQuantity, setTicketQuantity] = useState(1);
   const [isSaved, setIsSaved] = useState(false);
   const [showAllPhotos, setShowAllPhotos] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [event, setEvent] = useState<EventDetail>(fallbackEvent);
+  const [notFound, setNotFound] = useState(false);
 
-  const event = mockEvent;
+  useEffect(() => {
+    if (id) {
+      const saved = localStorage.getItem(`wishlist_${id}`);
+      setIsSaved(saved === 'true');
+    }
+  }, [id]);
+
+  useEffect(() => {
+    const fetchEvent = async () => {
+      if (!id) return;
+      setLoading(true);
+      setNotFound(false);
+      try {
+        const response = await api.events.getById(Number(id));
+        const mapped = mapApiEventToDetail(response.data);
+        setEvent(mapped);
+        // Auto-select first ticket type if available
+        if (mapped.ticketTypes.length > 0) {
+          setSelectedTicket(mapped.ticketTypes[0].id);
+        }
+      } catch (error: any) {
+        console.error('Failed to fetch event:', error);
+        if (error?.response?.status === 404) {
+          setNotFound(true);
+        }
+        // Keep fallback event
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEvent();
+  }, [id]);
 
   const handlePurchaseTicket = () => {
     if (selectedTicket === null) {
@@ -123,6 +237,38 @@ const EventDetailPage = () => {
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
+
+      {/* ─── Loading State ─── */}
+      {loading && (
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin text-rose-500 mx-auto mb-4" />
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">Loading event details...</p>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Not Found State ─── */}
+      {!loading && notFound && (
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center max-w-md px-6">
+            <span className="text-5xl block mb-4">🔍</span>
+            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white mb-2">Event not found</h2>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6">
+              The event you're looking for doesn't exist or may have been removed.
+            </p>
+            <button
+              onClick={() => navigate('/events')}
+              className="bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-full px-6 py-3 text-sm font-bold hover:opacity-90 transition-opacity active:scale-95"
+            >
+              Browse All Events
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Main Content (only when loaded and found) ─── */}
+      {!loading && !notFound && (<>
 
       {/* ─── Photo Gallery (Airbnb grid) ─── */}
       <div className="max-w-7xl mx-auto px-0 md:px-6 lg:px-8 pt-0 md:pt-6">
@@ -155,6 +301,85 @@ const EventDetailPage = () => {
         </div>
       </div>
 
+      {/* ─── Mobile Booking Card (shown only on mobile, right after gallery) ─── */}
+      <div className="lg:hidden max-w-7xl mx-auto px-4 sm:px-6 pt-6">
+        <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 shadow-sm bg-white dark:bg-gray-900">
+          {/* Price + Rating */}
+          <div className="flex items-baseline justify-between mb-4">
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl font-extrabold text-neutral-900 dark:text-white">
+                ₦{event.price.toLocaleString()}
+              </span>
+              <span className="text-sm text-neutral-500 dark:text-neutral-400">/ ticket</span>
+            </div>
+            <div className="flex items-center gap-1 text-xs">
+              <Star className="h-3 w-3 fill-neutral-900 text-neutral-900 dark:fill-white dark:text-white" />
+              <span className="font-bold text-neutral-900 dark:text-white">{event.rating}</span>
+              <span className="text-neutral-500">· {event.reviewCount}</span>
+            </div>
+          </div>
+
+          {/* Ticket Type Select */}
+          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden mb-3">
+            <div className="px-3 py-2.5">
+              <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Ticket Type</p>
+              <select
+                value={selectedTicket ?? ''}
+                onChange={(e) => setSelectedTicket(Number(e.target.value) || null)}
+                className="w-full bg-transparent text-sm font-semibold text-neutral-900 dark:text-white focus:outline-none appearance-none cursor-pointer"
+              >
+                <option value="">Select ticket type</option>
+                {event.ticketTypes.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} — ₦{t.price.toLocaleString()}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="px-3 py-2.5 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+              <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">Guests</p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setTicketQuantity((q) => Math.max(1, q - 1))}
+                  className="border border-neutral-300 dark:border-neutral-700 rounded-full p-1 hover:border-neutral-500 transition-colors disabled:opacity-30"
+                  disabled={ticketQuantity <= 1}
+                >
+                  <Minus className="h-3 w-3 text-neutral-600 dark:text-neutral-300" />
+                </button>
+                <span className="text-sm font-bold w-5 text-center text-neutral-900 dark:text-white">{ticketQuantity}</span>
+                <button
+                  onClick={() => setTicketQuantity((q) => Math.min(10, q + 1))}
+                  className="border border-neutral-300 dark:border-neutral-700 rounded-full p-1 hover:border-neutral-500 transition-colors disabled:opacity-30"
+                  disabled={ticketQuantity >= 10}
+                >
+                  <Plus className="h-3 w-3 text-neutral-600 dark:text-neutral-300" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Reserve Button */}
+          <button
+            onClick={handlePurchaseTicket}
+            className="w-full h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
+          >
+            Reserve
+          </button>
+
+          {/* Price breakdown */}
+          {selectedTicket && (
+            <div className="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-sm">
+              <span className="text-neutral-600 dark:text-neutral-400">
+                ₦{(selectedTicketType?.price || 0).toLocaleString()} × {ticketQuantity}
+              </span>
+              <span className="font-extrabold text-neutral-900 dark:text-white">
+                ₦{(totalPrice + Math.round(totalPrice * 0.05)).toLocaleString()}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* ─── Content ─── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col lg:flex-row gap-12">
@@ -170,7 +395,16 @@ const EventDetailPage = () => {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button
-                  onClick={() => setIsSaved(!isSaved)}
+                  onClick={() => {
+                    if (!id) return;
+                    const newState = !isSaved;
+                    setIsSaved(newState);
+                    if (newState) {
+                      localStorage.setItem(`wishlist_${id}`, 'true');
+                    } else {
+                      localStorage.removeItem(`wishlist_${id}`);
+                    }
+                  }}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
                 >
                   <Heart
@@ -179,7 +413,7 @@ const EventDetailPage = () => {
                     }`}
                   />
                   <span className="text-xs font-bold underline text-neutral-700 dark:text-neutral-300">
-                    Save
+                    {isSaved ? 'Saved' : 'Save'}
                   </span>
                 </button>
                 <button className="flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
@@ -345,8 +579,8 @@ const EventDetailPage = () => {
             )}
           </div>
 
-          {/* ─── Right: Booking Card (Sticky) ─── */}
-          <div className="lg:w-[40%] xl:w-[35%]">
+          {/* ─── Right: Booking Card (Sticky, Desktop only) ─── */}
+          <div className="hidden lg:block lg:w-[40%] xl:w-[35%]">
             <div className="sticky top-24">
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
@@ -491,6 +725,33 @@ const EventDetailPage = () => {
               />
             ))}
           </div>
+        </div>
+      )}
+
+      </>)}
+
+      {/* ─── Sticky Bottom Bar (Mobile only, when not loading) ─── */}
+      {!loading && !notFound && (
+        <div className="lg:hidden fixed bottom-16 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-t border-neutral-200 dark:border-neutral-800 px-4 py-3 flex items-center justify-between shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+          <div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-extrabold text-neutral-900 dark:text-white">
+                ₦{(selectedTicketType?.price || event.price).toLocaleString()}
+              </span>
+              <span className="text-xs text-neutral-500 dark:text-neutral-400">/ ticket</span>
+            </div>
+            {selectedTicket && (
+              <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                {selectedTicketType?.name} · {ticketQuantity} ticket{ticketQuantity > 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={handlePurchaseTicket}
+            className="bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-xs font-bold px-6 py-3 shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
+          >
+            Reserve
+          </button>
         </div>
       )}
     </div>

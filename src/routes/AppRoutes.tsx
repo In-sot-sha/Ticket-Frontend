@@ -41,7 +41,8 @@ import BecomeOrganizer from '../pages/BecomeOrganizer';
 import ApplyAsVendor from '../pages/ApplyAsVendor';
 import VendorApplications from '../pages/VendorApplications';
 import MyVendorApplications from '../pages/MyVendorApplications';
-import UserDashboardWithTabs from '../pages/UserDashboardWithTabs';
+import GuestDashboard from '../pages/GuestDashboard';
+import WishlistPage from '../pages/WishlistPage';
 import UserDashboard from '../components/layout/UserDashboard';
 
 // Route guard component for protected routes
@@ -156,6 +157,27 @@ const AppRoutes: React.FC = () => {
           path: "help",
           element: <HelpPage />,
         },
+        {
+          path: "wishlist",
+          element: <WishlistPage />,
+        },
+        {
+          path: "user",
+          children: [
+            {
+              index: true,
+              element: <Navigate to="/user/tickets" replace />,
+            },
+            {
+              path: "tickets",
+              element: (
+                <ProtectedRoute>
+                  <GuestDashboard />
+                </ProtectedRoute>
+              ),
+            },
+          ],
+        },
       ],
     },
     // Public auth routes without header/footer
@@ -224,30 +246,6 @@ const AppRoutes: React.FC = () => {
         },
       ],
 
-    },
-    // User dashboard with tabs (separate layout since it has its own header)
-    {
-      path: "/user",
-      element: (
-        <ProtectedRoute>
-          <UserDashboardWithTabs />
-        </ProtectedRoute>
-      ),
-      children: [
-       
-        {
-          path: "tickets",
-          element: <TicketsDashboard />,
-        },
-        {
-          path: "vendors",
-          element: <VendorsDashboard />,
-        },
-        {
-          path: "my-vendor-applications",
-          element: <MyVendorApplications />,
-        },
-      ],
     },
     // Other protected routes with full layout
     {

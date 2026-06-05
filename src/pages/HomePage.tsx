@@ -9,35 +9,36 @@ import {
   ArrowRight
 } from 'lucide-react';
 import EventCard, { Event } from '../components/EventCard';
+import { api } from '../services/api';
 
 /* ── Promoted hero slides ─────────────────────────────── */
 const heroSlides = [
   {
     id: 1,
-    title: 'Tech Conference 2023',
-    subtitle: 'Join 500+ industry leaders in Lagos',
+    title: 'AI & Web3 Developer Summit',
+    subtitle: 'Join 500+ tech leaders in Kano',
     cta: 'Get Tickets',
-    link: '/events/1',
+    link: '/events',
     image:
       'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
     tag: 'Featured',
   },
   {
     id: 2,
-    title: 'Music Festival Weekend',
-    subtitle: 'Two nights of afrobeats, R&B & more in Abuja',
+    title: 'Afrobeats Live Fest',
+    subtitle: 'Two nights of afrobeats, R&B & more in Kano',
     cta: 'Explore Lineup',
-    link: '/events/2',
+    link: '/events',
     image:
       'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
     tag: 'Trending',
   },
   {
     id: 3,
-    title: 'Food & Wine Expo',
-    subtitle: 'Taste the best of Nigeria — 50+ vendors',
+    title: 'Street Food Carnival',
+    subtitle: 'Taste the best of Kano — 50+ vendors',
     cta: 'Reserve Your Spot',
-    link: '/events/3',
+    link: '/events',
     image:
       'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
     tag: 'New',
@@ -45,9 +46,9 @@ const heroSlides = [
   {
     id: 4,
     title: 'Startup Pitch Night',
-    subtitle: 'Where ideas meet investors — Ibadan Edition',
+    subtitle: 'Where ideas meet investors — Kano Edition',
     cta: 'Apply Now',
-    link: '/events/4',
+    link: '/events',
     image:
       'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
     tag: 'Limited Seats',
@@ -58,21 +59,21 @@ const heroSlides = [
 const mockEvents: Event[] = [
   {
     id: 1,
-    title: 'Tech Conference 2023',
-    date: '2023-12-15',
-    location: 'Lagos, Nigeria',
+    title: 'AI & Web3 Developer Summit',
+    date: '2026-07-15',
+    location: 'BUK Convocation Arena, Kano, Nigeria',
     image:
       'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
     ticketsAvailable: 250,
     category: 'Technology',
     rating: 4.8,
-    price: 25000,
+    price: 5000,
   },
   {
     id: 2,
-    title: 'Music Festival',
-    date: '2023-11-20',
-    location: 'Abuja, Nigeria',
+    title: 'Afrobeats Live Fest',
+    date: '2026-08-20',
+    location: 'Sani Abacha Stadium, Kofar Mata, Kano, Nigeria',
     image:
       'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
     ticketsAvailable: 500,
@@ -82,21 +83,21 @@ const mockEvents: Event[] = [
   },
   {
     id: 3,
-    title: 'Food & Wine Expo',
-    date: '2024-01-10',
-    location: 'Port Harcourt, Nigeria',
+    title: 'Street Food Carnival',
+    date: '2026-09-10',
+    location: 'Kano Golf Club, Club Road, Kano, Nigeria',
     image:
       'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
     ticketsAvailable: 180,
-    category: 'Food & Drink',
+    category: 'Food',
     rating: 4.7,
     price: 8500,
   },
   {
     id: 4,
-    title: 'Startup Pitch Competition',
-    date: '2023-12-01',
-    location: 'Ibadan, Nigeria',
+    title: 'Startup Pitch Night',
+    date: '2026-10-01',
+    location: 'Bristol Palace Hotel, Kano, Nigeria',
     image:
       'https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
     ticketsAvailable: 100,
@@ -106,9 +107,9 @@ const mockEvents: Event[] = [
   },
   {
     id: 5,
-    title: 'Art & Culture Summit',
-    date: '2023-11-25',
-    location: 'Kano, Nigeria',
+    title: 'Contemporary Art Showcase',
+    date: '2026-11-25',
+    location: 'Gidan Makama Museum, Kano, Nigeria',
     image:
       'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
     ticketsAvailable: 120,
@@ -118,13 +119,13 @@ const mockEvents: Event[] = [
   },
   {
     id: 6,
-    title: 'Yoga & Mindfulness Workshop',
-    date: '2024-02-18',
-    location: 'Enugu, Nigeria',
+    title: 'Morning Wellness Yoga',
+    date: '2026-12-18',
+    location: 'Kano Golf Club, Club Road, Kano, Nigeria',
     image:
       'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
     ticketsAvailable: 50,
-    category: 'Health',
+    category: 'Wellness',
     rating: 4.5,
     price: 3000,
   },
@@ -133,12 +134,31 @@ const mockEvents: Event[] = [
 const categories = [
   { name: 'All', icon: '🌐' },
   { name: 'Music', icon: '🎵' },
-  { name: 'Food & Drink', icon: '🍷' },
+  { name: 'Food', icon: '🍷' },
   { name: 'Business', icon: '💼' },
   { name: 'Technology', icon: '💻' },
   { name: 'Arts', icon: '🎨' },
-  { name: 'Health', icon: '🧘' },
+  { name: 'Sports', icon: '⚽' },
+  { name: 'Wellness', icon: '🧘' },
 ];
+
+const mapApiEventToFrontendEvent = (apiEvent: any): Event => {
+  const ticketsAvailable = apiEvent.ticketTypes
+    ? apiEvent.ticketTypes.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0)
+    : 100;
+  return {
+    id: apiEvent.id,
+    title: apiEvent.title,
+    date: apiEvent.startDate,
+    location: apiEvent.location || 'Online',
+    image: apiEvent.imageUrl || 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?q=80&w=800',
+    category: apiEvent.category || 'Other',
+    ticketsAvailable,
+    price: apiEvent.price ?? 0,
+    rating: apiEvent.rating || 4.5 + (apiEvent.id % 5) * 0.1,
+    attendees: apiEvent.attendees || 0
+  };
+};
 
 /* ── Hero Carousel ────────────────────────────────────── */
 const HeroCarousel = () => {
@@ -262,14 +282,30 @@ const HeroCarousel = () => {
 /* ── Home Page ────────────────────────────────────────── */
 const HomePage = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [filteredEvents, setFilteredEvents] = useState<Event[]>(mockEvents);
+  const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (selectedCategory === 'All') {
-      setFilteredEvents(mockEvents);
-    } else {
-      setFilteredEvents(mockEvents.filter((e) => e.category === selectedCategory));
-    }
+    const fetchEvents = async () => {
+      setLoading(true);
+      try {
+        const params: any = { limit: 20 };
+        if (selectedCategory !== 'All') params.category = selectedCategory;
+        const response = await api.events.getAll(params);
+        const apiEvents = response.data?.events || [];
+        setFilteredEvents(apiEvents.map(mapApiEventToFrontendEvent));
+      } catch (error) {
+        console.error('Failed to fetch events, falling back to mocks:', error);
+        if (selectedCategory === 'All') {
+          setFilteredEvents(mockEvents);
+        } else {
+          setFilteredEvents(mockEvents.filter((e) => e.category === selectedCategory));
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEvents();
   }, [selectedCategory]);
 
   return (
@@ -321,11 +357,24 @@ const HomePage = () => {
               : `${selectedCategory} events`}
           </h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Showing {filteredEvents.length} premium event listings near you
+            {loading ? 'Loading events...' : `Showing ${filteredEvents.length} premium event listings near you`}
           </p>
         </div>
 
-        {filteredEvents.length > 0 ? (
+        {loading ? (
+          <div className="grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="animate-pulse">
+                <div className="aspect-square rounded-2xl bg-neutral-200 dark:bg-neutral-800" />
+                <div className="mt-3 space-y-2">
+                  <div className="h-4 bg-neutral-200 dark:bg-neutral-800 rounded w-3/4" />
+                  <div className="h-3 bg-neutral-200 dark:bg-neutral-800 rounded w-1/2" />
+                  <div className="h-3 bg-neutral-200 dark:bg-neutral-800 rounded w-1/3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : filteredEvents.length > 0 ? (
           <div className="grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filteredEvents.map((event) => (
               <EventCard key={event.id} event={event} />
