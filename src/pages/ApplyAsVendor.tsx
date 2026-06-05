@@ -99,8 +99,8 @@ const ApplyAsVendor = () => {
       const response = await api.vendors.register({
         eventId: Number(eventId),
         vendorId,
-        vendorTypeId: selectedVendorType,
-        paymentAmount
+        vendorTypeId: selectedVendorType || undefined,
+        paymentAmount: paymentAmount || undefined
       });
 
       setSuccess(true);

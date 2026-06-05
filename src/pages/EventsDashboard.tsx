@@ -24,7 +24,7 @@ const EventsDashboard = () => {
     const fetchEvents = async () => {
       try {
         // Use the new endpoint to get events for the authenticated organizer
-        const response = await api.get('/events/organizer');
+        const response = await api.get<any>('/events/organizer');
         
         // The response contains an object with events and pagination info
         // Extract just the events array

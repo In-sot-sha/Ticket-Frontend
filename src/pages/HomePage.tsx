@@ -1,437 +1,354 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import {
-  Calendar,
-  MapPin,
-  Users,
-  Ticket,
+  SlidersHorizontal,
+  ChevronLeft,
+  ChevronRight,
   Search,
-  Star,
-  TrendingUp,
-  Clock,
-  Tag,
-  ArrowRight,
-  Sparkles,
-} from "lucide-react";
-import { Button } from "../components/ui/Button";
-import EventCarousel from "../components/carousel/EventCarousel";
-import { motion } from "framer-motion";
-import EventCard from "../components/EventCard";
-import HeroCarousel from "../components/hero-carousel";
+  ArrowRight
+} from 'lucide-react';
+import EventCard, { Event } from '../components/EventCard';
 
-const HomePage = () => {
-  const [searchQuery, setSearchQuery] = useState("");
+/* ── Promoted hero slides ─────────────────────────────── */
+const heroSlides = [
+  {
+    id: 1,
+    title: 'Tech Conference 2023',
+    subtitle: 'Join 500+ industry leaders in Lagos',
+    cta: 'Get Tickets',
+    link: '/events/1',
+    image:
+      'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
+    tag: 'Featured',
+  },
+  {
+    id: 2,
+    title: 'Music Festival Weekend',
+    subtitle: 'Two nights of afrobeats, R&B & more in Abuja',
+    cta: 'Explore Lineup',
+    link: '/events/2',
+    image:
+      'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
+    tag: 'Trending',
+  },
+  {
+    id: 3,
+    title: 'Food & Wine Expo',
+    subtitle: 'Taste the best of Nigeria — 50+ vendors',
+    cta: 'Reserve Your Spot',
+    link: '/events/3',
+    image:
+      'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
+    tag: 'New',
+  },
+  {
+    id: 4,
+    title: 'Startup Pitch Night',
+    subtitle: 'Where ideas meet investors — Ibadan Edition',
+    cta: 'Apply Now',
+    link: '/events/4',
+    image:
+      'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
+    tag: 'Limited Seats',
+  },
+];
 
-  // Mock data for featured events
-  const featuredEvents = [
-    {
-      id: 1,
-      title: "Tech Conference 2023",
-      date: "2023-12-15",
-      location: "Lagos, Nigeria",
-      image:
-        "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80",
-      ticketsAvailable: 250,
-      category: "Technology",
-      rating: 4.8,
-      price: "₦25,000",
-    },
-    {
-      id: 2,
-      title: "Music Festival",
-      date: "2023-11-20",
-      location: "Abuja, Nigeria",
-      image:
-        "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80",
-      ticketsAvailable: 500,
-      category: "Music",
-      rating: 4.9,
-      price: "₦10,000",
-    },
-    {
-      id: 3,
-      title: "Food & Wine Expo",
-      date: "2024-01-10",
-      location: "Port Harcourt, Nigeria",
-      image:
-        "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80",
-      ticketsAvailable: 180,
-      category: "Food & Drink",
-      rating: 4.7,
-      price: "₦8,500",
-    },
-  ];
+/* ── Mock events data ─────────────────────────────────── */
+const mockEvents: Event[] = [
+  {
+    id: 1,
+    title: 'Tech Conference 2023',
+    date: '2023-12-15',
+    location: 'Lagos, Nigeria',
+    image:
+      'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
+    ticketsAvailable: 250,
+    category: 'Technology',
+    rating: 4.8,
+    price: 25000,
+  },
+  {
+    id: 2,
+    title: 'Music Festival',
+    date: '2023-11-20',
+    location: 'Abuja, Nigeria',
+    image:
+      'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
+    ticketsAvailable: 500,
+    category: 'Music',
+    rating: 4.9,
+    price: 10000,
+  },
+  {
+    id: 3,
+    title: 'Food & Wine Expo',
+    date: '2024-01-10',
+    location: 'Port Harcourt, Nigeria',
+    image:
+      'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
+    ticketsAvailable: 180,
+    category: 'Food & Drink',
+    rating: 4.7,
+    price: 8500,
+  },
+  {
+    id: 4,
+    title: 'Startup Pitch Competition',
+    date: '2023-12-01',
+    location: 'Ibadan, Nigeria',
+    image:
+      'https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
+    ticketsAvailable: 100,
+    category: 'Business',
+    rating: 4.6,
+    price: 5000,
+  },
+  {
+    id: 5,
+    title: 'Art & Culture Summit',
+    date: '2023-11-25',
+    location: 'Kano, Nigeria',
+    image:
+      'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
+    ticketsAvailable: 120,
+    category: 'Arts',
+    rating: 4.9,
+    price: 15000,
+  },
+  {
+    id: 6,
+    title: 'Yoga & Mindfulness Workshop',
+    date: '2024-02-18',
+    location: 'Enugu, Nigeria',
+    image:
+      'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
+    ticketsAvailable: 50,
+    category: 'Health',
+    rating: 4.5,
+    price: 3000,
+  },
+];
 
-  // Mock trending events
-  const trendingEvents = [
-    {
-      id: 4,
-      title: "Startup Pitch Competition",
-      date: "2023-12-01",
-      location: "Ibadan, Nigeria",
-      image:
-        "https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80",
-      category: "Business",
-      rating: 4.6,
-      price: "₦5,000",
-    },
-    {
-      id: 5,
-      title: "Art & Culture Summit",
-      date: "2023-11-25",
-      location: "Kano, Nigeria",
-      image:
-        "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80",
-      category: "Art",
-      rating: 4.9,
-      price: "₦15,000",
-    },
-  ];
+const categories = [
+  { name: 'All', icon: '🌐' },
+  { name: 'Music', icon: '🎵' },
+  { name: 'Food & Drink', icon: '🍷' },
+  { name: 'Business', icon: '💼' },
+  { name: 'Technology', icon: '💻' },
+  { name: 'Arts', icon: '🎨' },
+  { name: 'Health', icon: '🧘' },
+];
 
-  // Categories for event discovery
-  const categories = [
-    { name: "Music", icon: "🎵", count: 24 },
-    { name: "Food & Drink", icon: " cuisine", count: 18 },
-    { name: "Business", icon: "💼", count: 32 },
-    { name: "Technology", icon: "💻", count: 27 },
-    { name: "Health", icon: "🧘", count: 15 },
-    { name: "Arts", icon: "🎨", count: 22 },
-  ];
+/* ── Hero Carousel ────────────────────────────────────── */
+const HeroCarousel = () => {
+  const [current, setCurrent] = useState(0);
+  const total = heroSlides.length;
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      window.location.href = `/events?search=${encodeURIComponent(
-        searchQuery
-      )}`;
-    }
-  };
+  const next = useCallback(() => setCurrent((c) => (c + 1) % total), [total]);
+  const prev = useCallback(() => setCurrent((c) => (c - 1 + total) % total), [total]);
+
+  // Auto-advance
+  useEffect(() => {
+    const id = setInterval(next, 6000);
+    return () => clearInterval(id);
+  }, [next]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Hero Section */}
-      <div className="bg-gray-50 dark:bg-gray-900">
-        {/* Hero Section with Image Carousel */}
-        <HeroCarousel>
-          <div className="container mx-auto px-4 relative z-10 w-full">
-            <div className="max-w-4xl mx-auto text-center text-white">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full mb-6">
-                <Sparkles className="h-4 w-4" />
-                <span className="text-sm font-medium">
-                  Discover Amazing Events
-                </span>
-              </div>
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6">
-                Discover events that bring you together
-              </h1>
-              <p className="text-lg md:text-xl mb-10 max-w-3xl mx-auto text-white/90">
-                Find and attend the best events happening near you. From
-                concerts to conferences, workshops to festivals - there's
-                something for everyone.
-              </p>
+    <div className="relative w-full h-[340px] sm:h-[420px] md:h-[480px] overflow-hidden rounded-none md:rounded-3xl group">
+      {/* Slides */}
+      <AnimatePresence initial={false}>
+        <motion.div
+          key={current}
+          initial={{ opacity: 0, scale: 1.05 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.7, ease: 'easeInOut' }}
+          className="absolute inset-0"
+        >
+          <img
+            src={heroSlides[current].image}
+            alt={heroSlides[current].title}
+            className="w-full h-full object-cover"
+          />
+          {/* Gradient overlays */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+        </motion.div>
+      </AnimatePresence>
 
-              {/* Search Bar */}
-              <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="What are you looking for? Try 'Music', 'Food', or 'Technology'..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-12 pr-4 py-4 text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-800 rounded-full focus:outline-none focus:ring-2 focus:ring-white/50 text-lg shadow-xl"
-                  />
-                  <Button
-                    type="submit"
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 px-6 py-2 rounded-full shadow-lg"
-                  >
-                    Search
-                  </Button>
-                </div>
-              </form>
-
-              {/* Popular searches */}
-              <div className="mt-8 flex flex-wrap justify-center gap-3">
-                {[
-                  "Concerts",
-                  "Food festivals",
-                  "Tech events",
-                  "Workshops",
-                  "Networking",
-                ].map((item) => (
-                  <button
-                    key={item}
-                    className="px-4 py-2 bg-white/20 backdrop-blur-sm hover:bg-white/30 rounded-full text-sm transition-all hover:scale-105 text-white"
-                    
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </HeroCarousel>
+      {/* Content */}
+      <div className="absolute inset-0 flex items-end sm:items-center z-10">
+        <div className="px-6 sm:px-10 md:px-14 pb-12 sm:pb-0 max-w-xl">
+          <motion.span
+            key={`tag-${current}`}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="inline-block px-3 py-1 bg-rose-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-full mb-3"
+          >
+            {heroSlides[current].tag}
+          </motion.span>
+          <motion.h2
+            key={`title-${current}`}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white leading-tight mb-2"
+          >
+            {heroSlides[current].title}
+          </motion.h2>
+          <motion.p
+            key={`sub-${current}`}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="text-sm sm:text-base text-white/80 mb-5"
+          >
+            {heroSlides[current].subtitle}
+          </motion.p>
+          <motion.div
+            key={`cta-${current}`}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+          >
+            <Link
+              to={heroSlides[current].link}
+              className="inline-flex items-center gap-2 bg-white text-neutral-900 font-bold text-sm px-6 py-3 rounded-full hover:bg-rose-500 hover:text-white transition-colors shadow-lg active:scale-95"
+            >
+              {heroSlides[current].cta}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </motion.div>
+        </div>
       </div>
 
-      {/* Trending Events Carousel */}
-      <section className="py-16 bg-gray-50 dark:bg-gray-900">
-        <div className="container mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="mb-8"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-3xl font-bold flex items-center gap-2">
-                <TrendingUp className="h-8 w-8 text-primary" />
-                Trending Events
-              </h2>
-              <Link
-                to="/events?sort=trending"
-                className="text-primary hover:underline flex items-center gap-1"
+      {/* Navigation arrows */}
+      <button
+        onClick={prev}
+        className="absolute left-3 top-1/2 -translate-y-1/2 z-20 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 active:scale-95"
+        aria-label="Previous slide"
+      >
+        <ChevronLeft className="h-5 w-5 text-neutral-800 dark:text-white" />
+      </button>
+      <button
+        onClick={next}
+        className="absolute right-3 top-1/2 -translate-y-1/2 z-20 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 active:scale-95"
+        aria-label="Next slide"
+      >
+        <ChevronRight className="h-5 w-5 text-neutral-800 dark:text-white" />
+      </button>
+
+      {/* Dots */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+        {heroSlides.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => setCurrent(i)}
+            className={`rounded-full transition-all duration-300 ${
+              i === current
+                ? 'w-6 h-2 bg-white'
+                : 'w-2 h-2 bg-white/50 hover:bg-white/70'
+            }`}
+            aria-label={`Go to slide ${i + 1}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ── Home Page ────────────────────────────────────────── */
+const HomePage = () => {
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [filteredEvents, setFilteredEvents] = useState<Event[]>(mockEvents);
+
+  useEffect(() => {
+    if (selectedCategory === 'All') {
+      setFilteredEvents(mockEvents);
+    } else {
+      setFilteredEvents(mockEvents.filter((e) => e.category === selectedCategory));
+    }
+  }, [selectedCategory]);
+
+  return (
+    <div className="bg-white dark:bg-gray-950 min-h-[calc(100vh-80px)] flex flex-col relative">
+
+      {/* ─── Hero Carousel Section ─── */}
+      <section className="w-full px-0 md:px-6 lg:px-8 pt-0 md:pt-4">
+        <HeroCarousel />
+      </section>
+
+      {/* ─── Sticky Category Bar ─── */}
+      <div className="sticky top-20 z-30 bg-white/95 dark:bg-gray-950/95 backdrop-blur border-b border-gray-150 dark:border-gray-900 shadow-sm flex items-center justify-between px-6 py-2 gap-4">
+        {/* Categories carousel */}
+        <div className="flex items-center gap-8 overflow-x-auto no-scrollbar scroll-smooth flex-grow py-1">
+          {categories.map((cat) => {
+            const isSelected = selectedCategory === cat.name;
+            return (
+              <button
+                key={cat.name}
+                onClick={() => setSelectedCategory(cat.name)}
+                className={`flex flex-col items-center gap-1.5 pb-2 transition-all border-b-2 hover:text-black dark:hover:text-white group shrink-0 ${
+                  isSelected
+                    ? 'border-neutral-900 text-neutral-900 dark:border-white dark:text-white font-semibold'
+                    : 'border-transparent text-neutral-450 dark:text-neutral-500 font-medium'
+                }`}
               >
-                View all <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-            <p className="text-gray-600 dark:text-gray-400">
-              Don't miss out on these popular events
-            </p>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            <EventCarousel events={trendingEvents} />
-          </motion.div>
+                <span className="text-xl transition-transform group-hover:scale-115">
+                  {cat.icon}
+                </span>
+                <span className="text-[11px] tracking-wide leading-none">{cat.name}</span>
+              </button>
+            );
+          })}
         </div>
-      </section>
 
-      {/* Categories Section */}
-      <section className="py-16 bg-white dark:bg-gray-800">
-        <div className="container mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="flex justify-between items-center mb-8"
-          >
-            <div>
-              <h2 className="text-2xl sm:text-3xl font-bold mb-2">
-                Browse by category
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400">
-                Find events that match your interests
-              </p>
-            </div>
-            <Link
-              to="/events"
-              className=" hover:underline hidden sm:flex items-center gap-1"
-            >
-              View all <ArrowRight className="h-4 w-4" />
-            </Link>
-          </motion.div>
+        {/* Desktop filters icon */}
+        <button className="hidden md:flex items-center gap-2 border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-3 text-xs font-bold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors shadow-sm">
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          Filters
+        </button>
+      </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4"
-          >
-            {categories.map((category, index) => (
-              <motion.div
-                key={category.name}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: index * 0.1 }}
-                whileHover={{ scale: 1.05, y: -5 }}
-                className="bg-gray-50 dark:bg-gray-700 rounded-xl p-6 text-center hover:shadow-lg transition-all cursor-pointer border border-transparent hover:border-primary/20"
-                onClick={() => {
-                  setSearchQuery(category.name);
-                  window.location.href = `/events?category=${encodeURIComponent(
-                    category.name
-                  )}`;
-                }}
-              >
-                <div className="text-3xl mb-3">{category.icon}</div>
-                <h3 className="font-semibold mb-1">{category.name}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {category.count} events
-                </p>
-              </motion.div>
+      {/* ─── Main Content: Events Grid ─── */}
+      <div className="flex-grow w-full px-6 py-6 md:px-8">
+        <div className="mb-6">
+          <h1 className="text-xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
+            {selectedCategory === 'All'
+              ? 'Discover upcoming events'
+              : `${selectedCategory} events`}
+          </h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Showing {filteredEvents.length} premium event listings near you
+          </p>
+        </div>
+
+        {filteredEvents.length > 0 ? (
+          <div className="grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {filteredEvents.map((event) => (
+              <EventCard key={event.id} event={event} />
             ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Featured Events */}
-      <section className="py-16 bg-gray-50 dark:bg-gray-900">
-        <div className="container mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="flex justify-between items-center mb-8"
-          >
-            <div>
-              <h2 className="text-2xl sm:text-3xl font-bold mb-2">
-                Featured events
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400">
-                Hand-picked events just for you
-              </p>
-            </div>
-            <Link
-              to="/events"
-              className=" hover:underline flex items-center gap-1"
-            >
-              View all <ArrowRight className="h-4 w-4" />
-            </Link>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-          >
-            {featuredEvents.map((event, index) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                variant="featured"
-                showRating={true}
-                showTicketsAvailable={true}
-              />
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section className="py-20 bg-white dark:bg-gray-800">
-        <div className="container mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              How Eventify Works
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-              Get started in three simple steps
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              className="text-center p-6 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-            >
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Search className="h-8 w-8" />
-              </div>
-              <h3 className="text-xl font-bold mb-4">Find Events</h3>
-              <p className="text-gray-600 dark:text-gray-300">
-                Browse thousands of events in your area or search for specific
-                interests. Filter by date, location, price, and category.
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-center p-6 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-            >
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Ticket className="h-8 w-8" />
-              </div>
-              <h3 className="text-xl font-bold mb-4">Book Tickets</h3>
-              <p className="text-gray-600 dark:text-gray-300">
-                Securely purchase tickets and receive digital tickets directly
-                to your device. Get updates about your events.
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              className="text-center p-6 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-            >
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Calendar className="h-8 w-8" />
-              </div>
-              <h3 className="text-xl font-bold mb-4">Attend Events</h3>
-              <p className="text-gray-600 dark:text-gray-300">
-                Use your digital tickets to access events and enjoy an
-                incredible experience. Connect with other attendees.
-              </p>
-            </motion.div>
           </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 bg-primary text-primary-foreground relative overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
-        </div>
-        <div className="container mx-auto px-4 text-center relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
-              Ready to host your event?
-            </h2>
-            <p className="text-lg md:text-xl mb-10 max-w-2xl mx-auto text-white/90">
-              Join thousands of organizers using Eventify to create and manage
-              their events. It's free to get started.
+        ) : (
+          <div className="text-center py-20 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-dashed border-gray-200 dark:border-gray-800">
+            <span className="text-4xl block mb-4">🔍</span>
+            <h3 className="text-lg font-bold text-neutral-800 dark:text-white">
+              No listings found
+            </h3>
+            <p className="text-xs text-neutral-500 dark:text-neutral-450 max-w-xs mx-auto mt-2">
+              Try switching to a different category or clearing active filters to browse
+              all options.
             </p>
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <Link to="/organizers">
-                <Button
-                  variant="secondary"
-                  size="lg"
-                  className="bg-white text-primary hover:bg-gray-100 shadow-xl"
-                >
-                  Create an event <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </Link>
-              <Link to="#">
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="border border-2 bg-transparent dark:border-white shadow-xl"
-                >
-                  Contact Sales
-                </Button>
-              </Link>
-            </div>
-          </motion.div>
-        </div>
-      </section>
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </div>
   );
 };

@@ -28,6 +28,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<boolean>;
+  loginWithGoogle: (credential: string) => Promise<boolean>;
   logout: () => void;
   register: (email: string, password: string, firstName: string, lastName: string) => Promise<boolean>;
   isAuthenticated: boolean;
@@ -110,6 +111,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const loginWithGoogle = async (credential: string): Promise<boolean> => {
+    try {
+      const response = await api.post<{ token: string; user: any }>('/users/google-login', { credential });
+
+      if (response.data) {
+        const { token, user } = response.data;
+        setToken(token);
+        setUser(user);
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(user));
+        navigate('/');
+        return true;
+      } else {
+        console.error('Google login failed: No data in response');
+        return false;
+      }
+    } catch (error: any) {
+      console.error('Google login error:', error.response?.data?.message || error.message);
+      return false;
+    }
+  };
+
   const register = async (
     email: string,
     password: string,
@@ -148,7 +171,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const isAuthenticated = !!token;
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, register, isAuthenticated, loading }}>
+    <AuthContext.Provider value={{ user, token, login, loginWithGoogle, logout, register, isAuthenticated, loading }}>
       {children}
     </AuthContext.Provider>
   );

@@ -19,6 +19,10 @@ import TermsOfService from '../pages/TermsOfService';
 import PrivacyPolicy from '../pages/PrivacyPolicy';
 import OrganizerPage from '../pages/OrganizerPage';
 import HelpPage from '../pages/HelpPage';
+import RecoverTicketPage from '../pages/RecoverTicketPage';
+import BookingPage from '../pages/BookingPage';
+import BookingSuccessPage from '../pages/BookingSuccessPage';
+import OpayMockCheckout from '../pages/OpayMockCheckout';
 
 // Protected pages
 import Dashboard from '../pages/Dashboard';
@@ -131,6 +135,26 @@ const AppRoutes: React.FC = () => {
         {
           path: "organizers",
           element: <OrganizerPage />,
+        },
+        {
+          path: "recover-ticket",
+          element: <RecoverTicketPage />,
+        },
+        {
+          path: "book/:eventId",
+          element: <BookingPage />,
+        },
+        {
+          path: "booking/success",
+          element: <BookingSuccessPage />,
+        },
+        {
+          path: "opay-mock-checkout",
+          element: <OpayMockCheckout />,
+        },
+        {
+          path: "help",
+          element: <HelpPage />,
         },
       ],
     },
@@ -264,11 +288,7 @@ const AppRoutes: React.FC = () => {
         },
         {
           path: "ticket-confirmation",
-          element: (
-            <ProtectedRoute>
-              <TicketConfirmationPage />
-            </ProtectedRoute>
-          ),
+          element: <TicketConfirmationPage />,
         },
       ],
     },

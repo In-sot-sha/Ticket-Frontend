@@ -1,52 +1,90 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, Clock, Users, Ticket, Share2, Heart, CheckCircle, Store, User, Mail, Building, ArrowLeft } from 'lucide-react';
-import { Button } from '../components/ui/Button';
+import {
+  Calendar,
+  MapPin,
+  Clock,
+  Users,
+  Ticket,
+  Share2,
+  Heart,
+  CheckCircle,
+  Store,
+  User,
+  Mail,
+  Building,
+  ArrowLeft,
+  Star,
+  Shield,
+  Flag,
+  ChevronRight,
+  Minus,
+  Plus,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import QRCode from 'qrcode.react';
 import { motion } from 'framer-motion';
 
 // Mock event data
 const mockEvent = {
   id: 1,
-  title: "Tech Conference 2023",
-  description: "Join us for the largest technology conference in Nigeria. Network with industry leaders, attend workshops, and learn about the latest trends in tech.",
-  date: "2023-12-15",
-  startTime: "09:00 AM",
-  endTime: "06:00 PM",
-  location: "Eko Convention Centre, Lagos, Nigeria",
-  category: "Technology",
+  title: 'Tech Conference 2023',
+  description:
+    "Join us for the largest technology conference in Nigeria. Network with industry leaders, attend workshops, and learn about the latest trends in tech. This event brings together over 500 professionals from across West Africa for two days of immersive learning and networking.",
+  date: '2023-12-15',
+  startTime: '09:00 AM',
+  endTime: '06:00 PM',
+  location: 'Eko Convention Centre, Lagos, Nigeria',
+  category: 'Technology',
   price: 5000,
   ticketsAvailable: 250,
-  image: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80",
+  rating: 4.92,
+  reviewCount: 128,
+  images: [
+    'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
+    'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
+    'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?ixlib=rb-4.0.3&auto=format&fit=crop&w=1112&q=80',
+    'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
+    'https://images.unsplash.com/photo-1591115765373-5207764f72e7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
+  ],
   organizer: {
-    name: "Tech Events Nigeria",
-    email: "info@techevents.com",
-    phone: "+234 801 234 5678"
+    name: 'Tech Events Nigeria',
+    email: 'info@techevents.com',
+    phone: '+234 801 234 5678',
+    eventsHosted: 24,
+    joinedYear: 2019,
+    responseRate: 98,
+    avatar: 'T',
   },
   ticketTypes: [
-    { id: 1, name: "General Admission", price: 5000, quantity: 200 },
-    { id: 2, name: "VIP", price: 15000, quantity: 50 },
-    { id: 3, name: "Student", price: 2500, quantity: 100 }
+    { id: 1, name: 'General Admission', price: 5000, quantity: 200 },
+    { id: 2, name: 'VIP', price: 15000, quantity: 50 },
+    { id: 3, name: 'Student', price: 2500, quantity: 100 },
   ],
   amenities: [
-    "Free WiFi",
-    "Lunch Provided",
-    "Networking Sessions",
-    "Workshops",
-    "Swag Bag"
+    'Free WiFi',
+    'Lunch Provided',
+    'Networking Sessions',
+    'Workshops',
+    'Swag Bag',
+    'Certificate of Attendance',
+  ],
+  highlights: [
+    { icon: '🎤', label: '15+ Speakers' },
+    { icon: '🏢', label: 'Premium Venue' },
+    { icon: '🍽️', label: 'Catering Included' },
+    { icon: '📜', label: 'Certificate' },
   ],
   vendorApplicationsAllowed: true,
   vendorApplications: [
     {
       id: 1,
-      vendorName: "Tech Gadgets Ltd",
-      businessName: "Tech Gadgets Nigeria",
-      category: "Electronics",
-      description: "Latest tech gadgets and accessories",
-      status: "pending" // pending, approved, rejected
-    }
-  ]
+      vendorName: 'Tech Gadgets Ltd',
+      businessName: 'Tech Gadgets Nigeria',
+      category: 'Electronics',
+      description: 'Latest tech gadgets and accessories',
+      status: 'pending',
+    },
+  ],
 };
 
 const EventDetailPage = () => {
@@ -55,506 +93,406 @@ const EventDetailPage = () => {
   const { user, isAuthenticated } = useAuth();
   const [selectedTicket, setSelectedTicket] = useState<number | null>(null);
   const [ticketQuantity, setTicketQuantity] = useState(1);
-  const [showVendorApplication, setShowVendorApplication] = useState(false);
-  const [showVendorApplications, setShowVendorApplications] = useState(false);
-  const [vendorApplication, setVendorApplication] = useState({
-    vendorName: user?.firstName || '',
-    businessName: '',
-    email: user?.email || '',
-    phone: user?.phone || '',
-    category: '',
-    description: ''
-  });
+  const [isSaved, setIsSaved] = useState(false);
+  const [showAllPhotos, setShowAllPhotos] = useState(false);
 
-  const event = mockEvent; // In a real app, this would come from an API
+  const event = mockEvent;
 
   const handlePurchaseTicket = () => {
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
-    }
-
     if (selectedTicket === null) {
       alert('Please select a ticket type');
       return;
     }
-
-    // Prepare order data and navigate to payment page
-    const selectedTicketType = event.ticketTypes.find(t => t.id === selectedTicket);
     const orderData = {
-      eventId: event.id,
-      eventName: event.title,
-      ticketType: selectedTicketType?.name || 'Unknown',
+      ticketTypeId: selectedTicket,
       quantity: ticketQuantity,
-      totalAmount: (parseFloat(selectedTicketType?.price || '0') * ticketQuantity),
-      currency: "NGN"
     };
-
-    // Navigate to payment page with order data
-    navigate('/payment', { state: orderData });
+    navigate(`/book/${event.id}`, { state: orderData });
   };
 
-  const handleVendorApply = (e: React.FormEvent) => {
-    e.preventDefault();
-    // In a real app, this would submit the vendor application via an API
-    console.log('Vendor application submitted:', vendorApplication);
-    alert('Your vendor application has been submitted and is pending approval');
-    setShowVendorApplication(false);
-    // Reset the form
-    setVendorApplication({
-      vendorName: user?.firstName || '',
-      businessName: '',
-      email: user?.email || '',
-      phone: user?.phone || '',
-      category: '',
-      description: ''
-    });
-  };
+  const selectedTicketType = event.ticketTypes.find((t) => t.id === selectedTicket);
+  const totalPrice = (selectedTicketType?.price || event.price) * ticketQuantity;
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
     });
-  };
 
   return (
-    <div className="min-h-screen py-8 bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4">
-        {/* Back Button */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.4 }}
-          className="mb-6"
-        >
-          <Button
-            variant="ghost"
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-2 hover:gap-3 transition-all"
+    <div className="min-h-screen bg-white dark:bg-gray-950">
+
+      {/* ─── Photo Gallery (Airbnb grid) ─── */}
+      <div className="max-w-7xl mx-auto px-0 md:px-6 lg:px-8 pt-0 md:pt-6">
+        <div className="relative grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-2 rounded-none md:rounded-2xl overflow-hidden h-[300px] sm:h-[360px] md:h-[420px]">
+          {/* Main large image */}
+          <div className="col-span-2 row-span-2 relative cursor-pointer group" onClick={() => setShowAllPhotos(true)}>
+            <img
+              src={event.images[0]}
+              alt={event.title}
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            />
+          </div>
+          {/* Secondary images */}
+          {event.images.slice(1, 5).map((img, i) => (
+            <div key={i} className="hidden md:block relative cursor-pointer group overflow-hidden" onClick={() => setShowAllPhotos(true)}>
+              <img
+                src={img}
+                alt={`${event.title} ${i + 2}`}
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+              />
+            </div>
+          ))}
+          {/* Show all photos button */}
+          <button
+            onClick={() => setShowAllPhotos(true)}
+            className="absolute bottom-4 right-4 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors z-10"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Events
-          </Button>
-        </motion.div>
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Main content */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="lg:w-2/3"
-          >
-            <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-xl">
-              <div className="relative">
-                <img
-                  src={event.image}
-                  alt={event.title}
-                  className="w-full h-64 md:h-96 object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+            Show all photos
+          </button>
+        </div>
+      </div>
+
+      {/* ─── Content ─── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex flex-col lg:flex-row gap-12">
+
+          {/* Left: Event Details */}
+          <div className="lg:w-[60%] xl:w-[65%]">
+            {/* Title Row */}
+            <div className="flex items-start justify-between gap-4 mb-2">
+              <div className="flex-1">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 dark:text-white leading-tight">
+                  {event.title}
+                </h1>
               </div>
-              
-              <div className="p-6 md:p-8">
-                <div className="flex justify-between items-start mb-6">
-                  <div className="flex-1">
-                    <h1 className="text-3xl md:text-4xl font-bold mb-3">{event.title}</h1>
-                    <span className="inline-block px-4 py-1.5 bg-primary/10 text-primary rounded-full text-sm font-medium">
-                      {event.category}
-                    </span>
-                  </div>
-                  <div className="flex space-x-2">
-                    <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                      <Button variant="outline" size="icon" className="rounded-full">
-                        <Heart className="h-4 w-4" />
-                      </Button>
-                    </motion.div>
-                    <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                      <Button variant="outline" size="icon" className="rounded-full">
-                        <Share2 className="h-4 w-4" />
-                      </Button>
-                    </motion.div>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 p-6 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <Calendar className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Date</div>
-                      <div className="font-medium">{formatDate(event.date)}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <Clock className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Time</div>
-                      <div className="font-medium">{event.startTime} - {event.endTime}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <MapPin className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Location</div>
-                      <div className="font-medium">{event.location}</div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="prose dark:prose-invert max-w-none mb-8">
-                  <h2 className="text-2xl font-bold mb-4">About this event</h2>
-                  <p className="leading-relaxed text-gray-700 dark:text-gray-300 text-lg">
-                    {event.description}
-                  </p>
-                  
-                  <h3 className="text-xl font-bold mt-8 mb-4">What's Included</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {event.amenities.map((amenity, index) => (
-                      <motion.div
-                        key={index}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.4, delay: index * 0.1 }}
-                        className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg"
-                      >
-                        <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                        <span className="font-medium">{amenity}</span>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
-                
-                {/* Vendor Applications Section */}
-                {event.vendorApplicationsAllowed && (
-                  <div className="mt-12 border-t border-gray-200 dark:border-gray-700 pt-8">
-                    <div className="flex justify-between items-center mb-6">
-                      <h2 className="text-2xl font-bold flex items-center">
-                        <Store className="h-6 w-6 mr-2 text-primary" />
-                        Vendor Opportunities
-                      </h2>
-                      {user?.role === 'VENDOR' && (
-                        <Button 
-                          onClick={() => setShowVendorApplication(true)}
-                        >
-                          <Store className="h-4 w-4 mr-2" />
-                          Apply as Vendor
-                        </Button>
-                      )}
-                    </div>
-                    
-                    <p className="text-gray-600 dark:text-gray-300 mb-6">
-                      Are you interested in showcasing your products or services at this event? Apply to become a vendor.
-                    </p>
-                    
-                    {!isAuthenticated ? (
-                      <div className="bg-gray-100 dark:bg-gray-700/50 p-4 rounded-lg text-center">
-                        <p className="mb-3">To apply as a vendor, you need to be logged in to your account.</p>
-                        <Button onClick={() => navigate('/login')}>Log in to Apply</Button>
-                      </div>
-                    ) : user?.role !== 'VENDOR' ? (
-                      <div className="bg-gray-100 dark:bg-gray-700/50 p-4 rounded-lg text-center">
-                        <p className="mb-3">You need to register as a vendor to apply for vendor opportunities.</p>
-                        <Button onClick={() => navigate('/become-organizer')}>Become a Vendor</Button>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {event.vendorApplications.map((vendorApp) => (
-                          <div key={vendorApp.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                            <div className="flex items-center mb-3">
-                              <div className="bg-gray-200 dark:bg-gray-600 rounded-lg w-12 h-12 mr-3 flex items-center justify-center">
-                                <Building className="h-6 w-6 text-primary" />
-                              </div>
-                              <div>
-                                <h3 className="font-medium">{vendorApp.businessName}</h3>
-                                <p className="text-sm text-gray-600 dark:text-gray-300">{vendorApp.category}</p>
-                              </div>
-                            </div>
-                            
-                            <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                              {vendorApp.description}
-                            </p>
-                            
-                            <div className="flex items-center">
-                              <div className={`h-3 w-3 rounded-full mr-2 ${
-                                vendorApp.status === 'approved' ? 'bg-green-500' : 
-                                vendorApp.status === 'rejected' ? 'bg-red-500' : 'bg-yellow-500'
-                              }`}></div>
-                              <span className="text-xs font-medium capitalize">
-                                {vendorApp.status}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setIsSaved(!isSaved)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                >
+                  <Heart
+                    className={`h-4 w-4 ${
+                      isSaved ? 'fill-rose-500 text-rose-500' : 'text-neutral-600 dark:text-neutral-400'
+                    }`}
+                  />
+                  <span className="text-xs font-bold underline text-neutral-700 dark:text-neutral-300">
+                    Save
+                  </span>
+                </button>
+                <button className="flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
+                  <Share2 className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
+                  <span className="text-xs font-bold underline text-neutral-700 dark:text-neutral-300">
+                    Share
+                  </span>
+                </button>
               </div>
             </div>
-          </motion.div>
-          
-          {/* Sidebar */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="lg:w-1/3"
-          >
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 md:p-8 sticky top-24">
-              <div className="mb-6">
-                <div className="flex items-baseline gap-2 mb-2">
-                  <h2 className="text-3xl font-bold">₦{event.price.toLocaleString()}</h2>
-                  <span className="text-gray-500 dark:text-gray-400">/ ticket</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                    <div 
-                      className="bg-primary h-2 rounded-full transition-all"
-                      style={{ width: `${(event.ticketsAvailable / 300) * 100}%` }}
-                    />
-                  </div>
-                  <span className="text-sm font-medium text-primary">
-                    {event.ticketsAvailable} left
+
+            {/* Quick meta */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-neutral-600 dark:text-neutral-400 mb-6">
+              <span className="flex items-center gap-1">
+                <Star className="h-3.5 w-3.5 fill-neutral-900 text-neutral-900 dark:fill-white dark:text-white" />
+                <span className="font-bold text-neutral-900 dark:text-white">{event.rating}</span>
+              </span>
+              <span>·</span>
+              <span className="underline font-medium">{event.reviewCount} reviews</span>
+              <span>·</span>
+              <span className="font-medium">{event.location}</span>
+            </div>
+
+            {/* Divider */}
+            <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+
+            {/* Organizer section */}
+            <div className="flex items-center gap-4 mb-6">
+              <div className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-full w-14 h-14 flex items-center justify-center text-white text-xl font-extrabold shadow-md shrink-0">
+                {event.organizer.avatar}
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-neutral-900 dark:text-white">
+                  Hosted by {event.organizer.name}
+                </h3>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  {event.organizer.eventsHosted} events hosted · Joined {event.organizer.joinedYear} · {event.organizer.responseRate}% response rate
+                </p>
+              </div>
+            </div>
+
+            <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+
+            {/* Highlights */}
+            <div className="space-y-5 mb-6">
+              {event.highlights.map((h, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <span className="text-2xl">{h.icon}</span>
+                  <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
+                    {h.label}
                   </span>
                 </div>
-              </div>
+              ))}
+            </div>
 
-              
-              {/* Ticket selection */}
-              <div className="mb-6">
-                <h3 className="font-bold text-lg mb-4">Select Ticket Type</h3>
-                <div className="space-y-3">
-                  {event.ticketTypes.map(ticket => (
-                    <motion.label 
-                      key={ticket.id}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className={`flex items-center justify-between p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                        selectedTicket === ticket.id 
-                          ? 'border-primary bg-primary/5 shadow-md' 
-                          : 'border-gray-200 dark:border-gray-700 hover:border-primary/50'
-                      }`}
-                    >
-                      <div className="flex-1">
-                        <div className="font-semibold text-lg">{ticket.name}</div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                          ₦{ticket.price.toLocaleString()}
-                        </div>
-                      </div>
-                      <input
-                        type="radio"
-                        name="ticketType"
-                        value={ticket.id}
-                        checked={selectedTicket === ticket.id}
-                        onChange={() => setSelectedTicket(ticket.id)}
-                        className="h-5 w-5 text-primary focus:ring-primary"
-                      />
-                    </motion.label>
-                  ))}
+            <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+
+            {/* Event details */}
+            <div className="mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                <div className="flex items-start gap-3 p-4 bg-neutral-50 dark:bg-neutral-900/50 rounded-2xl">
+                  <div className="p-2.5 bg-rose-50 dark:bg-rose-950/30 rounded-xl">
+                    <Calendar className="h-5 w-5 text-rose-500" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Date</p>
+                    <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                      {formatDate(event.date)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-4 bg-neutral-50 dark:bg-neutral-900/50 rounded-2xl">
+                  <div className="p-2.5 bg-rose-50 dark:bg-rose-950/30 rounded-xl">
+                    <Clock className="h-5 w-5 text-rose-500" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Time</p>
+                    <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                      {event.startTime} – {event.endTime}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-4 bg-neutral-50 dark:bg-neutral-900/50 rounded-2xl">
+                  <div className="p-2.5 bg-rose-50 dark:bg-rose-950/30 rounded-xl">
+                    <MapPin className="h-5 w-5 text-rose-500" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Location</p>
+                    <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                      {event.location}
+                    </p>
+                  </div>
                 </div>
               </div>
-              
-              <div className="mb-6">
-                <label className="block font-bold text-lg mb-3">Quantity</label>
-                <div className="flex items-center justify-center gap-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-12 w-12 rounded-full"
-                    onClick={() => setTicketQuantity(q => Math.max(1, q - 1))}
-                  >
-                    -
-                  </Button>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={ticketQuantity}
-                    onChange={(e) => setTicketQuantity(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
-                    className="h-12 w-20 text-center text-xl font-bold bg-transparent border-0 focus:outline-none [-moz-appearance:_textfield] [&::-webkit-outer-spin-button]:m-0 [&::-webkit-inner-spin-button]:m-0"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-12 w-12 rounded-full"
-                    onClick={() => setTicketQuantity(q => Math.min(10, q + 1))}
-                  >
-                    +
-                  </Button>
-                </div>
-              </div>
-              
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Button 
-                  className="w-full mb-4 h-14 text-lg font-semibold shadow-lg" 
-                  size="lg"
-                  onClick={handlePurchaseTicket}
-                >
-                  <Ticket className="h-5 w-5 mr-2" />
-                  Purchase Ticket
-                </Button>
-              </motion.div>
-              
-              <p className="text-xs text-gray-500 dark:text-gray-400 text-center leading-relaxed">
-                🔒 Secure checkout • You agree to the Terms of Service and Privacy Policy.
+            </div>
+
+            <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+
+            {/* About */}
+            <div className="mb-8">
+              <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white mb-4">
+                About this event
+              </h2>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed whitespace-pre-line">
+                {event.description}
               </p>
             </div>
-            
-            {/* Organizer info */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 mt-6">
-              <h3 className="font-bold text-lg mb-4">Organized by</h3>
-              <div className="flex items-center gap-4">
-                <div className="bg-gradient-to-br from-primary to-primary/80 rounded-full w-14 h-14 flex items-center justify-center flex-shrink-0">
-                  <span className="font-bold text-white text-xl">{event.organizer.name.charAt(0)}</span>
-                </div>
-                <div className="flex-1">
-                  <div className="font-semibold text-lg">{event.organizer.name}</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    {event.organizer.email}
+
+            <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+
+            {/* What's Included */}
+            <div className="mb-8">
+              <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white mb-4">
+                What's included
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {event.amenities.map((amenity, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 py-3"
+                  >
+                    <CheckCircle className="h-5 w-5 text-rose-500 shrink-0" />
+                    <span className="text-sm text-neutral-700 dark:text-neutral-300 font-medium">
+                      {amenity}
+                    </span>
                   </div>
-                </div>
+                ))}
               </div>
             </div>
-          </motion.div>
-        </div>
-        
-        {/* Vendor Application Modal */}
-        {showVendorApplication && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <h3 className="text-xl font-bold mb-4 flex items-center">
-                <Store className="h-5 w-5 mr-2 text-primary" />
-                Apply as Vendor
-              </h3>
-              
-              <form onSubmit={handleVendorApply}>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="vendorName" className="block text-sm font-medium mb-1">
-                        Your Name
-                      </label>
-                      <input
-                        type="text"
-                        id="vendorName"
-                        value={vendorApplication.vendorName}
-                        onChange={(e) => setVendorApplication({...vendorApplication, vendorName: e.target.value})}
-                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                        placeholder="John Doe"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="businessName" className="block text-sm font-medium mb-1">
-                        Business Name
-                      </label>
-                      <input
-                        type="text"
-                        id="businessName"
-                        value={vendorApplication.businessName}
-                        onChange={(e) => setVendorApplication({...vendorApplication, businessName: e.target.value})}
-                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                        placeholder="Your Business Name"
-                        required
-                      />
-                    </div>
+
+            {/* Vendor section */}
+            {event.vendorApplicationsAllowed && (
+              <>
+                <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+                <div className="mb-8">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white flex items-center gap-2">
+                      <Store className="h-5 w-5 text-rose-500" />
+                      Vendor Opportunities
+                    </h2>
+                    {user?.role === 'VENDOR' && (
+                      <button
+                        onClick={() => navigate(`/events/${event.id}/apply-vendor`)}
+                        className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-full px-4 py-2 text-xs font-bold hover:opacity-90 transition-opacity active:scale-95"
+                      >
+                        Apply as Vendor
+                      </button>
+                    )}
                   </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="email" className="block text-sm font-medium mb-1">
-                        Email Address
-                      </label>
-                      <input
-                        type="email"
-                        id="email"
-                        value={vendorApplication.email}
-                        onChange={(e) => setVendorApplication({...vendorApplication, email: e.target.value})}
-                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                        placeholder="john@example.com"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="phone" className="block text-sm font-medium mb-1">
-                        Phone Number
-                      </label>
-                      <input
-                        type="tel"
-                        id="phone"
-                        value={vendorApplication.phone}
-                        onChange={(e) => setVendorApplication({...vendorApplication, phone: e.target.value})}
-                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                        placeholder="+234 801 234 5678"
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="category" className="block text-sm font-medium mb-1">
-                      Business Category
-                    </label>
-                    <select
-                      id="category"
-                      value={vendorApplication.category}
-                      onChange={(e) => setVendorApplication({...vendorApplication, category: e.target.value})}
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      required
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
+                    Interested in showcasing your products or services? Apply to become a vendor.
+                  </p>
+                  {!isAuthenticated && (
+                    <button
+                      onClick={() => navigate('/login')}
+                      className="text-xs font-bold text-rose-500 hover:underline"
                     >
-                      <option value="">Select a category</option>
-                      <option value="food">Food & Beverage</option>
-                      <option value="electronics">Electronics</option>
-                      <option value="fashion">Fashion</option>
-                      <option value="arts">Arts & Crafts</option>
-                      <option value="services">Services</option>
-                      <option value="other">Other</option>
-                    </select>
+                      Log in to apply →
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* ─── Right: Booking Card (Sticky) ─── */}
+          <div className="lg:w-[40%] xl:w-[35%]">
+            <div className="sticky top-24">
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 shadow-lg bg-white dark:bg-gray-900"
+              >
+                {/* Price header */}
+                <div className="flex items-baseline justify-between mb-6">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-extrabold text-neutral-900 dark:text-white">
+                      ₦{event.price.toLocaleString()}
+                    </span>
+                    <span className="text-sm text-neutral-500 dark:text-neutral-400">/ ticket</span>
                   </div>
-                  
-                  <div>
-                    <label htmlFor="description" className="block text-sm font-medium mb-1">
-                      Business Description
-                    </label>
-                    <textarea
-                      id="description"
-                      value={vendorApplication.description}
-                      onChange={(e) => setVendorApplication({...vendorApplication, description: e.target.value})}
-                      rows={4}
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      placeholder="Tell us about your products or services and why you'd like to be part of this event"
-                      required
-                    ></textarea>
-                  </div>
-                  
-                  <div className="flex justify-end space-x-3 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setShowVendorApplication(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button type="submit">
-                      Submit Application
-                    </Button>
+                  <div className="flex items-center gap-1 text-xs">
+                    <Star className="h-3 w-3 fill-neutral-900 text-neutral-900 dark:fill-white dark:text-white" />
+                    <span className="font-bold text-neutral-900 dark:text-white">{event.rating}</span>
+                    <span className="text-neutral-500">· {event.reviewCount} reviews</span>
                   </div>
                 </div>
-              </form>
+
+                {/* Ticket Type Selection (stacked border-sharing) */}
+                <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden mb-4">
+                  <div className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-3">
+                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                      Ticket Type
+                    </p>
+                    <select
+                      value={selectedTicket ?? ''}
+                      onChange={(e) => setSelectedTicket(Number(e.target.value) || null)}
+                      className="w-full bg-transparent text-sm font-semibold text-neutral-900 dark:text-white focus:outline-none appearance-none cursor-pointer"
+                    >
+                      <option value="">Select ticket type</option>
+                      {event.ticketTypes.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} — ₦{t.price.toLocaleString()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="px-4 py-3 flex items-center justify-between">
+                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                      Guests
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setTicketQuantity((q) => Math.max(1, q - 1))}
+                        className="border border-neutral-300 dark:border-neutral-700 rounded-full p-1.5 hover:border-neutral-500 dark:hover:border-neutral-500 transition-colors disabled:opacity-30"
+                        disabled={ticketQuantity <= 1}
+                      >
+                        <Minus className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-300" />
+                      </button>
+                      <span className="text-sm font-bold w-6 text-center text-neutral-900 dark:text-white">
+                        {ticketQuantity}
+                      </span>
+                      <button
+                        onClick={() => setTicketQuantity((q) => Math.min(10, q + 1))}
+                        className="border border-neutral-300 dark:border-neutral-700 rounded-full p-1.5 hover:border-neutral-500 dark:hover:border-neutral-500 transition-colors disabled:opacity-30"
+                        disabled={ticketQuantity >= 10}
+                      >
+                        <Plus className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-300" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Reserve button */}
+                <button
+                  onClick={handlePurchaseTicket}
+                  className="w-full h-12 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] mb-3"
+                >
+                  Reserve
+                </button>
+
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center mb-4">
+                  You won't be charged yet
+                </p>
+
+                {/* Price breakdown */}
+                {selectedTicket && (
+                  <div className="space-y-3 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-neutral-600 dark:text-neutral-400 underline">
+                        ₦{(selectedTicketType?.price || 0).toLocaleString()} × {ticketQuantity} ticket{ticketQuantity > 1 ? 's' : ''}
+                      </span>
+                      <span className="text-neutral-900 dark:text-white font-medium">
+                        ₦{totalPrice.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-neutral-600 dark:text-neutral-400 underline">
+                        Service fee
+                      </span>
+                      <span className="text-neutral-900 dark:text-white font-medium">
+                        ₦{Math.round(totalPrice * 0.05).toLocaleString()}
+                      </span>
+                    </div>
+                    <hr className="border-neutral-100 dark:border-neutral-800" />
+                    <div className="flex items-center justify-between text-sm font-extrabold">
+                      <span className="text-neutral-900 dark:text-white">Total</span>
+                      <span className="text-neutral-900 dark:text-white">
+                        ₦{(totalPrice + Math.round(totalPrice * 0.05)).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+
+              {/* Report listing */}
+              <div className="flex items-center justify-center gap-2 mt-4">
+                <Flag className="h-3.5 w-3.5 text-neutral-400" />
+                <button className="text-xs font-medium text-neutral-500 dark:text-neutral-400 underline hover:text-neutral-700 dark:hover:text-neutral-300">
+                  Report this listing
+                </button>
+              </div>
             </div>
           </div>
-        )}
-        
 
+        </div>
       </div>
+
+      {/* ─── Full-screen Photo Gallery Modal ─── */}
+      {showAllPhotos && (
+        <div className="fixed inset-0 bg-white dark:bg-gray-950 z-50 overflow-y-auto">
+          <div className="sticky top-0 z-10 bg-white/95 dark:bg-gray-950/95 backdrop-blur border-b border-neutral-100 dark:border-neutral-900 px-4 py-3 flex items-center">
+            <button
+              onClick={() => setShowAllPhotos(false)}
+              className="flex items-center gap-2 text-sm font-bold text-neutral-900 dark:text-white hover:bg-neutral-50 dark:hover:bg-neutral-900 px-3 py-2 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </button>
+          </div>
+          <div className="max-w-4xl mx-auto px-4 py-6 space-y-2">
+            {event.images.map((img, i) => (
+              <img
+                key={i}
+                src={img}
+                alt={`${event.title} ${i + 1}`}
+                className="w-full rounded-xl object-cover"
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

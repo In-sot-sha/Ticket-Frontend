@@ -6,41 +6,27 @@ import { useAuth } from '../../context/AuthContext';
 import { useRole } from '../../context/RoleContext';
 import { 
   Menu, 
-  X, 
-  User, 
-  Calendar,
-  MapPin,
-  Ticket,
-  ChevronDown,
-  LogOut,
+  Search, 
+  Ticket, 
   UserCircle,
   Settings,
-  Users,
+  LogOut,
   Building,
-  Store,
-  Bell,
-  CheckCircle,
-  XCircle,
-  Clock,
+  User,
+  HelpCircle,
   Plus
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const Header = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [isHoveringUser, setIsHoveringUser] = useState(false);
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const { user, logout, isAuthenticated } = useAuth();
-  const { currentRole, setCurrentRole, availableRoles } = useRole();
+  const { currentRole, setCurrentRole } = useRole();
   const navigate = useNavigate();
   const location = useLocation();
-  
-  // Combine hover state and click state for user menu
-  const showUserMenu = isUserMenuOpen || isHoveringUser;
-  
+
   useEffect(() => {
-    if (showUserMenu) {
+    if (isUserMenuOpen) {
       const handleClickOutside = (e: MouseEvent) => {
         if (!(e.target as Element).closest('.user-menu-container')) {
           setIsUserMenuOpen(false);
@@ -50,455 +36,225 @@ const Header = () => {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [showUserMenu]);
+  }, [isUserMenuOpen]);
 
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
+  const handleSwitchRole = () => {
+    if (location.pathname.startsWith('/organizer')) {
+      setCurrentRole('USER');
+      navigate('/user');
+    } else {
+      setCurrentRole('ORGANIZER');
+      navigate('/organizer');
+    }
   };
 
-
-
- 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
-      <div className="container flex h-16 items-center justify-between">
-        {/* Logo */}
-        <div className="flex items-center space-x-2">
-          <Ticket className="h-8 w-8 " />
-          <Link to="/" className="text-xl font-bold">
-            Eventify
+    <header className="sticky top-0 z-50 w-full border-b border-gray-100 dark:border-gray-800 bg-white/90 dark:bg-gray-950/90 backdrop-blur-md transition-all duration-300">
+      <div className="container mx-auto px-4 md:px-8 h-20 flex items-center justify-between">
+        
+        {/* Logo (Left) */}
+        <div className="flex items-center">
+          <Link to="/" className="flex items-center gap-1.5 group">
+            <Ticket className="h-8 w-8 text-rose-500 transform transition-transform group-hover:rotate-12 duration-200" />
+            <span className="text-rose-500 font-extrabold text-xl tracking-tight hidden sm:block">
+              eventify
+            </span>
           </Link>
         </div>
 
-        {/* Desktop Navigation - Dynamic based on current location */}
-        <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
-          {location.pathname.startsWith('/organizer') ? (
-            <>
-              <Link 
-                to="/events" 
-                className={`transition-colors hover:text-foreground/80 ${
-                  location.pathname === '/events' ? 'text-foreground' : 'text-foreground/60'
-                }`}
-              >
-                Browse Events
-              </Link>
-              <Link 
-                to="/organizer/events" 
-                className={`transition-colors hover:text-foreground/80 ${
-                  location.pathname === '/organizer/events' ? 'text-foreground' : 'text-foreground/60'
-                }`}
-              >
-                My Events
-              </Link>
-              <Link 
-                to="/organizer/events/create" 
-                className={`transition-colors hover:text-foreground/80 ${
-                  location.pathname === '/organizer/events/create' ? 'text-foreground' : 'text-foreground/60'
-                }`}
-              >
-                Create Event
-              </Link>
-              <Link 
-                to="/organizer/analytics" 
-                className={`transition-colors hover:text-foreground/80 ${
-                  location.pathname === '/organizer/analytics' ? 'text-foreground' : 'text-foreground/60'
-                }`}
-              >
-                Analytics
-              </Link>
-            </>
-          ) : location.pathname.startsWith('/user') ? (
-            <>
-              <Link 
-                to="/events" 
-                className={`transition-colors hover:text-foreground/80 ${
-                  location.pathname === '/events' ? 'text-foreground' : 'text-foreground/60'
-                }`}
-              >
-                Browse Events
-              </Link>
-              <Link 
-                to="/user/tickets" 
-                className={`transition-colors hover:text-foreground/80 ${
-                  location.pathname === '/user/tickets' ? 'text-foreground' : 'text-foreground/60'
-                }`}
-              >
-                My Tickets
-              </Link>
-              <Link 
-                to="/user/vendors" 
-                className={`transition-colors hover:text-foreground/80 ${
-                  location.pathname === '/user/vendors' ? 'text-foreground' : 'text-foreground/60'
-                }`}
-              >
-                Vendor Applications
-              </Link>
-              <Link 
-                to="/become-organizer" 
-                className={`transition-colors hover:text-foreground/80 ${
-                  location.pathname === '/become-organizer' ? 'text-foreground' : 'text-foreground/60'
-                }`}
-              >
-                Become Organizer
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link 
-                to="/" 
-                className={`transition-colors hover:text-foreground/80 ${
-                  location.pathname === '/' ? 'text-foreground' : 'text-foreground/60'
-                }`}
-              >
-                Home
-              </Link>
-              <Link 
-                to="/events" 
-                className={`transition-colors hover:text-foreground/80 ${
-                  location.pathname === '/events' ? 'text-foreground' : 'text-foreground/60'
-                }`}
-              >
-                Events
-              </Link>
-              <Link 
-                to="/organizers" 
-                className={`transition-colors hover:text-foreground/80 ${
-                  location.pathname === '/organizers' ? 'text-foreground' : 'text-foreground/60'
-                }`}
-              >
-                For Organizers
-              </Link>
-              <Link 
-                to="/help" 
-                className={`transition-colors hover:text-foreground/80 ${
-                  location.pathname === '/help' ? 'text-foreground' : 'text-foreground/60'
-                }`}
-              >
-                Help
-              </Link>
-            </>
-          )}
-        </nav>
+        {/* Center Search Pill (Desktop/Tablet) */}
+        <div className="hidden md:block">
+          <div 
+            onClick={() => navigate('/events')}
+            className="flex items-center border border-gray-200 dark:border-gray-800 rounded-full py-2 pl-6 pr-2 shadow-sm hover:shadow-md transition-all cursor-pointer bg-white dark:bg-gray-900 duration-200"
+          >
+            <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 border-r border-gray-200 dark:border-gray-800 pr-4">
+              Anywhere
+            </span>
+            <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 border-r border-gray-200 dark:border-gray-800 px-4">
+              Any Date
+            </span>
+            <span className="text-xs text-neutral-500 dark:text-neutral-400 pl-4 pr-3 flex items-center gap-3">
+              Search events
+              <span className="bg-rose-500 p-2 rounded-full text-white hover:bg-rose-600 transition-colors">
+                <Search className="h-3 w-3 stroke-[3]" />
+              </span>
+            </span>
+          </div>
+        </div>
 
-
+        {/* Mobile Search Pill (Mobile view, occupies center space) */}
+        <div className="md:hidden flex-1 mx-4">
+          <div 
+            onClick={() => navigate('/events')}
+            className="flex items-center border border-gray-200 dark:border-gray-800 rounded-full py-2 px-4 shadow-sm hover:shadow-md bg-white dark:bg-gray-900 cursor-pointer w-full"
+          >
+            <Search className="h-4 w-4 text-rose-500 mr-3 stroke-[2.5]" />
+            <div className="flex flex-col text-left">
+              <span className="text-xs font-extrabold text-neutral-800 dark:text-neutral-200 leading-none mb-0.5">Where to?</span>
+              <span className="text-[10px] text-neutral-400 dark:text-neutral-500 leading-none">Anywhere &bull; Any Date &bull; Add events</span>
+            </div>
+          </div>
+        </div>
 
         {/* Right side controls */}
-        <div className="flex items-center gap-2">
-          {/* Mode Toggle - Always visible */}
+        <div className="flex items-center gap-3">
+          
+          {/* Switch view/hosting link */}
+          {isAuthenticated && (
+            <button 
+              onClick={handleSwitchRole}
+              className="hidden lg:block text-xs font-semibold px-4 py-2.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 transition-colors"
+            >
+              {location.pathname.startsWith('/organizer') ? 'Switch to Guest' : 'Switch to Hosting'}
+            </button>
+          )}
+
+          {/* Create event shortcut for organizers */}
+          {isAuthenticated && (user?.role === 'ORGANIZER' || location.pathname.startsWith('/organizer')) && (
+            <Link to="/organizer/events/create" className="hidden sm:block">
+              <button className="flex items-center gap-1 text-xs font-semibold px-4 py-2.5 rounded-full border border-gray-200 dark:border-gray-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+                <Plus className="h-3.5 w-3.5" />
+                Host Event
+              </button>
+            </Link>
+          )}
+
+          {/* Theme Mode Toggle */}
           <ModeToggle />
           
-          {/* Desktop: Create Event Button & User Menu */}
-          {isAuthenticated ? (
-            <div className="hidden md:flex items-center gap-3">
-              {/* Create Event Button - only shown for organizers */}
-              {(user?.role === 'ORGANIZER' || location.pathname.startsWith('/organizer')) && (
-                <Link to="/organizer/events/create">
-                  <Button className="flex items-center">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Event
-                  </Button>
-                </Link>
+          {/* User profile dropdown button container */}
+          <div className="relative user-menu-container">
+            <button
+              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              className="flex items-center gap-3 border border-gray-200 dark:border-gray-800 rounded-full p-2.5 hover:shadow-md transition-shadow bg-white dark:bg-gray-900"
+              aria-expanded={isUserMenuOpen}
+            >
+              <Menu className="h-4 w-4 text-gray-500" />
+              {isAuthenticated && user?.firstName ? (
+                <div className="h-6 w-6 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px] font-extrabold shadow-sm">
+                  {user.firstName.charAt(0).toUpperCase()}
+                </div>
+              ) : (
+                <UserCircle className="h-6 w-6 text-gray-400 stroke-[1.5]" />
               )}
-              
-              {/* User dropdown - appears on hover */}
-              <div 
-                className="relative user-menu-container"
-                onMouseEnter={() => setIsHoveringUser(true)}
-                onMouseLeave={() => setIsHoveringUser(false)}
-              >
-                <button
-                  className="flex items-center gap-1 px-3 py-2 rounded-lg hover:bg-accent transition-colors"
-                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  aria-expanded={showUserMenu}
-                >
-                  <UserCircle className="h-5 w-5 text-primary" />
-                  <span className="text-sm font-medium">{user?.firstName}</span>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
-                </button>
-                
-                {showUserMenu && (
-                  <div className="absolute right-0 mt-2 w-60 bg-white dark:bg-gray-800 rounded-xl shadow-xl py-2 z-50 border border-gray-200 dark:border-gray-700">
-                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{user?.firstName} {user?.lastName}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{user?.email}</p>
+            </button>
+
+            {/* Dropdown Menu */}
+            {isUserMenuOpen && (
+              <div className="absolute right-0 mt-3.5 w-60 bg-white dark:bg-gray-950 rounded-2xl shadow-xl py-2 z-50 border border-gray-100 dark:border-gray-850 animate-in fade-in slide-in-from-top-3 duration-150">
+                {isAuthenticated ? (
+                  <>
+                    <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-850">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Welcome back</p>
+                      <p className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100 mt-1">
+                        {user?.firstName} {user?.lastName}
+                      </p>
                     </div>
                     
-                    <div className="py-2">
+                    <div className="py-1">
                       <Link 
                         to="/profile" 
-                        className="w-full text-left px-4 py-2.5 text-sm flex items-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                         onClick={() => setIsUserMenuOpen(false)}
                       >
-                        <Settings className="h-4 w-4 mr-3 text-gray-500" />
-                        Profile Settings
+                        <Settings className="h-4 w-4 mr-3 text-gray-400" />
+                        Account settings
                       </Link>
-                      
-                      {/* Context switching options based on location */}
+
                       {location.pathname.startsWith('/organizer') ? (
                         <Link 
-                          to="/user" 
-                          className="w-full text-left px-4 py-2.5 text-sm flex items-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          to="/user/tickets" 
+                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                           onClick={() => setIsUserMenuOpen(false)}
                         >
-                          <User className="h-4 w-4 mr-3 text-gray-500" />
-                          Switch to User View
+                          <User className="h-4 w-4 mr-3 text-gray-400" />
+                          My tickets (Guest view)
                         </Link>
                       ) : (
                         <Link 
                           to="/organizer" 
-                          className="w-full text-left px-4 py-2.5 text-sm flex items-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                           onClick={() => setIsUserMenuOpen(false)}
                         >
-                          <Building className="h-4 w-4 mr-3 text-gray-500" />
-                          Switch to Organizer View
+                          <Building className="h-4 w-4 mr-3 text-gray-400" />
+                          Organizer dashboard
                         </Link>
                       )}
                       
-                      <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
-                      
+                      {/* Switch role menu item */}
+                      <button
+                        onClick={() => {
+                          handleSwitchRole();
+                          setIsUserMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
+                      >
+                        <Building className="h-4 w-4 mr-3 text-rose-500" />
+                        {location.pathname.startsWith('/organizer') ? 'Switch to Guest Mode' : 'Switch to Host Mode'}
+                      </button>
+                    </div>
+
+                    <div className="border-t border-gray-100 dark:border-gray-850 my-1"></div>
+                    
+                    <div className="py-1">
                       <button
                         onClick={() => {
                           logout();
                           setIsUserMenuOpen(false);
                         }}
-                        className="w-full text-left px-4 py-2.5 text-sm flex items-center text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        className="w-full text-left px-4 py-3 text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/15 flex items-center transition-colors"
                       >
                         <LogOut className="h-4 w-4 mr-3" />
-                        Logout
+                        Log out
                       </button>
                     </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            /* Desktop: Login & Sign Up Buttons */
-            <div className="hidden md:flex items-center gap-2">
-              <Link to="/login">
-                <Button variant="ghost" size="sm">
-                  Login
-                </Button>
-              </Link>
-              <Link to="/register">
-                <Button size="sm">
-                  Sign Up
-                </Button>
-              </Link>
-            </div>
-          )}
-
-          {/* Mobile menu button */}
-          <button 
-            className="md:hidden p-2 rounded-lg hover:bg-accent transition-colors"
-            onClick={toggleMenu}
-            aria-label="Toggle menu"
-          >
-            {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile menu */}
-      {isMenuOpen && (
-        <div className="md:hidden border-t border-gray-200 dark:border-gray-700 bg-background">
-          <div className="container py-4">
-            {/* User Profile Section (if authenticated) */}
-            {isAuthenticated && (
-              <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-3 px-3 py-2">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <UserCircle className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                      {user?.firstName} {user?.lastName}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Navigation Links */}
-            <nav className="space-y-1">
-              {location.pathname.startsWith('/organizer') ? (
-                <>
-                  <Link 
-                    to="/events" 
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors text-sm font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <Calendar className="h-5 w-5 text-gray-500" />
-                    Browse Events
-                  </Link>
-                  <Link 
-                    to="/organizer/events" 
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors text-sm font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <Ticket className="h-5 w-5 text-gray-500" />
-                    My Events
-                  </Link>
-                  <Link 
-                    to="/organizer/events/create" 
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors text-sm font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <Plus className="h-5 w-5 text-gray-500" />
-                    Create Event
-                  </Link>
-                  <Link 
-                    to="/organizer/analytics" 
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors text-sm font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <Users className="h-5 w-5 text-gray-500" />
-                    Analytics
-                  </Link>
-                </>
-              ) : location.pathname.startsWith('/user') ? (
-                <>
-                  <Link 
-                    to="/events" 
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors text-sm font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <Calendar className="h-5 w-5 text-gray-500" />
-                    Browse Events
-                  </Link>
-                  <Link 
-                    to="/user/tickets" 
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors text-sm font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <Ticket className="h-5 w-5 text-gray-500" />
-                    My Tickets
-                  </Link>
-                  <Link 
-                    to="/user/vendors" 
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors text-sm font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <Store className="h-5 w-5 text-gray-500" />
-                    Vendor Applications
-                  </Link>
-                  <Link 
-                    to="/become-organizer" 
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors text-sm font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <Building className="h-5 w-5 text-gray-500" />
-                    Become Organizer
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <Link 
-                    to="/" 
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors text-sm font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <MapPin className="h-5 w-5 text-gray-500" />
-                    Home
-                  </Link>
-                  <Link 
-                    to="/events" 
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors text-sm font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <Calendar className="h-5 w-5 text-gray-500" />
-                    Events
-                  </Link>
-                  <Link 
-                    to="/organizers" 
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors text-sm font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <Building className="h-5 w-5 text-gray-500" />
-                    For Organizers
-                  </Link>
-                  <Link 
-                    to="/help" 
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors text-sm font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <Ticket className="h-5 w-5 text-gray-500" />
-                    Help
-                  </Link>
-                </>
-              )}
-            </nav>
-              
-            {/* Authenticated User Actions */}
-            {isAuthenticated ? (
-              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-1">
-                <Link 
-                  to="/profile" 
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors text-sm font-medium"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <Settings className="h-5 w-5 text-gray-500" />
-                  Profile Settings
-                </Link>
-                
-                {/* Context Switching */}
-                {location.pathname.startsWith('/organizer') ? (
-                  <Link 
-                    to="/user" 
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors text-sm font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <User className="h-5 w-5 text-gray-500" />
-                    Switch to User View
-                  </Link>
+                  </>
                 ) : (
-                  <Link 
-                    to="/organizer" 
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors text-sm font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <Building className="h-5 w-5 text-gray-500" />
-                    Switch to Organizer View
-                  </Link>
+                  <>
+                    <div className="py-1.5">
+                      <Link 
+                        to="/register" 
+                        className="w-full text-left px-4 py-3 text-xs font-bold text-neutral-900 dark:text-white flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        Sign up
+                      </Link>
+                      <Link 
+                        to="/login" 
+                        className="w-full text-left px-4 py-3 text-xs font-medium text-neutral-600 dark:text-neutral-300 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        Log in
+                      </Link>
+                    </div>
+                    
+                    <div className="border-t border-gray-100 dark:border-gray-850 my-1"></div>
+                    
+                    <div className="py-1">
+                      <Link 
+                        to="/organizers" 
+                        className="w-full text-left px-4 py-3 text-xs font-medium text-neutral-600 dark:text-neutral-300 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        Host your event
+                      </Link>
+                      <Link 
+                        to="/help" 
+                        className="w-full text-left px-4 py-3 text-xs font-medium text-neutral-600 dark:text-neutral-300 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        <HelpCircle className="h-4 w-4 mr-3 text-gray-400" />
+                        Help Center
+                      </Link>
+                    </div>
+                  </>
                 )}
-                
-                <button
-                  onClick={() => {
-                    logout();
-                    setIsMenuOpen(false);
-                  }} 
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-sm font-medium text-red-600 dark:text-red-400"
-                >
-                  <LogOut className="h-5 w-5" />
-                  Logout
-                </button>
-              </div>
-            ) : (
-              /* Login & Sign Up for non-authenticated users */
-              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
-                <Link 
-                  to="/login" 
-                  className="block w-full"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <Button variant="outline" className="w-full justify-center" size="lg">
-                    Login
-                  </Button>
-                </Link>
-                <Link 
-                  to="/register" 
-                  className="block w-full"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <Button className="w-full justify-center" size="lg">
-                    Sign Up
-                  </Button>
-                </Link>
               </div>
             )}
           </div>
         </div>
-      )}
+      </div>
     </header>
   );
 };

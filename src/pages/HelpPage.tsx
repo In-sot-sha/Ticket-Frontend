@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Search, MessageCircle, Users, Ticket, Store, Calendar, CreditCard, User, Menu, X } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { Link } from 'react-router-dom';
 
 const HelpPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -618,6 +619,22 @@ const HelpPage = () => {
                 className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
+          </div>
+
+          {/* Ticket Recovery Banner */}
+          <div className="max-w-3xl mx-auto mt-8 p-6 bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-950/20 dark:to-pink-950/10 rounded-2xl border border-rose-100 dark:border-rose-900/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <h3 className="font-bold text-neutral-900 dark:text-white text-base">Lost your tickets?</h3>
+              <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                Easily recover all valid tickets purchased using your email address or phone number.
+              </p>
+            </div>
+            <Link
+              to="/recover-ticket"
+              className="shrink-0 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-xl text-xs font-bold px-5 py-3 shadow-md hover:shadow-lg hover:opacity-95 transition-all active:scale-[0.98]"
+            >
+              Recover Tickets
+            </Link>
           </div>
           
           {/* Search Results */}

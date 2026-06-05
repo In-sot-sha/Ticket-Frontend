@@ -3,7 +3,7 @@ import { useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
-import { Calendar as ShadcnCalendar } from '../components/ui/Calendar';
+import { Calendar as ShadcnCalendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { api } from '../services/api';
 import { 

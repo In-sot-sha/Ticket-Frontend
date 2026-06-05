@@ -4,6 +4,8 @@ import Sidebar from './Sidebar';
 import { Button } from '../ui/Button';
 import { Menu } from 'lucide-react';
 import Header from './Header';
+import MobileTabBar from './MobileTabBar';
+
 const DashboardLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -12,7 +14,7 @@ const DashboardLayout: React.FC = () => {
   };
 
   return (
-    <div className='max-h-screen overflow-hidden'>
+    <div className='max-h-screen overflow-hidden pb-16 md:pb-0'>
       <Header/>
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
       {/* Mobile menu button */}
@@ -41,6 +43,7 @@ const DashboardLayout: React.FC = () => {
         </main>
       </div>
     </div>
+    <MobileTabBar />
     </div>
   );
 };
