@@ -1,2186 +1,1101 @@
-import React, { useState, useEffect } from 'react';
-import { useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Calendar,
+  MapPin,
+  Upload,
+  Globe,
+  Check,
+  ImageIcon,
+  X,
+  Plus,
+} from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
-import { Calendar as ShadcnCalendar } from '../components/ui/calendar';
+import { Calendar as DateCalendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { api } from '../services/api';
-import { 
-  Calendar,
-  MapPin, 
-  Users, 
-  Ticket,
-  Image,
-  Clock,
-  Tag,
-  Hash,
-  Link as LinkIcon,
-  Globe,
-  CheckCircle,
-  FileText,
-  BarChart3,
-  Camera,
-  Settings,
-  CreditCard,
-  ExternalLink,
-  Upload,
-  Info,
-  Plus
-} from 'lucide-react';
-import { useToast, ToastViewport } from '../components/ui/Toast';
-import { Switch } from '../components/ui/Switch';
-// import { Calendar } from '@/components/ui/Calendar';
+import { EVENT_TEMPLATES, EventTemplate, TicketDraft } from '../data/eventTemplates';
+import { TICKET_DESIGNS } from '../data/ticketDesigns';
+import { INCLUDED_SUGGESTIONS, TICKET_TYPE_PRESETS } from '../data/eventExtras';
+import EventTicketCard from '../components/tickets/EventTicketCard';
+import { cn } from '../lib/utils';
+import { resolveImageUrl } from '../lib/media';
+import {
+  combineDateAndTime12,
+  formatTime12,
+  HOURS_12,
+  joinTime12,
+  MINUTES,
+  PERIODS,
+  splitTime12,
+} from '../lib/time12';
 
-const CreateEvent = () => {
-  const navigate = useNavigate();
-  const { toast, toasts, dismiss } = useToast();
-  const formContainerRef = useRef<HTMLDivElement>(null);
-  
-  // Step tracking
-  const [currentStep, setCurrentStep] = useState(1); // 1: Build, 2: Tickets, 3: Publish
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  
-  // State for event ID (when editing an existing event)
-  const [eventId, setEventId] = useState<number | null>(null);
-  
-  // Track which steps have been saved/completed
-  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
-  
-  // Form data
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    category: '',
-    date: '',
-    startTime: '',
-    endTime: '',
-    timezone: 'Africa/Lagos',
-    locationType: 'physical',
-    location: '',
-    onlineUrl: '',
-    capacity: '',
-    tickets: [
-      { id: 1, name: 'General Admission', price: '', quantity: '', isFree: false }
-    ],
-    imageUrl: '',
-    website: '',
-    publishStatus: 'draft',
-    // Add vendor fields
-    allowVendors: false,
-    vendorTypes: [
-      { id: 1, name: '', fee: '', maxVendors: '' }
-    ],
-    vendorDeadline: '',
-    // Add recurring event fields
-    isRecurring: false,
-    recurrencePattern: 'NONE',
-    recurrenceEnd: '',
-    recurrenceInterval: 1,
-    // Add tags field
-    tags: [] as string[]
+type Step = 'details' | 'tickets' | 'review';
+
+interface FormState {
+  templateId: string;
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  startTime12: string;
+  endTime12: string;
+  locationType: 'physical' | 'online';
+  location: string;
+  onlineUrl: string;
+  capacity: string;
+  tickets: TicketDraft[];
+  imageUrl: string;
+  includedItems: string[];
+}
+
+const STEPS: { key: Step; label: string }[] = [
+  { key: 'details', label: 'Details' },
+  { key: 'tickets', label: 'Tickets' },
+  { key: 'review', label: 'Publish' },
+];
+
+const defaultTicket = (): TicketDraft => ({
+  name: 'General Admission',
+  price: '',
+  quantity: '100',
+  isFree: false,
+  ticketStyle: 'rose',
+  badgeText: '',
+  accentColor: '',
+  ticketHeadline: 'COME AND JOIN',
+  venueLabel: 'LIVE AT',
+});
+
+const defaultForm = (): FormState => ({
+  templateId: '',
+  title: '',
+  description: '',
+  startDate: '',
+  endDate: '',
+  startTime12: '6:00 PM',
+  endTime12: '10:00 PM',
+  locationType: 'physical',
+  location: '',
+  onlineUrl: '',
+  capacity: '',
+  tickets: [defaultTicket()],
+  imageUrl: '',
+  includedItems: [],
+});
+
+function parseJsonField<T>(value: unknown, fallback: T): T {
+  if (!value) return fallback;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return value as T;
+}
+
+function formatDateLabel(dateStr: string) {
+  if (!dateStr) return 'Pick a date';
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-NG', {
+    weekday: 'short',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
   });
-  
-  // Get event ID from URL params for editing
+}
+
+function totalTicketQuantity(tickets: TicketDraft[], excludeIndex?: number) {
+  return tickets.reduce(
+    (sum, t, i) => (i === excludeIndex ? sum : sum + parseInt(t.quantity || '0', 10)),
+    0
+  );
+}
+
+function buildFormData(form: FormState, image: File | null, isPublished: boolean): FormData {
+  const startDateTime = combineDateAndTime12(form.startDate, form.startTime12)!;
+  const endDateTime = combineDateAndTime12(form.endDate || form.startDate, form.endTime12)!;
+  const fd = new FormData();
+
+  fd.append('title', form.title);
+  fd.append('description', form.description);
+  fd.append('startDate', startDateTime.toISOString());
+  fd.append('endDate', endDateTime.toISOString());
+  fd.append('locationType', form.locationType);
+  fd.append('capacity', form.capacity);
+  fd.append('isPublished', String(isPublished));
+  fd.append(
+    'ticketTypes',
+    JSON.stringify(
+      form.tickets.map((t) => ({
+        name: t.name,
+        price: t.isFree ? 0 : parseFloat(t.price || '0'),
+        quantity: parseInt(t.quantity || '0', 10),
+        ticketStyle: t.ticketStyle || 'rose',
+        badgeText: t.badgeText || null,
+        accentColor: t.accentColor || null,
+        ticketHeadline: t.ticketHeadline || null,
+        venueLabel: t.venueLabel || null,
+      }))
+    )
+  );
+  if (form.includedItems.length) fd.append('amenities', JSON.stringify(form.includedItems));
+
+  if (form.locationType === 'online') {
+    fd.append('onlineUrl', form.onlineUrl);
+    fd.append('location', form.onlineUrl);
+  } else {
+    fd.append('location', form.location);
+  }
+
+  const firstPaid = form.tickets.find((t) => !t.isFree);
+  if (firstPaid?.price) fd.append('price', firstPaid.price);
+  if (image) fd.append('image', image);
+  return fd;
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400 block mb-1.5">
+      {children}
+    </span>
+  );
+}
+
+function TimePicker12({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const { hour, minute, period } = splitTime12(value);
+  const update = (h: string, m: string, p: 'AM' | 'PM') => onChange(joinTime12(h, m, p));
+  const selectClass =
+    'h-9 bg-transparent text-sm font-medium text-center focus:outline-none cursor-pointer appearance-none';
+
+  return (
+    <div>
+      <FieldLabel>{label}</FieldLabel>
+      <div className="inline-flex items-center rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 gap-0.5">
+        <select
+          value={hour}
+          onChange={(e) => update(e.target.value, minute, period)}
+          className={cn(selectClass, 'w-9')}
+          aria-label={`${label} hour`}
+        >
+          {HOURS_12.map((h) => (
+            <option key={h} value={h}>{h}</option>
+          ))}
+        </select>
+        <span className="text-neutral-400 text-sm font-medium">:</span>
+        <select
+          value={minute}
+          onChange={(e) => update(hour, e.target.value, period)}
+          className={cn(selectClass, 'w-9')}
+          aria-label={`${label} minute`}
+        >
+          {MINUTES.map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
+        <select
+          value={period}
+          onChange={(e) => update(hour, minute, e.target.value as 'AM' | 'PM')}
+          className={cn(selectClass, 'w-11 text-rose-500 font-semibold')}
+          aria-label={`${label} AM or PM`}
+        >
+          {PERIODS.map((p) => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function StepActions({
+  onBack,
+  onNext,
+  nextLabel = 'Continue',
+  backLabel = 'Back',
+  error,
+  onDismissError,
+  children,
+}: {
+  onBack: () => void;
+  onNext?: () => void;
+  nextLabel?: string;
+  backLabel?: string;
+  error?: string | null;
+  onDismissError?: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="mt-10 pt-6 border-t border-neutral-200 dark:border-neutral-800">
+      {error && (
+        <div className="mb-4 flex items-start gap-2 text-sm text-rose-600 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 rounded-lg">
+          <p className="flex-1">{error}</p>
+          {onDismissError && (
+            <button type="button" onClick={onDismissError} className="shrink-0 p-0.5 hover:text-rose-800" aria-label="Dismiss">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-sm font-medium text-neutral-500 hover:text-rose-500 transition-colors"
+        >
+          {backLabel}
+        </button>
+        {children ?? (
+          <Button
+            onClick={onNext}
+            className="rounded-full px-6 bg-rose-500 hover:bg-rose-600 text-white border-0 flex items-center gap-2"
+          >
+            {nextLabel}
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const CreateEvent: React.FC = () => {
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  
-  // Validation for organizer info
-  const [organizerInfoMissing, setOrganizerInfoMissing] = useState<boolean>(false);
-  const [missingFields, setMissingFields] = useState<string[]>([]);
-  
-  // State for tags
-  const [availableTags, setAvailableTags] = useState<string[]>([
-    'Business', 'Technology', 'Music', 'Art', 'Food', 'Health', 'Education', 
-    'Sports', 'Conference', 'Workshop', 'Networking', 'Charity', 'Entertainment'
-  ]);
-  const [tagInput, setTagInput] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  // Handle input changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
+  const [step, setStep] = useState<Step>('details');
+  const [form, setForm] = useState<FormState>(defaultForm);
+  const [eventId, setEventId] = useState<number | null>(id ? Number(id) : null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [loading, setLoading] = useState(!!id);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTicketIndex, setActiveTicketIndex] = useState(0);
+  const [customIncluded, setCustomIncluded] = useState('');
+  const [showTicketPresets, setShowTicketPresets] = useState(false);
 
-  // Handle tag input change
-  const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTagInput(e.target.value);
-  };
+  const stepIndex = STEPS.findIndex((s) => s.key === step);
+  const isEditing = !!id;
+  const capacityNum = parseInt(form.capacity || '0', 10);
 
-  // Add a new tag
-  const addTag = () => {
-    if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        tags: [...prev.tags, tagInput.trim()]
-      }));
-      setTagInput('');
-    }
-  };
-
-  // Remove a tag
-  const removeTag = (tagToRemove: string) => {
-    setFormData(prev => ({
-      ...prev,
-      tags: prev.tags.filter(tag => tag !== tagToRemove)
-    }));
-  };
-
-  // Handle tag input key press (Enter to add tag)
-  const handleTagKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addTag();
-    }
-  };
-
-  // Load event data if editing
-  useEffect(() => {
-    const loadEventData = async () => {
-      if (id) {
-        try {
-          const response = await api.events.getById(Number(id));
-          const event = response.data;
-          
-          // Set the event ID so we know we're editing
-          setEventId(event.id);
-          
-          // Populate form data with event data
-          setFormData({
-            title: event.title || '',
-            description: event.description || '',
-            category: event.category || '',
-            date: event.startDate ? new Date(event.startDate).toISOString().split('T')[0] : '',
-            startTime: event.startDate ? new Date(event.startDate).toTimeString().substring(0, 5) : '',
-            endTime: event.endDate ? new Date(event.endDate).toTimeString().substring(0, 5) : '',
-            timezone: event.timezone || 'Africa/Lagos',
-            locationType: event.locationType || 'physical',
-            location: event.location || '',
-            onlineUrl: event.onlineUrl || '',
-            capacity: event.capacity ? String(event.capacity) : '',
-            tickets: event.ticketTypes?.map((tt: any) => ({
-              id: tt.id,
-              name: tt.name,
-              price: String(tt.price),
-              quantity: String(tt.quantity),
-              isFree: tt.price === 0
-            })) || [{ id: 1, name: 'General Admission', price: '', quantity: '', isFree: false }],
-            imageUrl: event.imageUrl || '',
-            website: event.website || '',
-            publishStatus: event.isPublished ? 'published' : 'draft',
-            allowVendors: event.allowVendors || false,
-            vendorTypes: event.vendorTypes && event.vendorTypes.length > 0 ? 
-              event.vendorTypes.map((vt: any) => ({
-                id: vt.id,
-                name: vt.name || '',
-                fee: vt.fee ? String(vt.fee) : '',
-                maxVendors: vt.maxVendors ? String(vt.maxVendors) : ''
-              })) : 
-              [{ id: 1, name: '', fee: '', maxVendors: '' }],
-            vendorDeadline: event.vendorDeadline ? new Date(event.vendorDeadline).toISOString().split('T')[0] : '',
-            // Add recurring event fields
-            isRecurring: event.isRecurring || false,
-            recurrencePattern: event.recurrencePattern || 'NONE',
-            recurrenceEnd: event.recurrenceEnd ? new Date(event.recurrenceEnd).toISOString().split('T')[0] : '',
-            recurrenceInterval: event.recurrenceInterval || 1,
-            // Add tags field (assuming tags are in an array format)
-            tags: event.tags ? event.tags.map((tag: any) => tag.name) : []
-          });
-          
-          // Set image preview if image URL exists
-          if (event.imageUrl) {
-            setImagePreview(event.imageUrl);
-          }
-          
-        } catch (error) {
-          console.error('Error loading event data:', error);
-          toast({
-            title: "Load Failed",
-            description: 'Failed to load event data. Please try again.',
-            variant: "destructive",
-          });
-        }
-      }
-    };
-
-    loadEventData();
-  }, [id]);
-
-  // Handle nested field changes (for tickets)
-  const handleTicketChange = (index: number, field: string, value: string | number | boolean) => {
-    const updatedTickets = [...formData.tickets];
-    updatedTickets[index] = { ...updatedTickets[index], [field]: value };
-    setFormData(prev => ({ ...prev, tickets: updatedTickets }));
-  };
-
-  // Add a new ticket type
-  const addTicket = () => {
-    const newTicket = {
-      id: formData.tickets.length + 1,
-      name: '',
-      price: '',
-      quantity: '',
-      isFree: false
-    };
-    setFormData(prev => ({ ...prev, tickets: [...prev.tickets, newTicket] }));
-  };
-
-  // Remove a ticket type
-  const removeTicket = (index: number) => {
-    if (formData.tickets.length > 1) {
-      const updatedTickets = [...formData.tickets];
-      updatedTickets.splice(index, 1);
-      setFormData(prev => ({ ...prev, tickets: updatedTickets }));
-    }
-  };
-
-  // Add a new vendor type
-  const addVendorType = () => {
-    const newVendorType = {
-      id: formData.vendorTypes.length + 1,
-      name: '',
-      fee: '',
-      maxVendors: ''
-    };
-    setFormData(prev => ({ 
-      ...prev, 
-      vendorTypes: [...prev.vendorTypes, newVendorType] 
-    }));
-  };
-
-  // Remove a vendor type
-  const removeVendorType = (index: number) => {
-    if (formData.vendorTypes.length > 1) {
-      const updatedVendorTypes = [...formData.vendorTypes];
-      updatedVendorTypes.splice(index, 1);
-      setFormData(prev => ({ ...prev, vendorTypes: updatedVendorTypes }));
-    }
-  };
-
-  // Handle vendor type changes
-  const handleVendorTypeChange = (index: number, field: string, value: string) => {
-    const updatedVendorTypes = [...formData.vendorTypes];
-    updatedVendorTypes[index] = { ...updatedVendorTypes[index], [field]: value };
-    setFormData(prev => ({ ...prev, vendorTypes: updatedVendorTypes }));
-  };
-
-  // Handle image selection
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setSelectedImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-        setFormData(prev => ({ ...prev, imageUrl: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Submit the event
-  const handleSubmit = async (e?: React.FormEvent) => {
-    if (e) {
-      e.preventDefault();
-    }
-    
-    // Set appropriate loading state based on publish status
-    if (formData.publishStatus === 'published') {
-      setPublishLoading(true);
-    } else {
-      setSaveDraftLoading(true);
-    }
-    
-    try {
-      // Create FormData object to send multipart data
-      const eventFormData = new FormData();
-      
-      // Add form fields to FormData
-      eventFormData.append('title', formData.title);
-      eventFormData.append('description', formData.description);
-      eventFormData.append('category', formData.category);
-      
-      // Format the dates properly
-      const startDate = new Date(`${formData.date}T${formData.startTime}`);
-      const endDate = new Date(`${formData.date}T${formData.endTime}`);
-      
-      eventFormData.append('startDate', startDate.toISOString());
-      eventFormData.append('endDate', endDate.toISOString());
-      eventFormData.append('location', formData.locationType === 'online' ? formData.onlineUrl : formData.location);
-      eventFormData.append('onlineUrl', formData.onlineUrl);
-      eventFormData.append('locationType', formData.locationType);
-      eventFormData.append('price', formData.tickets[0]?.price || '0');
-      eventFormData.append('capacity', formData.capacity);
-      eventFormData.append('ticketTypes', JSON.stringify(formData.tickets));
-      eventFormData.append('isPublished', formData.publishStatus === 'published' ? 'true' : 'false');
-      eventFormData.append('website', formData.website);
-      
-      // Add recurring event fields
-      eventFormData.append('isRecurring', formData.isRecurring ? 'true' : 'false');
-      eventFormData.append('recurrencePattern', formData.recurrencePattern);
-      eventFormData.append('recurrenceEnd', formData.recurrenceEnd);
-      eventFormData.append('recurrenceInterval', String(formData.recurrenceInterval));
-      
-      // Add tags
-      eventFormData.append('tags', JSON.stringify(formData.tags));
-      
-      // Add image file if selected
-      if (selectedImage) {
-        eventFormData.append('image', selectedImage);
-      }
-      
-      // Add vendor fields to FormData
-      eventFormData.append('allowVendors', formData.allowVendors ? 'true' : 'false');
-      
-      // Add vendor types array to FormData as JSON
-      eventFormData.append('vendorTypes', JSON.stringify(formData.vendorTypes));
-      
-      if (formData.vendorDeadline) {
-        eventFormData.append('vendorDeadline', new Date(formData.vendorDeadline).toISOString());
-      }
-
-      // Make API call to create/update event using the API service
-      let response;
-      if (eventId) {
-        // Update existing event
-        response = await api.events.updateWithImage(eventId, eventFormData);
-      } else {
-        // Create new event
-        response = await api.events.createWithImage(eventFormData);
-        setEventId(response.data.event.id);
-      }
-      
-      console.log('Event saved successfully:', response.data);
-      
-      // Show success toast
-      toast({
-        title: "Success!",
-        description: formData.publishStatus === 'published' 
-          ? "Your event has been published successfully!" 
-          : "Your event has been saved as a draft.",
-      });
-      
-      // Navigate to events page after successful creation
-      navigate('/organizer/events');
-    } catch (error: any) {
-      console.error('Error saving event:', error);
-      toast({
-        title: "Save Failed",
-        description: error.response?.data?.message || error.message || 'Failed to save event. Please try again.',
-        variant: "destructive",
-      });
-    } finally {
-      // Reset loading states
-      setPublishLoading(false);
-      setSaveDraftLoading(false);
-    }
-  };
-
-  // Function to save event data at each step
-  const saveEventData = async (step: number): Promise<any> => {
-    try {
-      // Create FormData object to send multipart data
-      const eventFormData = new FormData();
-      
-      // Add form fields to FormData based on current step
-      if (step === 1 || step === 3) { // Event details step
-        eventFormData.append('title', formData.title);
-        eventFormData.append('description', formData.description);
-        eventFormData.append('category', formData.category);
-        
-        // Format the dates properly
-        const startDate = new Date(`${formData.date}T${formData.startTime}`);
-        const endDate = new Date(`${formData.date}T${formData.endTime}`);
-        
-        eventFormData.append('startDate', startDate.toISOString());
-        eventFormData.append('endDate', endDate.toISOString());
-        eventFormData.append('location', formData.locationType === 'online' ? formData.onlineUrl : formData.location);
-        eventFormData.append('onlineUrl', formData.onlineUrl);
-        eventFormData.append('locationType', formData.locationType);
-        eventFormData.append('price', formData.tickets[0]?.price || '0');
-        eventFormData.append('capacity', formData.capacity);
-        eventFormData.append('isPublished', 'false'); // Always save as draft when saving mid-process
-        eventFormData.append('website', formData.website); // Add website to the event
-        
-        // Add recurring event fields
-        eventFormData.append('isRecurring', formData.isRecurring ? 'true' : 'false');
-        eventFormData.append('recurrencePattern', formData.recurrencePattern);
-        eventFormData.append('recurrenceEnd', formData.recurrenceEnd);
-        eventFormData.append('recurrenceInterval', String(formData.recurrenceInterval));
-        
-        // Add tags
-        eventFormData.append('tags', JSON.stringify(formData.tags));
-        
-        // Add image file if selected
-        if (selectedImage) {
-          eventFormData.append('image', selectedImage);
-        }
-      }
-      
-      if (step === 2 || step === 3) { // Tickets and vendors step
-        eventFormData.append('ticketTypes', JSON.stringify(formData.tickets));
-        eventFormData.append('allowVendors', formData.allowVendors ? 'true' : 'false');
-        
-        // Add vendor types array to FormData as JSON
-        eventFormData.append('vendorTypes', JSON.stringify(formData.vendorTypes));
-        
-        if (formData.vendorDeadline) {
-          eventFormData.append('vendorDeadline', new Date(formData.vendorDeadline).toISOString());
-        }
-      }
-      
-      // For the final step, we'll handle publishing differently
-      if (step === 3) {
-        eventFormData.append('isPublished', formData.publishStatus === 'published' ? 'true' : 'false');
-      }
-      
-      // Make API call to save event using the API service
-      // If we have an event ID (editing), update the event; otherwise, create it
-      let response;
-      if (eventId) {
-        // If we already have an event ID, update the existing event
-        response = await api.events.updateWithImage(eventId, eventFormData);
-      } else {
-        // If this is a new event, create it and save the ID
-        response = await api.events.createWithImage(eventFormData);
-        // Set the event ID so we can update it in future saves
-        setEventId(response.data.event.id);
-      }
-      
-      // Mark step as completed after successful save
-      if (!completedSteps.includes(step)) {
-        setCompletedSteps(prev => [...prev, step]);
-      }
-      
-      console.log(`Event data saved for step ${step}:`, response.data);
-      return response.data;
-    } catch (error: any) {
-      console.error(`Error saving event data at step ${step}:`, error);
-      toast({
-        title: "Save Failed",
-        description: error.response?.data?.message || error.message || `Failed to save event at step ${step}. Please try again.`,
-        variant: "destructive",
-      });
-      return null;
-    }
-  };
-
-  // State for loading states
-  const [nextStepLoading, setNextStepLoading] = useState(false);
-  const [publishLoading, setPublishLoading] = useState(false);
-  const [saveDraftLoading, setSaveDraftLoading] = useState(false);
-
-  // Navigation functions
-  const goToNextStep = async () => {
-    if (currentStep < 3) {
-      // Save the current step's data before moving to the next step
-      if (isStepComplete(currentStep)) {
-        setNextStepLoading(true);
-        const saveResult = await saveEventData(currentStep);
-        if (saveResult) {
-          // If this is the first step and we're creating a new event, 
-          // add the event ID to the URL
-          if (currentStep === 1 && !id && saveResult.event?.id) {
-            // Update the URL to include the event ID for continued editing
-            navigate(`/events/create/${saveResult.event.id}`, { replace: true });
-          }
-          setCurrentStep(currentStep + 1);
-        } else {
-          // Error already shown in saveEventData
-        }
-        setNextStepLoading(false);
-      } else {
-        toast({
-          title: "Incomplete Step",
-          description: `Please complete all required fields in Step ${currentStep} before continuing.`,
-          variant: "destructive",
-        });
-      }
-    }
-  };
-
-  const goToPreviousStep = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  // Check if required fields are completed for each step with improved validation
-  const isStepComplete = (step: number): boolean => {
-    switch(step) {
-      case 1: // Build Event (Event Basics, Date & Time, Venue)
-        // Validate event basics
-        if (!formData.title.trim() || formData.title.trim().length < 3) return false;
-        if (!formData.description.trim() || formData.description.trim().length < 10) return false;
-        if (!formData.category) return false;
-        
-        // Validate date and time
-        if (!formData.date) return false;
-        if (!formData.startTime) return false;
-        if (!formData.endTime) return false;
-        
-        // Validate that end time is after start time
-        const startDate = new Date(`${formData.date}T${formData.startTime}`);
-        const endDate = new Date(`${formData.date}T${formData.endTime}`);
-        if (endDate <= startDate) return false;
-        
-        // Validate location based on type
-        if (formData.locationType === 'physical') {
-          if (!formData.location.trim()) return false;
-          if (!formData.capacity || isNaN(Number(formData.capacity)) || Number(formData.capacity) <= 0) return false;
-        } else if (formData.locationType === 'online') {
-          if (!formData.onlineUrl.trim() || !isValidUrl(formData.onlineUrl)) return false;
-        }
-        
-        return true;
-        
-      case 2: // Tickets
-        // Check if tickets are properly filled
-        const ticketsValid = formData.tickets.length > 0 && 
-                            formData.tickets.every(ticket => 
-                              ticket.name.trim().length > 0 && 
-                              ticket.quantity && 
-                              !isNaN(Number(ticket.quantity)) && 
-                              Number(ticket.quantity) > 0 &&
-                              (ticket.isFree || (ticket.price && !isNaN(Number(ticket.price)) && Number(ticket.price) >= 0))
-                            );
-        
-        // If vendors are enabled, check vendor fields too
-        const vendorsValid = !formData.allowVendors || 
-                            (formData.vendorTypes.length > 0 && 
-                             formData.vendorTypes.every(vt => 
-                               vt.name.trim().length > 0 && 
-                               vt.maxVendors && 
-                               !isNaN(Number(vt.maxVendors)) && 
-                               Number(vt.maxVendors) > 0 &&
-                               (vt.fee === '' || (vt.fee && !isNaN(Number(vt.fee)) && Number(vt.fee) >= 0))
-                             ));
-        
-        return ticketsValid && vendorsValid;
-        
-      case 3: // Publish
-        return formData.title.trim().length > 0; // At least the title should be set
-        
-      default:
-        return false;
-    }
-  };
-  
-  // Helper function to validate URLs
-  const isValidUrl = (urlString: string): boolean => {
-    try {
-      const url = new URL(urlString);
-      return url.protocol === 'http:' || url.protocol === 'https:';
-    } catch (err) {
-      return false;
-    }
-  };
-  
-  // Check if all required fields for publishing are completed with improved validation
-  const isPublishComplete = (): boolean => {
-    // Basic required fields
-    if (!formData.title.trim() || formData.title.trim().length < 3) return false;
-    if (!formData.description.trim() || formData.description.trim().length < 10) return false;
-    if (!formData.category) return false;
-    if (!formData.date) return false;
-    if (!formData.startTime) return false;
-    if (!formData.endTime) return false;
-    
-    // Validate that end time is after start time
-    const startDate = new Date(`${formData.date}T${formData.startTime}`);
-    const endDate = new Date(`${formData.date}T${formData.endTime}`);
-    if (endDate <= startDate) return false;
-    
-    // Image is required for publish
-    if (!imagePreview) return false;
-    
-    // Check tickets
-    if (!formData.tickets.length || !formData.tickets.every(ticket => 
-      ticket.name.trim().length > 0 && 
-      ticket.quantity && 
-      !isNaN(Number(ticket.quantity)) && 
-      Number(ticket.quantity) > 0 &&
-      (ticket.isFree || (ticket.price && !isNaN(Number(ticket.price)) && Number(ticket.price) >= 0))
-    )) return false;
-    
-    // Validate location based on type
-    if (formData.locationType === 'physical') {
-      if (!formData.location.trim()) return false;
-      if (!formData.capacity || isNaN(Number(formData.capacity)) || Number(formData.capacity) <= 0) return false;
-    } else if (formData.locationType === 'online') {
-      if (!formData.website.trim() || !isValidUrl(formData.website)) return false;
-    }
-    
-    // If vendors are allowed, check required vendor fields
-    if (formData.allowVendors) {
-      if (!formData.vendorTypes.length || !formData.vendorTypes.every(vt => 
-        vt.name.trim().length > 0 && 
-        vt.maxVendors && 
-        !isNaN(Number(vt.maxVendors)) && 
-        Number(vt.maxVendors) > 0 &&
-        (vt.fee === '' || (vt.fee && !isNaN(Number(vt.fee)) && Number(vt.fee) >= 0))
-      )) return false;
-      
-      // Vendor deadline should be before event date if provided
-      if (formData.vendorDeadline) {
-        const vendorDeadline = new Date(formData.vendorDeadline);
-        const eventDate = new Date(formData.date);
-        if (vendorDeadline >= eventDate) return false;
-      }
-    }
-    
-    return true;
-  };
-  
-  // Function to validate and navigate to missing field with improved validation
-  const validateAndPublish = () => {
-    // Validate event basics
-    if (!formData.title.trim() || formData.title.trim().length < 3) {
-      setCurrentStep(1);
-      toast({
-        title: "Validation Error",
-        description: "Please add a title for your event (at least 3 characters)",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (!formData.description.trim() || formData.description.trim().length < 10) {
-      setCurrentStep(1);
-      toast({
-        title: "Validation Error",
-        description: "Please add a description for your event (at least 10 characters)",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (!formData.category) {
-      setCurrentStep(1);
-      toast({
-        title: "Validation Error",
-        description: "Please select a category for your event",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // Validate date and time
-    if (!formData.date) {
-      setCurrentStep(1);
-      toast({
-        title: "Validation Error",
-        description: "Please add a date for your event",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (!formData.startTime) {
-      setCurrentStep(1);
-      toast({
-        title: "Validation Error",
-        description: "Please add a start time for your event",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (!formData.endTime) {
-      setCurrentStep(1);
-      toast({
-        title: "Validation Error",
-        description: "Please add an end time for your event",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // Validate that end time is after start time
-    const startDate = new Date(`${formData.date}T${formData.startTime}`);
-    const endDate = new Date(`${formData.date}T${formData.endTime}`);
-    if (endDate <= startDate) {
-      setCurrentStep(1);
-      toast({
-        title: "Validation Error",
-        description: "End time must be after start time",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // Validate location based on type
-    if (formData.locationType === 'physical') {
-      if (!formData.location.trim()) {
-        setCurrentStep(1);
-        toast({
-          title: "Validation Error",
-          description: "Please add a location for your event",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      if (!formData.capacity || isNaN(Number(formData.capacity)) || Number(formData.capacity) <= 0) {
-        setCurrentStep(1);
-        toast({
-          title: "Validation Error",
-          description: "Please add a valid capacity for your event",
-          variant: "destructive",
-        });
-        return;
-      }
-    } else if (formData.locationType === 'online') {
-      if (!formData.website.trim() || !isValidUrl(formData.website)) {
-        setCurrentStep(1);
-        toast({
-          title: "Validation Error",
-          description: "Please add a valid online event platform URL",
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-    
-    // Image is required for publish
-    if (!imagePreview) {
-      setCurrentStep(1);
-      toast({
-        title: "Validation Error",
-        description: "Please add an event image",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // Check tickets
-    if (!formData.tickets.length || !formData.tickets.every(ticket => 
-      ticket.name.trim().length > 0 && 
-      ticket.quantity && 
-      !isNaN(Number(ticket.quantity)) && 
-      Number(ticket.quantity) > 0 &&
-      (ticket.isFree || (ticket.price && !isNaN(Number(ticket.price)) && Number(ticket.price) >= 0))
-    )) {
-      setCurrentStep(2);
-      toast({
-        title: "Validation Error",
-        description: "Please add at least one ticket type with a name and valid quantity",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // If vendors are allowed, validate vendor fields
-    if (formData.allowVendors) {
-      if (!formData.vendorTypes.length || !formData.vendorTypes.every(vt => 
-        vt.name.trim().length > 0 && 
-        vt.maxVendors && 
-        !isNaN(Number(vt.maxVendors)) && 
-        Number(vt.maxVendors) > 0 &&
-        (vt.fee === '' || (vt.fee && !isNaN(Number(vt.fee)) && Number(vt.fee) >= 0))
-      )) {
-        setCurrentStep(2);
-        toast({
-          title: "Validation Error",
-          description: "Please specify valid vendor types with names and max vendors",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Vendor deadline should be before event date if provided
-      if (formData.vendorDeadline) {
-        const vendorDeadline = new Date(formData.vendorDeadline);
-        const eventDate = new Date(formData.date);
-        if (vendorDeadline >= eventDate) {
-          setCurrentStep(2);
-          toast({
-            title: "Validation Error",
-            description: "Vendor registration deadline must be before the event date",
-            variant: "destructive",
-          });
-          return;
-        }
-      }
-    }
-    
-    // If all validations pass, submit the event
-    handleSubmit(new Event('submit') as unknown as React.FormEvent);
-  };
-
-  // Check if organizer info is complete
-  useEffect(() => {
-    const checkOrganizerInfo = () => {
-      // In a real implementation, we would fetch this from the API
-      // For now, we'll just assume the organizer info is missing
-      // In the real app, you'd check the user's organizer profile
-      
-      // For demo purposes, we'll assume these are missing
-      const missing = [];
-      
-      // In a real app, we would fetch the organizer profile from the backend
-      // and check if businessName, description, and contactInfo are filled
-      // For now, we'll set a mock condition
-      if (formData.title.length < 3) {
-        missing.push("Event title needs at least 3 characters");
-      }
-      
-      if (formData.description.length < 10) {
-        missing.push("Event description needs at least 10 characters");
-      }
-      
-      setMissingFields(missing);
-      setOrganizerInfoMissing(missing.length > 0);
-    };
-    
-    checkOrganizerInfo();
-  }, [formData]);
-
-  // Sidebar navigation items
-  const sidebarItems = [
-    { id: 1, label: 'Event Details', icon: FileText, completed: completedSteps.includes(1) },
-    { id: 2, label: 'Tickets', icon: Ticket, completed: completedSteps.includes(2) },
-    { id: 3, label: 'Publish', icon: ExternalLink, completed: completedSteps.includes(3) },
+  const includedChipOptions = [
+    ...INCLUDED_SUGGESTIONS,
+    ...form.includedItems.filter((i) => !INCLUDED_SUGGESTIONS.includes(i)),
   ];
 
-  // Render the current step
-  const renderStep = () => {
-    switch(currentStep) {
-      case 1: // Build Event: Event Basics, Date & Time, Venue with Image
-        return (
-          <div className="space-y-4">
-            {/* Event Image Section */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                  Event Image
-                </h2>
-                <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
-                  <Image className="h-3 w-3 mr-1" />
-                  <span>Required for publish</span>
-                </div>
-              </div>
+  const clearError = () => setError(null);
+  const coverImageSrc = imagePreview || resolveImageUrl(form.imageUrl);
 
-              <div className="space-y-3">
-                <div
-                  className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3 text-center cursor-pointer hover:border-primary transition-colors"
-                  onClick={() =>
-                    document.getElementById("image-upload")?.click()
-                  }
-                >
-                  {imagePreview ? (
-                    <div className="relative">
-                      <img
-                        src={imagePreview}
-                        alt="Event preview"
-                        className="w-full h-64 object-cover rounded-lg"
-                      />
-                      <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center rounded-lg opacity-0 hover:opacity-100 transition-opacity">
-                        <div className="text-white text-center">
-                          <Camera className="h-8 w-8 mx-auto" />
-                          <p className="mt-1">Click to change image</p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="mx-auto">
-                        <Camera className="h-12 w-12 text-gray-400 mx-auto" />
-                      </div>
-                      <div>
-                        <p className="text-gray-600 dark:text-gray-300 font-medium">
-                          Add a cover photo
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                          JPG, GIF, or PNG. 1920x1080 recommended.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        className="mt-4 inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-                      >
-                        <Upload className="h-4 w-4 mr-2" />
-                        Upload Image
-                      </button>
-                    </div>
-                  )}
-                </div>
+  useEffect(() => {
+    if (error) clearError();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, step, customIncluded]);
 
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  id="image-upload"
-                  onChange={handleImageChange}
-                />
-
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  <p>
-                    Make sure your image is at least 2160x1080 pixels to look
-                    sharp on high-resolution displays. Max file size: 10MB.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Event Basics Section */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3">
-                Event Basics
-              </h2>
-
-              <div className="space-y-3">
-                <div>
-                  <label
-                    htmlFor="title"
-                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                  >
-                    Event Title *
-                  </label>
-                  <input
-                    type="text"
-                    id="title"
-                    name="title"
-                    value={formData.title}
-                    onChange={handleChange}
-                    required
-                    aria-required="true"
-                    aria-describedby="title-error"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="Give it a title that tells people what it is"
-                  />
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Names that include date, location, or ticket type will be
-                    rejected
-                  </p>
-                  {formData.title.length > 0 && formData.title.length < 3 && (
-                    <p id="title-error" className="mt-1 text-xs text-red-500">
-                      Title must be at least 3 characters
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="description"
-                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                  >
-                    Description *
-                  </label>
-                  <textarea
-                    id="description"
-                    name="description"
-                    value={formData.description}
-                    onChange={handleChange}
-                    required
-                    aria-required="true"
-                    aria-describedby="description-error"
-                    rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="Tell people more about your event"
-                  />
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Include highlights and details about your event
-                  </p>
-                  {formData.description.length > 0 &&
-                    formData.description.length < 10 && (
-                      <p
-                        id="description-error"
-                        className="mt-1 text-xs text-red-500"
-                      >
-                        Description must be at least 10 characters
-                      </p>
-                    )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Category
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { value: "business", label: "Business" },
-                      { value: "tech", label: "Technology" },
-                      { value: "music", label: "Music" },
-                      { value: "art", label: "Art & Culture" },
-                      { value: "food", label: "Food & Drink" },
-                      { value: "health", label: "Health & Wellness" },
-                      { value: "education", label: "Education" },
-                      { value: "sports", label: "Sports" },
-                      { value: "conference", label: "Conference" },
-                      { value: "workshop", label: "Workshop" },
-                      { value: "networking", label: "Networking" },
-                      { value: "charity", label: "Charity" },
-                      { value: "entertainment", label: "Entertainment" },
-                    ].map((category) => (
-                      <button
-                        key={category.value}
-                        type="button"
-                        onClick={() =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            category: category.value,
-                          }))
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            setFormData((prev) => ({
-                              ...prev,
-                              category: category.value,
-                            }));
-                          }
-                        }}
-                        tabIndex={0}
-                        role="radio"
-                        aria-checked={formData.category === category.value}
-                        className={`px-3 py-1.5 text-sm rounded-full ${
-                          formData.category === category.value
-                            ? "bg-primary text-white"
-                            : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600"
-                        }`}
-                      >
-                        {category.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Tags Section */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Tags
-                  </label>
-                  <div className="relative">
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {formData.tags.map((tag, index) => (
-                        <div
-                          key={index}
-                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary"
-                        >
-                          {tag}
-                          <button
-                            type="button"
-                            onClick={() => removeTag(tag)}
-                            className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full text-primary hover:bg-primary/20 focus:outline-none"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="relative flex">
-                      <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
-                      <input
-                        type="text"
-                        value={tagInput}
-                        onChange={handleTagInputChange}
-                        onKeyPress={handleTagKeyPress}
-                        placeholder="Add tags (press Enter)"
-                        className="flex-1 px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-l-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                        list="available-tags"
-                      />
-                      <datalist id="available-tags">
-                        {availableTags.map((tag, index) => (
-                          <option key={index} value={tag} />
-                        ))}
-                      </datalist>
-                      <button
-                        type="button"
-                        onClick={addTag}
-                        className="px-3 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-r-lg hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none"
-                      >
-                        Add
-                      </button>
-                    </div>
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Add relevant tags to help users find your event
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Date & Time Section */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3">
-                Date & Time
-              </h2>
-
-              <div className="space-y-3">
-                <div>
-                  <label
-                    htmlFor="date"
-                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                  >
-                    Date *
-                  </label>
-                  <div className="relative">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={"outline"}
-                          className={`w-full justify-start text-left font-normal ${
-                            !formData.date && "text-muted-foreground"
-                          }`}
-                        >
-                          <Calendar className="mr-2 h-4 w-4" />
-                          {formData.date ? new Date(formData.date).toLocaleDateString() : "Pick a date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <ShadcnCalendar
-                          mode="single"
-                          selected={formData.date ? new Date(formData.date) : undefined}
-                          onSelect={(date) => setFormData(prev => ({ ...prev, date: date ? date.toISOString().split('T')[0] : '' }))}
-                          disabled={(date) => date < new Date()}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  {!formData.date && (
-                    <p id="date-error" className="mt-1 text-xs text-red-500">
-                      Please select a date for your event
-                    </p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label
-                      htmlFor="startTime"
-                      className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                    >
-                      Start Time *
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="time"
-                        id="startTime"
-                        name="startTime"
-                        value={formData.startTime}
-                        onChange={handleChange}
-                        required
-                        aria-required="true"
-                        aria-describedby="time-error"
-                        className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                      <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="endTime"
-                      className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                    >
-                      End Time *
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="time"
-                        id="endTime"
-                        name="endTime"
-                        value={formData.endTime}
-                        onChange={handleChange}
-                        required
-                        aria-required="true"
-                        aria-describedby="time-error"
-                        className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                      <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
-                    </div>
-                  </div>
-                </div>
-                {formData.date && formData.startTime && formData.endTime && (
-                  <div className="mt-1">
-                    {(() => {
-                      const startDate = new Date(
-                        `${formData.date}T${formData.startTime}`
-                      );
-                      const endDate = new Date(
-                        `${formData.date}T${formData.endTime}`
-                      );
-                      if (endDate <= startDate) {
-                        return (
-                          <p id="time-error" className="text-xs text-red-500">
-                            End time must be after start time
-                          </p>
-                        );
-                      }
-                      return null;
-                    })()}
-                  </div>
-                )}
-
-                <div>
-                  <label
-                    htmlFor="timezone"
-                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                  >
-                    Timezone
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="timezone"
-                      name="timezone"
-                      value={formData.timezone}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary appearance-none"
-                    >
-                      <option value="Africa/Lagos">
-                        West Africa Time (WAT)
-                      </option>
-                      <option value="Africa/Accra">Ghana Time</option>
-                      <option value="UTC">UTC</option>
-                    </select>
-                    <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Venue Section */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3">
-                Venue
-              </h2>
-
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        locationType: "physical",
-                      }))
-                    }
-                    className={`py-3 px-3 rounded-lg border ${
-                      formData.locationType === "physical"
-                        ? "border-primary ring-2 ring-primary/20 bg-primary/5 dark:bg-primary/10"
-                        : "border-gray-300 dark:border-gray-600 hover:border-primary"
-                    }`}
-                  >
-                    <div className="flex flex-col items-center">
-                      <MapPin
-                        className={`h-5 w-5 mb-1 ${
-                          formData.locationType === "physical"
-                            ? "text-primary"
-                            : "text-gray-500"
-                        }`}
-                      />
-                      <span
-                        className={`font-medium text-sm ${
-                          formData.locationType === "physical"
-                            ? "text-primary"
-                            : "text-gray-700 dark:text-gray-300"
-                        }`}
-                      >
-                        Physical venue
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        In-person event
-                      </span>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        locationType: "online",
-                      }))
-                    }
-                    className={`py-3 px-3 rounded-lg border ${
-                      formData.locationType === "online"
-                        ? "border-primary ring-2 ring-primary/20 bg-primary/5 dark:bg-primary/10"
-                        : "border-gray-300 dark:border-gray-600 hover:border-primary"
-                    }`}
-                  >
-                    <div className="flex flex-col items-center">
-                      <LinkIcon
-                        className={`h-5 w-5 mb-1 ${
-                          formData.locationType === "online"
-                            ? "text-primary"
-                            : "text-gray-500"
-                        }`}
-                      />
-                      <span
-                        className={`font-medium text-sm ${
-                          formData.locationType === "online"
-                            ? "text-primary"
-                            : "text-gray-700 dark:text-gray-300"
-                        }`}
-                      >
-                        Online event
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        Live online event
-                      </span>
-                    </div>
-                  </button>
-                </div>
-
-                {formData.locationType === "physical" ? (
-                  <div className="space-y-3">
-                    <div>
-                      <label
-                        htmlFor="location"
-                        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                      >
-                        Event Location *
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          id="location"
-                          name="location"
-                          value={formData.location}
-                          onChange={handleChange}
-                          required
-                          aria-required="true"
-                          aria-describedby="location-error"
-                          placeholder="Enter event location"
-                          className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                        <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
-                      </div>
-                      {!formData.location && (
-                        <p
-                          id="location-error"
-                          className="mt-1 text-xs text-red-500"
-                        >
-                          Please enter the event location
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="capacity"
-                        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                      >
-                        Capacity
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          id="capacity"
-                          name="capacity"
-                          value={formData.capacity}
-                          onChange={handleChange}
-                          min="1"
-                          aria-describedby="capacity-error"
-                          placeholder="Number of attendees"
-                          className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                        <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
-                      </div>
-                      {formData.capacity &&
-                        (isNaN(Number(formData.capacity)) ||
-                          Number(formData.capacity) <= 0) && (
-                          <p
-                            id="capacity-error"
-                            className="mt-1 text-xs text-red-500"
-                          >
-                            Please enter a valid capacity (greater than 0)
-                          </p>
-                        )}
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label
-                      htmlFor="onlineUrl"
-                      className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                    >
-                      Online Event Platform *
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="url"
-                        id="onlineUrl"
-                        name="onlineUrl"
-                        value={formData.onlineUrl}
-                        onChange={handleChange}
-                        required
-                        aria-required="true"
-                        aria-describedby="onlineUrl-error"
-                        placeholder="https://meet.jit.si/my-event"
-                        className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                      <LinkIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
-                    </div>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Enter the URL where your online event will take place
-                    </p>
-                    {formData.onlineUrl && !isValidUrl(formData.onlineUrl) && (
-                      <p
-                        id="onlineUrl-error"
-                        className="mt-1 text-xs text-red-500"
-                      >
-                        Please enter a valid URL (e.g., https://example.com)
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Event Website Field for both venue types */}
-                <div>
-                  <label
-                    htmlFor="eventWebsite"
-                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                  >
-                    Event Website (Optional)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="url"
-                      id="eventWebsite"
-                      name="website"
-                      value={formData.website}
-                      onChange={handleChange}
-                      placeholder="https://yoursite.com/event"
-                      className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                    <LinkIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
-                  </div>
-                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    Enter your event website if you have one
-                  </p>
-                </div>
-
-                {/* Recurring Event Toggle */}
-                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                        Recurring Event
-                      </h3>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Make this a recurring event
-                      </p>
-                    </div>
-                    <Switch
-                      id="isRecurring"
-                      checked={formData.isRecurring}
-                      onCheckedChange={(checked: boolean) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          isRecurring: checked,
-                        }))
-                      }
-                    />
-                  </div>
-
-                  {formData.isRecurring && (
-                    <div className="mt-3 space-y-3">
-                      <div>
-                        <label
-                          htmlFor="recurrencePattern"
-                          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                        >
-                          Recurrence Pattern
-                        </label>
-                        <select
-                          id="recurrencePattern"
-                          name="recurrencePattern"
-                          value={formData.recurrencePattern}
-                          onChange={handleChange}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                        >
-                          <option value="DAILY">Daily</option>
-                          <option value="WEEKLY">Weekly</option>
-                          <option value="MONTHLY">Monthly</option>
-                          <option value="YEARLY">Yearly</option>
-                        </select>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                          <label
-                            htmlFor="recurrenceInterval"
-                            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                          >
-                            Interval
-                          </label>
-                          <input
-                            type="number"
-                            id="recurrenceInterval"
-                            name="recurrenceInterval"
-                            min="1"
-                            value={formData.recurrenceInterval}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                            placeholder="Every 1 week"
-                          />
-                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            How often to repeat (e.g. every 2 weeks)
-                          </p>
-                        </div>
-
-                        <div>
-                          <label
-                            htmlFor="recurrenceEnd"
-                            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                          >
-                            End Date
-                          </label>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant={"outline"}
-                                className={`w-full justify-start text-left font-normal ${
-                                  !formData.recurrenceEnd && "text-muted-foreground"
-                                }`}
-                              >
-                                <Calendar className="mr-2 h-4 w-4" />
-                                {formData.recurrenceEnd ? new Date(formData.recurrenceEnd).toLocaleDateString() : "Pick a date"}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                              <ShadcnCalendar
-                                mode="single"
-                                selected={formData.recurrenceEnd ? new Date(formData.recurrenceEnd) : undefined}
-                                onSelect={(date) => setFormData(prev => ({ ...prev, recurrenceEnd: date ? date.toISOString().split('T')[0] : '' }))}
-                                disabled={(date) => date < new Date()}
-                                initialFocus
-                              />
-                            </PopoverContent>
-                          </Popover>
-                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            When the recurrence should end
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+  useEffect(() => {
+    if (!id) return;
+    (async () => {
+      try {
+        const { data: event } = await api.events.getByIdAuth(Number(id));
+        const start = new Date(event.startDate);
+        const end = new Date(event.endDate);
+        const amenities = parseJsonField<string[]>(event.amenities, []);
+        const highlights = parseJsonField<Array<{ label: string }>>(event.highlights, []);
+        const included = [...amenities, ...highlights.map((h) => h.label)].filter(
+          (v, i, a) => a.indexOf(v) === i
         );
-      
-      case 2: // Tickets
-        return (
-          <div className="space-y-4">
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3">Tickets</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                How many tickets do you want to sell?
-              </p>
-              
-              <div className="space-y-3">
-                {formData.tickets.map((ticket, index) => (
-                  <div key={ticket.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-                    <div className="flex justify-between items-center mb-2">
-                      <h3 className="text-md font-medium">Ticket Type {index + 1}</h3>
-                      {formData.tickets.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeTicket(index)}
-                          className="text-red-600 hover:text-red-800 dark:hover:text-red-400 text-xs font-medium"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Ticket Name</label>
-                        <input
-                          type="text"
-                          value={ticket.name}
-                          onChange={(e) => handleTicketChange(index, 'name', e.target.value)}
-                          className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                          placeholder="e.g. General Admission"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Quantity</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={ticket.quantity}
-                          onChange={(e) => handleTicketChange(index, 'quantity', e.target.value)}
-                          className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                          placeholder="How many tickets?"
-                        />
-                      </div>
-                      
-                      <div className="md:col-span-2">
-                        <div className="flex items-center mb-1">
-                          <input
-                            type="checkbox"
-                            id={`isFree-${index}`}
-                            checked={ticket.isFree}
-                            onChange={(e) => handleTicketChange(index, 'isFree', e.target.checked)}
-                            className="h-3 w-3 text-primary focus:ring-primary border-gray-300 rounded"
-                          />
-                          <label htmlFor={`isFree-${index}`} className="ml-2 text-xs font-medium text-gray-700 dark:text-gray-300">
-                            This is a free ticket
-                          </label>
-                        </div>
-                      </div>
-                      
-                      {!ticket.isFree && (
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Price (₦)</label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              min="0"
-                              value={ticket.price}
-                              onChange={(e) => handleTicketChange(index, 'price', e.target.value)}
-                              className="w-full px-2 py-1 pl-8 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                              placeholder="0.00"
-                            />
-                            <Ticket className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-500" />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                
-                <button
-                  type="button"
-                  onClick={addTicket}
-                  className="flex items-center text-primary hover:text-primary/80 text-xs font-medium"
-                >
-                  <PlusIcon  />
-                  Add another ticket type
-                </button>
-              </div>
-            </div>
-            
-            {/* Vendor Section */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center">
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Vendor Registration</h2>
-                  <div className="relative group ml-2">
-                    <Info className="h-4 w-4 text-gray-500 cursor-pointer" />
-                    <div className="absolute left-1/2 transform -translate-x-1/2 -top-8 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 w-48">
-                      Enable vendor registration for your event. Vendors can register for available stalls.
-                      <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full border-8 border-transparent border-t-gray-800"></div>
-                    </div>
-                  </div>
-                </div>
-                <Switch
-                  id="allowVendors"
-                  checked={formData.allowVendors}
-                  onCheckedChange={(checked: boolean) => setFormData(prev => ({ ...prev, allowVendors: checked }))}
-                />
-              </div>
-              
-              {formData.allowVendors && (
-                <div className="space-y-4">
-                  {/* Vendor Types List */}
-                  {formData.vendorTypes.map((vendorType, index) => (
-                    <div key={vendorType.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 relative">
-                      <div className="flex justify-between items-center mb-3">
-                        <h3 className="text-md font-medium text-gray-900 dark:text-white">
-                          Vendor Type {index + 1} {index === 0 ? '(Primary)' : ''}
-                        </h3>
-                        {formData.vendorTypes.length > 1 && (
+
+        setForm({
+          templateId: 'custom',
+          title: event.title || '',
+          description: event.description || '',
+          startDate: start.toISOString().split('T')[0],
+          endDate: end.toISOString().split('T')[0],
+          startTime12: formatTime12(start),
+          endTime12: formatTime12(end),
+          locationType: event.locationType === 'online' ? 'online' : 'physical',
+          location: event.location || '',
+          onlineUrl: event.onlineUrl || '',
+          capacity: event.capacity ? String(event.capacity) : '',
+          tickets: event.ticketTypes?.length
+            ? event.ticketTypes.map((t: {
+                name: string;
+                price: number;
+                quantity: number;
+                ticketStyle?: string;
+                badgeText?: string;
+                accentColor?: string;
+                ticketHeadline?: string;
+                venueLabel?: string;
+              }) => ({
+                name: t.name,
+                price: String(t.price),
+                quantity: String(t.quantity),
+                isFree: t.price === 0,
+                ticketStyle: t.ticketStyle || 'rose',
+                badgeText: t.badgeText || '',
+                accentColor: t.accentColor || '',
+                ticketHeadline: t.ticketHeadline || 'COME AND JOIN',
+                venueLabel: t.venueLabel || 'LIVE AT',
+              }))
+            : [defaultTicket()],
+          imageUrl: event.imageUrl || '',
+          includedItems: included,
+        });
+        const resolvedCover = resolveImageUrl(event.imageUrl);
+        if (resolvedCover) setImagePreview(resolvedCover);
+        setEventId(event.id);
+      } catch {
+        setError('Could not load event.');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [id]);
+
+  const applyTemplate = (template: EventTemplate) => {
+    setForm({
+      templateId: template.id,
+      title: template.title,
+      description: template.description,
+      startDate: '',
+      endDate: '',
+      startTime12: '6:00 PM',
+      endTime12: '10:00 PM',
+      locationType: template.locationType,
+      location: '',
+      onlineUrl: '',
+      capacity: template.capacity,
+      tickets: template.tickets.map((t) => ({ ...t })),
+      imageUrl: template.image,
+      includedItems: template.amenities ? [...template.amenities] : [],
+    });
+    setImagePreview(template.image);
+    setImageFile(null);
+    setError(null);
+  };
+
+  const toggleIncluded = (item: string) => {
+    setForm((p) => ({
+      ...p,
+      includedItems: p.includedItems.includes(item)
+        ? p.includedItems.filter((a) => a !== item)
+        : [...p.includedItems, item],
+    }));
+  };
+
+  const addCustomIncluded = () => {
+    const trimmed = customIncluded.trim();
+    if (!trimmed) return;
+    setForm((p) => ({
+      ...p,
+      includedItems: p.includedItems.includes(trimmed) ? p.includedItems : [...p.includedItems, trimmed],
+    }));
+    setCustomIncluded('');
+  };
+
+  const handleImage = (file: File) => {
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const updateTicket = (index: number, updates: Partial<TicketDraft>) => {
+    setForm((prev) => {
+      const tickets = [...prev.tickets];
+      tickets[index] = { ...tickets[index], ...updates };
+      return { ...prev, tickets };
+    });
+  };
+
+  const updateTicketQuantity = (index: number, raw: string) => {
+    const qty = parseInt(raw || '0', 10);
+    if (!raw) {
+      updateTicket(index, { quantity: raw });
+      return;
+    }
+    const otherTotal = totalTicketQuantity(form.tickets, index);
+    const maxAllowed = Math.max(1, capacityNum - otherTotal);
+    const capped = capacityNum > 0 ? Math.min(qty, maxAllowed) : qty;
+    updateTicket(index, { quantity: String(capped) });
+  };
+
+  const addTicketFromPreset = (preset: (typeof TICKET_TYPE_PRESETS)[number]) => {
+    const exists = form.tickets.some((t) => t.name === preset.name);
+    if (exists) {
+      setActiveTicketIndex(form.tickets.findIndex((t) => t.name === preset.name));
+      setShowTicketPresets(false);
+      return;
+    }
+    const otherTotal = totalTicketQuantity(form.tickets);
+    const remaining = capacityNum > 0 ? Math.max(1, capacityNum - otherTotal) : 50;
+    setForm((prev) => ({
+      ...prev,
+      tickets: [
+        ...prev.tickets,
+        {
+          name: preset.name,
+          price: preset.suggestedPrice || '',
+          quantity: String(Math.min(50, remaining)),
+          isFree: preset.isFree ?? false,
+          ticketStyle: preset.ticketStyle,
+          badgeText: preset.badgeText,
+          accentColor: '',
+          ticketHeadline: preset.ticketHeadline || 'COME AND JOIN',
+          venueLabel: preset.venueLabel || 'LIVE AT',
+        },
+      ],
+    }));
+    setActiveTicketIndex(form.tickets.length);
+    setShowTicketPresets(false);
+  };
+
+  const addBlankTicket = () => {
+    const otherTotal = totalTicketQuantity(form.tickets);
+    const remaining = capacityNum > 0 ? Math.max(1, capacityNum - otherTotal) : 50;
+    setForm((prev) => ({
+      ...prev,
+      tickets: [
+        ...prev.tickets,
+        { ...defaultTicket(), quantity: String(Math.min(50, remaining)) },
+      ],
+    }));
+    setActiveTicketIndex(form.tickets.length);
+    setShowTicketPresets(false);
+  };
+
+  const removeTicket = (index: number) => {
+    if (form.tickets.length <= 1) return;
+    setForm((prev) => ({ ...prev, tickets: prev.tickets.filter((_, i) => i !== index) }));
+    setActiveTicketIndex((i) => Math.max(0, i - 1));
+  };
+
+  const previewDate = form.startDate ? `${form.startDate}T12:00:00` : new Date().toISOString();
+  const previewLocation = form.locationType === 'online' ? 'Online Event' : form.location || 'Venue TBA';
+  const activeTicket = form.tickets[activeTicketIndex] ?? form.tickets[0];
+  const ticketQtyTotal = totalTicketQuantity(form.tickets);
+  const remainingCapacity = capacityNum > 0 ? capacityNum - ticketQtyTotal : null;
+
+  const validateDetails = (): string | null => {
+    if (!isEditing && !form.templateId) return 'Choose a template to get started.';
+    if (form.title.trim().length < 3) return 'Title must be at least 3 characters.';
+    if (form.description.trim().length < 10) return 'Description must be at least 10 characters.';
+    if (!form.startDate) return 'Select a start date.';
+    if (!form.endDate) return 'Select an end date.';
+    if (!form.startTime12 || !form.endTime12) return 'Set start and end times.';
+    const start = combineDateAndTime12(form.startDate, form.startTime12);
+    const end = combineDateAndTime12(form.endDate, form.endTime12);
+    if (!start || !end) return 'Enter valid times.';
+    if (end <= start) return 'End date and time must be after the start.';
+    if (form.locationType === 'physical' && !form.location.trim()) return 'Enter a venue or address.';
+    if (form.locationType === 'online' && !form.onlineUrl.trim()) return 'Enter your meeting link.';
+    if (!form.capacity || capacityNum < 1) return 'Set how many people can attend.';
+    if (!coverImageSrc && !imageFile) return 'Add a cover photo.';
+    return null;
+  };
+
+  const validateTickets = (): string | null => {
+    for (const t of form.tickets) {
+      if (!t.name.trim()) return 'Each ticket needs a name.';
+      if (!t.isFree && (!t.price || Number(t.price) < 0)) return 'Enter a valid price.';
+      if (!t.quantity || Number(t.quantity) < 1) return 'Each ticket needs a quantity.';
+    }
+    if (capacityNum > 0 && ticketQtyTotal > capacityNum) {
+      return `Total tickets (${ticketQtyTotal}) cannot exceed capacity (${capacityNum}).`;
+    }
+    return null;
+  };
+
+  const validateStep = (): string | null => {
+    if (step === 'details') return validateDetails();
+    if (step === 'tickets') return validateTickets();
+    return null;
+  };
+
+  const validateAll = (): string | null => validateDetails() ?? validateTickets();
+
+  const saveEvent = async (isPublished: boolean) => {
+    const validationError = validateStep();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const fd = buildFormData(form, imageFile, isPublished);
+      if (eventId) {
+        await api.events.updateWithImage(eventId, fd);
+      } else {
+        const res = await api.events.createWithImage(fd);
+        setEventId(res.data.event.id);
+      }
+      navigate('/organizer/events');
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Something went wrong.';
+      setError(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const goNext = () => {
+    const err = validateStep();
+    if (err) {
+      setError(err);
+      return;
+    }
+    setError(null);
+    if (step === 'details') setStep('tickets');
+    else if (step === 'tickets') setStep('review');
+  };
+
+  const goBack = () => {
+    setError(null);
+    if (step === 'details') navigate('/organizer/events');
+    else if (step === 'tickets') setStep('details');
+    else if (step === 'review') setStep('tickets');
+  };
+
+  const inputClass =
+    'w-full px-3 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500';
+
+  const selectedChipClass =
+    'border-rose-500 bg-rose-500 text-white dark:bg-rose-500 dark:text-white';
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Spinner />
+      </div>
+    );
+  }
+
+  return (
+    <div className="pb-6">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={goBack}
+            className="p-2 rounded-lg text-neutral-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+              {isEditing ? 'Edit event' : 'Create event'}
+            </h1>
+            <p className="text-sm text-neutral-500 mt-0.5">{STEPS[stepIndex]?.label}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            {STEPS.map((s, i) => (
+              <div
+                key={s.key}
+                className={cn(
+                  'h-1.5 rounded-full transition-all',
+                  i <= stepIndex ? 'w-8 bg-rose-500' : 'w-4 bg-neutral-200 dark:bg-neutral-700'
+                )}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/organizer/events')}
+            className="p-2 rounded-lg text-neutral-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto">
+        <AnimatePresence mode="wait">
+          {step === 'details' && (
+            <motion.div key="details" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8">
+                {!isEditing && (
+                  <div className="lg:col-span-2">
+                    <div className="lg:sticky lg:top-4">
+                      <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Choose a template</h2>
+                      <p className="text-xs text-neutral-500 mt-1 mb-3">
+                        These are all the templates available right now.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {EVENT_TEMPLATES.map((template) => (
                           <button
+                            key={template.id}
                             type="button"
-                            onClick={() => removeVendorType(index)}
-                            className="text-red-600 hover:text-red-800 dark:hover:text-red-400 text-xs font-medium"
+                            onClick={() => applyTemplate(template)}
+                            className={cn(
+                              'text-left rounded-xl overflow-hidden border transition-all',
+                              form.templateId === template.id
+                                ? 'border-rose-500 ring-2 ring-rose-500/30'
+                                : 'border-neutral-200 dark:border-neutral-800 hover:border-rose-300'
+                            )}
                           >
-                            Remove
+                            <div className="relative aspect-[4/3] bg-neutral-100 dark:bg-neutral-800">
+                              <img
+                                src={template.image}
+                                alt={template.name}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src =
+                                    'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80';
+                                }}
+                              />
+                              {form.templateId === template.id && (
+                                <div className="absolute top-2 right-2 h-5 w-5 bg-rose-500 rounded-full flex items-center justify-center">
+                                  <Check className="h-3 w-3 text-white" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="p-2.5">
+                              <p className="text-sm font-medium">{template.name}</p>
+                              <p className="text-[10px] text-neutral-500 mt-0.5">{template.tagline}</p>
+                            </div>
                           </button>
-                        )}
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Stall Type *
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={vendorType.name}
-                              onChange={(e) => handleVendorTypeChange(index, 'name', e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                              placeholder="e.g. Food, Drinks"
-                            />
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Stall Fee (₦)
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              min="0"
-                              value={vendorType.fee}
-                              onChange={(e) => handleVendorTypeChange(index, 'fee', e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                              placeholder="0 for free"
-                            />
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Max Vendors *
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              min="1"
-                              value={vendorType.maxVendors}
-                              onChange={(e) => handleVendorTypeChange(index, 'maxVendors', e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                              placeholder="How many?"
-                            />
-                          </div>
-                        </div>
+                        ))}
                       </div>
                     </div>
-                  ))}
-                  
-                  {/* Add Vendor Type Button */}
-                  <button
-                    type="button"
-                    onClick={addVendorType}
-                    className="flex items-center text-primary hover:text-primary/80 text-sm font-medium mt-2"
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Another Vendor Type
-                  </button>
-                  
-                  {/* Common Vendor Fields */}
-                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center">
-                      <label htmlFor="vendorDeadline" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Vendor Registration Deadline
-                      </label>
-                      <div className="relative group ml-2">
-                        <Info className="h-4 w-4 text-gray-500 cursor-pointer" />
-                        <div className="absolute left-1/2 transform -translate-x-1/2 -top-8 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 w-48">
-                          Last date for vendors to register for stalls at your event
-                          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full border-8 border-transparent border-t-gray-800"></div>
+                  </div>
+                )}
+
+                <div className={cn('space-y-5', !isEditing ? 'lg:col-span-3' : 'lg:col-span-5')}>
+                  <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Event details</h2>
+
+                  <div>
+                    <FieldLabel>Cover photo</FieldLabel>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => fileRef.current?.click()}
+                      onKeyDown={(e) => e.key === 'Enter' && fileRef.current?.click()}
+                      className="relative aspect-[2/1] rounded-xl overflow-hidden border border-dashed border-neutral-300 dark:border-neutral-700 cursor-pointer group hover:border-rose-400 transition-colors"
+                    >
+                      {imagePreview ? (
+                        <>
+                          <img src={imagePreview} alt="Cover" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            <Upload className="h-5 w-5 text-white" />
+                            <span className="text-sm font-medium text-white">Change cover</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full gap-1 text-neutral-400">
+                          <ImageIcon className="h-8 w-8" />
+                          <span className="text-xs">Upload cover photo</span>
                         </div>
-                      </div>
+                      )}
                     </div>
-                    <div className="relative">
+                  </div>
+                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleImage(e.target.files[0])} />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <FieldLabel>Event title</FieldLabel>
+                      <input
+                        value={form.title}
+                        onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+                        placeholder="e.g. Summer Music Festival"
+                        className={inputClass}
+                      />
+                    </div>
+                    <div>
+                      <FieldLabel>Capacity (max attendees)</FieldLabel>
+                      <input
+                        type="number"
+                        min={1}
+                        value={form.capacity}
+                        onChange={(e) => setForm((p) => ({ ...p, capacity: e.target.value }))}
+                        placeholder="e.g. 200"
+                        className={inputClass}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <FieldLabel>Description</FieldLabel>
+                    <textarea
+                      value={form.description}
+                      onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+                      placeholder="Tell guests what to expect..."
+                      rows={3}
+                      className={cn(inputClass, 'resize-none')}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <FieldLabel>Start date</FieldLabel>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button
-                            variant={"outline"}
-                            className={`w-full justify-start text-left font-normal ${
-                              !formData.vendorDeadline && "text-muted-foreground"
-                            }`}
-                          >
-                            <Calendar className="mr-2 h-4 w-4" />
-                            {formData.vendorDeadline ? new Date(formData.vendorDeadline).toLocaleDateString() : "Pick a date"}
-                          </Button>
+                          <button type="button" className={cn(inputClass, 'text-left')}>
+                            {formatDateLabel(form.startDate)}
+                          </button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <ShadcnCalendar
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <DateCalendar
                             mode="single"
-                            selected={formData.vendorDeadline ? new Date(formData.vendorDeadline) : undefined}
-                            onSelect={(date) => setFormData(prev => ({ ...prev, vendorDeadline: date ? date.toISOString().split('T')[0] : '' }))}
-                            disabled={(date) => date < new Date()}
-                            initialFocus
+                            selected={form.startDate ? new Date(form.startDate + 'T12:00:00') : undefined}
+                            onSelect={(d) => {
+                              if (!d) return;
+                              const dateStr = d.toISOString().split('T')[0];
+                              setForm((p) => ({
+                                ...p,
+                                startDate: dateStr,
+                                endDate: !p.endDate || p.endDate < dateStr ? dateStr : p.endDate,
+                              }));
+                            }}
+                            disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div>
+                      <FieldLabel>End date</FieldLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button type="button" className={cn(inputClass, 'text-left')}>
+                            {formatDateLabel(form.endDate)}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <DateCalendar
+                            mode="single"
+                            selected={form.endDate ? new Date(form.endDate + 'T12:00:00') : undefined}
+                            onSelect={(d) => d && setForm((p) => ({ ...p, endDate: d.toISOString().split('T')[0] }))}
+                            disabled={(d) => {
+                              const min = form.startDate ? new Date(form.startDate + 'T00:00:00') : new Date(new Date().setHours(0, 0, 0, 0));
+                              return d < min;
+                            }}
                           />
                         </PopoverContent>
                       </Popover>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      
-      case 3: // Publish
-        return (
-          <div className="space-y-6">
-            {/* Alert for missing organizer info */}
-            {organizerInfoMissing && (
-              <div className="border-l-4 border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <TimePicker12
+                      label="Start time"
+                      value={form.startTime12}
+                      onChange={(v) => setForm((p) => ({ ...p, startTime12: v }))}
+                    />
+                    <TimePicker12
+                      label="End time"
+                      value={form.endTime12}
+                      onChange={(v) => setForm((p) => ({ ...p, endTime12: v }))}
+                    />
                   </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                      Missing required information
-                    </h3>
-                    <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-                      <ul className="list-disc pl-5 space-y-1">
-                        {missingFields.map((field, index) => (
-                          <li key={index}>{field}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="mt-4">
-                      <div className="-mx-2 -my-1.5 flex">
+
+                  <div>
+                    <FieldLabel>Event type</FieldLabel>
+                    <div className="flex gap-2">
+                      {(['physical', 'online'] as const).map((type) => (
                         <button
+                          key={type}
                           type="button"
-                          onClick={() => navigate('/profile')}
-                          className="px-3 py-1.5 rounded-md text-sm font-medium bg-yellow-100 text-yellow-800 hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-yellow-50 focus:ring-yellow-600 dark:bg-yellow-800 dark:text-yellow-100 dark:hover:bg-yellow-700"
+                          onClick={() => setForm((p) => ({ ...p, locationType: type }))}
+                          className={cn(
+                            'flex-1 py-2 px-3 rounded-lg border text-xs font-medium transition-all',
+                            form.locationType === type
+                              ? 'border-rose-500 bg-rose-500 text-white'
+                              : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-rose-300'
+                          )}
                         >
-                          Update organizer profile
+                          {type === 'physical' ? <><MapPin className="h-3 w-3 inline mr-1" />In person</> : <><Globe className="h-3 w-3 inline mr-1" />Online</>}
                         </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Event Preview Section */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="text-md font-medium text-gray-900 dark:text-white">Event Preview</h3>
-                <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-gray-600 dark:text-gray-300">
-                  Preview
-                </span>
-              </div>
-              
-              {/* Preview Card */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                {imagePreview ? (
-                  <img 
-                    src={imagePreview} 
-                    alt="Event preview" 
-                    className="w-full h-48 object-cover"
-                  />
-                ) : (
-                  <div className="bg-gray-200 dark:bg-gray-700 h-48 flex items-center justify-center">
-                    <span className="text-gray-500 dark:text-gray-400">Event Image Preview</span>
-                  </div>
-                )}
-                
-                <div className="p-4">
-                  <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-                    {formData.title || "Your Event Title"}
-                  </h4>
-                  
-                  <div className="mt-2 space-y-2">
-                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                      <Calendar className="h-4 w-4 mr-2" />
-                      {formData.date ? new Date(formData.date).toLocaleDateString() : "Not set"}
-                    </div>
-                    
-                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                      <Clock className="h-4 w-4 mr-2" />
-                      {formData.startTime && formData.endTime 
-                        ? `${formData.startTime} - ${formData.endTime}` 
-                        : "Not set"}
-                    </div>
-                    
-                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                      <MapPin className="h-4 w-4 mr-2" />
-                      {formData.locationType === 'physical' 
-                        ? (formData.location || "Event Location") 
-                        : (formData.website || "Online Event Platform")}
-                    </div>
-                    
-                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                      <Users className="h-4 w-4 mr-2" />
-                      {formData.capacity ? `${formData.capacity} capacity` : "Capacity not set"}
-                    </div>
-                    
-                    <div className="mt-3">
-                      <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
-                        {formData.description || "Event description will appear here..."}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {/* Ticket Types Preview */}
-                  <div className="mt-4">
-                    <h5 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Tickets</h5>
-                    <div className="space-y-1">
-                      {formData.tickets.map((ticket, index) => (
-                        <div key={ticket.id} className="flex justify-between text-sm">
-                          <span className="text-gray-700 dark:text-gray-300">
-                            {ticket.name || `Ticket ${index + 1}`}
-                          </span>
-                          <span className="text-gray-900 dark:text-white">
-                            {ticket.isFree ? "Free" : `₦${ticket.price || 0}`}
-                            {ticket.quantity && ` · ${ticket.quantity} available`}
-                          </span>
-                        </div>
                       ))}
                     </div>
                   </div>
-                  
-                  {/* Vendor Preview */}
-                  {formData.allowVendors && (
-                    <div className="mt-4">
-                      <h5 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Vendors</h5>
-                      <div className="space-y-1">
-                        {formData.vendorTypes.map((vt, index) => (
-                          <div key={index} className="text-sm text-gray-600 dark:text-gray-300">
-                            {vt.name || 'Vendor stall'} • {vt.fee ? `₦${vt.fee} fee` : 'Free stall'} • Up to {vt.maxVendors || 'unlimited'} vendors
-                          </div>
+
+                  <div>
+                    <FieldLabel>{form.locationType === 'physical' ? 'Venue or address' : 'Meeting link'}</FieldLabel>
+                    {form.locationType === 'physical' ? (
+                      <input value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))} placeholder="e.g. 12 Admiralty Way, Lekki" className={inputClass} />
+                    ) : (
+                      <input value={form.onlineUrl} onChange={(e) => setForm((p) => ({ ...p, onlineUrl: e.target.value }))} placeholder="e.g. https://zoom.us/j/..." className={inputClass} />
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
+                    <FieldLabel>What&apos;s included</FieldLabel>
+                    <p className="text-xs text-neutral-500 -mt-1">Pick suggestions or type your own below</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {includedChipOptions.map((item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => toggleIncluded(item)}
+                          className={cn(
+                            'px-2.5 py-1 rounded-full text-xs border transition-colors',
+                            form.includedItems.includes(item) ? selectedChipClass : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-rose-300'
+                          )}
+                        >
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        value={customIncluded}
+                        onChange={(e) => setCustomIncluded(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomIncluded())}
+                        placeholder="Type a custom item and press Enter..."
+                        className={cn(inputClass, 'flex-1')}
+                      />
+                      <Button type="button" variant="outline" onClick={addCustomIncluded} className="rounded-lg shrink-0 border-rose-200 text-rose-500 hover:bg-rose-50">
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <StepActions onBack={() => navigate('/organizer/events')} onNext={goNext} backLabel="Cancel" error={error} onDismissError={clearError} />
+            </motion.div>
+          )}
+
+          {step === 'tickets' && activeTicket && (
+            <motion.div key="tickets" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Ticket types</h2>
+                    {capacityNum > 0 && (
+                      <span className="text-xs text-neutral-500">
+                        {ticketQtyTotal} / {capacityNum} seats used
+                        {remainingCapacity !== null && remainingCapacity > 0 && ` · ${remainingCapacity} left`}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {form.tickets.map((ticket, i) => (
+                      <button
+                        key={`${ticket.name}-${i}`}
+                        type="button"
+                        onClick={() => setActiveTicketIndex(i)}
+                        className={cn(
+                          'px-3 py-1.5 rounded-full text-xs font-medium border transition-colors',
+                          activeTicketIndex === i ? selectedChipClass : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-rose-300'
+                        )}
+                      >
+                        {ticket.name || `Ticket ${i + 1}`}
+                        <span className="ml-1 opacity-70">({TICKET_DESIGNS.find((d) => d.id === ticket.ticketStyle)?.name})</span>
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setShowTicketPresets(!showTicketPresets)}
+                      className="px-3 py-1.5 rounded-full text-xs text-rose-500 border border-dashed border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/20 flex items-center gap-1"
+                    >
+                      <Plus className="h-3 w-3" /> Add ticket
+                    </button>
+                  </div>
+
+                  {showTicketPresets && (
+                    <div className="rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 p-4 space-y-3">
+                      <p className="text-xs font-medium text-neutral-600">Choose a ticket type</p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {TICKET_TYPE_PRESETS.map((preset) => (
+                          <button
+                            key={preset.name}
+                            type="button"
+                            onClick={() => addTicketFromPreset(preset)}
+                            className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-xs font-medium hover:border-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors text-left"
+                          >
+                            {preset.name}
+                          </button>
                         ))}
+                        <button type="button" onClick={addBlankTicket} className="px-3 py-2 rounded-lg border border-dashed border-neutral-300 text-xs text-neutral-500 hover:border-rose-300">
+                          Custom
+                        </button>
                       </div>
-                      {formData.vendorDeadline && (
-                        <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                          Registration deadline: {new Date(formData.vendorDeadline).toLocaleDateString()}
-                        </div>
-                      )}
                     </div>
                   )}
-                </div>
-              </div>
-            </div>
-            
-            {/* Publish Settings */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-              <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3">Publish Settings</h3>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, publishStatus: 'draft' }))}
-                  className="flex-1 py-2 px-4 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
-                >
-                  Save as Draft
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, publishStatus: 'published' }))}
-                  className="flex-1 py-2 px-4 rounded border border-primary bg-primary text-white text-sm"
-                >
-                  Publish
-                </button>
-              </div>
-              
-              {/* Publish Status Indicator */}
-              <div className="mt-4 p-3 rounded-lg border flex items-start">
-                {formData.publishStatus === 'published' ? (
-                  <div className="flex items-start">
-                    <CheckCircle className="h-5 w-5 text-green-500 mr-2 mt-0.5" />
+
+                  <div className="space-y-4">
                     <div>
-                      <h4 className="font-medium text-green-800 dark:text-green-300">Published</h4>
-                      <p className="text-sm text-green-700 dark:text-green-400">
-                        Your event is live and visible to everyone
-                      </p>
+                      <FieldLabel>Ticket name</FieldLabel>
+                      <input value={activeTicket.name} onChange={(e) => updateTicket(activeTicketIndex, { name: e.target.value })} placeholder="e.g. VIP" className={inputClass} />
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex items-start">
-                    <FileText className="h-5 w-5 text-gray-500 mr-2 mt-0.5" />
-                    <div>
-                      <h4 className="font-medium text-gray-800 dark:text-gray-200">Draft</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Your event is saved but not visible to the public
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      
-      default:
-        return null;
-    }
-  };
-
-    return (
-      <div className=" bg-gray-50 dark:bg-gray-900 flex flex-col">
-        {/* Fixed Header */}
-        {/* <header className="bg-white dark:bg-gray-800 shadow-sm py-4 px-6 z-10 ">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                Create an event
-              </h1>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
-                Fill out the information below to create your event.
-              </p>
-            </div>
-          </div>
-        </header> */}
-        {/* <div></div> */}
-        <div className="flex flex-1 overflow-hidde">
-          {/* Fixed Sidebar */}
-          <div className="w-64 bg-white dark:bg-gray-800 shadow-sm p-4 overflow-y-auto flex-shrink-0 sticky top-2 h-[calc(100vh-20rem)]">
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-              Event Setup Create an event
-            </h2>
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              Fill out the information below to create your event.
-            </p>
-            <nav className="space-y-1">
-              {sidebarItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setCurrentStep(item.id)}
-                    className={`w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg ${
-                      currentStep === item.id
-                        ? "bg-primary/10 text-primary"
-                        : isStepComplete(item.id)
-                        ? "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                        : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    }`}
-                  >
-                    <Icon
-                      className={`h-4 w-4 mr-3 ${
-                        currentStep === item.id
-                          ? "text-primary"
-                          : "text-gray-500"
-                      }`}
-                    />
-                    <span>{item.label}</span>
-                    {item.completed && (
-                      <CheckCircle className="ml-auto h-4 w-4 text-green-500" />
-                    )}
-                  </button>
-                );
-              })}
-            </nav>
-
-            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => navigate("/organizer")}
-                className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-              >
-                <Settings className="h-4 w-4 mr-3 inline text-gray-500" />
-                Event Dashboard
-              </button>
-            </div>
-          </div>
-
-          {/* Scrollable Form Content */}
-          <div className="flex-1 overflow-y-aut p-4">
-            <div className="max-w-4xl mx-auto">
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidde">
-                <div className="p-4">
-                  <form onSubmit={currentStep === 3 ? handleSubmit : undefined}>
-                    {renderStep()}
-
-                    <div className="flex justify-between items-center mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => navigate("/organizer/events")}
-                        className="text-sm"
-                      >
-                        Cancel
-                      </Button>
-
-                      <div className="flex space-x-2">
-                        {currentStep > 1 && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={goToPreviousStep}
-                            className="text-sm"
-                          >
-                            Back
-                          </Button>
-                        )}
-
-                        {currentStep < 3 ? (
-                          <Button
-                            type="button"
-                            className="text-sm"
-                            onClick={goToNextStep}
-                            disabled={
-                              !isStepComplete(currentStep) || nextStepLoading
-                            }
-                          >
-                            {nextStepLoading ? (
-                              <>
-                                <Spinner className="mr-2 h-4 w-4" />
-                                Saving...
-                              </>
-                            ) : (
-                              "Save and Continue"
-                            )}
-                          </Button>
-                        ) : (
-                          // </div>
-                          <div className="flex space-x-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => {
-                                setSaveDraftLoading(true);
-                                setFormData((prev) => ({
-                                  ...prev,
-                                  publishStatus: "draft",
-                                }));
-                                handleSubmit(
-                                  new Event(
-                                    "submit"
-                                  ) as unknown as React.FormEvent
-                                ).finally(() => {
-                                  setSaveDraftLoading(false);
-                                });
-                              }}
-                              className="text-sm"
-                              disabled={saveDraftLoading}
-                            >
-                              {saveDraftLoading ? (
-                                <>
-                                  <Spinner className="mr-2 h-4 w-4" />
-                                  Saving...
-                                </>
-                              ) : (
-                                "Save as Draft"
-                              )}
-                            </Button>
-                            <Button
-                              type="button"
-                              className="text-sm"
-                              onClick={validateAndPublish}
-                              disabled={!isPublishComplete() || publishLoading}
-                            >
-                              {publishLoading ? (
-                                <>
-                                  <Spinner className="mr-2 h-4 w-4" />
-                                  Publishing...
-                                </>
-                              ) : (
-                                "Publish"
-                              )}
-                            </Button>
-                          </div>
-                        )}
+                    <div className="flex gap-3 items-end flex-wrap">
+                      <label className="flex items-center gap-2 text-xs pb-2.5 shrink-0">
+                        <input type="checkbox" checked={activeTicket.isFree} onChange={(e) => updateTicket(activeTicketIndex, { isFree: e.target.checked })} className="rounded accent-rose-500" />
+                        Free ticket
+                      </label>
+                      {!activeTicket.isFree && (
+                        <div className="flex-1 min-w-[120px]">
+                          <FieldLabel>Price (₦)</FieldLabel>
+                          <input type="number" min={0} value={activeTicket.price} onChange={(e) => updateTicket(activeTicketIndex, { price: e.target.value })} placeholder="5000" className={inputClass} />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-[100px]">
+                        <FieldLabel>Quantity available</FieldLabel>
+                        <input
+                          type="number"
+                          min={1}
+                          max={capacityNum > 0 ? capacityNum - totalTicketQuantity(form.tickets, activeTicketIndex) + parseInt(activeTicket.quantity || '0', 10) : undefined}
+                          value={activeTicket.quantity}
+                          onChange={(e) => updateTicketQuantity(activeTicketIndex, e.target.value)}
+                          placeholder="100"
+                          className={inputClass}
+                        />
                       </div>
                     </div>
-                  </form>
+                    <div>
+                      <FieldLabel>Stub badge label</FieldLabel>
+                      <input value={activeTicket.badgeText} onChange={(e) => updateTicket(activeTicketIndex, { badgeText: e.target.value })} placeholder="e.g. VIP ACCESS" className={inputClass} />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <FieldLabel>Ticket headline</FieldLabel>
+                        <input value={activeTicket.ticketHeadline} onChange={(e) => updateTicket(activeTicketIndex, { ticketHeadline: e.target.value })} placeholder="COME AND JOIN" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel>Venue label</FieldLabel>
+                        <input value={activeTicket.venueLabel} onChange={(e) => updateTicket(activeTicketIndex, { venueLabel: e.target.value })} placeholder="LIVE AT" className={inputClass} />
+                      </div>
+                    </div>
+
+                    <div>
+                      <FieldLabel>Ticket design (per type)</FieldLabel>
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                        {TICKET_DESIGNS.map((design) => (
+                          <button
+                            key={design.id}
+                            type="button"
+                            onClick={() => updateTicket(activeTicketIndex, { ticketStyle: design.id, accentColor: '' })}
+                            className={cn(
+                              'p-2 rounded-lg border text-left transition-colors',
+                              activeTicket.ticketStyle === design.id
+                                ? 'border-rose-500 ring-1 ring-rose-500/30'
+                                : 'border-neutral-200 dark:border-neutral-700 hover:border-rose-300'
+                            )}
+                          >
+                            <div className="w-full h-4 rounded mb-1" style={{ backgroundColor: design.accent }} />
+                            <span className="text-[10px] font-medium">{design.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {form.tickets.length > 1 && (
+                      <button type="button" onClick={() => removeTicket(activeTicketIndex)} className="text-xs text-rose-500 hover:text-rose-600">
+                        Remove this ticket type
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="lg:sticky lg:top-4 lg:self-start">
+                  <p className="text-xs font-medium text-neutral-500 mb-3">Preview — {activeTicket.name || 'Ticket'}</p>
+                  <EventTicketCard
+                    key={`preview-${activeTicketIndex}-${activeTicket.ticketStyle}`}
+                    compact
+                    eventName={form.title || 'Your Event'}
+                    eventDate={previewDate}
+                    eventTime={form.startTime12}
+                    eventLocation={previewLocation}
+                    eventImageUrl={coverImageSrc || undefined}
+                    ticketType={{
+                      name: activeTicket.name,
+                      ticketStyle: activeTicket.ticketStyle,
+                      accentColor: activeTicket.accentColor || null,
+                      badgeText: activeTicket.badgeText || activeTicket.name,
+                      ticketHeadline: activeTicket.ticketHeadline,
+                      venueLabel: activeTicket.venueLabel,
+                    }}
+                    ticketSerial="PREVIEW"
+                  />
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Toast viewport */}
-        {/* <ToastViewport toasts={toasts} dismiss={dismiss} /> */}
+              <StepActions onBack={goBack} onNext={goNext} error={error} onDismissError={clearError} />
+            </motion.div>
+          )}
+
+          {step === 'review' && (
+            <motion.div key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-800">
+                  {coverImageSrc && <img src={coverImageSrc} alt={form.title} className="w-full aspect-[2/1] object-cover" />}
+                  <div className="p-5 space-y-3">
+                    <h2 className="text-lg font-semibold">{form.title}</h2>
+                    <p className="text-sm text-neutral-500">{form.description}</p>
+                    <p className="text-xs text-neutral-500 flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {formatDateLabel(form.startDate)} {form.startTime12}
+                      {form.endDate !== form.startDate && ` → ${formatDateLabel(form.endDate)}`} {form.endTime12}
+                    </p>
+                    <p className="text-xs text-neutral-500 flex items-center gap-1">
+                      {form.locationType === 'online' ? <Globe className="h-3 w-3" /> : <MapPin className="h-3 w-3" />}
+                      {form.locationType === 'online' ? form.onlineUrl : form.location}
+                    </p>
+                    <p className="text-xs text-neutral-500">Capacity: {form.capacity} people</p>
+                    {form.includedItems.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {form.includedItems.map((a) => (
+                          <span key={a} className="text-[10px] px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/30 text-rose-600">{a}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold">Ticket types ({form.tickets.length})</h3>
+                  {form.tickets.map((t, i) => (
+                    <div key={i} className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">{t.name}</span>
+                        <span className="text-sm text-neutral-500">
+                          {t.isFree ? 'Free' : `₦${Number(t.price).toLocaleString()}`} · {t.quantity} qty
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-neutral-400">
+                        Design: {TICKET_DESIGNS.find((d) => d.id === t.ticketStyle)?.name} · {t.ticketHeadline} / {t.venueLabel}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <StepActions onBack={goBack} backLabel="Back" error={error} onDismissError={clearError}>
+                <div className="flex gap-2">
+                  <Button variant="outline" disabled={saving} onClick={() => saveEvent(false)} className="rounded-full px-4 text-sm border-rose-200 text-rose-500 hover:bg-rose-50">
+                    Save draft
+                  </Button>
+                  <Button disabled={saving} onClick={() => saveEvent(true)} className="rounded-full px-5 bg-rose-500 hover:bg-rose-600 text-white border-0 text-sm">
+                    {saving ? <Spinner className="h-4 w-4" /> : 'Publish'}
+                  </Button>
+                </div>
+              </StepActions>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-    );
+    </div>
+  );
 };
-
-// Icon for the button
-const PlusIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-  </svg>
-);
 
 export default CreateEvent;

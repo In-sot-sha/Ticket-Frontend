@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { Button } from '../ui/Button';
 import { Menu } from 'lucide-react';
@@ -8,6 +8,8 @@ import MobileTabBar from './MobileTabBar';
 
 const DashboardLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
+  const isCreateEvent = /\/organizer\/events\/create/.test(location.pathname);
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -15,7 +17,7 @@ const DashboardLayout: React.FC = () => {
 
   return (
     <div className='max-h-screen overflow-hidden pb-16 md:pb-0'>
-      <Header/>
+      {!isCreateEvent && <Header />}
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
       {/* Mobile menu button */}
       <div className="md:hidden absolute top-4 left-4 z-40">
@@ -36,14 +38,14 @@ const DashboardLayout: React.FC = () => {
       
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden md:ml-0">
-        <main className="flex-1 overflow-y-auto p-2 md:p-3">
-          <div className="max-w-7x mx-auto">
+        <main className="flex-1 overflow-y-auto p-2 md:p-4 lg:p-6">
+          <div className={isCreateEvent ? 'w-full' : 'max-w-7xl mx-auto'}>
             <Outlet />
           </div>
         </main>
       </div>
     </div>
-    <MobileTabBar />
+    {!isCreateEvent && <MobileTabBar />}
     </div>
   );
 };

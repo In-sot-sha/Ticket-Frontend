@@ -80,8 +80,9 @@ const TicketConfirmationPage = () => {
             className="flex items-center gap-2 text-xs font-black text-neutral-500 dark:text-neutral-400 hover:text-rose-500 dark:hover:text-white transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            BACK TO HOME
+            Back to home
           </button>
+        
           <button
             onClick={downloadAll}
             className="flex items-center gap-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-extrabold px-4 py-2 sm:px-5 sm:py-2.5 rounded-full shadow-lg transition-transform active:scale-[0.98]"
@@ -95,7 +96,7 @@ const TicketConfirmationPage = () => {
         <div className="mb-6 sm:mb-10 text-center px-4 sm:px-0">
           <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full text-emerald-600 dark:text-emerald-400 text-[10px] font-bold mb-3 shadow-inner">
             <CheckCircle className="h-3.5 w-3.5" />
-            CONFIRMED · {orderId}
+            Confirmed · {orderId}
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-neutral-900 dark:text-white tracking-tight uppercase">
             Your Digital Entrance Pass
@@ -122,7 +123,7 @@ const TicketConfirmationPage = () => {
         <div className="mt-8 sm:mt-12 mx-4 sm:mx-0 rounded-3xl bg-neutral-100 dark:bg-neutral-900/40 border border-neutral-200 dark:border-neutral-850 p-5 flex gap-4 items-start text-xs text-neutral-600 dark:text-neutral-400">
           <Shield className="h-5 w-5 text-rose-500 shrink-0 mt-0.5" />
           <div>
-            <p className="font-bold text-neutral-900 dark:text-neutral-200">Secure Gate Entry Notice</p>
+            <p className="font-semibold text-neutral-900 dark:text-neutral-200">Secure entry</p>
             <p className="mt-1 leading-relaxed">
               This digital pass is unique and belongs solely to the attendee. Please avoid sharing this QR
               code. Once scanned at the check-in terminal, the pass will be logged as USED and cannot be
@@ -136,22 +137,22 @@ const TicketConfirmationPage = () => {
           {isAuthenticated ? (
             <Button
               onClick={() => navigate('/user/tickets')}
-              className="flex-grow h-12 bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 text-xs font-extrabold rounded-2xl shadow-sm transition-all hover:opacity-90"
+              className="flex-1 h-12 rounded-2xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 text-xs font-bold"
             >
-              VIEW MY DASHBOARD
+              View my tickets
             </Button>
           ) : (
             <Button
               onClick={() => navigate('/recover-ticket')}
-              className="flex-grow h-12 bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 text-xs font-extrabold rounded-2xl shadow-sm transition-all hover:opacity-90"
+              className="flex-1 h-12 rounded-2xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 text-xs font-bold"
             >
-              RECOVER LOST TICKETS
+              Recover lost tickets
             </Button>
           )}
           <Button
             variant="outline"
             onClick={() => navigate('/')}
-            className="flex-grow h-12 border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-700 dark:text-neutral-300 text-xs font-extrabold rounded-2xl transition-all"
+            className="flex-1 h-12 rounded-2xl text-xs font-bold"
           >
             BROWSE MORE EVENTS
           </Button>
@@ -164,7 +165,6 @@ const TicketConfirmationPage = () => {
             DOWNLOAD RECEIPTS
           </Button>
         </div>
-
       </div>
     </div>
   );

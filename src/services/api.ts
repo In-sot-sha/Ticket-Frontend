@@ -1,6 +1,6 @@
 // src/services/api.ts
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-let localEndpoint = "http://localhost:33312/api";
+let localEndpoint = import.meta.env.VITE_API_URL || "http://localhost:33333/api";
 let productionEndpoint = "https://eventify-api.onrender.com/api";
 
 let currentEndpoint =
@@ -148,7 +148,9 @@ export const api = {
       location?: string;
     }) => apiRequest<any>('GET', '/events', undefined, { params }),
     
-    getById: (id: number) => apiRequest<any>('GET', `/events/${id}`),
+    getById: (id: number) => apiRequest<any>('GET', `/events/get-event/${id}`),
+
+    getByIdAuth: (id: number) => apiRequest<any>('GET', `/events/${id}`),
     
     create: (eventData: any) => apiRequest<any>('POST', '/events', eventData),
     
@@ -160,13 +162,22 @@ export const api = {
     
     update: (id: number, eventData: any) => apiRequest<any>('PUT', `/events/${id}`, eventData),
     
-    updateWithImage: (id: number, formData: FormData) => apiClient.put(`/events/${id}`, formData, {
+    updateWithImage: (id: number, formData: FormData) => apiClient.put(`/events/update/${id}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     }),
     
-    delete: (id: number) => apiRequest<any>('DELETE', `/events/${id}`),
+    delete: (id: number) => apiRequest<any>('DELETE', `/events/delete/${id}`),
+
+    getOrganizerEvents: (params?: { page?: number; limit?: number }) =>
+      apiRequest<any>('GET', '/events/organizer', undefined, { params }),
+
+    getOrganizerEventById: (id: number) =>
+      apiRequest<any>('GET', `/events/organizer/${id}`),
+
+    getOrganizerAnalytics: () =>
+      apiRequest<any>('GET', '/events/organizer/analytics'),
     
     getCategories: () => apiRequest<any[]>('GET', '/events/categories'),
   },

@@ -29,6 +29,7 @@ import Dashboard from '../pages/Dashboard';
 import Profile from '../pages/Profile';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import EventsDashboard from '../pages/EventsDashboard';
+import OrganizerEventPage from '../pages/OrganizerEventPage';
 import CreateEvent from '../pages/CreateEvent';
 import PaymentPage from '../pages/PaymentPage';
 import TicketConfirmationPage from '../pages/TicketConfirmationPage';
@@ -228,6 +229,10 @@ const AppRoutes: React.FC = () => {
         {
           path: "events/create/:id",
           element: <CreateEvent />,
+        },
+        {
+          path: "events/:id",
+          element: <OrganizerEventPage />,
         },
         {
           path: "vendors-applications",
