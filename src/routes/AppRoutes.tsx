@@ -44,6 +44,7 @@ import MyVendorApplications from '../pages/MyVendorApplications';
 import GuestDashboard from '../pages/GuestDashboard';
 import WishlistPage from '../pages/WishlistPage';
 import UserDashboard from '../components/layout/UserDashboard';
+import TicketScanner from '../pages/TicketScanner';
 
 // Route guard component for protected routes
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -243,6 +244,10 @@ const AppRoutes: React.FC = () => {
         {
           path: "organizer-settings",
           element: <SettingsDashboard />,
+        },
+        {
+          path: "scan",
+          element: <TicketScanner />,
         },
       ],
 

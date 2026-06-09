@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   User, 
   Mail, 
@@ -6,61 +7,93 @@ import {
   CreditCard,
   Bell,
   Globe,
-  Shield
+  Shield,
+  ChevronRight,
+  ArrowLeft
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 
 const SettingsDashboard = () => {
-  const [activeTab, setActiveTab] = useState('profile');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'menu';
+
+  const setActiveTab = (tab: string) => {
+    if (tab === 'menu') {
+      setSearchParams({});
+    } else {
+      setSearchParams({ tab });
+    }
+  };
 
   const tabs = [
-    { id: 'profile', label: 'Profile', icon: <User className="h-4 w-4" /> },
-    { id: 'notifications', label: 'Notifications', icon: <Bell className="h-4 w-4" /> },
-    { id: 'security', label: 'Security', icon: <Shield className="h-4 w-4" /> },
-    { id: 'billing', label: 'Billing', icon: <CreditCard className="h-4 w-4" /> },
-    { id: 'preferences', label: 'Preferences', icon: <Globe className="h-4 w-4" /> },
+    { id: 'profile', label: 'Profile Information', desc: 'Provide your organizer details and contact info.', icon: User },
+    { id: 'notifications', label: 'Notifications', desc: 'Choose how you want to be notified.', icon: Bell },
+    { id: 'security', label: 'Login & Security', desc: 'Update your password and keep your account secured.', icon: Shield },
+    { id: 'billing', label: 'Payments & Billing', desc: 'Review payments, subscriptions, and billing info.', icon: CreditCard },
+    { id: 'preferences', label: 'Preferences', desc: 'Language, timezone, and appearance settings.', icon: Globe },
   ];
 
   return (
-    <div className="py-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-gray-600 dark:text-gray-300">
-          Manage your account settings and preferences
-        </p>
-      </div>
+    <div className="py-6 max-w-4xl mx-auto">
+      {/* Breadcrumbs / Back */}
+      {activeTab !== 'menu' && (
+        <button 
+          onClick={() => setActiveTab('menu')}
+          className="flex items-center gap-1.5 text-xs font-bold hover:underline mb-6 text-neutral-600 dark:text-neutral-400"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Settings
+        </button>
+      )}
 
-      <div className="flex flex-col md:flex-row gap-6">
-        {/* Settings Tabs */}
-        <div className="w-full md:w-64">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                className={`w-full flex items-center px-3 py-2 rounded-md text-left mb-1 ${
-                  activeTab === tab.id
-                    ? 'bg-primary/10 text-primary'
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                <span className="mr-2">{tab.icon}</span>
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </div>
+      {/* Dynamic header depending on panel */}
+      {activeTab === 'menu' && (
+        <div className="mb-10">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Organizer Settings</h1>
+          <p className="text-sm text-neutral-500 mt-2">
+            Manage your organization settings and preferences
+          </p>
         </div>
+      )}
 
-        {/* Settings Content */}
-        <div className="flex-1">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            {/* Profile Settings */}
-            {activeTab === 'profile' && (
-              <div>
-                <h2 className="text-lg font-semibold mb-4 flex items-center">
-                  <User className="h-5 w-5 mr-2 text-primary" />
-                  Profile Information
-                </h2>
+      {/* ─── MAIN MENU PANEL ─── */}
+      {activeTab === 'menu' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {tabs.map(tile => {
+            const Icon = tile.icon;
+            return (
+              <div 
+                key={tile.id}
+                onClick={() => setActiveTab(tile.id)}
+                className="p-6 border border-neutral-150 dark:border-neutral-900 rounded-2xl bg-white dark:bg-gray-900 shadow-sm hover:shadow-md cursor-pointer hover:border-neutral-250 dark:hover:border-neutral-800 transition-all flex flex-col justify-between"
+              >
+                <div className="space-y-4">
+                  <div className="p-3 bg-rose-50 dark:bg-rose-950/20 rounded-xl w-fit">
+                    <Icon className="h-6 w-6 text-rose-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-neutral-900 dark:text-white">{tile.label}</h3>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed">{tile.desc}</p>
+                  </div>
+                </div>
+                <div className="flex justify-end pt-4">
+                  <span className="text-xs font-bold text-rose-500 flex items-center gap-0.5">
+                    Manage <ChevronRight className="h-4 w-4" />
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Settings Content */}
+      <div className="w-full">
+        <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 md:p-8 shadow-sm">
+          {/* Profile Settings */}
+          {activeTab === 'profile' && (
+            <div>
+              <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-6">Profile Information</h2>
                 <form className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -114,10 +147,7 @@ const SettingsDashboard = () => {
             {/* Notification Settings */}
             {activeTab === 'notifications' && (
               <div>
-                <h2 className="text-lg font-semibold mb-4 flex items-center">
-                  <Bell className="h-5 w-5 mr-2 text-primary" />
-                  Notification Preferences
-                </h2>
+                <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-6">Notification Preferences</h2>
                 <form className="space-y-4">
                   <div className="flex items-center justify-between p-3 border rounded-lg">
                     <div>
@@ -162,10 +192,7 @@ const SettingsDashboard = () => {
             {/* Security Settings */}
             {activeTab === 'security' && (
               <div>
-                <h2 className="text-lg font-semibold mb-4 flex items-center">
-                  <Shield className="h-5 w-5 mr-2 text-primary" />
-                  Security Settings
-                </h2>
+                <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-6">Security Settings</h2>
                 <form className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">Current Password</label>
@@ -206,10 +233,7 @@ const SettingsDashboard = () => {
             {/* Billing Settings */}
             {activeTab === 'billing' && (
               <div>
-                <h2 className="text-lg font-semibold mb-4 flex items-center">
-                  <CreditCard className="h-5 w-5 mr-2 text-primary" />
-                  Billing Information
-                </h2>
+                <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-6">Billing Information</h2>
                 <div className="space-y-4">
                   <div className="p-4 border rounded-lg">
                     <h3 className="font-medium mb-2">Current Plan</h3>
@@ -263,10 +287,7 @@ const SettingsDashboard = () => {
             {/* Preferences Settings */}
             {activeTab === 'preferences' && (
               <div>
-                <h2 className="text-lg font-semibold mb-4 flex items-center">
-                  <Globe className="h-5 w-5 mr-2 text-primary" />
-                  Preferences
-                </h2>
+                <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-6">Preferences</h2>
                 <form className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">Language</label>
@@ -303,7 +324,6 @@ const SettingsDashboard = () => {
                 </form>
               </div>
             )}
-          </div>
         </div>
       </div>
     </div>

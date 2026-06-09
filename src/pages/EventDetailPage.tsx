@@ -21,6 +21,7 @@ import {
   Minus,
   Plus,
   Loader2,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
@@ -132,7 +133,8 @@ const mapApiEventToDetail = (apiEvent: any): EventDetail => {
     d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const imageUrl = apiEvent.imageUrl || fallbackEvent.images[0];
-  const images = [imageUrl, ...fallbackEvent.images.slice(1)];
+  // Only use images that were actually uploaded — no padding with fallback stock photos
+  const images = [imageUrl];
 
   return {
     id: apiEvent.id,
@@ -171,10 +173,9 @@ const EventDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
-  const [selectedTicket, setSelectedTicket] = useState<number | null>(null);
-  const [ticketQuantity, setTicketQuantity] = useState(1);
   const [isSaved, setIsSaved] = useState(false);
   const [showAllPhotos, setShowAllPhotos] = useState(false);
+  const [showOrganizerModal, setShowOrganizerModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [event, setEvent] = useState<EventDetail>(fallbackEvent);
   const [notFound, setNotFound] = useState(false);
@@ -195,10 +196,6 @@ const EventDetailPage = () => {
         const response = await api.events.getById(Number(id));
         const mapped = mapApiEventToDetail(response.data);
         setEvent(mapped);
-        // Auto-select first ticket type if available
-        if (mapped.ticketTypes.length > 0) {
-          setSelectedTicket(mapped.ticketTypes[0].id);
-        }
       } catch (error: any) {
         console.error('Failed to fetch event:', error);
         if (error?.response?.status === 404) {
@@ -213,19 +210,8 @@ const EventDetailPage = () => {
   }, [id]);
 
   const handlePurchaseTicket = () => {
-    if (selectedTicket === null) {
-      alert('Please select a ticket type');
-      return;
-    }
-    const orderData = {
-      ticketTypeId: selectedTicket,
-      quantity: ticketQuantity,
-    };
-    navigate(`/book/${event.id}`, { state: orderData });
+    navigate(`/book/${event.id}`);
   };
-
-  const selectedTicketType = event.ticketTypes.find((t) => t.id === selectedTicket);
-  const totalPrice = (selectedTicketType?.price || event.price) * ticketQuantity;
 
   const formatDate = (dateString: string) =>
     new Date(dateString).toLocaleDateString('en-US', {
@@ -270,35 +256,63 @@ const EventDetailPage = () => {
       {/* ─── Main Content (only when loaded and found) ─── */}
       {!loading && !notFound && (<>
 
-      {/* ─── Photo Gallery (Airbnb grid) ─── */}
+      {/* ─── Photo Gallery ─── */}
       <div className="max-w-7xl mx-auto px-0 md:px-6 lg:px-8 pt-0 md:pt-6">
-        <div className="relative grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-2 rounded-none md:rounded-2xl overflow-hidden h-[300px] sm:h-[360px] md:h-[420px]">
-          {/* Main large image */}
-          <div className="col-span-2 row-span-2 relative cursor-pointer group" onClick={() => setShowAllPhotos(true)}>
+        {event.images.length === 1 ? (
+          /* Single image — full width */
+          <div
+            className="relative w-full h-[300px] sm:h-[380px] md:h-[460px] rounded-none md:rounded-2xl overflow-hidden cursor-pointer group"
+            onClick={() => setShowAllPhotos(true)}
+          >
             <img
               src={event.images[0]}
               alt={event.title}
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
             />
           </div>
-          {/* Secondary images */}
-          {event.images.slice(1, 5).map((img, i) => (
-            <div key={i} className="hidden md:block relative cursor-pointer group overflow-hidden" onClick={() => setShowAllPhotos(true)}>
+        ) : (
+          /* 2–5 images — Airbnb-style grid */
+          <div className={`relative grid gap-2 rounded-none md:rounded-2xl overflow-hidden h-[300px] sm:h-[360px] md:h-[420px] ${
+            event.images.length === 2
+              ? 'grid-cols-2'
+              : 'grid-cols-2 md:grid-cols-4 md:grid-rows-2'
+          }`}>
+            {/* Main large image */}
+            <div
+              className={`relative cursor-pointer group overflow-hidden ${
+                event.images.length >= 3 ? 'md:col-span-2 md:row-span-2' : ''
+              }`}
+              onClick={() => setShowAllPhotos(true)}
+            >
               <img
-                src={img}
-                alt={`${event.title} ${i + 2}`}
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                src={event.images[0]}
+                alt={event.title}
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
               />
             </div>
-          ))}
-          {/* Show all photos button */}
-          <button
-            onClick={() => setShowAllPhotos(true)}
-            className="absolute bottom-4 right-4 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors z-10"
-          >
-            Show all photos
-          </button>
-        </div>
+            {/* Secondary images */}
+            {event.images.slice(1).map((img, i) => (
+              <div
+                key={i}
+                className="relative cursor-pointer group overflow-hidden"
+                onClick={() => setShowAllPhotos(true)}
+              >
+                <img
+                  src={img}
+                  alt={`${event.title} ${i + 2}`}
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                />
+              </div>
+            ))}
+            {/* Show all photos button — only when more than 1 image */}
+            <button
+              onClick={() => setShowAllPhotos(true)}
+              className="absolute bottom-4 right-4 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors z-10"
+            >
+              Show all {event.images.length} photos
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ─── Mobile Booking Card (shown only on mobile, right after gallery) ─── */}
@@ -319,64 +333,13 @@ const EventDetailPage = () => {
             </div>
           </div>
 
-          {/* Ticket Type Select */}
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden mb-3">
-            <div className="px-3 py-2.5">
-              <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Ticket Type</p>
-              <select
-                value={selectedTicket ?? ''}
-                onChange={(e) => setSelectedTicket(Number(e.target.value) || null)}
-                className="w-full bg-transparent text-sm font-semibold text-neutral-900 dark:text-white focus:outline-none appearance-none cursor-pointer"
-              >
-                <option value="">Select ticket type</option>
-                {event.ticketTypes.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} — ₦{t.price.toLocaleString()}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="px-3 py-2.5 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
-              <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">Guests</p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setTicketQuantity((q) => Math.max(1, q - 1))}
-                  className="border border-neutral-300 dark:border-neutral-700 rounded-full p-1 hover:border-neutral-500 transition-colors disabled:opacity-30"
-                  disabled={ticketQuantity <= 1}
-                >
-                  <Minus className="h-3 w-3 text-neutral-600 dark:text-neutral-300" />
-                </button>
-                <span className="text-sm font-bold w-5 text-center text-neutral-900 dark:text-white">{ticketQuantity}</span>
-                <button
-                  onClick={() => setTicketQuantity((q) => Math.min(10, q + 1))}
-                  className="border border-neutral-300 dark:border-neutral-700 rounded-full p-1 hover:border-neutral-500 transition-colors disabled:opacity-30"
-                  disabled={ticketQuantity >= 10}
-                >
-                  <Plus className="h-3 w-3 text-neutral-600 dark:text-neutral-300" />
-                </button>
-              </div>
-            </div>
-          </div>
-
           {/* Reserve Button */}
           <button
             onClick={handlePurchaseTicket}
             className="w-full h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
           >
-            Reserve
+            Reserve Tickets
           </button>
-
-          {/* Price breakdown */}
-          {selectedTicket && (
-            <div className="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-sm">
-              <span className="text-neutral-600 dark:text-neutral-400">
-                ₦{(selectedTicketType?.price || 0).toLocaleString()} × {ticketQuantity}
-              </span>
-              <span className="font-extrabold text-neutral-900 dark:text-white">
-                ₦{(totalPrice + Math.round(totalPrice * 0.05)).toLocaleString()}
-              </span>
-            </div>
-          )}
         </div>
       </div>
 
@@ -441,19 +404,23 @@ const EventDetailPage = () => {
             <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
 
             {/* Organizer section */}
-            <div className="flex items-center gap-4 mb-6">
+            <button
+              onClick={() => setShowOrganizerModal(true)}
+              className="w-full flex items-center gap-4 mb-6 group text-left hover:bg-neutral-50 dark:hover:bg-neutral-900/50 rounded-2xl p-3 -mx-3 transition-colors"
+            >
               <div className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-full w-14 h-14 flex items-center justify-center text-white text-xl font-extrabold shadow-md shrink-0">
                 {event.organizer.avatar}
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-neutral-900 dark:text-white">
                   Hosted by {event.organizer.name}
                 </h3>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
                   {event.organizer.eventsHosted} events hosted · Joined {event.organizer.joinedYear} · {event.organizer.responseRate}% response rate
                 </p>
               </div>
-            </div>
+              <ChevronRight className="h-4 w-4 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 shrink-0 transition-colors" />
+            </button>
 
             <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
 
@@ -603,91 +570,17 @@ const EventDetailPage = () => {
                   </div>
                 </div>
 
-                {/* Ticket Type Selection (stacked border-sharing) */}
-                <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden mb-4">
-                  <div className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-3">
-                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
-                      Ticket Type
-                    </p>
-                    <select
-                      value={selectedTicket ?? ''}
-                      onChange={(e) => setSelectedTicket(Number(e.target.value) || null)}
-                      className="w-full bg-transparent text-sm font-semibold text-neutral-900 dark:text-white focus:outline-none appearance-none cursor-pointer"
-                    >
-                      <option value="">Select ticket type</option>
-                      {event.ticketTypes.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name} — ₦{t.price.toLocaleString()}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="px-4 py-3 flex items-center justify-between">
-                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-                      Guests
-                    </p>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => setTicketQuantity((q) => Math.max(1, q - 1))}
-                        className="border border-neutral-300 dark:border-neutral-700 rounded-full p-1.5 hover:border-neutral-500 dark:hover:border-neutral-500 transition-colors disabled:opacity-30"
-                        disabled={ticketQuantity <= 1}
-                      >
-                        <Minus className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-300" />
-                      </button>
-                      <span className="text-sm font-bold w-6 text-center text-neutral-900 dark:text-white">
-                        {ticketQuantity}
-                      </span>
-                      <button
-                        onClick={() => setTicketQuantity((q) => Math.min(10, q + 1))}
-                        className="border border-neutral-300 dark:border-neutral-700 rounded-full p-1.5 hover:border-neutral-500 dark:hover:border-neutral-500 transition-colors disabled:opacity-30"
-                        disabled={ticketQuantity >= 10}
-                      >
-                        <Plus className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-300" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Reserve button */}
                 <button
                   onClick={handlePurchaseTicket}
-                  className="w-full h-12 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] mb-3"
+                  className="w-full h-12 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] mb-3 mt-4"
                 >
-                  Reserve
+                  Reserve Tickets
                 </button>
 
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center mb-4">
                   You won't be charged yet
                 </p>
-
-                {/* Price breakdown */}
-                {selectedTicket && (
-                  <div className="space-y-3 pt-4 border-t border-neutral-100 dark:border-neutral-800">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-neutral-600 dark:text-neutral-400 underline">
-                        ₦{(selectedTicketType?.price || 0).toLocaleString()} × {ticketQuantity} ticket{ticketQuantity > 1 ? 's' : ''}
-                      </span>
-                      <span className="text-neutral-900 dark:text-white font-medium">
-                        ₦{totalPrice.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-neutral-600 dark:text-neutral-400 underline">
-                        Service fee
-                      </span>
-                      <span className="text-neutral-900 dark:text-white font-medium">
-                        ₦{Math.round(totalPrice * 0.05).toLocaleString()}
-                      </span>
-                    </div>
-                    <hr className="border-neutral-100 dark:border-neutral-800" />
-                    <div className="flex items-center justify-between text-sm font-extrabold">
-                      <span className="text-neutral-900 dark:text-white">Total</span>
-                      <span className="text-neutral-900 dark:text-white">
-                        ₦{(totalPrice + Math.round(totalPrice * 0.05)).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                )}
               </motion.div>
 
               {/* Report listing */}
@@ -728,6 +621,101 @@ const EventDetailPage = () => {
         </div>
       )}
 
+      {/* ─── Organizer Detail Modal ─── */}
+      {showOrganizerModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-neutral-900/60 dark:bg-neutral-950/80 backdrop-blur-sm p-0 sm:p-4"
+          onClick={e => { if (e.target === e.currentTarget) setShowOrganizerModal(false); }}
+        >
+          {/* On mobile: sheet stops above tab bar (pb-16). On sm+: centred card */}
+          <div className="bg-white dark:bg-gray-900 w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl border border-neutral-200 dark:border-neutral-800 animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 overflow-hidden pb-16 sm:pb-0">
+
+            {/* Drag handle (mobile only) */}
+            <div className="flex justify-center pt-3 pb-1 sm:hidden">
+              <div className="w-10 h-1 rounded-full bg-neutral-200 dark:bg-neutral-700" />
+            </div>
+
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 dark:border-neutral-800">
+              <h2 className="text-sm font-extrabold text-neutral-900 dark:text-white">Organizer Info</h2>
+              <button
+                onClick={() => setShowOrganizerModal(false)}
+                className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Organizer profile */}
+            <div className="p-5 space-y-5 overflow-y-auto max-h-[60vh] sm:max-h-none">
+              {/* Avatar + name + Twitter/Instagram-style verified badge */}
+              <div className="flex items-center gap-4">
+                <div className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-full w-16 h-16 flex items-center justify-center text-white text-2xl font-extrabold shadow-md shrink-0">
+                  {event.organizer.avatar}
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-extrabold text-base text-neutral-900 dark:text-white">
+                      {event.organizer.name}
+                    </h3>
+                    {/* Verified badge — solid filled circle with checkmark, like Twitter/Instagram */}
+                    <span title="Verified Organizer" className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-rose-500 shrink-0">
+                      <svg viewBox="0 0 24 24" className="w-3 h-3 fill-white" aria-hidden="true">
+                        <path d="M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                      </svg>
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                    Member since {event.organizer.joinedYear}
+                  </p>
+                </div>
+              </div>
+
+              {/* Stats row */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-neutral-50 dark:bg-neutral-800/60 rounded-2xl p-3 text-center">
+                  <p className="text-lg font-extrabold text-neutral-900 dark:text-white">{event.organizer.eventsHosted}</p>
+                  <p className="text-[10px] text-neutral-500 font-medium mt-0.5">Events Hosted</p>
+                </div>
+                <div className="bg-neutral-50 dark:bg-neutral-800/60 rounded-2xl p-3 text-center">
+                  <p className="text-lg font-extrabold text-neutral-900 dark:text-white">{event.organizer.responseRate}%</p>
+                  <p className="text-[10px] text-neutral-500 font-medium mt-0.5">Response Rate</p>
+                </div>
+                <div className="bg-neutral-50 dark:bg-neutral-800/60 rounded-2xl p-3 text-center">
+                  <p className="text-lg font-extrabold text-rose-500">{event.rating}</p>
+                  <p className="text-[10px] text-neutral-500 font-medium mt-0.5">Avg. Rating</p>
+                </div>
+              </div>
+
+              {/* Contact details */}
+              <div className="space-y-3 border-t border-neutral-100 dark:border-neutral-800 pt-4">
+                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Contact</p>
+                <div className="flex items-center gap-3 text-sm text-neutral-700 dark:text-neutral-300">
+                  <div className="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl shrink-0">
+                    <Mail className="h-4 w-4 text-neutral-500" />
+                  </div>
+                  <span className="font-medium truncate">{event.organizer.email}</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm text-neutral-700 dark:text-neutral-300">
+                  <div className="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl shrink-0">
+                    <User className="h-4 w-4 text-neutral-500" />
+                  </div>
+                  <span className="font-medium">{event.organizer.phone}</span>
+                </div>
+              </div>
+
+              {/* Trust notice */}
+              <div className="flex items-start gap-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 rounded-2xl p-3 text-xs text-blue-700 dark:text-blue-400">
+                <Shield className="h-4 w-4 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  This organizer's identity and events have been reviewed by the Eventify team. Always pay through the platform for buyer protection.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       </>)}
 
       {/* ─── Sticky Bottom Bar (Mobile only, when not loading) ─── */}
@@ -736,15 +724,10 @@ const EventDetailPage = () => {
           <div>
             <div className="flex items-baseline gap-1">
               <span className="text-lg font-extrabold text-neutral-900 dark:text-white">
-                ₦{(selectedTicketType?.price || event.price).toLocaleString()}
+                From ₦{(event.price || 0).toLocaleString()}
               </span>
               <span className="text-xs text-neutral-500 dark:text-neutral-400">/ ticket</span>
             </div>
-            {selectedTicket && (
-              <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                {selectedTicketType?.name} · {ticketQuantity} ticket{ticketQuantity > 1 ? 's' : ''}
-              </p>
-            )}
           </div>
           <button
             onClick={handlePurchaseTicket}

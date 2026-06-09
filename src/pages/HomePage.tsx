@@ -5,8 +5,15 @@ import {
   SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
-  Search,
-  ArrowRight
+  ArrowRight,
+  Globe,
+  Music,
+  Wine,
+  Briefcase,
+  Monitor,
+  Palette,
+  Trophy,
+  Leaf,
 } from 'lucide-react';
 import EventCard, { Event } from '../components/EventCard';
 import { api } from '../services/api';
@@ -132,14 +139,14 @@ const mockEvents: Event[] = [
 ];
 
 const categories = [
-  { name: 'All', icon: '🌐' },
-  { name: 'Music', icon: '🎵' },
-  { name: 'Food', icon: '🍷' },
-  { name: 'Business', icon: '💼' },
-  { name: 'Technology', icon: '💻' },
-  { name: 'Arts', icon: '🎨' },
-  { name: 'Sports', icon: '⚽' },
-  { name: 'Wellness', icon: '🧘' },
+  { name: 'All',        icon: Globe },
+  { name: 'Music',      icon: Music },
+  { name: 'Food',       icon: Wine },
+  { name: 'Business',   icon: Briefcase },
+  { name: 'Technology', icon: Monitor },
+  { name: 'Arts',       icon: Palette },
+  { name: 'Sports',     icon: Trophy },
+  { name: 'Wellness',   icon: Leaf },
 ];
 
 const mapApiEventToFrontendEvent = (apiEvent: any): Event => {
@@ -322,6 +329,7 @@ const HomePage = () => {
         <div className="flex items-center gap-8 overflow-x-auto no-scrollbar scroll-smooth flex-grow py-1">
           {categories.map((cat) => {
             const isSelected = selectedCategory === cat.name;
+            const Icon = cat.icon;
             return (
               <button
                 key={cat.name}
@@ -332,9 +340,7 @@ const HomePage = () => {
                     : 'border-transparent text-neutral-450 dark:text-neutral-500 font-medium'
                 }`}
               >
-                <span className="text-xl transition-transform group-hover:scale-115">
-                  {cat.icon}
-                </span>
+                <Icon className="h-5 w-5 transition-transform group-hover:scale-110" strokeWidth={1.75} />
                 <span className="text-[11px] tracking-wide leading-none">{cat.name}</span>
               </button>
             );
@@ -350,15 +356,24 @@ const HomePage = () => {
 
       {/* ─── Main Content: Events Grid ─── */}
       <div className="flex-grow w-full px-6 py-6 md:px-8">
-        <div className="mb-6">
-          <h1 className="text-xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
-            {selectedCategory === 'All'
-              ? 'Discover upcoming events'
-              : `${selectedCategory} events`}
-          </h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {loading ? 'Loading events...' : `Showing ${filteredEvents.length} premium event listings near you`}
-          </p>
+        <div className="mb-6 flex items-end justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
+              {selectedCategory === 'All'
+                ? 'Discover upcoming events'
+                : `${selectedCategory} events`}
+            </h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {loading ? 'Loading events...' : `Showing ${filteredEvents.length} premium event listings near you`}
+            </p>
+          </div>
+          <Link
+            to="/events"
+            className="shrink-0 flex items-center gap-1.5 text-xs font-bold text-rose-500 hover:text-rose-600 transition-colors"
+          >
+            See all
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </div>
 
         {loading ? (

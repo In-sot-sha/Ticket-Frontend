@@ -21,6 +21,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^2.30.0",
     "framer-motion": "^10.16.4",
+    "html5-qrcode": "^2.3.8",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.292.0",
     "qrcode.react": "^3.1.0",

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { Button } from '../components/ui/Button';
@@ -21,7 +22,17 @@ import {
 
 const Profile = () => {
   const { user, updateUser } = useAuth();
-  const [activePanel, setActivePanel] = useState<'menu' | 'personal' | 'security' | 'notifications' | 'billing'>('menu');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activePanel = searchParams.get('tab') || 'menu';
+
+  const setActivePanel = (tab: string) => {
+    if (tab === 'menu') {
+      setSearchParams({});
+    } else {
+      setSearchParams({ tab });
+    }
+  };
+
   const [isSaving, setIsSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -66,6 +77,9 @@ const Profile = () => {
       setIsSaving(false);
     }
   };
+  useLayoutEffect(() => {
+      window.scrollTo(0, 0);
+  }, [searchParams]);
 
   if (!user) {
     return (

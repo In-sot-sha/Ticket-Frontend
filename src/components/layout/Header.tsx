@@ -49,6 +49,21 @@ const Header = () => {
     }
   };
 
+  const shouldShowSearch = () => {
+    const hiddenPaths = [
+      '/profile', '/login', '/register', '/help', 
+      '/recover-ticket', '/wishlist', '/user', '/organizer', '/events'
+    ];
+    // If the path exactly matches or starts with one of the hidden paths
+    // But we might want to show it on specific organizer pages? 
+    // Actually, it's safer to just check if it starts with these and isn't the homepage
+    if (location.pathname === '/') return true;
+    if (location.pathname.startsWith('/events')) return true;
+    
+    // Hide by default on all other utility/dashboard pages
+    return false;
+  };
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-100 dark:border-gray-800 bg-white/90 dark:bg-gray-950/90 backdrop-blur-md transition-all duration-300">
       <div className="container mx-auto px-4 md:px-8 h-20 flex items-center justify-between">
@@ -64,25 +79,27 @@ const Header = () => {
         </div>
 
         {/* Center Search Pill (Desktop/Tablet) */}
-        <div className="hidden md:block">
-          <div 
-            onClick={() => navigate('/events')}
-            className="flex items-center border border-gray-200 dark:border-gray-800 rounded-full py-2 pl-6 pr-2 shadow-sm hover:shadow-md transition-all cursor-pointer bg-white dark:bg-gray-900 duration-200"
-          >
-            <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 border-r border-gray-200 dark:border-gray-800 pr-4">
-              Anywhere
-            </span>
-            <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 border-r border-gray-200 dark:border-gray-800 px-4">
-              Any Date
-            </span>
-            <span className="text-xs text-neutral-500 dark:text-neutral-400 pl-4 pr-3 flex items-center gap-3">
-              Search events
-              <span className="bg-rose-500 p-2 rounded-full text-white hover:bg-rose-600 transition-colors">
-                <Search className="h-3 w-3 stroke-[3]" />
+        {shouldShowSearch() && (
+          <div className="hidden md:block animate-in fade-in zoom-in-95 duration-200">
+            <div 
+              onClick={() => navigate('/events')}
+              className="flex items-center border border-gray-200 dark:border-gray-800 rounded-full py-2 pl-6 pr-2 shadow-sm hover:shadow-md transition-all cursor-pointer bg-white dark:bg-gray-900 duration-200"
+            >
+              <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 border-r border-gray-200 dark:border-gray-800 pr-4">
+                Anywhere
               </span>
-            </span>
+              <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 border-r border-gray-200 dark:border-gray-800 px-4">
+                Any Date
+              </span>
+              <span className="text-xs text-neutral-500 dark:text-neutral-400 pl-4 pr-3 flex items-center gap-3">
+                Search events
+                <span className="bg-rose-500 p-2 rounded-full text-white hover:bg-rose-600 transition-colors">
+                  <Search className="h-3 w-3 stroke-[3]" />
+                </span>
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
 
 
@@ -100,14 +117,14 @@ const Header = () => {
           )}
 
           {/* Create event shortcut for organizers */}
-          {isAuthenticated && (user?.role === 'ORGANIZER' || location.pathname.startsWith('/organizer')) && (
+          {/* isAuthenticated && (user?.role === 'ORGANIZER' || location.pathname.startsWith('/organizer')) && (
             <Link to="/organizer/events/create" className="hidden sm:block">
               <button className="flex items-center gap-1 text-xs font-semibold px-4 py-2.5 rounded-full border border-gray-200 dark:border-gray-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
                 <Plus className="h-3.5 w-3.5" />
                 Host Event
               </button>
             </Link>
-          )}
+          ) */}
 
           {/* Theme Mode Toggle */}
           <ModeToggle />

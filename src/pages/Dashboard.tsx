@@ -9,7 +9,8 @@ import {
   Eye,
   BarChart3,
   Users,
-  ChevronRight
+  ChevronRight,
+  Scan
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
@@ -132,6 +133,16 @@ const OrganizerDashboard = () => {
               </div>
               <h3 className="font-bold text-sm">Create event listing</h3>
               <p className="text-xs text-neutral-450 dark:text-neutral-500 mt-0.5">Publish ticket tiers and configure vendor slots</p>
+              <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-neutral-300 group-hover:text-rose-500 group-hover:translate-x-1 transition-all" />
+            </Link>
+
+            {/* Scan Tickets shortcut */}
+            <Link to="scan" className="border border-neutral-150 dark:border-neutral-900 rounded-2xl p-5 hover:border-rose-500/50 dark:hover:border-rose-500/50 hover:shadow-sm transition-all group relative bg-white dark:bg-gray-900">
+              <div className="h-10 w-10 bg-purple-50 dark:bg-purple-950/20 text-purple-500 rounded-full flex items-center justify-center mb-3">
+                <Scan className="h-5 w-5" />
+              </div>
+              <h3 className="font-bold text-sm">Scan Tickets</h3>
+              <p className="text-xs text-neutral-450 dark:text-neutral-500 mt-0.5">Verify attendee tickets at the gate</p>
               <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-neutral-300 group-hover:text-rose-500 group-hover:translate-x-1 transition-all" />
             </Link>
 

@@ -186,31 +186,35 @@ const BookingPage = () => {
       alert('Paystack loading failed. Please refresh and try again.');
       return;
     }
-    
+
     const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_d3000676b7db0bc43f07a4a2fa44a8ad8d1b6ee8';
-    
+
     const handler = (window as any).PaystackPop.setup({
       key: publicKey,
       email: guestEmail,
-      amount: Math.round(totalAmount * 100), // in kobo
+      amount: Math.round(totalAmount * 100), // Paystack expects amount in kobo
       currency: 'NGN',
+      ref: `EVT_${Date.now()}_${eventData.id}`,
       metadata: {
         custom_fields: [
           {
-            display_name: "Customer Name",
-            variable_name: "customer_name",
+            display_name: 'Customer Name',
+            variable_name: 'customer_name',
             value: `${guestFirstName} ${guestLastName}`
           }
         ]
       },
-      callback: async (response: any) => {
-        console.log('[Paystack] Success Reference:', response.reference);
-        await handlePaymentSuccess();
+      // callback MUST be a plain (non-async) function — Paystack validates the type
+      callback: function(response: any) {
+        console.log('[Paystack] Payment successful. Reference:', response.reference);
+        // Fire the async checkout without awaiting here
+        handlePaymentSuccess();
       },
-      onClose: () => {
-        alert('Transaction closed before completion.');
+      onClose: function() {
+        console.log('[Paystack] Checkout popup closed by user.');
       }
     });
+
     handler.openIframe();
   };
 
@@ -230,9 +234,13 @@ const BookingPage = () => {
         email: guestEmail,
         phone: guestPhone,
         eventId: Number(eventData.id),
+        eventName: eventData.title,
+        eventDate: eventData.date,
+        eventTime: `${eventData.startTime || '09:00 AM'} - ${eventData.endTime || '06:00 PM'}`,
+        eventLocation: eventData.location,
+        eventImageUrl: eventData.imageUrl,
         items,
-        totalAmount: totalAmount,
-        eventName: eventData.title
+        totalAmount: totalAmount
       }));
 
       const res = await api.post<any>('/payments/opay/create', {
@@ -255,8 +263,11 @@ const BookingPage = () => {
   };
 
   const executePayment = async () => {
-    // Use the real backend checkout instead of mock data
-    await handlePaymentSuccess();
+    if (paymentMethod === 'paystack') {
+      handlePaystackPayment();
+    } else if (paymentMethod === 'opay') {
+      await handleOpayPayment();
+    }
   };
 
   // Step validations
