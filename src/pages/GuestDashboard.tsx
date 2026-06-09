@@ -13,6 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { getDesignPreset } from '../data/ticketDesigns';
 
 const GuestDashboard = () => {
   const { user } = useAuth();
@@ -50,34 +51,41 @@ const GuestDashboard = () => {
     }
   };
 
-  const getThemeColors = (typeName: string) => {
-    const name = typeName?.toUpperCase() || '';
-    if (name.includes('VIP') || name.includes('VVIP')) {
-      return {
+  const getThemeColors = (ticketType?: { ticketStyle?: string; name?: string }) => {
+    const preset = getDesignPreset(ticketType?.ticketStyle);
+    const map: Record<string, { bg: string; text: string; badge: string }> = {
+      rose: {
+        bg: 'from-rose-500 to-rose-600',
+        text: 'text-rose-600 dark:text-rose-400',
+        badge: 'bg-rose-50 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400 border-rose-100 dark:border-rose-900/30',
+      },
+      gold: {
         bg: 'from-amber-500 to-amber-600',
         text: 'text-amber-600 dark:text-amber-400',
-        badge: 'bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 border-amber-100 dark:border-amber-900/30'
-      };
-    }
-    if (name.includes('STUDENT')) {
-      return {
+        badge: 'bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 border-amber-100 dark:border-amber-900/30',
+      },
+      emerald: {
         bg: 'from-emerald-500 to-emerald-600',
         text: 'text-emerald-600 dark:text-emerald-400',
-        badge: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30'
-      };
-    }
-    if (name.includes('EXHIBITOR')) {
-      return {
+        badge: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30',
+      },
+      purple: {
         bg: 'from-purple-500 to-purple-600',
         text: 'text-purple-600 dark:text-purple-400',
-        badge: 'bg-purple-50 text-purple-700 dark:bg-purple-950/20 dark:text-purple-400 border-purple-100 dark:border-purple-900/30'
-      };
-    }
-    return {
-      bg: 'from-rose-500 to-rose-600',
-      text: 'text-rose-600 dark:text-rose-400',
-      badge: 'bg-rose-50 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400 border-rose-100 dark:border-rose-900/30'
+        badge: 'bg-purple-50 text-purple-700 dark:bg-purple-950/20 dark:text-purple-400 border-purple-100 dark:border-purple-900/30',
+      },
+      midnight: {
+        bg: 'from-slate-600 to-slate-800',
+        text: 'text-slate-600 dark:text-slate-400',
+        badge: 'bg-slate-50 text-slate-700 dark:bg-slate-950/20 dark:text-slate-400 border-slate-100 dark:border-slate-900/30',
+      },
+      ocean: {
+        bg: 'from-sky-500 to-sky-600',
+        text: 'text-sky-600 dark:text-sky-400',
+        badge: 'bg-sky-50 text-sky-700 dark:bg-sky-950/20 dark:text-sky-400 border-sky-100 dark:border-sky-900/30',
+      },
     };
+    return map[preset.id] ?? map.rose;
   };
 
   return (
@@ -134,7 +142,7 @@ const GuestDashboard = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {tickets.map(ticket => {
-                const colors = getThemeColors(ticket.ticketType?.name);
+                const colors = getThemeColors(ticket.ticketType);
                 const coverImage = ticket.event?.imageUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
                 
                 return (
@@ -194,7 +202,7 @@ const GuestDashboard = () => {
 
       {/* Ticket QR Modal */}
       {selectedTicket && (() => {
-        const colors = getThemeColors(selectedTicket.ticketType?.name);
+        const colors = getThemeColors(selectedTicket.ticketType);
         return (
           <div className="fixed inset-0 bg-neutral-900/60 dark:bg-neutral-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl border border-neutral-200 dark:border-neutral-800 relative animate-in zoom-in-95 duration-150">

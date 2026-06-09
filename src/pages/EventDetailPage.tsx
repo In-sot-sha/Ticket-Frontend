@@ -147,21 +147,33 @@ const mapApiEventToDetail = (apiEvent: any): EventDetail => {
     ticketsAvailable: apiEvent.ticketTypes
       ? apiEvent.ticketTypes.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0)
       : 0,
-    rating: 4.5 + (apiEvent.id % 5) * 0.1,
-    reviewCount: 20 + (apiEvent.id % 50) * 3,
+    rating: 0,
+    reviewCount: 0,
     images,
     organizer: {
       name: apiEvent.organization?.name || 'Event Organizer',
-      email: 'hello@kanoeventhub.com',
-      phone: '+234 801 234 5678',
-      eventsHosted: 24,
-      joinedYear: 2024,
-      responseRate: 98,
+      email: apiEvent.organization?.email || '',
+      phone: '',
+      eventsHosted: 0,
+      joinedYear: new Date(apiEvent.createdAt || Date.now()).getFullYear(),
+      responseRate: 0,
       avatar: (apiEvent.organization?.name || 'E')[0].toUpperCase(),
     },
     ticketTypes: apiEvent.ticketTypes || [],
-    amenities: fallbackEvent.amenities,
-    highlights: fallbackEvent.highlights,
+    amenities: (() => {
+      try {
+        return apiEvent.amenities ? JSON.parse(apiEvent.amenities) : [];
+      } catch {
+        return [];
+      }
+    })(),
+    highlights: (() => {
+      try {
+        return apiEvent.highlights ? JSON.parse(apiEvent.highlights) : [];
+      } catch {
+        return [];
+      }
+    })(),
     vendorApplicationsAllowed: apiEvent.allowVendors || false,
     vendorApplications: apiEvent.vendorApplications || [],
   };
@@ -312,11 +324,13 @@ const EventDetailPage = () => {
               </span>
               <span className="text-sm text-neutral-500 dark:text-neutral-400">/ ticket</span>
             </div>
-            <div className="flex items-center gap-1 text-xs">
-              <Star className="h-3 w-3 fill-neutral-900 text-neutral-900 dark:fill-white dark:text-white" />
-              <span className="font-bold text-neutral-900 dark:text-white">{event.rating}</span>
-              <span className="text-neutral-500">· {event.reviewCount}</span>
-            </div>
+            {event.reviewCount > 0 && (
+              <div className="flex items-center gap-1 text-xs">
+                <Star className="h-3 w-3 fill-neutral-900 text-neutral-900 dark:fill-white dark:text-white" />
+                <span className="font-bold text-neutral-900 dark:text-white">{event.rating}</span>
+                <span className="text-neutral-500">· {event.reviewCount}</span>
+              </div>
+            )}
           </div>
 
           {/* Ticket Type Select */}
@@ -427,13 +441,17 @@ const EventDetailPage = () => {
 
             {/* Quick meta */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-neutral-600 dark:text-neutral-400 mb-6">
-              <span className="flex items-center gap-1">
-                <Star className="h-3.5 w-3.5 fill-neutral-900 text-neutral-900 dark:fill-white dark:text-white" />
-                <span className="font-bold text-neutral-900 dark:text-white">{event.rating}</span>
-              </span>
-              <span>·</span>
-              <span className="underline font-medium">{event.reviewCount} reviews</span>
-              <span>·</span>
+              {event.reviewCount > 0 && (
+                <>
+                  <span className="flex items-center gap-1">
+                    <Star className="h-3.5 w-3.5 fill-neutral-900 text-neutral-900 dark:fill-white dark:text-white" />
+                    <span className="font-bold text-neutral-900 dark:text-white">{event.rating}</span>
+                  </span>
+                  <span>·</span>
+                  <span className="underline font-medium">{event.reviewCount} reviews</span>
+                  <span>·</span>
+                </>
+              )}
               <span className="font-medium">{event.location}</span>
             </div>
 
@@ -449,27 +467,32 @@ const EventDetailPage = () => {
                 <h3 className="font-bold text-neutral-900 dark:text-white">
                   Hosted by {event.organizer.name}
                 </h3>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  {event.organizer.eventsHosted} events hosted · Joined {event.organizer.joinedYear} · {event.organizer.responseRate}% response rate
-                </p>
+                {event.organizer.eventsHosted > 0 && (
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    {event.organizer.eventsHosted} events hosted
+                    {event.organizer.responseRate > 0 && ` · ${event.organizer.responseRate}% response rate`}
+                  </p>
+                )}
               </div>
             </div>
 
             <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
 
-            {/* Highlights */}
-            <div className="space-y-5 mb-6">
-              {event.highlights.map((h, i) => (
-                <div key={i} className="flex items-center gap-4">
-                  <span className="text-2xl">{h.icon}</span>
-                  <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
-                    {h.label}
-                  </span>
+            {event.highlights.length > 0 && (
+              <>
+                <div className="space-y-5 mb-6">
+                  {event.highlights.map((h, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <span className="text-2xl">{h.icon}</span>
+                      <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
+                        {h.label}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-
-            <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+                <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+              </>
+            )}
 
             {/* Event details */}
             <div className="mb-8">
@@ -524,25 +547,23 @@ const EventDetailPage = () => {
 
             <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
 
-            {/* What's Included */}
-            <div className="mb-8">
-              <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white mb-4">
-                What's included
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {event.amenities.map((amenity, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-3 py-3"
-                  >
-                    <CheckCircle className="h-5 w-5 text-rose-500 shrink-0" />
-                    <span className="text-sm text-neutral-700 dark:text-neutral-300 font-medium">
-                      {amenity}
-                    </span>
-                  </div>
-                ))}
+            {event.amenities.length > 0 && (
+              <div className="mb-8">
+                <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white mb-4">
+                  What's included
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {event.amenities.map((amenity, i) => (
+                    <div key={i} className="flex items-center gap-3 py-3">
+                      <CheckCircle className="h-5 w-5 text-rose-500 shrink-0" />
+                      <span className="text-sm text-neutral-700 dark:text-neutral-300 font-medium">
+                        {amenity}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Vendor section */}
             {event.vendorApplicationsAllowed && (
@@ -596,11 +617,13 @@ const EventDetailPage = () => {
                     </span>
                     <span className="text-sm text-neutral-500 dark:text-neutral-400">/ ticket</span>
                   </div>
-                  <div className="flex items-center gap-1 text-xs">
-                    <Star className="h-3 w-3 fill-neutral-900 text-neutral-900 dark:fill-white dark:text-white" />
-                    <span className="font-bold text-neutral-900 dark:text-white">{event.rating}</span>
-                    <span className="text-neutral-500">· {event.reviewCount} reviews</span>
-                  </div>
+                  {event.reviewCount > 0 && (
+                    <div className="flex items-center gap-1 text-xs">
+                      <Star className="h-3 w-3 fill-neutral-900 text-neutral-900 dark:fill-white dark:text-white" />
+                      <span className="font-bold text-neutral-900 dark:text-white">{event.rating}</span>
+                      <span className="text-neutral-500">· {event.reviewCount} reviews</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Ticket Type Selection (stacked border-sharing) */}

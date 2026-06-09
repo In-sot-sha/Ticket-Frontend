@@ -1,160 +1,144 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  Calendar, 
-  Ticket, 
-  Users, 
-  BarChart3, 
-  User, 
+import {
+  Calendar,
+  Ticket,
+  BarChart3,
   Settings,
-  Menu,
   X,
-  PlusCircle,
   DollarSign,
-  Eye
+  LayoutDashboard,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../context/AuthContext';
+import { cn } from '../../lib/utils';
 
-interface SidebarItem {
+interface NavItem {
   title: string;
-  icon: React.ReactNode;
+  icon: React.ElementType;
   href: string;
-  allowedRoles? :string[];
 }
 
-const Sidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = ({ 
-  isOpen, 
-  toggleSidebar 
+const NAV_ITEMS: NavItem[] = [
+  { title: 'Dashboard', icon: LayoutDashboard, href: '/organizer' },
+  { title: 'Manage Events', icon: Calendar, href: '/organizer/events' },
+  { title: 'Analytics', icon: BarChart3, href: '/organizer/analytics' },
+  { title: 'Finance', icon: DollarSign, href: '/organizer/finance' },
+  { title: 'Settings', icon: Settings, href: '/organizer/organizer-settings' },
+];
+
+const Sidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = ({
+  isOpen,
+  toggleSidebar,
 }) => {
   const location = useLocation();
   const { user } = useAuth();
-  
-  // Define sidebar items with role-based access
-  const sidebarItems: SidebarItem[] = [
-    {
-      title: 'Dashboard',
-      icon: <Ticket className="h-5 w-5" />,
-      href: '/organizer',
-      allowedRoles: ['USER', 'ORGANIZER', 'ADMIN']
-    },
- 
-    
-    // Organizer-specific items
-    {
-      title: 'Manage Events',
-      icon: <Calendar className="h-5 w-5" />,
-      href: 'events',
 
-    },
-    {
-      title: 'Create Event',
-      icon: <PlusCircle className="h-5 w-5" />,
-      href: 'events/create',
+  const isActive = (href: string) => {
+    if (href === '/organizer') return location.pathname === '/organizer';
+    return location.pathname.startsWith(href);
+  };
 
-    },
-    {
-      title: 'Vendor Applications',
-      icon: <Users className="h-5 w-5" />,
-      href: 'vendors-applications',
-
-    },
-    {
-      title: 'Analytics',
-      icon: <BarChart3 className="h-5 w-5" />,
-      href: 'analytics',
-
-    },
-    {
-      title: 'Finance',
-      icon: <DollarSign className="h-5 w-5" />,
-      href: 'finance',
-
-    },
-    
-    // Items for users who want to become organizers
-    {
-      title: 'Organizer Settings',
-      icon: <Settings className="h-5 w-5" />,
-      href: 'organizer-settings',
-      allowedRoles: ['USER', 'VENDOR']
-    },
-    
-
-  
-  ];
-
-  // Filter sidebar items based on user role
-  const filteredItems = user 
-    ? sidebarItems
-    // .filter(item => 
-    //     !item.allowedRoles || 
-    //     item.allowedRoles.includes(user.role)
-    //   )
-    : sidebarItems.filter(item => 
-        !item.allowedRoles || 
-        item.allowedRoles.includes('USER') // Default to showing items available to all users when not logged in
-      );
+  const initials = user
+    ? `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || 'H'
+    : 'H';
 
   return (
     <>
-      {/* Mobile overlay */}
       {isOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 bg-black/50 md:hidden"
           onClick={toggleSidebar}
         />
       )}
-      
-      {/* Sidebar */}
-      <div 
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-300 ease-in-out ${
+
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 w-64 flex flex-col',
+          'bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700',
+          'transform transition-transform duration-300 ease-in-out',
+          'md:static md:inset-0 md:translate-x-0',
           isOpen ? 'translate-x-0' : '-translate-x-full'
-        } md:translate-x-0 md:static md:inset-0 flex flex-col`}
+        )}
       >
-        <div className=" md:hidden flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-2">
-            <Ticket className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold">Eventify</span>
-          </div>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="md:hidden"
+        {/* Brand */}
+        <div className="flex items-center justify-between px-5 py-5 border-b border-gray-100 dark:border-gray-700/80">
+          <Link to="/organizer" className="flex items-center gap-2.5 group">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-500 group-hover:bg-rose-100 dark:group-hover:bg-rose-950/50 transition-colors">
+              <Ticket className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">Eventify</p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">Host dashboard</p>
+            </div>
+          </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden h-8 w-8"
             onClick={toggleSidebar}
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </Button>
         </div>
-        
-        <nav className="flex-1 px-2 py-4">
+
+        {/* Nav */}
+        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+         
           <ul className="space-y-1">
-            {filteredItems.map((item) => (
-              <li key={item.href}>
-                <Link
-                  to={item.href}
-                  className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    location.pathname === item.href
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                  onClick={() => window.innerWidth < 768 && toggleSidebar()}
-                >
-                  {item.icon}
-                  <span>{item.title}</span>
-                </Link>
-              </li>
-            ))}
+            {NAV_ITEMS.map((item) => {
+              const active = isActive(item.href);
+              const Icon = item.icon;
+              return (
+                <li key={item.href}>
+                  <Link
+                    to={item.href}
+                    onClick={() => window.innerWidth < 768 && toggleSidebar()}
+                    className={cn(
+                      'group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
+                      active
+                        ? 'bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 shadow-sm'
+                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/60 hover:text-gray-900 dark:hover:text-white'
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors',
+                        active
+                          ? 'bg-rose-500 text-white'
+                          : 'bg-gray-100 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 group-hover:bg-gray-200 dark:group-hover:bg-gray-700'
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span>{item.title}</span>
+                    {active && (
+                      <span className="ml-auto h-1.5 w-1.5 rounded-full bg-rose-500" />
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </nav>
-        
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            © {new Date().getFullYear()} Eventify. All rights reserved.
-          </p>
-          
-        </div>
-      </div>
+
+        {/* User */}
+        {user && (
+          <div className="p-3 border-t border-gray-100 dark:border-gray-700/80">
+            <div className="flex items-center gap-3 rounded-xl bg-gray-50 dark:bg-gray-700/40 px-3 py-2.5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-rose-500 to-pink-600 text-xs font-bold text-white">
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                  {user.firstName} {user.lastName}
+                </p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">Organizer</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </aside>
     </>
   );
 };
