@@ -12,6 +12,7 @@ import {
   ImageIcon,
   X,
   Plus,
+  Ticket,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
@@ -563,6 +564,9 @@ const CreateEvent: React.FC = () => {
     setError(null);
     if (step === 'details') setStep('tickets');
     else if (step === 'tickets') setStep('review');
+    // Scroll the main scrollable container (or window) to top on mobile
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const goBack = () => {
@@ -570,6 +574,8 @@ const CreateEvent: React.FC = () => {
     if (step === 'details') navigate('/organizer/events');
     else if (step === 'tickets') setStep('details');
     else if (step === 'review') setStep('tickets');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const inputClass =
@@ -587,31 +593,39 @@ const CreateEvent: React.FC = () => {
   }
 
   return (
-    <div className="pb-6">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+    <div className="pb-20 md:pb-6">
+      {/* ── Page header — sticky on mobile, part of normal flow on desktop ── */}
+      <div className="sticky top-0 z-20 bg-white/97 dark:bg-gray-900/97 backdrop-blur-sm border-b border-neutral-100 dark:border-neutral-800 px-4 py-3 flex items-center justify-between gap-3 shrink-0 md:static md:bg-transparent md:dark:bg-transparent md:border-0 md:px-0 md:pt-0 md:pb-4 md:backdrop-blur-none mb-3">
+        {/* Left: back + title */}
+        <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={goBack}
-            className="p-2 rounded-lg text-neutral-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors"
+            className="p-2 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 shrink-0 transition-colors"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-4 w-4" />
           </button>
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+          <div className="min-w-0">
+            <h1 className="text-sm font-extrabold text-neutral-900 dark:text-white leading-tight truncate md:text-xl md:font-bold">
               {isEditing ? 'Edit event' : 'Create event'}
             </h1>
-            <p className="text-sm text-neutral-500 mt-0.5">{STEPS[stepIndex]?.label}</p>
+            <p className="text-[10px] md:text-sm text-neutral-500 dark:text-neutral-400 leading-none mt-0.5 truncate">
+              {STEPS[stepIndex]?.label}
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
+
+        {/* Right: step progress dots + close */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1">
             {STEPS.map((s, i) => (
               <div
                 key={s.key}
                 className={cn(
                   'h-1.5 rounded-full transition-all',
-                  i <= stepIndex ? 'w-8 bg-rose-500' : 'w-4 bg-neutral-200 dark:bg-neutral-700'
+                  i <= stepIndex
+                    ? 'w-6 md:w-8 bg-rose-500'
+                    : 'w-3 md:w-4 bg-neutral-200 dark:bg-neutral-700'
                 )}
               />
             ))}
@@ -619,21 +633,56 @@ const CreateEvent: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/organizer/events')}
-            className="p-2 rounded-lg text-neutral-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors"
+            className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4 md:h-5 md:w-5" />
           </button>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto px-4 md:px-0">
         <AnimatePresence mode="wait">
           {step === 'details' && (
             <motion.div key="details" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8">
                 {!isEditing && (
                   <div className="lg:col-span-2">
-                    <div className="lg:sticky lg:top-4">
+                    {/* ── Mobile: collapsed pill after selection, expanded grid before ── */}
+                    {/* Desktop: always show the sticky sidebar grid */}
+
+                    {/* Mobile collapsed state — show after a template is chosen */}
+                    {form.templateId && (
+                      <div className="lg:hidden flex items-center justify-between gap-3 p-3 rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/20 mb-4">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0">
+                            <img
+                              src={EVENT_TEMPLATES.find(t => t.id === form.templateId)?.image}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-rose-600 dark:text-rose-400 truncate">
+                              {EVENT_TEMPLATES.find(t => t.id === form.templateId)?.name}
+                            </p>
+                            <p className="text-[10px] text-neutral-500">Template selected</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setForm(p => ({ ...p, templateId: '' }))}
+                          className="text-[11px] font-bold text-rose-500 hover:text-rose-700 shrink-0 underline"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Template grid — always on desktop, only before selection on mobile */}
+                    <div className={cn(
+                      'lg:sticky lg:top-4',
+                      form.templateId ? 'hidden lg:block' : 'block'
+                    )}>
                       <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Choose a template</h2>
                       <p className="text-xs text-neutral-500 mt-1 mb-3">
                         These are all the templates available right now.
@@ -793,11 +842,12 @@ const CreateEvent: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 gap-4">
                     <TimePicker12
                       label="Start time"
                       value={form.startTime12}
                       onChange={(v) => setForm((p) => ({ ...p, startTime12: v }))}
+                      
                     />
                     <TimePicker12
                       label="End time"

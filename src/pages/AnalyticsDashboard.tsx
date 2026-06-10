@@ -62,82 +62,88 @@ const AnalyticsDashboard = () => {
   ];
 
   return (
-    <div className="pb-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">
+    <div className="pb-8 px-1">
+      <div className="mb-5">
+        <h1 className="text-xl sm:text-2xl font-bold">
           <span className="text-rose-500">Analytics</span>
         </h1>
         <p className="text-sm text-neutral-500 mt-1">Real insights from your ticket sales</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* Stats — 2 cols on mobile, 4 on lg */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         {stats.map((stat) => (
           <div
             key={stat.title}
-            className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5"
+            className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 sm:p-5"
           >
-            <div className="flex justify-between items-center text-rose-500 mb-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{stat.title}</span>
+            <div className="flex justify-between items-center text-rose-500 mb-2 sm:mb-3">
+              <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-neutral-400 leading-tight">{stat.title}</span>
               {stat.icon}
             </div>
-            <p className="text-2xl font-bold">{stat.value}</p>
-            <p className="text-xs text-neutral-500 mt-1">{stat.sub}</p>
+            <p className="text-xl sm:text-2xl font-bold">{stat.value}</p>
+            <p className="text-[10px] sm:text-xs text-neutral-500 mt-1 leading-tight">{stat.sub}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
-          <div className="flex items-center gap-2 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
+        {/* Bar chart — scrollable horizontally on small screens */}
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 sm:p-6">
+          <div className="flex items-center gap-2 mb-4 sm:mb-6">
             <BarChart3 className="h-5 w-5 text-rose-500" />
             <h2 className="text-sm font-semibold">Last 6 months</h2>
           </div>
-          <div className="h-52 flex items-end gap-2 justify-between border-b border-neutral-100 dark:border-neutral-800 pb-2">
-            {monthly.map((m) => (
-              <div key={m.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-                <div className="flex items-end gap-0.5 h-40 w-full justify-center">
-                  <div
-                    className="w-3 rounded-t bg-rose-200 dark:bg-rose-900/50"
-                    style={{ height: `${(m.events / maxEvents) * 100}%`, minHeight: m.events ? 4 : 0 }}
-                    title={`${m.events} events`}
-                  />
-                  <div
-                    className="w-3 rounded-t bg-rose-500"
-                    style={{ height: `${(m.ticketsSold / maxTickets) * 100}%`, minHeight: m.ticketsSold ? 4 : 0 }}
-                    title={`${m.ticketsSold} tickets`}
-                  />
-                </div>
-                <span className="text-[9px] text-neutral-400 truncate w-full text-center">{m.month}</span>
+          <div className="overflow-x-auto -mx-2 px-2">
+            <div className="min-w-[280px]">
+              <div className="h-44 sm:h-52 flex items-end gap-1 sm:gap-2 justify-between border-b border-neutral-100 dark:border-neutral-800 pb-2">
+                {monthly.map((m) => (
+                  <div key={m.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+                    <div className="flex items-end gap-0.5 h-36 sm:h-40 w-full justify-center">
+                      <div
+                        className="w-2.5 sm:w-3 rounded-t bg-rose-200 dark:bg-rose-900/50"
+                        style={{ height: `${(m.events / maxEvents) * 100}%`, minHeight: m.events ? 4 : 0 }}
+                        title={`${m.events} events`}
+                      />
+                      <div
+                        className="w-2.5 sm:w-3 rounded-t bg-rose-500"
+                        style={{ height: `${(m.ticketsSold / maxTickets) * 100}%`, minHeight: m.ticketsSold ? 4 : 0 }}
+                        title={`${m.ticketsSold} tickets`}
+                      />
+                    </div>
+                    <span className="text-[8px] sm:text-[9px] text-neutral-400 truncate w-full text-center">{m.month}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
-          <div className="flex gap-4 mt-3 text-xs text-neutral-500">
+          <div className="flex gap-3 sm:gap-4 mt-3 text-xs text-neutral-500">
             <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-rose-200 dark:bg-rose-900/50" /> Events created
+              <span className="w-2.5 h-2.5 rounded-sm bg-rose-200 dark:bg-rose-900/50 shrink-0" /> Events
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-rose-500" /> Tickets sold
+              <span className="w-2.5 h-2.5 rounded-sm bg-rose-500 shrink-0" /> Tickets sold
             </span>
           </div>
         </div>
 
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 sm:p-6">
           <h2 className="text-sm font-semibold mb-4">Top events by revenue</h2>
           {topEvents.length === 0 ? (
             <p className="text-sm text-neutral-500">No sales yet. Publish an event to start tracking.</p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {topEvents.map((event, i) => (
                 <Link
                   key={event.id}
                   to={`/organizer/events/${event.id}`}
-                  className="flex items-center justify-between gap-3 p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors group"
+                  className="flex items-center justify-between gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors group"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-xs font-bold text-rose-500 w-5">{i + 1}</span>
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <span className="text-xs font-bold text-rose-500 w-4 shrink-0">{i + 1}</span>
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate group-hover:text-rose-500">{event.title}</p>
-                      <p className="text-xs text-neutral-500">
+                      <p className="text-xs text-neutral-500 truncate">
                         {new Date(event.startDate).toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' })}
                         {' · '}{event.ticketsSold} sold
                       </p>
@@ -154,7 +160,7 @@ const AnalyticsDashboard = () => {
         </div>
       </div>
 
-      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
+      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 sm:p-6">
         <h2 className="text-sm font-semibold mb-4">Recent ticket sales</h2>
         {recentSales.length === 0 ? (
           <p className="text-sm text-neutral-500">No ticket purchases recorded yet.</p>
@@ -163,29 +169,29 @@ const AnalyticsDashboard = () => {
             {recentSales.map((sale) => (
               <div
                 key={sale.id}
-                className="flex items-start justify-between gap-4 pb-3 border-b border-neutral-100 dark:border-neutral-800 last:border-0 last:pb-0"
+                className="flex items-start justify-between gap-3 sm:gap-4 pb-3 border-b border-neutral-100 dark:border-neutral-800 last:border-0 last:pb-0"
               >
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-full bg-rose-50 dark:bg-rose-950/30 text-rose-500">
-                    <Ticket className="h-4 w-4" />
+                <div className="flex items-start gap-2 sm:gap-3 min-w-0">
+                  <div className="p-1.5 sm:p-2 rounded-full bg-rose-50 dark:bg-rose-950/30 text-rose-500 shrink-0">
+                    <Ticket className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </div>
-                  <div>
-                    <p className="text-sm">
+                  <div className="min-w-0">
+                    <p className="text-xs sm:text-sm leading-snug">
                       <span className="font-medium">{sale.buyerName}</span>
-                      {' bought '}
+                      {' · '}
                       <span className="font-medium">{sale.ticketType}</span>
-                      {' for '}
-                      <Link to={`/organizer/events/${sale.eventId}`} className="font-medium text-rose-500 hover:underline">
+                      {' · '}
+                      <Link to={`/organizer/events/${sale.eventId}`} className="font-medium text-rose-500 hover:underline truncate">
                         {sale.eventTitle}
                       </Link>
                     </p>
-                    <p className="text-xs text-neutral-500 mt-0.5">
+                    <p className="text-[10px] sm:text-xs text-neutral-500 mt-0.5">
                       {new Date(sale.date).toLocaleString('en-NG')}
                       {sale.status === 'checked_in' && ' · Checked in'}
                     </p>
                   </div>
                 </div>
-                <span className="text-sm font-semibold text-rose-500 shrink-0">
+                <span className="text-xs sm:text-sm font-semibold text-rose-500 shrink-0">
                   {sale.amount === 0 ? 'Free' : formatNaira(sale.amount)}
                 </span>
               </div>

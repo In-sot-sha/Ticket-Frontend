@@ -34,9 +34,16 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Handle common error responses
-    if (error.response?.status === 401) {
-      // Token expired or invalid, redirect to login
+    // Only auto-logout on 401 if it's NOT an auth endpoint.
+    // Auth endpoints (login/register) legitimately return 401 for bad credentials
+    // — intercepting those would prevent the error from reaching the caller.
+    const requestUrl: string = error.config?.url ?? '';
+    const isAuthEndpoint =
+      requestUrl.includes('/users/login') ||
+      requestUrl.includes('/users/register') ||
+      requestUrl.includes('/users/google-login');
+
+    if (error.response?.status === 401 && !isAuthEndpoint) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';

@@ -105,15 +105,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(user);
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(user));
-        navigate('/');
         return true;
-      } else {
-        console.error('Login failed: No data in response');
-        return false;
       }
-    } catch (error: any) {
-      console.error('Login error:', error.response?.data?.message || error.message);
       return false;
+    } catch (error: any) {
+      // Re-throw so the Login page can display the server's error message
+      throw error;
     }
   };
 

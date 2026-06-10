@@ -70,6 +70,27 @@ const BookingPage = () => {
           if (!fetched.ticketTypes || fetched.ticketTypes.length === 0) {
             fetched.ticketTypes = mockEvent.ticketTypes;
           }
+
+          // API returns startDate / endDate as ISO strings — normalise to the
+          // shape the rest of the page expects: date, startTime, endTime
+          if (fetched.startDate && !fetched.date) {
+            fetched.date = fetched.startDate;
+          }
+          if (fetched.startDate && !fetched.startTime) {
+            fetched.startTime = new Date(fetched.startDate).toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true,
+            });
+          }
+          if (fetched.endDate && !fetched.endTime) {
+            fetched.endTime = new Date(fetched.endDate).toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true,
+            });
+          }
+
           setEventData(fetched);
 
           // Initialize selectedTickets with preselected type or first type

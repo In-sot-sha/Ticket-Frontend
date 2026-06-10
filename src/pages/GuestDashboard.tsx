@@ -117,7 +117,7 @@ const GuestDashboard = () => {
       {/* Sub-header */}
       <div className="border-b border-neutral-150 dark:border-neutral-900 bg-neutral-50/50 dark:bg-gray-900/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center py-6 gap-4">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center py-4 gap-4">
             <div className="flex items-center">
               <Ticket className="h-6 w-6 text-rose-500 mr-2" />
               <h1 className="text-xl font-extrabold tracking-tight">My Tickets</h1>

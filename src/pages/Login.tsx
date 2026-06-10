@@ -75,10 +75,10 @@ const Login = () => {
       if (success) {
         navigate('/');
       } else {
-        setError('Invalid email or password');
+        setError('Invalid email or password. Please try again.');
       }
-    } catch (err) {
-      setError('An error occurred during login. Please try again.');
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'An error occurred. Please try again.');
     }
   };
 

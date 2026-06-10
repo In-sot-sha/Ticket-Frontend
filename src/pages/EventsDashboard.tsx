@@ -117,69 +117,91 @@ const EventsDashboard = () => {
 function EventCard({ event }: { event: OrganizerEvent }) {
   const cover = resolveImageUrl(event.imageUrl);
   const stats = event.stats;
-  const sold = stats?.ticketsSold ?? event.attendees ?? 0;
+  const sold      = stats?.ticketsSold     ?? event.attendees ?? 0;
   const checkedIn = stats?.ticketsCheckedIn ?? 0;
-  const earned = stats?.actualRevenue ?? event.revenue ?? 0;
-  const expected = stats?.expectedRevenue ?? 0;
+  const earned    = stats?.actualRevenue   ?? event.revenue   ?? 0;
+  const expected  = stats?.expectedRevenue ?? 0;
+  const pct       = stats?.sellThroughPercent ?? 0;
 
   return (
     <Link
       to={`/organizer/events/${event.id}`}
-      className="group rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden hover:border-rose-300 hover:shadow-md transition-all"
+      className="group rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden hover:border-rose-300 dark:hover:border-rose-800 hover:shadow-md transition-all"
     >
+      {/* Cover image */}
       <div className="aspect-[2/1] bg-neutral-100 dark:bg-neutral-800 relative overflow-hidden">
         {cover ? (
-          <img src={cover} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+          <img
+            src={cover}
+            alt={event.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-neutral-300">
-            <Calendar className="h-10 w-10" />
+          <div className="w-full h-full flex items-center justify-center">
+            <Calendar className="h-8 w-8 text-neutral-300" />
           </div>
         )}
-        <div className="absolute top-3 right-3">
+        <div className="absolute top-2.5 right-2.5">
           <EventPhaseBadge event={event} />
+        </div>
+        {/* Sell-through strip at bottom of image */}
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
+          <div
+            className="h-full bg-rose-500"
+            style={{ width: `${pct}%` }}
+          />
         </div>
       </div>
 
-      <div className="p-4">
-        <h3 className="font-semibold text-sm leading-tight line-clamp-1 group-hover:text-rose-500 transition-colors">
+      <div className="p-3.5 sm:p-4">
+        {/* Title */}
+        <h3 className="font-bold text-sm leading-tight line-clamp-1 group-hover:text-rose-500 transition-colors mb-2">
           {event.title}
         </h3>
-        <p className="text-xs text-neutral-500 mt-1 flex items-center gap-1">
-          <Calendar className="h-3 w-3 shrink-0" />
-          {new Date(event.startDate).toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' })}
-        </p>
-        {event.location && (
-          <p className="text-xs text-neutral-500 mt-0.5 flex items-center gap-1 truncate">
-            <MapPin className="h-3 w-3 shrink-0" />
-            {event.location}
-          </p>
-        )}
 
-        <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+        {/* Date + location */}
+        <div className="space-y-1 mb-3">
+          <p className="text-xs text-neutral-500 flex items-center gap-1.5">
+            <Calendar className="h-3 w-3 shrink-0" />
+            {new Date(event.startDate).toLocaleDateString('en-NG', {
+              month: 'short', day: 'numeric', year: 'numeric',
+            })}
+          </p>
+          {event.location && (
+            <p className="text-xs text-neutral-500 flex items-center gap-1.5 truncate">
+              <MapPin className="h-3 w-3 shrink-0" />
+              {event.location}
+            </p>
+          )}
+        </div>
+
+        {/* Stats 2×2 grid */}
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-3 border-t border-neutral-100 dark:border-neutral-800 text-xs">
           <div>
             <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Sold</p>
-            <p className="text-sm font-bold">{sold}</p>
+            <p className="font-bold text-neutral-900 dark:text-white">{sold}</p>
           </div>
           <div>
             <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Checked in</p>
-            <p className="text-sm font-bold flex items-center gap-1">
-              <UserCheck className="h-3 w-3 text-rose-500" />
-              {checkedIn}
+            <p className="font-bold flex items-center gap-1">
+              <UserCheck className="h-3 w-3 text-rose-500" />{checkedIn}
             </p>
           </div>
           <div>
             <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Earned</p>
-            <p className="text-sm font-bold text-rose-500">{formatNaira(earned)}</p>
+            <p className="font-bold text-rose-500">{formatNaira(earned)}</p>
           </div>
           <div>
-            <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Expected</p>
-            <p className="text-sm font-bold">{formatNaira(expected)}</p>
+            <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Potential</p>
+            <p className="font-bold text-neutral-600 dark:text-neutral-400">{formatNaira(expected)}</p>
           </div>
         </div>
 
-        <div className="mt-3 flex items-center justify-between">
-          <span className="text-xs text-rose-500 font-medium">View details</span>
-          <ChevronRight className="h-4 w-4 text-neutral-300 group-hover:text-rose-500 group-hover:translate-x-0.5 transition-all" />
+        {/* CTA row */}
+        <div className="mt-3 flex items-center justify-end">
+          <span className="text-[11px] font-bold text-rose-500 flex items-center gap-0.5">
+            View details <ChevronRight className="h-3.5 w-3.5" />
+          </span>
         </div>
       </div>
     </Link>

@@ -15,7 +15,10 @@ import {
   User,
   HelpCircle,
   Plus,
-  Heart
+  Heart,
+  LayoutDashboard,
+  Calendar,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -39,10 +42,12 @@ const Header = () => {
     }
   }, [isUserMenuOpen]);
 
+  const isOrganizerContext = location.pathname.startsWith('/organizer');
+
   const handleSwitchRole = () => {
-    if (location.pathname.startsWith('/organizer')) {
+    if (isOrganizerContext) {
       setCurrentRole('USER');
-      navigate('/user');
+      navigate('/');
     } else {
       setCurrentRole('ORGANIZER');
       navigate('/organizer');
@@ -152,69 +157,64 @@ const Header = () => {
                 {isAuthenticated ? (
                   <>
                     <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-850">
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Welcome back</p>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                        {isOrganizerContext ? 'Host Dashboard' : 'Welcome back'}
+                      </p>
                       <p className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100 mt-1">
                         {user?.firstName} {user?.lastName}
                       </p>
                     </div>
                     
                     <div className="py-1">
-                      <Link 
-                        to="/profile" 
-                        className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                        onClick={() => setIsUserMenuOpen(false)}
-                      >
-                        <Settings className="h-4 w-4 mr-3 text-gray-400" />
-                        Account settings
-                      </Link>
-
-                      <Link 
-                        to="/user/tickets" 
-                        className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                        onClick={() => setIsUserMenuOpen(false)}
-                      >
-                        <Ticket className="h-4 w-4 mr-3 text-gray-400" />
-                        My tickets
-                      </Link>
-
-                      <Link 
-                        to="/wishlist" 
-                        className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                        onClick={() => setIsUserMenuOpen(false)}
-                      >
-                        <Heart className="h-4 w-4 mr-3 text-gray-400" />
-                        Wishlist
-                      </Link>
-
-                      {location.pathname.startsWith('/organizer') ? (
-                        <Link 
-                          to="/user/tickets" 
-                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
-                          onClick={() => setIsUserMenuOpen(false)}
-                        >
-                          <User className="h-4 w-4 mr-3 text-rose-500" />
-                          Switch to Guest Mode
-                        </Link>
+                      {isOrganizerContext ? (
+                        <>
+                          <Link to="/organizer" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <LayoutDashboard className="h-4 w-4 mr-3 text-gray-400" />Dashboard
+                          </Link>
+                          <Link to="/organizer/events" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Calendar className="h-4 w-4 mr-3 text-gray-400" />My Events
+                          </Link>
+                          <Link to="/organizer/events/create" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Plus className="h-4 w-4 mr-3 text-gray-400" />Create Event
+                          </Link>
+                          <Link to="/organizer/analytics" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <BarChart3 className="h-4 w-4 mr-3 text-gray-400" />Analytics
+                          </Link>
+                          <Link to="/organizer/organizer-settings" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Settings className="h-4 w-4 mr-3 text-gray-400" />Account Settings
+                          </Link>
+                        </>
                       ) : (
-                        <Link 
-                          to="/organizer" 
-                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
-                          onClick={() => setIsUserMenuOpen(false)}
-                        >
-                          <Building className="h-4 w-4 mr-3 text-rose-500" />
-                          Switch to Host Mode
-                        </Link>
+                        <>
+                          <Link to="/profile" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Settings className="h-4 w-4 mr-3 text-gray-400" />Account settings
+                          </Link>
+                          <Link to="/user/tickets" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Ticket className="h-4 w-4 mr-3 text-gray-400" />My tickets
+                          </Link>
+                          <Link to="/wishlist" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Heart className="h-4 w-4 mr-3 text-gray-400" />Wishlist
+                          </Link>
+                        </>
                       )}
+
+                      {/* Switch mode — always shown */}
+                      <button
+                        onClick={() => { handleSwitchRole(); setIsUserMenuOpen(false); }}
+                        className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
+                      >
+                        {isOrganizerContext
+                          ? <><User className="h-4 w-4 mr-3 text-rose-500" />Switch to Guest Mode</>
+                          : <><Building className="h-4 w-4 mr-3 text-rose-500" />Switch to Host Mode</>
+                        }
+                      </button>
                     </div>
 
-                    <div className="border-t border-gray-100 dark:border-gray-850 my-1"></div>
+                    <div className="border-t border-gray-100 dark:border-gray-850 my-1" />
                     
                     <div className="py-1">
                       <button
-                        onClick={() => {
-                          logout();
-                          setIsUserMenuOpen(false);
-                        }}
+                        onClick={() => { logout(); setIsUserMenuOpen(false); }}
                         className="w-full text-left px-4 py-3 text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/15 flex items-center transition-colors"
                       >
                         <LogOut className="h-4 w-4 mr-3" />
