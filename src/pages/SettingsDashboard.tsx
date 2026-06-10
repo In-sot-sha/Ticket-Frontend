@@ -20,6 +20,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Loader2,
+  Copy,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -517,60 +519,170 @@ const SecurityPanel = () => {
   );
 };
 
-const TeamPanel = () => (
-  <div className="space-y-6">
-    <div>
-      <h2 className="text-lg font-extrabold text-neutral-900 dark:text-white">Team & Staff access</h2>
-      <p className="text-xs text-neutral-500 mt-1">
-        Invite people to help manage your events — gate scanners, co-admins, finance reviewers.
-      </p>
-    </div>
+const TeamPanel = () => {
+  const [name,    setName]    = React.useState('');
+  const [entries, setEntries] = React.useState<Array<{ id: number; name: string; pin: string }>>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [adding,  setAdding]  = React.useState(false);
+  const [error,   setError]   = React.useState('');
+  const [copied,  setCopied]  = React.useState<string | null>(null);
 
-    {/* Role overview */}
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {[
-        { role: 'Admin',   colour: 'bg-rose-100 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400',     desc: 'Manage events, view revenue, invite staff' },
-        { role: 'Staff',   colour: 'bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400',     desc: 'Scan tickets at the gate only' },
-        { role: 'Finance', colour: 'bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400', desc: 'View analytics & payout reports only' },
-      ].map(r => (
-        <div key={r.role} className="flex items-start gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
-          <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full ${r.colour} shrink-0 mt-0.5`}>{r.role}</span>
-          <p className="text-xs text-neutral-600 dark:text-neutral-400">{r.desc}</p>
-        </div>
-      ))}
-    </div>
+  const gateUrl = `${window.location.origin}/scan-gate`;
 
-    {/* Invite form */}
-    <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-4">
-      <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Invite a team member</p>
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-          <input className={`${inputCls} pl-9`} type="email" placeholder="colleague@example.com" />
-        </div>
-        <select className={`${inputCls} sm:w-36`}>
-          <option>Staff</option>
-          <option>Admin</option>
-          <option>Finance</option>
-        </select>
-        <button className="px-5 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-sm font-bold transition-all active:scale-[0.98] whitespace-nowrap">
-          Send invite
-        </button>
-      </div>
-    </div>
+  React.useEffect(() => {
+    api.gatePins.list()
+      .then(r => setEntries((r.data ?? []).map((e: any) => ({ id: e.id, name: e.staffName, pin: e.pin }))))
+      .catch(() => setError('Could not load gate PINs.'))
+      .finally(() => setLoading(false));
+  }, []);
 
-    {/* Coming soon notice */}
-    <div className="flex items-start gap-3 p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
-      <Users className="h-5 w-5 text-neutral-400 shrink-0 mt-0.5" />
+  const addScanner = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setAdding(true); setError('');
+    try {
+      const r = await api.gatePins.create(trimmed);
+      setEntries(prev => [{ id: r.data.id, name: r.data.staffName, pin: r.data.pin }, ...prev]);
+      setName('');
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? 'Could not create PIN.');
+    } finally { setAdding(false); }
+  };
+
+  const removeScanner = async (id: number) => {
+    try {
+      await api.gatePins.delete(id);
+      setEntries(prev => prev.filter(e => e.id !== id));
+    } catch { setError('Could not revoke PIN.'); }
+  };
+
+  const copyText = (text: string, key: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(key); setTimeout(() => setCopied(null), 2000);
+    });
+  };
+
+  return (
+    <div className="space-y-6">
       <div>
-        <p className="text-sm font-bold text-neutral-900 dark:text-white">Team management — coming soon</p>
-        <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
-          Full invite flow with role-based access is on the roadmap. For now you can plan your team structure using the roles above. Gate staff will be able to log in with a PIN and access only the scanner.
+        <h2 className="text-lg font-extrabold text-neutral-900 dark:text-white">Team & Gate staff</h2>
+        <p className="text-xs text-neutral-500 mt-1">
+          Create a PIN for each gate scanner. They open{' '}
+          <a href={gateUrl} target="_blank" rel="noreferrer" className="text-rose-500 underline font-bold">/scan-gate</a>
+          {' '}on their phone and enter the PIN — no account needed.
         </p>
       </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {[
+          { step: '1', text: 'Add a scanner name and click "Generate PIN".' },
+          { step: '2', text: 'Share the link + PIN with your gate staff via WhatsApp or SMS.' },
+          { step: '3', text: 'They enter the PIN on their phone and start scanning immediately.' },
+        ].map(s => (
+          <div key={s.step} className="flex items-start gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+            <span className="w-6 h-6 rounded-full bg-rose-500 text-white text-xs font-extrabold flex items-center justify-center shrink-0">{s.step}</span>
+            <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">{s.text}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
+        <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Add gate scanner</p>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+            <input
+              className={inputCls + ' pl-9'}
+              value={name}
+              onChange={e => setName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addScanner()}
+              placeholder="e.g. Ahmed (Gate 1)"
+            />
+          </div>
+          <button
+            onClick={addScanner}
+            disabled={!name.trim() || adding}
+            className="px-4 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-sm font-bold disabled:opacity-40 transition-all active:scale-[0.98] whitespace-nowrap flex items-center gap-2"
+          >
+            {adding && <Loader2 className="h-4 w-4 animate-spin" />}
+            Generate PIN
+          </button>
+        </div>
+        {error && (
+          <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 dark:bg-red-950/20 px-3 py-2 rounded-xl">
+            <AlertCircle className="h-4 w-4 shrink-0" /> {error}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 p-4">
+        <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-2">Shareable gate scanner link</p>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 text-xs bg-neutral-50 dark:bg-neutral-900 px-3 py-2 rounded-xl border border-neutral-100 dark:border-neutral-800 truncate text-neutral-600 dark:text-neutral-400">
+            {gateUrl}
+          </code>
+          <button
+            onClick={() => copyText(gateUrl, 'url')}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-bold hover:border-rose-300 hover:text-rose-500 transition-colors shrink-0"
+          >
+            {copied === 'url' ? <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Copied</> : <>Copy link</>}
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-rose-400" /></div>
+      ) : entries.length > 0 ? (
+        <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+          <div className="px-4 py-3 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-100 dark:border-neutral-800">
+            <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Active scanners ({entries.length})</p>
+          </div>
+          <div className="divide-y divide-neutral-100 dark:divide-neutral-800 bg-white dark:bg-neutral-900">
+            {entries.map(entry => (
+              <div key={entry.id} className="flex items-center justify-between gap-3 px-4 py-3.5">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-950/30 flex items-center justify-center shrink-0">
+                    <Shield className="h-4 w-4 text-rose-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-neutral-900 dark:text-white truncate">{entry.name}</p>
+                    <p className="text-xs text-neutral-500">Gate staff</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => copyText(entry.pin, entry.pin)}
+                    className="flex items-center gap-1.5 font-mono text-sm font-extrabold bg-neutral-100 dark:bg-neutral-800 px-3 py-1.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/20 hover:text-rose-600 transition-colors"
+                    title="Click to copy PIN"
+                  >
+                    {entry.pin}
+                    {copied === entry.pin
+                      ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                      : <Copy className="h-3 w-3 text-neutral-400" />}
+                  </button>
+                  <button
+                    onClick={() => removeScanner(entry.id)}
+                    className="p-1.5 rounded-lg text-neutral-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+                    title="Revoke PIN"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-8 rounded-2xl border border-dashed border-neutral-200 dark:border-neutral-800 text-neutral-400">
+          <Shield className="h-8 w-8 mx-auto mb-2 opacity-40" />
+          <p className="text-sm">No scanners added yet.</p>
+          <p className="text-xs mt-1">Add a name above to generate the first PIN.</p>
+        </div>
+      )}
     </div>
-  </div>
-);
+  );
+};
+
 
 // ── Main settings page ────────────────────────────────────────────────────────
 

@@ -6,6 +6,7 @@ import { AuthProvider } from './context/AuthContext';
 import { RoleProvider } from './context/RoleContext';
 import AppRoutes from './routes/AppRoutes';
 import ScrollToTop from './components/ScrollToTop';
+// import InstallPrompt from './components/InstallPrompt';
 import './index.css';
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
         <AuthProvider>
           <RoleProvider>
             <AppRoutes />
+            {/* <InstallPrompt /> */}
           </RoleProvider>
         </AuthProvider>
       </ThemeProvider>

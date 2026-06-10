@@ -78,6 +78,8 @@ const TicketScanner: React.FC = () => {
         displayMessage = 'This ticket has been cancelled and is no longer valid.';
       } else if (serverStatus === 'EVENT_ENDED' || /ended/i.test(serverMsg)) {
         displayMessage = 'This event has already ended. Ticket cannot be accepted.';
+      } else if (serverStatus === 'EVENT_NOT_STARTED' || /not.*started|too early/i.test(serverMsg)) {
+        displayMessage = 'This event has not started yet. Please wait until the event begins.';
       } else if (httpStatus === 404 || /invalid.*qr|not found|invalid.*code/i.test(serverMsg)) {
         displayMessage = 'QR code not recognised. This ticket does not exist in the system.';
       } else if (serverMsg) {
@@ -362,6 +364,8 @@ const TicketScanner: React.FC = () => {
                   ? 'Not Found'
                   : /ended/i.test(message)
                   ? 'Event Ended'
+                  : /not.*started|too early/i.test(message)
+                  ? 'Event Not Started'
                   : 'Access Denied'}
               </h2>
 

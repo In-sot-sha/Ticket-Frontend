@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#f43f5e"/>
+  <!-- Ticket shape -->
+  <g fill="white">
+    <!-- Main ticket body -->
+    <rect x="136" y="196" width="240" height="120" rx="12" ry="12"/>
+    <!-- Left notch cut-out -->
+    <circle cx="136" cy="256" r="20" fill="#f43f5e"/>
+    <!-- Right notch cut-out -->
+    <circle cx="376" cy="256" r="20" fill="#f43f5e"/>
+    <!-- Dashed divider line (vertical) -->
+    <rect x="290" y="196" width="3" height="28" fill="#f43f5e" opacity="0.4"/>
+    <rect x="290" y="236" width="3" height="16" fill="#f43f5e" opacity="0.4"/>
+    <rect x="290" y="264" width="3" height="16" fill="#f43f5e" opacity="0.4"/>
+    <rect x="290" y="288" width="3" height="28" fill="#f43f5e" opacity="0.4"/>
+    <!-- Ticket lines (stub text simulation) -->
+    <rect x="156" y="228" width="110" height="10" rx="5" fill="#f43f5e" opacity="0.25"/>
+    <rect x="156" y="250" width="80" height="8" rx="4" fill="#f43f5e" opacity="0.18"/>
+    <rect x="156" y="270" width="95" height="8" rx="4" fill="#f43f5e" opacity="0.18"/>
+    <!-- QR placeholder (right stub) -->
+    <rect x="308" y="218" width="52" height="52" rx="6" fill="#f43f5e" opacity="0.2"/>
+    <rect x="316" y="226" width="14" height="14" rx="2" fill="#f43f5e" opacity="0.5"/>
+    <rect x="338" y="226" width="14" height="14" rx="2" fill="#f43f5e" opacity="0.5"/>
+    <rect x="316" y="248" width="14" height="14" rx="2" fill="#f43f5e" opacity="0.5"/>
+    <rect x="338" y="248" width="6" height="6" rx="1" fill="#f43f5e" opacity="0.5"/>
+    <rect x="348" y="248" width="6" height="6" rx="1" fill="#f43f5e" opacity="0.5"/>
+  </g>
+</svg>

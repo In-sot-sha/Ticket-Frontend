@@ -29,7 +29,6 @@ import Dashboard from '../pages/Dashboard';
 import Profile from '../pages/Profile';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import EventsDashboard from '../pages/EventsDashboard';
-import OrganizerEventPage from '../pages/OrganizerEventPage';
 import CreateEvent from '../pages/CreateEvent';
 import PaymentPage from '../pages/PaymentPage';
 import TicketConfirmationPage from '../pages/TicketConfirmationPage';
@@ -39,6 +38,8 @@ import AnalyticsDashboard from '../pages/AnalyticsDashboard';
 import SettingsDashboard from '../pages/SettingsDashboard';
 import FinanceDashboard from '../pages/FinanceDashboard';
 import BecomeOrganizer from '../pages/BecomeOrganizer';
+import GateScannerPage from '../pages/GateScannerPage';
+import OrganizerEventPage from '../pages/OrganizerEventPage';
 import ApplyAsVendor from '../pages/ApplyAsVendor';
 import VendorApplications from '../pages/VendorApplications';
 import MyVendorApplications from '../pages/MyVendorApplications';
@@ -94,12 +95,17 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 // Define the routes using useRoutes pattern
 const AppRoutes: React.FC = () => {
   const routes = [
+    // ── Gate scanner — fully public, no header/footer, no auth ──
+    {
+      path: '/scan-gate',
+      element: <GateScannerPage />,
+    },
+
     // Public routes with full layout (header and footer)
     {
       path: "/",
       element: <AppIndex />,
-      children: [
-        {
+      children: [        {
           index: true,
           element: <HomePage />,
         },
@@ -209,9 +215,9 @@ const AppRoutes: React.FC = () => {
     {
       path: "/organizer",
       element: (
-        // <ProtectedRoute>
+        <ProtectedRoute>
           <DashboardLayout />
-        // </ProtectedRoute>
+         </ProtectedRoute>
       ),
       children: [
         {
@@ -223,16 +229,17 @@ const AppRoutes: React.FC = () => {
           element: <EventsDashboard />,
         },
         {
+          path: "events/:id",
+          element: <OrganizerEventPage />,
+        },
+        {
           path: "events/create",
+
           element: <CreateEvent />,
         },
         {
           path: "events/create/:id",
           element: <CreateEvent />,
-        },
-        {
-          path: "events/:id",
-          element: <OrganizerEventPage />,
         },
         {
           path: "vendors-applications",

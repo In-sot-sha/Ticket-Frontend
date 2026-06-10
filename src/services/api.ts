@@ -41,7 +41,9 @@ apiClient.interceptors.response.use(
     const isAuthEndpoint =
       requestUrl.includes('/users/login') ||
       requestUrl.includes('/users/register') ||
-      requestUrl.includes('/users/google-login');
+      requestUrl.includes('/users/google-login') ||
+      requestUrl.includes('/gate-pins/verify') ||  // public — wrong PIN returns 401
+      requestUrl.includes('/tickets/validate');     // public — invalid ticket returns 400/404, never 401, but belt-and-braces
 
     if (error.response?.status === 401 && !isAuthEndpoint) {
       localStorage.removeItem('token');
@@ -235,9 +237,16 @@ export const api = {
     delete: (id: number) => apiRequest<any>('DELETE', `/vendors/${id}`),
   },
 
+  // Gate PIN endpoints
+  gatePins: {
+    list:   ()                        => apiRequest<any[]>('GET',    '/gate-pins'),
+    create: (staffName: string)       => apiRequest<any>('POST',   '/gate-pins', { staffName }),
+    delete: (id: number)              => apiRequest<any>('DELETE',  `/gate-pins/${id}`),
+    verify: (pin: string)             => apiRequest<{ valid: boolean; staffName: string }>('POST', '/gate-pins/verify', { pin }),
+  },
+
   // Vendor type endpoints
-  vendorTypes: {
-    getAllForEvent: (eventId: number) => apiRequest<any[]>('GET', `/vendor-types/event/${eventId}`),
+  vendorTypes: {    getAllForEvent: (eventId: number) => apiRequest<any[]>('GET', `/vendor-types/event/${eventId}`),
     
     create: (eventId: number, vendorTypeData: {
       name: string;
