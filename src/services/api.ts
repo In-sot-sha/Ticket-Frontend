@@ -1,6 +1,6 @@
 // src/services/api.ts
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-let localEndpoint = import.meta.env.VITE_API_URL || "http://localhost:33333/api";
+let localEndpoint = import.meta.env.VITE_API_URL || "http://localhost:33312/api";
 let productionEndpoint = "https://eventify-api.onrender.com/api";
 
 let currentEndpoint =

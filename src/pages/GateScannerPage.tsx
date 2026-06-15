@@ -110,7 +110,7 @@ const PinEntry: React.FC<{ onUnlock: (name: string) => void }> = ({ onUnlock }) 
   useEffect(() => { inputRefs.current[0]?.focus(); }, []);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-neutral-950 flex flex-col">
+    <div className="h-[calc(100svh-100px)] bg-white dark:bg-neutral-950 flex flex-col">
       {/* Top brand bar */}
       <div className="flex items-center justify-center py-8">
         <div className="flex items-center gap-2">

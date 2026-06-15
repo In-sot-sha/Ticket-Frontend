@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import basicSsl from '@vitejs/plugin-basic-ssl'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
@@ -8,19 +7,12 @@ export default defineConfig({
   plugins: [
     react(),
 
-    // Self-signed HTTPS for LAN dev — lets mobile browsers allow camera
-    basicSsl(),
-
     // ── PWA ──────────────────────────────────────────────────────────────────
     VitePWA({
-      registerType: 'autoUpdate',      // silently updates SW in the background
-      injectRegister: 'auto',          // injects the registration script automatically
-      includeAssets: [
-        'icons/icon.svg',
-        'icons/*.png',
-      ],
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
+      includeAssets: ['icons/icon.svg'],
 
-      // Web App Manifest
       manifest: {
         name:             'Eventify',
         short_name:       'Eventify',
@@ -65,20 +57,15 @@ export default defineConfig({
         ],
       },
 
-      // Workbox config — what gets cached and how
       workbox: {
-        // Pre-cache the built JS/CSS/HTML shell
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-
-        // Runtime caching rules
         runtimeCaching: [
           {
-            // API calls → network-only (always fresh, never cached)
+            // API — never cache, always fresh
             urlPattern: /^https?:\/\/.*\/api\//,
             handler: 'NetworkOnly',
           },
           {
-            // Google Fonts and CDN assets → stale-while-revalidate
             urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com/,
             handler: 'StaleWhileRevalidate',
             options: {
@@ -87,7 +74,6 @@ export default defineConfig({
             },
           },
           {
-            // Unsplash images → cache for 7 days
             urlPattern: /^https:\/\/images\.unsplash\.com/,
             handler: 'CacheFirst',
             options: {
@@ -97,24 +83,25 @@ export default defineConfig({
             },
           },
         ],
-
-        // SPA fallback — serve index.html for all navigation requests
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
       },
 
-      // Dev options — enable SW in development so you can test it
       devOptions: {
-        enabled: false, // set to true to test SW locally (slows HMR)
+        enabled: false, // flip to true to test SW locally
         type: 'module',
       },
     }),
   ],
 
   server: {
-    host:  true,    // bind to 0.0.0.0 — LAN devices can reach the dev server
+    host:  true,   // 0.0.0.0 — LAN devices can reach the dev server
     port:  5181,
-    https: true,    // required for getUserMedia (camera) on mobile
+    // Vite 4 built-in self-signed cert — no plugin needed.
+    // Mobile browsers need HTTPS for camera (getUserMedia).
+    // On first visit your phone shows an "untrusted cert" warning;
+    // tap Advanced → Proceed to accept it once.
+    // https: true,
     proxy: {
       '/api': {
         target:       'http://localhost:33312',
