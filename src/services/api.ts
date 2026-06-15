@@ -1,7 +1,7 @@
 // src/services/api.ts
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 let localEndpoint = import.meta.env.VITE_API_URL || "http://localhost:33312/api";
-let productionEndpoint = "https://eventify-api.onrender.com/api";
+let productionEndpoint = "https://eventgo-backend.vercel.app/api";
 
 let currentEndpoint =
   import.meta.env.MODE === "development" ? localEndpoint : productionEndpoint;
