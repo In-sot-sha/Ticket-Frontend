@@ -67,29 +67,27 @@ const Toggle = ({
   </div>
 );
 
-const SaveButton = ({
-  saving,
-  saved,
+const SaveButton = ({ 
+  saving, 
+  saved, 
   onClick,
-}: {
-  saving: boolean;
-  saved: boolean;
+  label = "Save changes"
+}: { 
+  saving: boolean; 
+  saved: boolean; 
   onClick: () => void;
+  label?: string;
 }) => (
-  <button
+  <button 
     type="button"
     onClick={onClick}
-    disabled={saving}
+    disabled={saving || saved}
     className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-sm font-bold disabled:opacity-60 transition-all active:scale-[0.98]"
   >
-    {saving ? (
-      <Loader2 className="h-4 w-4 animate-spin" />
-    ) : saved ? (
-      <CheckCircle2 className="h-4 w-4" />
-    ) : (
-      <Save className="h-4 w-4" />
-    )}
-    {saving ? 'Saving…' : saved ? 'Saved' : 'Save changes'}
+    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 
+     saved ? <CheckCircle2 className="h-4 w-4" /> : 
+     <Save className="h-4 w-4" />}
+    {saved ? 'Saved!' : label}
   </button>
 );
 
@@ -186,11 +184,12 @@ const ProfilePanel = () => {
 
 const OrganisationPanel = () => {
   const { user, updateUser } = useAuth();
+  const org = user?.ownedOrganizations?.[0];
   const [form, setForm] = useState({
-    businessName:  user?.organizerBusinessName ?? '',
-    description:   user?.organizerDescription  ?? '',
-    contactInfo:   user?.organizerContactInfo  ?? '',
-    phone:         user?.phone                 ?? '',
+    businessName:  org?.name        ?? '',
+    description:   org?.description ?? '',
+    contactInfo:   org?.website     ?? '',
+    phone:         user?.phone      ?? '',
   });
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
@@ -200,12 +199,17 @@ const OrganisationPanel = () => {
     setSaving(true); setError(''); setSaved(false);
     try {
       const res = await api.userRoles.updateOrganizerProfile({
+        organizationId: org?.id,
         businessName: form.businessName,
         description:  form.description,
         contactInfo:  form.contactInfo,
         phone:        form.phone,
       });
-      updateUser(res.data);
+      // The backend returns an updated organization, we need to refresh user profile to sync
+      const profileRes = await api.auth.verify();
+      if (profileRes.data) {
+        updateUser(profileRes.data);
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e: any) {
@@ -222,7 +226,7 @@ const OrganisationPanel = () => {
           <h2 className="text-lg font-extrabold text-neutral-900 dark:text-white">Organisation</h2>
           <p className="text-xs text-neutral-500 mt-1">Details shown on event pages and receipts.</p>
         </div>
-        {user?.isOrganizerVerified && (
+        {user?.ownedOrganizations?.some(org => org.isVerified) && (
           <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 shrink-0">
             <BadgeCheck className="h-3.5 w-3.5" /> Verified organiser
           </span>
@@ -265,95 +269,145 @@ const OrganisationPanel = () => {
   );
 };
 
-const PayoutsPanel = () => (
-  <div className="space-y-6">
-    <div>
-      <h2 className="text-lg font-extrabold text-neutral-900 dark:text-white">Payouts & Tax</h2>
-      <p className="text-xs text-neutral-500 mt-1">Where your ticket revenue goes, and your tax details for receipts.</p>
-    </div>
+const PayoutsPanel = () => {
+  const { user, updateUser } = useAuth();
+  const org = user?.ownedOrganizations?.[0];
+  
+  const [form, setForm] = useState({
+    payoutBankName: org?.payoutBankName ?? '',
+    payoutAccountNumber: org?.payoutAccountNumber ?? '',
+    payoutAccountName: org?.payoutAccountName ?? '',
+    payoutSchedule: org?.payoutSchedule ?? 'After each event',
+    taxId: org?.taxId ?? '',
+    vatNumber: org?.vatNumber ?? '',
+    businessAddress: org?.businessAddress ?? ''
+  });
 
-    {/* Payout account */}
-    <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-100 dark:divide-neutral-800">
-      <div className="p-4">
-        <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">Payout account</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className={labelCls}>Bank name</label>
-            <input className={inputCls} placeholder="e.g. First Bank" />
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSave = async () => {
+    if (!org) return;
+    setSaving(true);
+    setError('');
+    setSaved(false);
+    try {
+      await api.userRoles.updateOrganizerProfile({
+        organizationId: org.id,
+        businessName: org.name,
+        description: org.description ?? '',
+        contactInfo: org.website ?? '',
+        phone: user?.phone ?? '',
+        payoutBankName: form.payoutBankName,
+        payoutAccountNumber: form.payoutAccountNumber,
+        payoutAccountName: form.payoutAccountName,
+        payoutSchedule: form.payoutSchedule,
+        taxId: form.taxId,
+        vatNumber: form.vatNumber,
+        businessAddress: form.businessAddress
+      });
+      const profileRes = await api.auth.verify();
+      if (profileRes.data) {
+        updateUser(profileRes.data);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? 'Could not save payout details.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-extrabold text-neutral-900 dark:text-white">Payouts & Tax</h2>
+        <p className="text-xs text-neutral-500 mt-1">Where your ticket revenue goes, and your tax details for receipts.</p>
+      </div>
+
+      {/* Payout account */}
+      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-100 dark:divide-neutral-800">
+        <div className="p-4">
+          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">Payout account</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>Bank name</label>
+              <input className={inputCls} value={form.payoutBankName} onChange={e => setForm(p => ({ ...p, payoutBankName: e.target.value }))} placeholder="e.g. First Bank" />
+            </div>
+            <div>
+              <label className={labelCls}>Account number</label>
+              <input className={inputCls} value={form.payoutAccountNumber} onChange={e => setForm(p => ({ ...p, payoutAccountNumber: e.target.value }))} placeholder="0123456789" maxLength={10} />
+            </div>
+            <div>
+              <label className={labelCls}>Account name</label>
+              <input className={inputCls} value={form.payoutAccountName} onChange={e => setForm(p => ({ ...p, payoutAccountName: e.target.value }))} placeholder="As it appears on the account" />
+            </div>
+            <div>
+              <label className={labelCls}>Payout schedule</label>
+              <select className={inputCls} value={form.payoutSchedule} onChange={e => setForm(p => ({ ...p, payoutSchedule: e.target.value }))}>
+                <option value="After each event">After each event</option>
+                <option value="Weekly">Weekly</option>
+                <option value="Monthly">Monthly</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label className={labelCls}>Account number</label>
-            <input className={inputCls} placeholder="0123456789" maxLength={10} />
+        </div>
+
+        {/* Tax */}
+        <div className="p-4">
+          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">Tax information</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>Tax ID / TIN</label>
+              <input className={inputCls} value={form.taxId} onChange={e => setForm(p => ({ ...p, taxId: e.target.value }))} placeholder="Nigeria Tax ID or RC number" />
+            </div>
+            <div>
+              <label className={labelCls}>VAT number (if registered)</label>
+              <input className={inputCls} value={form.vatNumber} onChange={e => setForm(p => ({ ...p, vatNumber: e.target.value }))} placeholder="Optional" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Business address (for receipts)</label>
+              <textarea className={`${inputCls} resize-none`} rows={2} value={form.businessAddress} onChange={e => setForm(p => ({ ...p, businessAddress: e.target.value }))} placeholder="Full address shown on tax receipts" />
+            </div>
           </div>
-          <div>
-            <label className={labelCls}>Account name</label>
-            <input className={inputCls} placeholder="As it appears on the account" />
+        </div>
+
+        {/* Service fee */}
+        <div className="p-4">
+          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">Ticketing fees</p>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-neutral-600 dark:text-neutral-400">Platform service fee</span>
+              <span className="font-bold">5% per ticket</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-neutral-600 dark:text-neutral-400">Payment processing</span>
+              <span className="font-bold">1.5% + ₦100</span>
+            </div>
+            <div className="flex justify-between border-t border-neutral-100 dark:border-neutral-800 pt-2 mt-2">
+              <span className="font-semibold text-neutral-900 dark:text-white">You receive</span>
+              <span className="font-extrabold text-rose-500">~93.5% of ticket price</span>
+            </div>
           </div>
-          <div>
-            <label className={labelCls}>Payout schedule</label>
-            <select className={inputCls}>
-              <option>After each event</option>
-              <option>Weekly</option>
-              <option>Monthly</option>
-            </select>
-          </div>
+          <p className="text-[10px] text-neutral-400 mt-2">
+            Fees are deducted automatically before payout. Free-ticket events have no fees.
+          </p>
         </div>
       </div>
 
-      {/* Tax */}
-      <div className="p-4">
-        <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">Tax information</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className={labelCls}>Tax ID / TIN</label>
-            <input className={inputCls} placeholder="Nigeria Tax ID or RC number" />
-          </div>
-          <div>
-            <label className={labelCls}>VAT number (if registered)</label>
-            <input className={inputCls} placeholder="Optional" />
-          </div>
-          <div className="sm:col-span-2">
-            <label className={labelCls}>Business address (for receipts)</label>
-            <textarea className={`${inputCls} resize-none`} rows={2} placeholder="Full address shown on tax receipts" />
-          </div>
+      {error && (
+        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 dark:bg-red-950/20 px-3 py-2 rounded-lg">
+          <AlertCircle className="h-4 w-4 shrink-0" /> {error}
         </div>
-
-        <div className="mt-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 flex gap-2 text-xs text-amber-800 dark:text-amber-400">
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          <p>Tax settings are saved locally for now. Full payout processing will be enabled when your organiser account is verified by the Eventify team.</p>
-        </div>
-      </div>
-
-      {/* Service fee */}
-      <div className="p-4">
-        <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">Ticketing fees</p>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-neutral-600 dark:text-neutral-400">Platform service fee</span>
-            <span className="font-bold">5% per ticket</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-neutral-600 dark:text-neutral-400">Payment processing</span>
-            <span className="font-bold">1.5% + ₦100</span>
-          </div>
-          <div className="flex justify-between border-t border-neutral-100 dark:border-neutral-800 pt-2 mt-2">
-            <span className="font-semibold text-neutral-900 dark:text-white">You receive</span>
-            <span className="font-extrabold text-rose-500">~93.5% of ticket price</span>
-          </div>
-        </div>
-        <p className="text-[10px] text-neutral-400 mt-2">
-          Fees are deducted automatically before payout. Free-ticket events have no fees.
-        </p>
+      )}
+      <div className="flex justify-end">
+        <SaveButton saving={saving} saved={saved} onClick={handleSave} label="Save payout details" />
       </div>
     </div>
-
-    <div className="flex justify-end">
-      <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-sm font-bold transition-all active:scale-[0.98]">
-        <Save className="h-4 w-4" /> Save payout details
-      </button>
-    </div>
-  </div>
-);
+  );
+};
 
 const NotificationsPanel = () => {
   const [prefs, setPrefs] = useState({
@@ -391,7 +445,7 @@ const NotificationsPanel = () => {
 
         <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider pt-5 pb-2">Digest & marketing</p>
         <Toggle checked={prefs.weeklyDigest} onChange={() => toggle('weeklyDigest')} label="Weekly performance digest" description="Summary of sales and analytics every Monday" />
-        <Toggle checked={prefs.marketingEmails} onChange={() => toggle('marketingEmails')} label="Tips & product updates" description="Feature announcements and hosting tips from Eventify" />
+        <Toggle checked={prefs.marketingEmails} onChange={() => toggle('marketingEmails')} label="Tips & product updates" description="Feature announcements and hosting tips from PartyStorm" />
       </div>
 
       <div className="flex justify-end">

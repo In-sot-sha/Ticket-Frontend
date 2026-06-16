@@ -117,7 +117,7 @@ const PinEntry: React.FC<{ onUnlock: (name: string) => void }> = ({ onUnlock }) 
           <div className="w-8 h-8 rounded-xl bg-rose-500 flex items-center justify-center">
             <Ticket className="h-4 w-4 text-white" />
           </div>
-          <span className="text-rose-500 font-extrabold text-lg tracking-tight">eventify</span>
+          <span className="text-rose-500 font-extrabold text-lg tracking-tight">partystorm</span>
         </div>
       </div>
 
@@ -348,7 +348,7 @@ const GateScanner: React.FC<{ staffName: string; onLogout: () => void }> = ({
             <div className="w-6 h-6 rounded-lg bg-rose-500 flex items-center justify-center">
               <Ticket className="h-3.5 w-3.5 text-white" />
             </div>
-            <span className="text-rose-500 font-extrabold text-sm tracking-tight hidden sm:block">eventify</span>
+            <span className="text-rose-500 font-extrabold text-sm tracking-tight hidden sm:block">partystorm</span>
           </div>
           <div className="w-px h-4 bg-neutral-200 dark:bg-neutral-700 mx-1 shrink-0" />
           <div className="flex items-center gap-2 min-w-0">

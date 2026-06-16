@@ -43,7 +43,7 @@ const OpayMockCheckout = () => {
           {/* Order Details Header */}
           <div className="text-center pb-4 border-b border-gray-100 dark:border-neutral-800">
             <p className="text-xs text-gray-400">Paying Merchant</p>
-            <h2 className="font-extrabold text-base text-neutral-800 dark:text-neutral-200">Eventify Platform</h2>
+            <h2 className="font-extrabold text-base text-neutral-800 dark:text-neutral-200">PartyStorm Platform</h2>
             <div className="mt-4 text-3xl font-black text-[#00c25a]">
               ₦{Number(amount).toLocaleString()}
             </div>

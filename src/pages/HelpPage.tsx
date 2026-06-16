@@ -19,7 +19,7 @@ const HelpPage = () => {
       id: 1,
       title: 'Getting Started',
       icon: Users,
-      description: 'Learn the basics of using Eventify',
+      description: 'Learn the basics of using PartyStorm',
       articles: [
         'How to create an account',
         'Navigating the dashboard',
@@ -256,7 +256,7 @@ const HelpPage = () => {
     {
       id: 1,
       title: 'How to create an account',
-      description: 'A step-by-step guide to setting up your Eventify account',
+      description: 'A step-by-step guide to setting up your PartyStorm account',
       category: 'Getting Started',
       helpful: 245
     },
@@ -301,7 +301,7 @@ const HelpPage = () => {
     {
       id: 1,
       title: 'Creating your first event',
-      description: 'A step-by-step guide to setting up your first event on Eventify',
+      description: 'A step-by-step guide to setting up your first event on PartyStorm',
       category: 'Getting Started',
       helpful: 245
     },
@@ -421,8 +421,8 @@ const HelpPage = () => {
       answer: 'To create an event, click the "Create Event" button in your dashboard, fill in the event details, set up ticket types, and publish when ready.'
     },
     {
-      question: 'What fees does Eventify charge?',
-      answer: 'Eventify charges a small percentage fee on each ticket sold. The exact fee depends on your plan and can be found on our pricing page.'
+      question: 'What fees does PartyStorm charge?',
+      answer: 'PartyStorm charges a small percentage fee on each ticket sold. The exact fee depends on your plan and can be found on our pricing page.'
     },
     {
       question: 'How do I manage vendor applications?',
@@ -438,7 +438,7 @@ const HelpPage = () => {
     },
     {
       question: 'How do I check in attendees?',
-      answer: 'Use the Eventify mobile app to scan QR codes at the event entrance. The app will verify ticket validity and mark attendees as present.'
+      answer: 'Use the PartyStorm mobile app to scan QR codes at the event entrance. The app will verify ticket validity and mark attendees as present.'
     }
   ];
 
@@ -531,7 +531,7 @@ const HelpPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Eventify Help Center</h1>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">PartyStorm Help Center</h1>
             </div>
             <div className="hidden md:block">
               <div className="ml-4 flex items-center md:ml-6">
@@ -762,7 +762,7 @@ const HelpPage = () => {
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">How to Transfer Your Ticket</h3>
                   <ol className="list-decimal list-inside space-y-2 text-gray-600 dark:text-gray-300">
-                    <li>Open your Eventify app</li>
+                    <li>Open your PartyStorm app</li>
                     <li>Navigate to "My Tickets"</li>
                     <li>Select the ticket you want to transfer</li>
                     <li>Tap "Transfer Ticket"</li>
@@ -896,7 +896,7 @@ const HelpPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="md:flex md:items-center md:justify-between">
             <div className="flex justify-center md:justify-start">
-              <span className="text-lg font-bold text-gray-900 dark:text-white">Eventify Help Center</span>
+              <span className="text-lg font-bold text-gray-900 dark:text-white">PartyStorm Help Center</span>
             </div>
             <div className="mt-8 md:mt-0 flex justify-center space-x-6 md:order-2">
               <a href="#" className="text-gray-400 hover:text-gray-500">
@@ -912,7 +912,7 @@ const HelpPage = () => {
           </div>
           <div className="mt-8 text-center md:mt-4">
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              &copy; 2025 Eventify. All rights reserved.
+              &copy; 2025 PartyStorm. All rights reserved.
             </p>
           </div>
         </div>

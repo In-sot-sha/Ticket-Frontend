@@ -17,11 +17,23 @@ interface User {
   isOrganizer?: boolean; // Whether user can act as organizer
   isVendor?: boolean;    // Whether user can act as vendor
   
-  // Organizer-specific fields
-  isOrganizerVerified?: boolean;
-  organizerBusinessName?: string;
-  organizerDescription?: string;
-  organizerContactInfo?: string;
+  // Organization data
+  ownedOrganizations?: Array<{
+    id: number;
+    name: string;
+    description?: string;
+    isVerified: boolean;
+    logo?: string;
+    website?: string;
+    socials?: string;
+    payoutBankName?: string;
+    payoutAccountNumber?: string;
+    payoutAccountName?: string;
+    payoutSchedule?: string;
+    taxId?: string;
+    vatNumber?: string;
+    businessAddress?: string;
+  }>;
 }
 
 interface AuthContextType {

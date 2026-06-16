@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { api } from '../../services/api';
 import { Button } from '../ui/Button';
 import { ModeToggle } from './ModeToggle';
 import { useAuth } from '../../context/AuthContext';
@@ -49,8 +50,16 @@ const Header = () => {
       setCurrentRole('USER');
       navigate('/');
     } else {
-      setCurrentRole('ORGANIZER');
-      navigate('/organizer');
+      if (user?.role === 'ORGANIZER') {
+        if (user.ownedOrganizations?.some(org => org.isVerified)) {
+          setCurrentRole('ORGANIZER');
+          navigate('/organizer');
+        } else {
+          navigate('/become-organizer');
+        }
+      } else {
+        navigate('/become-organizer');
+      }
     }
   };
 
@@ -78,7 +87,7 @@ const Header = () => {
           <Link to="/" className="flex items-center gap-1.5 group">
             <Ticket className="h-8 w-8 text-rose-500 transform transition-transform group-hover:rotate-12 duration-200" />
             <span className="text-rose-500 font-extrabold text-xl tracking-tight hidden sm:block">
-              eventify
+              partystorm
             </span>
           </Link>
         </div>
@@ -245,7 +254,7 @@ const Header = () => {
                     
                     <div className="py-1">
                       <Link 
-                        to="/organizers" 
+                        to="/become-organizer" 
                         className="w-full text-left px-4 py-3 text-xs font-medium text-neutral-600 dark:text-neutral-300 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                         onClick={() => setIsUserMenuOpen(false)}
                       >

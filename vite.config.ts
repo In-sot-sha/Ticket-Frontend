@@ -14,8 +14,8 @@ export default defineConfig({
       includeAssets: ['icons/icon.svg'],
 
       manifest: {
-        name:             'Eventify',
-        short_name:       'Eventify',
+        name:             'PartyStorm',
+        short_name:       'PartyStorm',
         description:      'Discover and book tickets for events near you',
         start_url:        '/',
         scope:            '/',

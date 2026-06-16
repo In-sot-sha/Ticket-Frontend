@@ -731,7 +731,7 @@ const EventDetailPage = () => {
               <div className="flex items-start gap-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 rounded-2xl p-3 text-xs text-blue-700 dark:text-blue-400">
                 <Shield className="h-4 w-4 shrink-0 mt-0.5" />
                 <p className="leading-relaxed">
-                  This organizer's identity and events have been reviewed by the Eventify team. Always pay through the platform for buyer protection.
+                  This organizer's identity and events have been reviewed by the PartyStorm team. Always pay through the platform for buyer protection.
                 </p>
               </div>
             </div>

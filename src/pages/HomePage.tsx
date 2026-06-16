@@ -326,7 +326,7 @@ const HomePage = () => {
       {/* ─── Sticky Category Bar ─── */}
       <div className="sticky top-20 z-30 bg-white/95 dark:bg-gray-950/95 backdrop-blur border-b border-gray-150 dark:border-gray-900 shadow-sm flex items-center justify-between px-6 py-2 gap-4">
         {/* Categories carousel */}
-        <div className="flex items-center gap-8 overflow-x-auto no-scrollbar scroll-smooth flex-grow py-1">
+        <div className="flex items-center justify-center gap-8 overflow-x-auto no-scrollbar scroll-smooth flex-grow py-1">
           {categories.map((cat) => {
             const isSelected = selectedCategory === cat.name;
             const Icon = cat.icon;
@@ -348,10 +348,10 @@ const HomePage = () => {
         </div>
 
         {/* Desktop filters icon */}
-        <button className="hidden md:flex items-center gap-2 border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-3 text-xs font-bold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors shadow-sm">
+        {/* <button className="hidden md:flex items-center gap-2 border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-3 text-xs font-bold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors shadow-sm">
           <SlidersHorizontal className="h-3.5 w-3.5" />
           Filters
-        </button>
+        </button> */}
       </div>
 
       {/* ─── Main Content: Events Grid ─── */}

@@ -284,6 +284,10 @@ const BookingPage = () => {
   };
 
   const executePayment = async () => {
+    if (totalAmount === 0) {
+      await handlePaymentSuccess();
+      return;
+    }
     if (paymentMethod === 'paystack') {
       handlePaystackPayment();
     } else if (paymentMethod === 'opay') {
@@ -538,7 +542,7 @@ const BookingPage = () => {
                       }}
                       className="flex-1 flex items-center justify-center gap-2 h-12 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-xs font-extrabold px-6 shadow-md hover:shadow-lg transition-transform active:scale-98"
                     >
-                      Continue to Payment
+                      Continue
                       <ArrowRight className="h-4 w-4" />
                     </button>
                   </div>
@@ -558,49 +562,58 @@ const BookingPage = () => {
                   <p className="text-xs text-neutral-500 mb-6">Choose how you'd like to pay securely</p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    
-                    {/* Paystack gate selection */}
-                    <div 
-                      onClick={() => setPaymentMethod('paystack')}
-                      className={`cursor-pointer rounded-2xl border-2 p-5 flex flex-col justify-between h-36 transition-all ${
-                        paymentMethod === 'paystack'
-                          ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/10'
-                          : 'border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-sm text-neutral-800 dark:text-neutral-100">Paystack</span>
-                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${paymentMethod === 'paystack' ? 'border-rose-500 bg-rose-500 text-white' : 'border-neutral-300'}`}>
-                          {paymentMethod === 'paystack' && <div className="w-2 h-2 rounded-full bg-white" />}
+                    {totalAmount === 0 ? (
+                      <div className="col-span-1 sm:col-span-2 p-6 rounded-2xl border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 flex items-center justify-center">
+                        <div className="text-center">
+                          <p className="text-sm font-extrabold text-emerald-700 dark:text-emerald-400">Free Registration</p>
+                          <p className="text-[11px] text-emerald-600 dark:text-emerald-500 mt-1">No payment is required for these tickets.</p>
                         </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Card, Bank Transfer, USSD</p>
-                        <p className="text-[10px] text-neutral-400 mt-1">Instant ticket confirmation</p>
-                      </div>
-                    </div>
-
-                    {/* OPay gate selection */}
-                    <div 
-                      onClick={() => setPaymentMethod('opay')}
-                      className={`cursor-pointer rounded-2xl border-2 p-5 flex flex-col justify-between h-36 transition-all ${
-                        paymentMethod === 'opay'
-                          ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/10'
-                          : 'border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-sm text-neutral-800 dark:text-neutral-100">OPay Checkout</span>
-                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${paymentMethod === 'opay' ? 'border-rose-500 bg-rose-500 text-white' : 'border-neutral-300'}`}>
-                          {paymentMethod === 'opay' && <div className="w-2 h-2 rounded-full bg-white" />}
+                    ) : (
+                      <>
+                        {/* Paystack gate selection */}
+                        <div 
+                          onClick={() => setPaymentMethod('paystack')}
+                          className={`cursor-pointer rounded-2xl border-2 p-5 flex flex-col justify-between h-36 transition-all ${
+                            paymentMethod === 'paystack'
+                              ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/10'
+                              : 'border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-sm text-neutral-800 dark:text-neutral-100">Paystack</span>
+                            <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${paymentMethod === 'paystack' ? 'border-rose-500 bg-rose-500 text-white' : 'border-neutral-300'}`}>
+                              {paymentMethod === 'paystack' && <div className="w-2 h-2 rounded-full bg-white" />}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Card, Bank Transfer, USSD</p>
+                            <p className="text-[10px] text-neutral-400 mt-1">Instant ticket confirmation</p>
+                          </div>
                         </div>
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-teal-600 dark:text-teal-400">OPay Wallet, Card, Bank</p>
-                        <p className="text-[10px] text-neutral-400 mt-1">Real-time payment clearance</p>
-                      </div>
-                    </div>
 
+                        {/* OPay gate selection */}
+                        <div 
+                          onClick={() => setPaymentMethod('opay')}
+                          className={`cursor-pointer rounded-2xl border-2 p-5 flex flex-col justify-between h-36 transition-all ${
+                            paymentMethod === 'opay'
+                              ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/10'
+                              : 'border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-sm text-neutral-800 dark:text-neutral-100">OPay Checkout</span>
+                            <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${paymentMethod === 'opay' ? 'border-rose-500 bg-rose-500 text-white' : 'border-neutral-300'}`}>
+                              {paymentMethod === 'opay' && <div className="w-2 h-2 rounded-full bg-white" />}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-teal-600 dark:text-teal-400">OPay Wallet, Card, Bank</p>
+                            <p className="text-[10px] text-neutral-400 mt-1">Real-time payment clearance</p>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Payment security indicator */}
@@ -629,6 +642,11 @@ const BookingPage = () => {
                         <>
                           <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                           Processing...
+                        </>
+                      ) : totalAmount === 0 ? (
+                        <>
+                          <Ticket className="h-4 w-4" />
+                          Get for Free
                         </>
                       ) : (
                         <>

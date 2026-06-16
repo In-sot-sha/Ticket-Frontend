@@ -12,7 +12,7 @@ const PrivacyPolicy = () => {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">1. Introduction</h2>
               <p className="mb-4">
-                Eventify ("we", "us", or "our") respects your privacy and is committed to protecting your personal data. 
+                PartyStorm ("we", "us", or "our") respects your privacy and is committed to protecting your personal data. 
                 This Privacy Policy explains how we collect, use, and share information about you when you use our website, 
                 mobile applications, and related services (collectively, the "Service").
               </p>
@@ -176,8 +176,8 @@ const PrivacyPolicy = () => {
                 If you have any questions about this Privacy Policy, please contact us at:
               </p>
               <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
-                <p className="font-medium">Eventify Privacy Team</p>
-                <p>Email: privacy@eventify.com</p>
+                <p className="font-medium">PartyStorm Privacy Team</p>
+                <p>Email: privacy@partystorm.com</p>
                 <p>Phone: +234 801 234 5678</p>
                 <p className="mt-2">Address: 123 Event Street, Lagos, Nigeria</p>
               </div>

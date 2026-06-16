@@ -1,7 +1,7 @@
 // src/services/api.ts
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 let localEndpoint = import.meta.env.VITE_API_URL || "http://localhost:33312/api";
-let productionEndpoint = "https://eventgo-backend.vercel.app/api";
+let productionEndpoint = "https://partystormapi.vercel.app/api";
 
 let currentEndpoint =
   import.meta.env.MODE === "development" ? localEndpoint : productionEndpoint;
@@ -129,6 +129,8 @@ export const api = {
       businessName: string;
       description: string;
       contactInfo: string;
+      logo?: string;
+      socials?: string;
     }) => apiRequest<any>('POST', '/user-roles/become-organizer', data),
     
     becomeVendor: () => apiRequest<any>('POST', '/user-roles/become-vendor'),
@@ -136,10 +138,20 @@ export const api = {
     getOrganizerProfile: () => apiRequest<any>('GET', '/user-roles/organizer-profile'),
     
     updateOrganizerProfile: (data: {
+      organizationId?: number;
       businessName: string;
       description: string;
       contactInfo: string;
       phone: string;
+      logo?: string;
+      socials?: string;
+      payoutBankName?: string;
+      payoutAccountNumber?: string;
+      payoutAccountName?: string;
+      payoutSchedule?: string;
+      taxId?: string;
+      vatNumber?: string;
+      businessAddress?: string;
     }) => apiRequest<any>('PUT', '/user-roles/organizer-profile', data),
     
     getVendorApplications: () => apiRequest<any[]>('GET', '/user-roles/vendor-applications'),

@@ -72,7 +72,7 @@ const Sidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = ({
               <Ticket className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">Eventify</p>
+              <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">PartyStorm</p>
               <p className="text-[11px] text-gray-500 dark:text-gray-400">Host dashboard</p>
             </div>
           </Link> */}
