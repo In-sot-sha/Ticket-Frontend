@@ -238,10 +238,45 @@ const EventDetailPage = () => {
 
       {/* ─── Loading State ─── */}
       {loading && (
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <Loader2 className="h-8 w-8 animate-spin text-rose-500 mx-auto mb-4" />
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">Loading event details...</p>
+        <div className="animate-pulse">
+          {/* Skeleton Gallery */}
+          <div className="max-w-7xl mx-auto px-0 md:px-6 lg:px-8 pt-0 md:pt-6">
+            <div className="w-full h-[300px] sm:h-[380px] md:h-[460px] bg-neutral-200 dark:bg-neutral-800 md:rounded-2xl"></div>
+          </div>
+
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="flex flex-col lg:flex-row gap-12">
+              {/* Skeleton Left: Details */}
+              <div className="lg:w-[60%] xl:w-[65%]">
+                <div className="h-8 w-3/4 bg-neutral-200 dark:bg-neutral-800 rounded-lg mb-4"></div>
+                <div className="h-4 w-1/2 bg-neutral-200 dark:bg-neutral-800 rounded-md mb-6"></div>
+                <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-14 h-14 rounded-full bg-neutral-200 dark:bg-neutral-800"></div>
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-1/3 bg-neutral-200 dark:bg-neutral-800 rounded-md"></div>
+                    <div className="h-3 w-1/4 bg-neutral-200 dark:bg-neutral-800 rounded-md"></div>
+                  </div>
+                </div>
+                <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-20 bg-neutral-200 dark:bg-neutral-800 rounded-2xl"></div>
+                  ))}
+                </div>
+                <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+                <div className="space-y-3 mb-8">
+                  <div className="h-4 w-full bg-neutral-200 dark:bg-neutral-800 rounded-md"></div>
+                  <div className="h-4 w-full bg-neutral-200 dark:bg-neutral-800 rounded-md"></div>
+                  <div className="h-4 w-3/4 bg-neutral-200 dark:bg-neutral-800 rounded-md"></div>
+                </div>
+              </div>
+
+              {/* Skeleton Right: Booking Card */}
+              <div className="hidden lg:block lg:w-[40%] xl:w-[35%]">
+                <div className="border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 h-48 bg-neutral-100 dark:bg-neutral-800/50"></div>
+              </div>
+            </div>
           </div>
         </div>
       )}

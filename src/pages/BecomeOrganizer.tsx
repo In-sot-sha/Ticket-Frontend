@@ -137,16 +137,24 @@ const BecomeOrganizer = () => {
           animate={{ opacity: 1, scale: 1 }}
           className="bg-white dark:bg-gray-900 rounded-3xl shadow-sm p-10 max-w-md w-full text-center border border-gray-200 dark:border-gray-800"
         >
-          <div className="mx-auto bg-amber-100 dark:bg-amber-900/30 text-amber-600 p-4 rounded-full w-16 h-16 flex items-center justify-center mb-6">
-            <Clock className="h-8 w-8" />
+          <div className="relative mx-auto w-24 h-24 mb-8">
+            {/* <div className="absolute inset-0 bg-amber-500/20 rounded-full animate-ping opacity-75" /> */}
+            <div className="relative bg-gradient-to-br from-amber-400 to-amber-600 text-white rounded-full w-full h-full flex items-center justify-center shadow-lg shadow-amber-500/30">
+              <Clock className="h-10 w-10" />
+            </div>
           </div>
-          <h2 className="text-3xl font-extrabold mb-4 text-neutral-900 dark:text-white tracking-tight">Application Pending</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-8 leading-relaxed">
-            We are currently reviewing your organizer application. You'll be notified as soon as you're approved.
+          
+          <h2 className="text-3xl font-extrabold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-neutral-900 to-neutral-600 dark:from-white dark:to-neutral-400 tracking-tight">
+            Application Pending
+          </h2>
+          
+          <p className="text-neutral-600 dark:text-neutral-400 mb-8 leading-relaxed font-medium">
+            We are carefully reviewing your organizer application. We'll send you an update as soon as you're approved to start hosting events!
           </p>
+          
           <button 
             onClick={() => navigate('/')}
-            className="w-full flex items-center justify-center h-12 border-2 border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 rounded-xl text-sm font-extrabold hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all active:scale-95"
+            className="w-full flex items-center justify-center h-14 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-extrabold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all active:scale-[0.98]"
           >
             Return to Home
           </button>

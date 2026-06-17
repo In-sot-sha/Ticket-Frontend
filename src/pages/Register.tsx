@@ -28,7 +28,10 @@ const Register = () => {
     setError('');
     setGoogleLoading(true);
     try {
-      await neonAuthClient.signIn.social({ provider: 'google' });
+      await neonAuthClient.signIn.social({ 
+        provider: 'google',
+        callbackURL: window.location.href 
+      });
       // Neon Auth redirects — execution stops here
     } catch (err: any) {
       console.error('Neon Auth Google error:', err);
@@ -41,17 +44,21 @@ const Register = () => {
   useEffect(() => {
     const client = neonAuthClient;
     if (!client) return;
+    
     const checkNeonSession = async () => {
       try {
         const result = await client.getSession();
+        
         if (result.data?.session && result.data?.user) {
-          const success = await loginWithGoogle(result.data.session.token);
+          const token = result.data.session.token;
+          const success = await loginWithGoogle(token);
+          
           if (success) {
             navigate('/');
           }
         }
-      } catch {
-        // No active Neon session
+      } catch (err) {
+        // Silent catch for when no session exists
       }
     };
     checkNeonSession();

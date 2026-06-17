@@ -12,28 +12,21 @@ import {
   ScanLine,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useRole } from '../../context/RoleContext';
 
 const MobileTabBar: React.FC = () => {
   const { isAuthenticated, user } = useAuth();
+  const { currentRole } = useRole();
   const location = useLocation();
 
   // Hide on auth pages and the scanner itself (scanner is full-screen)
-  const hiddenPaths = ['/login', '/register', ];
+  const hiddenPaths = ['/login', '/register','/become-organizer' ];
   if (hiddenPaths.some(p => location.pathname.startsWith(p))) return null;
 
-  // Determine which tab set to show.
-  // Stay on organizer tabs when:
-  //   • currently inside /organizer/*
-  //   • OR on /profile while the user has an organizer role
-  //     (they got there from the organizer dropdown, not from the user nav)
+  // Show organizer tabs when actively in organizer section OR role is set to ORGANIZER
   const isOrganizerSection = location.pathname.startsWith('/organizer');
-  const isProfileFromOrganizer =
-    location.pathname === '/profile' &&
-    (user?.role === 'ORGANIZER' || user?.isOrganizer === true);
+  const showOrganizerTabs = isOrganizerSection || currentRole === 'ORGANIZER';
 
-  const showOrganizerTabs =
-    (isOrganizerSection || isProfileFromOrganizer) ||
-    (user?.role === 'ORGANIZER' || user?.isOrganizer === true);
   const userTabs = [
     {
       label: 'Explore',

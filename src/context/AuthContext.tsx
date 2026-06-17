@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { neonAuthClient } from '../lib/neonAuth';
 
 interface User {
   id: number;
@@ -175,7 +176,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      if (neonAuthClient) {
+        await neonAuthClient.signOut();
+      }
+    } catch (e) {
+      console.error('Error signing out of Neon Auth:', e);
+    }
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');

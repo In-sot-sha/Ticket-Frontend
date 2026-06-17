@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CustomAlertDialog } from '../components/ui/CustomAlertDialog';
+
 
 // Mock event fallback matching EventDetailPage
 const mockEvent = {
@@ -58,6 +60,11 @@ const BookingPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'opay'>('paystack');
+  const [alertDialog, setAlertDialog] = useState<{isOpen: boolean, title?: string, message: string}>({isOpen: false, message: ''});
+
+  const showAlert = (message: string, title?: string) => {
+    setAlertDialog({ isOpen: true, message, title });
+  };
 
   // Fetch Event Info
   useEffect(() => {
@@ -100,8 +107,9 @@ const BookingPage = () => {
 
           if (preselectedExists) {
             setSelectedTickets({ [preselectedTypeId]: preselectedQty });
-          } else if (fetched.ticketTypes.length > 0) {
-            setSelectedTickets({ [fetched.ticketTypes[0].id]: 1 });
+          } else {
+            // Default to 0 for all tickets so the user has to manually choose
+            setSelectedTickets({});
           }
         }
       } catch (err) {
@@ -110,7 +118,7 @@ const BookingPage = () => {
           ...mockEvent,
           id: Number(eventId)
         });
-        setSelectedTickets({ [mockEvent.ticketTypes[0].id]: 1 });
+        setSelectedTickets({});
       }
     };
     fetchEvent();
@@ -196,7 +204,7 @@ const BookingPage = () => {
         navigate('/ticket-confirmation', { state: confirmedOrder });
       }
     } catch (err: any) {
-      alert('Reservation succeeded but ticket generation failed: ' + (err.response?.data?.message || err.message));
+      showAlert('Reservation succeeded but ticket generation failed: ' + (err.response?.data?.message || err.message), 'Ticket Error');
     } finally {
       setIsPaying(false);
     }
@@ -204,7 +212,7 @@ const BookingPage = () => {
 
   const handlePaystackPayment = () => {
     if (!(window as any).PaystackPop) {
-      alert('Paystack loading failed. Please refresh and try again.');
+      showAlert('Paystack loading failed. Please refresh and try again.', 'Payment Error');
       return;
     }
 
@@ -274,10 +282,10 @@ const BookingPage = () => {
       if (res.data && res.data.cashierUrl) {
         window.location.href = res.data.cashierUrl;
       } else {
-        alert('Failed to retrieve OPay cashier checkout portal.');
+        showAlert('Failed to retrieve OPay cashier checkout portal.', 'Payment Error');
       }
     } catch (err: any) {
-      alert('OPay checkout setup failed: ' + (err.response?.data?.message || err.message));
+      showAlert('OPay checkout setup failed: ' + (err.response?.data?.message || err.message), 'Payment Error');
     } finally {
       setIsPaying(false);
     }
@@ -298,12 +306,12 @@ const BookingPage = () => {
   // Step validations
   const validateStep2 = () => {
     if (!guestFirstName.trim() || !guestLastName.trim() || !guestEmail.trim()) {
-      alert('First Name, Last Name, and Email are required.');
+      showAlert('First Name, Last Name, and Email are required.', 'Missing Information');
       return false;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(guestEmail)) {
-      alert('Please enter a valid email address.');
+      showAlert('Please enter a valid email address.', 'Invalid Email');
       return false;
     }
     return true;
@@ -317,7 +325,7 @@ const BookingPage = () => {
       // Enforce total transaction limit (max 10 tickets)
       const currentTotal = Object.entries(prev).reduce((acc, [k, v]) => acc + (Number(k) === id ? 0 : v), 0);
       if (currentTotal + newQty > 10) {
-        alert('You can select a maximum of 10 tickets per order.');
+        showAlert('You can select a maximum of 10 tickets per order.', 'Ticket Limit');
         return prev;
       }
 
@@ -438,7 +446,7 @@ const BookingPage = () => {
                   <button
                     onClick={() => {
                       if (totalTicketsCount <= 0) {
-                        alert('Please select at least one ticket.');
+                        showAlert('Please select at least one ticket.', 'No Tickets Selected');
                         return;
                       }
                       setStep(2);
@@ -744,9 +752,15 @@ const BookingPage = () => {
 
             </div>
           </div>
-
         </div>
       </div>
+
+      <CustomAlertDialog 
+        isOpen={alertDialog.isOpen}
+        title={alertDialog.title}
+        description={alertDialog.message}
+        onClose={() => setAlertDialog(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };
