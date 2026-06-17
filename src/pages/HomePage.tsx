@@ -324,28 +324,27 @@ const HomePage = () => {
       </section>
 
       {/* ─── Sticky Category Bar ─── */}
-      <div className="sticky top-20 z-30 bg-white/95 dark:bg-gray-950/95 backdrop-blur border-b border-gray-150 dark:border-gray-900 shadow-sm flex items-center justify-between px-6 py-2 gap-4">
+      <div className="sticky top-20 z-30 bg-white/95 dark:bg-gray-950/95 backdrop-blur border-b border-gray-150 dark:border-gray-900 shadow-sm flex items-center justify-center  sm:px-6 px-2 py-2 gap-4">
         {/* Categories carousel */}
-        <div className="flex items-center sm:justify-center gap-8 overflow-x-auto no-scrollbar scroll-smooth flex-grow py-1">
+        <div className="flex items-center sm:justify-center gap-3 sm:mt-4 mt-1 overflow-x-auto no-scrollbar pb-1">
           {categories.map((cat) => {
-            const isSelected = selectedCategory === cat.name;
-            const Icon = cat.icon;
+            const isActive = selectedCategory === cat.name;
             return (
               <button
                 key={cat.name}
-                onClick={() => setSelectedCategory(cat.name)}
-                className={`flex flex-col items-center gap-1.5 pb-2 transition-all border-b-2 hover:text-black dark:hover:text-white group shrink-0 ${
-                  isSelected
-                    ? 'border-neutral-900 text-neutral-900 dark:border-white dark:text-white font-semibold'
-                    : 'border-transparent text-neutral-450 dark:text-neutral-500 font-medium'
-                }`}
+                onClick={() => setSelectedCategory(isActive ? 'All' : cat.name)}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all shrink-0 border ${isActive
+                    ? 'bg-neutral-900 text-white border-neutral-900 dark:bg-white dark:text-neutral-900 dark:border-white shadow-md'
+                    : 'bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600'
+                  }`}
               >
-                <Icon className="h-5 w-5 transition-transform group-hover:scale-110" strokeWidth={1.75} />
-                <span className="text-[11px] tracking-wide leading-none">{cat.name}</span>
+                <cat.icon className={`h-3.5 w-3.5 ${isActive ? 'text-white dark:text-neutral-900' : 'text-neutral-500 dark:text-neutral-400'}`} />
+                <span>{cat.name}</span>
               </button>
             );
           })}
         </div>
+
 
         {/* Desktop filters icon */}
         {/* <button className="hidden md:flex items-center gap-2 border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-3 text-xs font-bold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors shadow-sm">

@@ -342,7 +342,7 @@ const BookingPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 py-10">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 sm:py-10 py-3">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Navigation & Header */}

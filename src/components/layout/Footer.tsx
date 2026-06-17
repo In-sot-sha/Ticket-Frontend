@@ -23,7 +23,7 @@ const Footer = () => {
               <a href="#" className="text-muted-foreground hover:text-foreground">
                 <Twitter className="h-5 w-5" />
               </a>
-              <a href="#" className="text-muted-foreground hover:text-foreground">
+              <a href="https://www.instagram.com/partyst0rm/" className="text-muted-foreground hover:text-foreground">
                 <Instagram className="h-5 w-5" />
               </a>
             </div>
@@ -89,7 +89,7 @@ const Footer = () => {
             <ul className="space-y-3">
               <li className="flex items-start space-x-2">
                 <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <span className="text-muted-foreground">123 Event St, Lagos, Nigeria</span>
+                <span className="text-muted-foreground">Floor 1, 2G6V+C4F, Sani Abacha Way, Fagge, Kano 700211, Kano</span>
               </li>
               <li className="flex items-start space-x-2">
                 <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />

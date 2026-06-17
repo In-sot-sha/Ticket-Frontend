@@ -22,6 +22,17 @@ import TicketCard, {
   type TicketCardEventMeta,
 } from '../components/TicketCard';
 import { getDesignPreset } from '../data/ticketDesigns';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+
+
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+} from "@/components/ui/drawer"
 
 const GuestDashboard = () => {
   const { user } = useAuth();
@@ -99,30 +110,45 @@ const GuestDashboard = () => {
 
   // Build eventMeta from a ticket that has an embedded event object (from getAll)
   const buildEventMeta = (ticket: TicketCardTicket): TicketCardEventMeta => ({
-    eventId:       ticket.event?.id ?? ticket.eventId,
-    eventName:     ticket.event?.title,
-    eventDate:     ticket.event?.startDate,
-    eventLocation: ticket.event?.location,
-    eventImageUrl: ticket.event?.imageUrl,
-    ticketType:    ticket.ticketType?.name,
+    eventId: ticket?.event?.id ?? ticket.eventId,
+    eventName: ticket?.event?.title,
+    eventDate: ticket?.event?.startDate,
+    eventLocation: ticket?.event?.location,
+    eventImageUrl: ticket?.event?.imageUrl,
+    ticketType: ticket?.ticketType?.name,
   });
 
   const modalIndex = selectedTicket
     ? tickets.findIndex(t => t.id === selectedTicket.id)
-    : 0;
+    : -1;
+
+  // FIX: guard against selectedTicket being null before calling buildEventMeta
+  const meta = selectedTicket ? buildEventMeta(selectedTicket) : null;
+
+  const serial = selectedTicket && meta
+    ? getTicketSerial(selectedTicket, modalIndex, meta.eventId)
+    : '';
+
+  const style = selectedTicket
+    ? getTicketStyle(selectedTicket.ticketType?.name)
+    : undefined;
+
+  const colors = selectedTicket
+    ? getThemeColors(selectedTicket.ticketType)
+    : getThemeColors(undefined);
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-neutral-900 dark:text-neutral-100 pb-16">
 
       {/* Sub-header */}
-      <div className="border-b border-neutral-150 dark:border-neutral-900 bg-neutral-50/50 dark:bg-gray-900/50">
+      <div className="border-none sm:border-b border-neutral-150 dark:border-neutral-900 bg-neutral-50/50 dark:bg-gray-900/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center py-4 gap-4">
-            <div className="flex items-center">
+          <div className="flex flex-col sm:flex-row justify-end sm:justify-between sm:items-center py-4 gap-4">
+            <div className="sm:flex hidden items-center">
               <Ticket className="h-6 w-6 text-rose-500 mr-2" />
               <h1 className="text-xl font-extrabold tracking-tight">My Tickets</h1>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-end sm:justify-between gap-3">
               <Link
                 to="/events"
                 className="text-xs font-bold px-4 py-2.5 rounded-full border border-neutral-250 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
@@ -144,7 +170,7 @@ const GuestDashboard = () => {
       </div>
 
       {/* Main */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 sm:py-8 py-3">
 
         {/* Gamification row — commented out until rewards backend is ready */}
         {/* 
@@ -185,7 +211,7 @@ const GuestDashboard = () => {
               {tickets.map(ticket => {
                 const colors = getThemeColors(ticket.ticketType);
                 const coverImage = ticket.event?.imageUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
-                
+
                 return (
                   <div
                     key={ticket.id}
@@ -254,82 +280,112 @@ const GuestDashboard = () => {
       </main>
 
       {/* ── Full Ticket Modal ─────────────────────────────────────────────────── */}
-      {selectedTicket && (() => {
-        const meta = buildEventMeta(selectedTicket);
-        const serial = getTicketSerial(selectedTicket, modalIndex, meta.eventId);
-        const style = getTicketStyle(selectedTicket.ticketType?.name);
-
-        const colors = getThemeColors(selectedTicket.ticketType);
-        return (
-          <div
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-neutral-900/70 dark:bg-neutral-950/85 backdrop-blur-sm p-0 sm:p-4"
-            onClick={e => { if (e.target === e.currentTarget) setSelectedTicket(null); }}
-          >
-            <div className="bg-neutral-50 dark:bg-neutral-950 w-full sm:max-w-4xl rounded-t-3xl sm:rounded-3xl overflow-y-auto max-h-[92dvh] sm:max-h-[90vh] shadow-2xl border border-neutral-200 dark:border-neutral-800 animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
-
-              {/* Modal header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-widest text-rose-500">Entry Pass</p>
-                  <p className="text-[11px] text-neutral-500 mt-0.5">Present at gate for scanning</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() =>
-                      downloadTicketCard(`ticket-card-${serial}`, `ticket-${serial}.png`).catch(() =>
-                        alert('Download failed.')
-                      )
-                    }
-                    className="flex items-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-rose-500 px-3 py-1.5 rounded-full border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Save PNG
-                  </button>
-                  <button
-                    onClick={() => setSelectedTicket(null)}
-                    className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* The full concert ticket — same component as TicketConfirmationPage */}
-              <div className="p-4 sm:p-6">
-                <TicketCard
-                  ticket={selectedTicket}
-                  index={modalIndex}
-                  eventMeta={meta}
-                  showDownload={false}
-                />
-              </div>
-
-              {/* Valid status bar */}
-              <div className="px-5 pb-5">
-                <div
-                  className={`flex items-center justify-center gap-2 text-xs font-bold py-2.5 rounded-xl border ${
-                    selectedTicket.status === 'VALID'
-                      ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30'
-                      : selectedTicket.status === 'USED'
-                      ? 'bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border-neutral-200 dark:border-neutral-800'
-                      : 'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900/30'
-                  }`}
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  {selectedTicket.status === 'VALID'
-                    ? 'Valid Entry Pass — Ready to Scan'
-                    : selectedTicket.status === 'USED'
-                    ? 'This pass has already been scanned'
-                    : 'This pass has been cancelled'}
-                </div>
-              </div>
-
-            </div>
+      <ResponsiveModal
+        open={!!selectedTicket}
+        onOpenChange={() => setSelectedTicket(null)}
+        title="Ticket Details"
+        description="View your ticket details"
+      >
+        {/* Modal header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-rose-500">Entry Pass</p>
+            <p className="text-[11px] text-neutral-500 mt-0.5">Present at gate for scanning</p>
           </div>
-        );
-      })()}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() =>
+                downloadTicketCard(`ticket-card-${serial}`, `ticket-${serial}.png`).catch(() =>
+                  alert('Download failed.')
+                )
+              }
+              className="flex items-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-rose-500 px-3 py-1.5 rounded-full border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Save PNG
+            </button>
+          </div>
+        </div>
+
+        {/* The full concert ticket — same component as TicketConfirmationPage */}
+        <div className="p-4 sm:p-6">
+          {selectedTicket && meta && (
+            <TicketCard
+              ticket={selectedTicket}
+              index={modalIndex}
+              eventMeta={meta}
+              showDownload={false}
+            />
+          )}
+        </div>
+
+        {/* Valid status bar */}
+        <div className="px-5 pb-5">
+          <div
+            className={`flex items-center justify-center gap-2 text-xs font-bold py-2.5 rounded-xl border ${selectedTicket?.status === 'VALID'
+                ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30'
+                : selectedTicket?.status === 'USED'
+                  ? 'bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border-neutral-200 dark:border-neutral-800'
+                  : 'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900/30'
+              }`}
+          >
+            <CheckCircle className="h-4 w-4" />
+            {selectedTicket?.status === 'VALID'
+              ? 'Valid Entry Pass — Ready to Scan'
+              : selectedTicket?.status === 'USED'
+                ? 'This pass has already been scanned'
+                : 'This pass has been cancelled'}
+          </div>
+        </div>
+      </ResponsiveModal>
+
     </div>
   );
 };
 
 export default GuestDashboard;
+
+
+// ── ResponsiveModal ────────────────────────────────────────────────────────────
+
+type Props = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  children: React.ReactNode
+  title?: string
+  description?: string
+}
+
+export function ResponsiveModal({
+  open,
+  onOpenChange,
+  children,
+  title,
+  description,
+}: Props) {
+  const isMobile = useIsMobile()
+
+  if (isMobile) {
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent className="p-0">
+          {/* <DrawerHeader className="text-left">
+            {title && <DrawerTitle>{title}</DrawerTitle>}
+            {description && (
+              <DrawerDescription>{description}</DrawerDescription>
+            )}
+          </DrawerHeader> */}
+          {children}
+        </DrawerContent>
+      </Drawer>
+    )
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-5xl p-1">
+        {children}
+      </DialogContent>
+    </Dialog>
+  )
+}

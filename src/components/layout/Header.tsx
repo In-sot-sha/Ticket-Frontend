@@ -94,10 +94,10 @@ const Header = () => {
 
         {/* Center Search Pill (Desktop/Tablet) */}
         {shouldShowSearch() && (
-          <div className="hidden md:block animate-in fade-in zoom-in-95 duration-200">
+          <div className="hidden md:block animate-in fade-in zoom-in-95 duration-200 ">
             <div 
               onClick={() => navigate('/events')}
-              className="flex justify-between items-center border border-gray-200 dark:border-gray-800 rounded-full py-2 pl-36 pr-2 shadow-sm hover:shadow-md transition-all cursor-pointer bg-white dark:bg-gray-900 duration-200"
+              className="flex w-[350px] justify-between items-center border border-gray-200 dark:border-gray-800 rounded-full py-2 pr-2 shadow-sm hover:shadow-md transition-all cursor-pointer bg-white dark:bg-gray-900 duration-200"
             >
               {/* <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 border-r border-gray-200 dark:border-gray-800 pr-4">
                 Anywhere
@@ -105,12 +105,12 @@ const Header = () => {
               <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 border-r border-gray-200 dark:border-gray-800 px-4">
                 Any Date
               </span> */}
-              <span className="text-xs text-neutral-500 dark:text-neutral-400 pl-4 pr-3 flex items-center gap-3">
-                Search events
-                <span className="bg-rose-500 p-2 rounded-full text-white hover:bg-rose-600 transition-colors">
+              <div className="text-xs text-neutral-500 dark:text-neutral-400 pl-4 pr-2 flex w-full items-center justify-between gap-3">
+               Browse events
+                <div className="bg-rose-500 p-2  rounded-full text-white hover:bg-rose-600 transition-colors">
                   <Search className="h-3 w-3 stroke-[3]" />
-                </span>
-              </span>
+                </div>
+              </div>
             </div>
           </div>
         )}

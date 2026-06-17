@@ -164,7 +164,7 @@ const TicketCard: React.FC<TicketCardProps> = ({
         className={`relative w-full flex flex-col md:flex-row bg-neutral-900 border ${style.borderColor} rounded-none sm:rounded-[32px] overflow-hidden shadow-lg group`}
       >
         {/* Left stub — event cover + text */}
-        <div className="relative flex-1 p-4 sm:p-8 flex flex-col justify-between overflow-hidden text-white min-h-[190px] sm:min-h-[250px] md:min-h-[270px]">
+        <div className="relative flex-1 p-4 sm:p-8 flex flex-col justify-between overflow-hidden text-white min-h-[210px] sm:min-h-[250px] md:min-h-[270px]">
           {/* Background image + gradient overlays */}
           <div className="absolute inset-0 z-0">
             <img
@@ -216,21 +216,21 @@ const TicketCard: React.FC<TicketCardProps> = ({
         </div>
 
         {/* Tear separator — vertical (md+) */}
-        <div className="hidden md:flex flex-col justify-between items-center py-4 relative bg-neutral-900 shrink-0">
+        <div className="hidden md:flex flex-col justify-between items-end py-4 relative bg-neutral-900 shrink-0">
           <div className="w-8 h-8 rounded-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 -mt-8 -mr-[16px] z-30" />
-          <div className="border-l-2 border-dashed border-neutral-700 h-full my-2 z-30" />
+          <div className="border-l-2 border-dashed border-neutral-200 h-full my-0.5 z-30" />
           <div className="w-8 h-8 rounded-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 -mb-8 -mr-[16px] z-30" />
         </div>
 
         {/* Tear separator — horizontal (mobile) */}
-        <div className="flex md:hidden items-center px-2 relative bg-neutral-900 shrink-0">
+        <div className="flex md:hidden items-end px-2 relative bg-neutral-900 shrink-0">
           <div className="w-8 h-8 rounded-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 -ml-8 -mb-[16px] z-30" />
-          <div className="border-t-2 border-dashed border-neutral-700 w-full mx-2 z-30" />
+          <div className="border-t-2 border-dashed border-neutral-200 w-full mx-0.5 z-30" />
           <div className="w-8 h-8 rounded-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 -mr-8 -mb-[16px] z-30" />
         </div>
 
         {/* Right scan stub */}
-        <div className={`w-full md:w-60 h-[210px] sm:h-full p-2 sm:p-6 flex flex-col md:flex-col justify-between items-center ${style.sideBg} relative shrink-0 text-black`}>
+        <div className={`w-full md:w-60 h-[250px] sm:h-full p-2 sm:p-6 flex flex-col md:flex-col justify-between items-center ${style.sideBg} relative shrink-0 text-black`}>
           <div className="absolute inset-0 bg-black/5 pointer-events-none" />
 
           {/* Ticket type badge */}
@@ -242,7 +242,7 @@ const TicketCard: React.FC<TicketCardProps> = ({
           <div className="bg-white p-2 rounded-xl shadow-md transition-transform group-hover:scale-[1.02] z-10">
             <QRCodeSVG
               value={qrValue}
-              size={isMobile ? 120 :150}
+              size={160}
               fgColor="#000000"
               bgColor="#ffffff"
             />

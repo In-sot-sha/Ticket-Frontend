@@ -127,7 +127,7 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-neutral-950 dark:text-neutral-100">
       
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 sm:py-12 py-5">
         
         {/* Breadcrumbs / Back */}
         {activePanel !== 'menu' && (
