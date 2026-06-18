@@ -15,7 +15,7 @@ interface CustomAlertDialogProps {
   onClose: () => void;
   title?: string;
   description: string;
-  onConfirm?: () => void;
+  onConfirm?: () => void | Promise<void>;
   confirmText?: string;
   cancelText?: string;
 }
@@ -45,10 +45,10 @@ export const CustomAlertDialog: React.FC<CustomAlertDialogProps> = ({
             </AlertDialogCancel>
           )}
           <AlertDialogAction 
-            // variant="default"
             className="bg-rose-500 hover:bg-rose-600 text-white"
-            onClick={() => {
-              if (onConfirm) onConfirm();
+            onClick={async (e) => {
+              e.preventDefault();
+              if (onConfirm) await onConfirm();
               onClose();
             }}
           >

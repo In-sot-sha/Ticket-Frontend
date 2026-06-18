@@ -1,13 +1,25 @@
 import React, { useState } from 'react';
 import { Search, MessageCircle, Users, Ticket, Store, Calendar, CreditCard, User, Menu, X, ChevronRight } from 'lucide-react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
+import { useAuth } from '../context/AuthContext';
 
 const HelpPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const activeTab = (searchParams.get('role') as 'user' | 'organizer' | 'vendor') || 'user';
+
+  const goToSupport = (newTicket = false) => {
+    const target = newTicket ? '/support?new=1' : '/support';
+    if (isAuthenticated) {
+      navigate(target);
+    } else {
+      navigate(`/login?redirect=${encodeURIComponent(target)}`);
+    }
+  };
 
   const setActiveTab = (tab: 'user' | 'organizer' | 'vendor') => {
     setSearchParams({ role: tab });
@@ -535,7 +547,7 @@ const HelpPage = () => {
             </div>
             <div className="hidden md:block">
               <div className="ml-4 flex items-center md:ml-6">
-                <Button variant="ghost" className="text-gray-700 dark:text-gray-300">
+                <Button variant="ghost" className="text-gray-700 dark:text-gray-300" onClick={() => goToSupport(true)}>
                   Contact Support
                 </Button>
               </div>
@@ -558,7 +570,7 @@ const HelpPage = () => {
       {isMenuOpen && (
         <div className="md:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            <Button variant="ghost" className="w-full text-left text-gray-700 dark:text-gray-300">
+            <Button variant="ghost" className="w-full text-left text-gray-700 dark:text-gray-300" onClick={() => goToSupport(true)}>
               Contact Support
             </Button>
           </div>
@@ -867,7 +879,7 @@ const HelpPage = () => {
               <MessageCircle className="h-8 w-8 text-primary mx-auto mb-2" />
               <h3 className="font-medium text-gray-900 dark:text-white mb-1">Live Chat</h3>
               <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">Chat with our support team instantly</p>
-              <Button variant="outline" size="sm" className="w-full">
+              <Button variant="outline" size="sm" className="w-full" onClick={() => goToSupport(true)}>
                 Start Chat
               </Button>
             </div>
@@ -875,7 +887,7 @@ const HelpPage = () => {
               <MessageCircle className="h-8 w-8 text-primary mx-auto mb-2" />
               <h3 className="font-medium text-gray-900 dark:text-white mb-1">Email Support</h3>
               <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">Send us a detailed message</p>
-              <Button variant="outline" size="sm" className="w-full">
+              <Button variant="outline" size="sm" className="w-full" onClick={() => goToSupport(true)}>
                 Email Us
               </Button>
             </div>
@@ -883,7 +895,7 @@ const HelpPage = () => {
               <MessageCircle className="h-8 w-8 text-primary mx-auto mb-2" />
               <h3 className="font-medium text-gray-900 dark:text-white mb-1">Request Callback</h3>
               <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">Get a call from our team</p>
-              <Button variant="outline" size="sm" className="w-full">
+              <Button variant="outline" size="sm" className="w-full" onClick={() => goToSupport(true)}>
                 Request Callback
               </Button>
             </div>

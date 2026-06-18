@@ -19,6 +19,7 @@ import TermsOfService from '../pages/TermsOfService';
 import PrivacyPolicy from '../pages/PrivacyPolicy';
 import OrganizerPage from '../pages/OrganizerPage';
 import HelpPage from '../pages/HelpPage';
+import ContactPage from '../pages/ContactPage';
 import RecoverTicketPage from '../pages/RecoverTicketPage';
 import BookingPage from '../pages/BookingPage';
 import BookingSuccessPage from '../pages/BookingSuccessPage';
@@ -44,6 +45,13 @@ import VendorApplications from '../pages/VendorApplications';
 import GuestDashboard from '../pages/GuestDashboard';
 import WishlistPage from '../pages/WishlistPage';
 import TicketScanner from '../pages/TicketScanner';
+import AdminLayout from '../components/layout/AdminLayout';
+import AdminDashboard from '../pages/admin/AdminDashboard';
+import HostApplicationsPage from '../pages/admin/HostApplicationsPage';
+import AdminUsersPage from '../pages/admin/AdminUsersPage';
+import AdminTransactionsPage from '../pages/admin/AdminTransactionsPage';
+import AdminSupportPage from '../pages/admin/AdminSupportPage';
+import SupportPage from '../pages/SupportPage';
 
 // Route guard component for protected routes
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -86,6 +94,29 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return <Navigate to="/" replace />;
   }
   
+  return <>{children}</>;
+};
+
+// Route guard for system admin only
+const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, loading, user } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.role !== 'ADMIN') {
+    return <Navigate to="/" replace />;
+  }
+
   return <>{children}</>;
 };
 
@@ -161,6 +192,10 @@ const AppRoutes: React.FC = () => {
         {
           path: "help",
           element: <HelpPage />,
+        },
+        {
+          path: "contact",
+          element: <ContactPage />,
         },
         {
           path: "wishlist",
@@ -261,6 +296,37 @@ const AppRoutes: React.FC = () => {
       ],
 
     },
+    // System admin routes
+    {
+      path: "/admin",
+      element: (
+        <AdminRoute>
+          <AdminLayout />
+        </AdminRoute>
+      ),
+      children: [
+        {
+          index: true,
+          element: <AdminDashboard />,
+        },
+        {
+          path: "host-applications",
+          element: <HostApplicationsPage />,
+        },
+        {
+          path: "users",
+          element: <AdminUsersPage />,
+        },
+        {
+          path: "transactions",
+          element: <AdminTransactionsPage />,
+        },
+        {
+          path: "support",
+          element: <AdminSupportPage />,
+        },
+      ],
+    },
     // Other protected routes with full layout
     {
       path: "/",
@@ -279,6 +345,14 @@ const AppRoutes: React.FC = () => {
           element: (
             <ProtectedRoute>
               <BecomeOrganizer />
+            </ProtectedRoute>
+          ),
+        },
+        {
+          path: "support",
+          element: (
+            <ProtectedRoute>
+              <SupportPage />
             </ProtectedRoute>
           ),
         },

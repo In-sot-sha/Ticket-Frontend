@@ -36,6 +36,8 @@ interface User {
     taxId?: string;
     vatNumber?: string;
     businessAddress?: string;
+    rejectionReason?: string;
+    rejectedAt?: string;
   }>;
 }
 
@@ -154,7 +156,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Prefetch profile data
         queryClient.setQueryData(queryKeys.auth.profile(), user);
         
-        navigate('/');
         return true;
       } else {
         console.error('Google login failed: No data in response');
@@ -164,7 +165,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Google login error:', error.response?.data?.message || error.message);
       return false;
     }
-  }, [navigate, queryClient]);
+  }, [queryClient]);
 
   const register = useCallback(async (
     email: string,

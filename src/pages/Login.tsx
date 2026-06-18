@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Eye, EyeOff, Ticket, Loader2, QrCode } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -13,7 +13,22 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const navigate = useNavigate();
-  const { login, loginWithGoogle } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { login, loginWithGoogle, user } = useAuth();
+
+  const redirectAfterAuth = (authUser?: { role?: string }) => {
+    const redirect = searchParams.get('redirect');
+    if (redirect) {
+      navigate(redirect);
+      return;
+    }
+    const role = authUser?.role ?? user?.role;
+    if (role === 'ADMIN') {
+      navigate('/admin');
+    } else {
+      navigate('/');
+    }
+  };
 
   // ---------- Google via Neon Auth ----------
   const handleGoogleSignIn = async () => {
@@ -57,7 +72,8 @@ const Login = () => {
           const success = await loginWithGoogle(token);
           
           if (success) {
-            navigate('/');
+            const stored = localStorage.getItem('user');
+            redirectAfterAuth(stored ? JSON.parse(stored) : undefined);
           }
         }
       } catch (err) {
@@ -76,7 +92,8 @@ const Login = () => {
     try {
       const success = await login(email, password);
       if (success) {
-        navigate('/');
+        const stored = localStorage.getItem('user');
+        redirectAfterAuth(stored ? JSON.parse(stored) : undefined);
       } else {
         setError('Invalid email or password. Please try again.');
       }

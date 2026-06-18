@@ -20,6 +20,7 @@ import {
   LayoutDashboard,
   Calendar,
   BarChart3,
+  Shield,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -44,23 +45,35 @@ const Header = () => {
   }, [isUserMenuOpen]);
 
   const isOrganizerContext = location.pathname.startsWith('/organizer');
+  const isAdminContext = location.pathname.startsWith('/admin');
+  const isAdmin = user?.role === 'ADMIN';
 
   const handleSwitchRole = () => {
+    if (isAdminContext) {
+      setCurrentRole('USER');
+      navigate('/');
+      return;
+    }
     if (isOrganizerContext) {
       setCurrentRole('USER');
       navigate('/');
-    } else {
-      if (user?.role === 'ORGANIZER') {
-        if (user.ownedOrganizations?.some(org => org.isVerified)) {
-          setCurrentRole('ORGANIZER');
-          navigate('/organizer');
-        } else {
-          navigate('/become-organizer');
-        }
+      return;
+    }
+    if (user?.role === 'ORGANIZER') {
+      if (user.ownedOrganizations?.some(org => org.isVerified)) {
+        setCurrentRole('ORGANIZER');
+        navigate('/organizer');
       } else {
         navigate('/become-organizer');
       }
+    } else {
+      navigate('/become-organizer');
     }
+  };
+
+  const handleSwitchToAdmin = () => {
+    setCurrentRole('ADMIN');
+    navigate('/admin');
   };
 
   const shouldShowSearch = () => {
@@ -120,13 +133,25 @@ const Header = () => {
         {/* Right side controls */}
         <div className="flex items-center gap-3">
           
-          {/* Switch view/hosting link */}
+          {/* Role switch — one button, same style throughout */}
           {isAuthenticated && (
-            <button 
-              onClick={handleSwitchRole}
+            <button
+              onClick={
+                isAdminContext
+                  ? handleSwitchRole
+                  : isOrganizerContext
+                    ? handleSwitchRole
+                    : isAdmin
+                      ? handleSwitchToAdmin
+                      : handleSwitchRole
+              }
               className="hidden lg:block text-xs font-semibold px-4 py-2.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 transition-colors"
             >
-              {location.pathname.startsWith('/organizer') ? 'Switch to Guest' : 'Switch to Hosting'}
+              {isAdminContext || isOrganizerContext
+                ? 'Switch to Guest'
+                : isAdmin
+                  ? 'Switch to Admin Dashboard'
+                  : 'Switch to Hosting'}
             </button>
           )}
 
@@ -167,7 +192,7 @@ const Header = () => {
                   <>
                     <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-850">
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                        {isOrganizerContext ? 'Host Dashboard' : 'Welcome back'}
+                        {isAdminContext ? 'System Admin' : isOrganizerContext ? 'Host Dashboard' : 'Welcome back'}
                       </p>
                       <p className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100 mt-1">
                         {user?.firstName} {user?.lastName}
@@ -175,7 +200,25 @@ const Header = () => {
                     </div>
                     
                     <div className="py-1">
-                      {isOrganizerContext ? (
+                      {isAdminContext ? (
+                        <>
+                          <Link to="/admin" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <LayoutDashboard className="h-4 w-4 mr-3 text-gray-400" />Overview
+                          </Link>
+                          <Link to="/admin/host-applications" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Building className="h-4 w-4 mr-3 text-gray-400" />Host Applications
+                          </Link>
+                          <Link to="/admin/users" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <User className="h-4 w-4 mr-3 text-gray-400" />Users
+                          </Link>
+                          <Link to="/admin/transactions" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <BarChart3 className="h-4 w-4 mr-3 text-gray-400" />Transactions
+                          </Link>
+                          <Link to="/admin/support" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <HelpCircle className="h-4 w-4 mr-3 text-gray-400" />Support
+                          </Link>
+                        </>
+                      ) : isOrganizerContext ? (
                         <>
                           <Link to="/organizer" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
                             <LayoutDashboard className="h-4 w-4 mr-3 text-gray-400" />Dashboard
@@ -204,19 +247,43 @@ const Header = () => {
                           <Link to="/wishlist" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
                             <Heart className="h-4 w-4 mr-3 text-gray-400" />Wishlist
                           </Link>
+                          <Link to="/help" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <HelpCircle className="h-4 w-4 mr-3 text-gray-400" />Help Center
+                          </Link>
+                          <Link to="/support" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <HelpCircle className="h-4 w-4 mr-3 text-rose-500" />Help & Support
+                          </Link>
                         </>
                       )}
 
-                      {/* Switch mode — always shown */}
-                      <button
-                        onClick={() => { handleSwitchRole(); setIsUserMenuOpen(false); }}
-                        className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
-                      >
-                        {isOrganizerContext
-                          ? <><User className="h-4 w-4 mr-3 text-rose-500" />Switch to Guest Mode</>
-                          : <><Building className="h-4 w-4 mr-3 text-rose-500" />Switch to Host Mode</>
-                        }
-                      </button>
+                      {/* Switch mode */}
+                      {isAdmin && !isAdminContext && (
+                        <button
+                          onClick={() => { handleSwitchToAdmin(); setIsUserMenuOpen(false); }}
+                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
+                        >
+                          <Shield className="h-4 w-4 mr-3 text-rose-500" />Switch to Admin Mode
+                        </button>
+                      )}
+                      {!isAdminContext && !isAdmin && (
+                        <button
+                          onClick={() => { handleSwitchRole(); setIsUserMenuOpen(false); }}
+                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
+                        >
+                          {isOrganizerContext
+                            ? <><User className="h-4 w-4 mr-3 text-rose-500" />Switch to Guest Mode</>
+                            : <><Building className="h-4 w-4 mr-3 text-rose-500" />Switch to Host Mode</>
+                          }
+                        </button>
+                      )}
+                      {(isAdminContext || isOrganizerContext) && (
+                        <button
+                          onClick={() => { handleSwitchRole(); setIsUserMenuOpen(false); }}
+                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
+                        >
+                          <User className="h-4 w-4 mr-3 text-rose-500" />Switch to Guest Mode
+                        </button>
+                      )}
                     </div>
 
                     <div className="border-t border-gray-100 dark:border-gray-850 my-1" />

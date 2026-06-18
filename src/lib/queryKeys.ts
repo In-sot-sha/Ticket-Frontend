@@ -66,4 +66,27 @@ export const queryKeys = {
     vendorApplications: () => [...queryKeys.userRoles.all, 'vendor-applications'] as const,
     myVendorApplications: () => [...queryKeys.userRoles.all, 'my-vendor-applications'] as const,
   },
+
+  // System admin
+  admin: {
+    all: ['admin'] as const,
+    stats: () => [...queryKeys.admin.all, 'stats'] as const,
+    hostApplications: (status?: string) =>
+      [...queryKeys.admin.all, 'host-applications', status ?? 'pending'] as const,
+    users: (filters?: { search?: string; role?: string }) =>
+      [...queryKeys.admin.all, 'users', filters] as const,
+    transactions: (filters?: { status?: string; page?: number }) =>
+      [...queryKeys.admin.all, 'transactions', filters] as const,
+    revenue: () => [...queryKeys.admin.all, 'revenue'] as const,
+    supportTickets: (status?: string) =>
+      [...queryKeys.admin.all, 'support-tickets', status ?? 'all'] as const,
+    supportTicket: (id: number) =>
+      [...queryKeys.admin.all, 'support-ticket', id] as const,
+  },
+
+  support: {
+    all: ['support'] as const,
+    myTickets: () => [...queryKeys.support.all, 'my-tickets'] as const,
+    ticket: (id: number) => [...queryKeys.support.all, 'ticket', id] as const,
+  },
 };

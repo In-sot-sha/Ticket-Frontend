@@ -1,6 +1,6 @@
 // src/services/api.ts
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-let localEndpoint = import.meta.env.VITE_API_URL || "http://localhost:33312/api";
+let localEndpoint = import.meta.env.VITE_API_URL || "http://localhost:33333/api";
 let productionEndpoint = "https://partystormapi.vercel.app/api";
 
 let currentEndpoint =
@@ -20,6 +20,14 @@ apiClient.interceptors.request.use(
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
+    const url = config.url ?? '';
+    // Cache-bust admin/support GETs (do not add Cache-Control header — triggers CORS preflight)
+    if (config.method?.toLowerCase() === 'get' && (url.includes('/admin/') || url.includes('/support/'))) {
+      config.params = { ...config.params, _t: Date.now() };
     }
     return config;
   },
@@ -121,6 +129,12 @@ export const api = {
       phone: string;
       avatar: string;
     }>) => apiRequest<any>('PUT', '/users/profile', userData),
+
+    uploadAvatar: (file: File) => {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      return apiRequest<{ url: string; user: any }>('POST', '/users/profile/avatar', formData);
+    },
   },
 
   // User role endpoints
@@ -132,6 +146,12 @@ export const api = {
       logo?: string;
       socials?: string;
     }) => apiRequest<any>('POST', '/user-roles/become-organizer', data),
+
+    uploadOrgLogo: (file: File) => {
+      const formData = new FormData();
+      formData.append('logo', file);
+      return apiRequest<{ url: string }>('POST', '/user-roles/upload-logo', formData);
+    },
     
     becomeVendor: () => apiRequest<any>('POST', '/user-roles/become-vendor'),
     
@@ -258,7 +278,8 @@ export const api = {
   },
 
   // Vendor type endpoints
-  vendorTypes: {    getAllForEvent: (eventId: number) => apiRequest<any[]>('GET', `/vendor-types/event/${eventId}`),
+  vendorTypes: {
+    getAllForEvent: (eventId: number) => apiRequest<any[]>('GET', `/vendor-types/event/${eventId}`),
     
     create: (eventId: number, vendorTypeData: {
       name: string;
@@ -273,6 +294,86 @@ export const api = {
     }) => apiRequest<any>('PUT', `/vendor-types/${id}`, vendorTypeData),
     
     delete: (id: number) => apiRequest<any>('DELETE', `/vendor-types/${id}`),
+  },
+
+  // System admin endpoints
+  admin: {
+    getStats: () => apiRequest<{
+      totalUsers: number;
+      pendingHosts: number;
+      verifiedHosts: number;
+      totalEvents: number;
+      totalTickets: number;
+      totalOrders?: number;
+      totalGmv?: number;
+      platformRevenue?: number;
+      processingFees?: number;
+      organizerPayouts?: number;
+      openSupportTickets?: number;
+      platformFeePercent?: number;
+    }>('GET', '/admin/stats'),
+
+    getTransactions: (params?: { status?: string; page?: number; limit?: number }) =>
+      apiRequest<any>('GET', '/admin/transactions', undefined, { params }),
+
+    getRevenue: () => apiRequest<any>('GET', '/admin/revenue'),
+
+    getSupportTickets: (status?: string) =>
+      apiRequest<any[]>('GET', '/admin/support/tickets', undefined, {
+        params: status ? { status } : undefined,
+      }),
+
+    getSupportTicket: (id: number) =>
+      apiRequest<any>('GET', `/admin/support/tickets/${id}`),
+
+    replyToSupportTicket: (id: number, data: { body: string; status?: string }) =>
+      apiRequest<any>('POST', `/admin/support/tickets/${id}/replies`, data),
+
+    updateSupportTicket: (id: number, data: { status?: string; priority?: string }) =>
+      apiRequest<any>('PUT', `/admin/support/tickets/${id}`, data),
+
+    getHostApplications: (status?: 'pending' | 'verified' | 'rejected' | 'all') =>
+      apiRequest<any[]>('GET', '/admin/host-applications', undefined, {
+        params: status ? { status } : undefined,
+      }),
+
+    verifyHost: (id: number) =>
+      apiRequest<any>('PUT', `/admin/host-applications/${id}/verify`),
+
+    rejectHost: (id: number, reason: string) =>
+      apiRequest<any>('PUT', `/admin/host-applications/${id}/reject`, { reason }),
+
+    getUsers: (params?: { search?: string; role?: string }) =>
+      apiRequest<any[]>('GET', '/admin/users', undefined, { params }),
+
+    updateUserRole: (id: number, role: string) =>
+      apiRequest<any>('PUT', `/admin/users/${id}/role`, { role }),
+  },
+
+  // User support endpoints
+  support: {
+    createTicket: (data: {
+      subject: string;
+      body: string;
+      category?: string;
+      contactEmail?: string;
+      contactName?: string;
+    }) => apiRequest<any>('POST', '/support/tickets', data),
+
+    createContact: (data: {
+      subject: string;
+      body: string;
+      category?: string;
+      contactEmail: string;
+      contactName: string;
+    }) => apiRequest<any>('POST', '/support/contact', data),
+
+    getMyTickets: () => apiRequest<any[]>('GET', '/support/tickets'),
+
+    getTicket: (id: number) => apiRequest<any>('GET', `/support/tickets/${id}`),
+
+    reply: (id: number, body: string) =>
+      apiRequest<any>('POST', `/support/tickets/${id}/replies`, { body }),
   },
 };
 
