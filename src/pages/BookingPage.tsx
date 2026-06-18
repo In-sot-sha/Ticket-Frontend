@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { 
@@ -7,17 +7,17 @@ import {
   MapPin, 
   Clock, 
   Ticket, 
-  User, 
-  Mail, 
-  Phone, 
   Minus, 
   Plus, 
   CreditCard,
   Shield,
   ArrowRight
 } from 'lucide-react';
-import api from '../services/api';
+import { api } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CustomAlertDialog } from '../components/ui/CustomAlertDialog';
+import { useEventById } from '../hooks/queries/useEvents';
+
 
 // Mock event fallback matching EventDetailPage
 const mockEvent = {
@@ -43,8 +43,13 @@ const BookingPage = () => {
   const preselectedData = location.state || {};
   const { user, isAuthenticated } = useAuth();
 
+  // React Query hook for fetching event data
+  const { data: eventData } = useEventById(
+    eventId ? Number(eventId) : 0,
+    !!eventId
+  );
+
   // Booking details state
-  const [eventData, setEventData] = useState<any>(mockEvent);
   const [selectedTickets, setSelectedTickets] = useState<Record<number, number>>({});
 
   // Guest details state
@@ -55,45 +60,43 @@ const BookingPage = () => {
 
   // Flow states
   const [step, setStep] = useState<number>(1);
-  const [isLoading, setIsLoading] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'opay'>('paystack');
+  const [alertDialog, setAlertDialog] = useState<{isOpen: boolean, title?: string, message: string}>({isOpen: false, message: ''});
 
-  // Fetch Event Info
+  // Normalize event data from API
+  const normalizedEventData = eventData ? {
+    ...eventData,
+    date: eventData.startDate || eventData.date,
+    startTime: eventData.startDate ? new Date(eventData.startDate).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }) : eventData.startTime || '09:00 AM',
+    endTime: eventData.endDate ? new Date(eventData.endDate).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }) : eventData.endTime || '06:00 PM',
+    ticketTypes: eventData.ticketTypes || mockEvent.ticketTypes,
+  } : mockEvent;
+
+  const showAlert = (message: string, title?: string) => {
+    setAlertDialog({ isOpen: true, message, title });
+  };
+
+  // Initialize selectedTickets when event loads
   useEffect(() => {
-    const fetchEvent = async () => {
-      if (!eventId) return;
-      try {
-        const response = await api.events.getById(Number(eventId));
-        if (response.data) {
-          const fetched = response.data;
-          if (!fetched.ticketTypes || fetched.ticketTypes.length === 0) {
-            fetched.ticketTypes = mockEvent.ticketTypes;
-          }
-          setEventData(fetched);
+    if (eventData?.ticketTypes) {
+      const preselectedTypeId = Number(preselectedData.ticketTypeId);
+      const preselectedQty = Number(preselectedData.quantity) || 1;
+      const preselectedExists = eventData.ticketTypes.some((t: any) => Number(t.id) === preselectedTypeId);
 
-          // Initialize selectedTickets with preselected type or first type
-          const preselectedTypeId = Number(preselectedData.ticketTypeId);
-          const preselectedQty = Number(preselectedData.quantity) || 1;
-          const preselectedExists = fetched.ticketTypes.some((t: any) => Number(t.id) === preselectedTypeId);
-
-          if (preselectedExists) {
-            setSelectedTickets({ [preselectedTypeId]: preselectedQty });
-          } else if (fetched.ticketTypes.length > 0) {
-            setSelectedTickets({ [fetched.ticketTypes[0].id]: 1 });
-          }
-        }
-      } catch (err) {
-        console.warn('Failed to load event from API, using fallback data:', err);
-        setEventData({
-          ...mockEvent,
-          id: Number(eventId)
-        });
-        setSelectedTickets({ [mockEvent.ticketTypes[0].id]: 1 });
+      if (preselectedExists) {
+        setSelectedTickets({ [preselectedTypeId]: preselectedQty });
       }
-    };
-    fetchEvent();
-  }, [eventId]);
+    }
+  }, [eventData?.ticketTypes, preselectedData.ticketTypeId, preselectedData.quantity]);
 
   // Pre-fill guest details from logged-in user
   useEffect(() => {
@@ -103,7 +106,7 @@ const BookingPage = () => {
       if (user.email && !guestEmail) setGuestEmail(user.email);
       if (user.phone && !guestPhone) setGuestPhone(user.phone);
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, guestFirstName, guestLastName, guestEmail, guestPhone]);
 
   // Dynamically load Paystack script for Step 3
   useEffect(() => {
@@ -121,7 +124,7 @@ const BookingPage = () => {
   // Derived state calculations
   const totalTicketsCount = Object.values(selectedTickets).reduce((acc, qty) => acc + qty, 0);
 
-  const subtotal = eventData.ticketTypes?.reduce((acc: number, t: any) => {
+  const subtotal = normalizedEventData.ticketTypes?.reduce((acc: number, t: any) => {
     const qty = selectedTickets[t.id] || 0;
     return acc + (t.price || 0) * qty;
   }, 0) || 0;
@@ -142,7 +145,6 @@ const BookingPage = () => {
     }
   };
 
-  // Payment executors
   const handlePaymentSuccess = async () => {
     setIsPaying(true);
     try {
@@ -155,18 +157,18 @@ const BookingPage = () => {
         lastName: guestLastName,
         email: guestEmail,
         phone: guestPhone,
-        eventId: Number(eventData.id),
+        eventId: Number(normalizedEventData.id),
         items
       });
 
       if (checkoutRes.status === 201) {
         const confirmedOrder = {
-          eventId: eventData.id,
-          eventName: eventData.title,
-          eventDate: eventData.date,
-          eventTime: `${eventData.startTime || '09:00 AM'} - ${eventData.endTime || '06:00 PM'}`,
-          eventLocation: eventData.location,
-          eventImageUrl: eventData.imageUrl,
+          eventId: normalizedEventData.id,
+          eventName: normalizedEventData.title,
+          eventDate: normalizedEventData.date,
+          eventTime: `${normalizedEventData.startTime || '09:00 AM'} - ${normalizedEventData.endTime || '06:00 PM'}`,
+          eventLocation: normalizedEventData.location,
+          eventImageUrl: normalizedEventData.imageUrl,
           quantity: totalTicketsCount,
           totalAmount: totalAmount,
           currency: 'NGN',
@@ -175,7 +177,7 @@ const BookingPage = () => {
         navigate('/ticket-confirmation', { state: confirmedOrder });
       }
     } catch (err: any) {
-      alert('Reservation succeeded but ticket generation failed: ' + (err.response?.data?.message || err.message));
+      showAlert('Reservation succeeded but ticket generation failed: ' + (err.response?.data?.message || err.message), 'Ticket Error');
     } finally {
       setIsPaying(false);
     }
@@ -183,41 +185,45 @@ const BookingPage = () => {
 
   const handlePaystackPayment = () => {
     if (!(window as any).PaystackPop) {
-      alert('Paystack loading failed. Please refresh and try again.');
+      showAlert('Paystack loading failed. Please refresh and try again.', 'Payment Error');
       return;
     }
-    
+
     const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_d3000676b7db0bc43f07a4a2fa44a8ad8d1b6ee8';
-    
+
     const handler = (window as any).PaystackPop.setup({
       key: publicKey,
       email: guestEmail,
-      amount: Math.round(totalAmount * 100), // in kobo
+      amount: Math.round(totalAmount * 100), // Paystack expects amount in kobo
       currency: 'NGN',
+      ref: `EVT_${Date.now()}_${normalizedEventData.id}`,
       metadata: {
         custom_fields: [
           {
-            display_name: "Customer Name",
-            variable_name: "customer_name",
+            display_name: 'Customer Name',
+            variable_name: 'customer_name',
             value: `${guestFirstName} ${guestLastName}`
           }
         ]
       },
-      callback: async (response: any) => {
-        console.log('[Paystack] Success Reference:', response.reference);
-        await handlePaymentSuccess();
+      // callback MUST be a plain (non-async) function — Paystack validates the type
+      callback: function(response: any) {
+        console.log('[Paystack] Payment successful. Reference:', response.reference);
+        // Fire the async checkout without awaiting here
+        handlePaymentSuccess();
       },
-      onClose: () => {
-        alert('Transaction closed before completion.');
+      onClose: function() {
+        console.log('[Paystack] Checkout popup closed by user.');
       }
     });
+
     handler.openIframe();
   };
 
   const handleOpayPayment = async () => {
     setIsPaying(true);
     try {
-      const orderId = `OPAY_${Date.now()}_${eventData.id}`;
+      const orderId = `OPAY_${Date.now()}_${normalizedEventData.id}`;
       
       const items = Object.entries(selectedTickets)
         .filter(([_, qty]) => qty > 0)
@@ -229,10 +235,14 @@ const BookingPage = () => {
         lastName: guestLastName,
         email: guestEmail,
         phone: guestPhone,
-        eventId: Number(eventData.id),
+        eventId: Number(normalizedEventData.id),
+        eventName: normalizedEventData.title,
+        eventDate: normalizedEventData.date,
+        eventTime: `${normalizedEventData.startTime || '09:00 AM'} - ${normalizedEventData.endTime || '06:00 PM'}`,
+        eventLocation: normalizedEventData.location,
+        eventImageUrl: normalizedEventData.imageUrl,
         items,
-        totalAmount: totalAmount,
-        eventName: eventData.title
+        totalAmount: totalAmount
       }));
 
       const res = await api.post<any>('/payments/opay/create', {
@@ -245,29 +255,36 @@ const BookingPage = () => {
       if (res.data && res.data.cashierUrl) {
         window.location.href = res.data.cashierUrl;
       } else {
-        alert('Failed to retrieve OPay cashier checkout portal.');
+        showAlert('Failed to retrieve OPay cashier checkout portal.', 'Payment Error');
       }
     } catch (err: any) {
-      alert('OPay checkout setup failed: ' + (err.response?.data?.message || err.message));
+      showAlert('OPay checkout setup failed: ' + (err.response?.data?.message || err.message), 'Payment Error');
     } finally {
       setIsPaying(false);
     }
   };
 
   const executePayment = async () => {
-    // Use the real backend checkout instead of mock data
-    await handlePaymentSuccess();
+    if (totalAmount === 0) {
+      await handlePaymentSuccess();
+      return;
+    }
+    if (paymentMethod === 'paystack') {
+      handlePaystackPayment();
+    } else if (paymentMethod === 'opay') {
+      await handleOpayPayment();
+    }
   };
 
   // Step validations
   const validateStep2 = () => {
     if (!guestFirstName.trim() || !guestLastName.trim() || !guestEmail.trim()) {
-      alert('First Name, Last Name, and Email are required.');
+      showAlert('First Name, Last Name, and Email are required.', 'Missing Information');
       return false;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(guestEmail)) {
-      alert('Please enter a valid email address.');
+      showAlert('Please enter a valid email address.', 'Invalid Email');
       return false;
     }
     return true;
@@ -281,7 +298,7 @@ const BookingPage = () => {
       // Enforce total transaction limit (max 10 tickets)
       const currentTotal = Object.entries(prev).reduce((acc, [k, v]) => acc + (Number(k) === id ? 0 : v), 0);
       if (currentTotal + newQty > 10) {
-        alert('You can select a maximum of 10 tickets per order.');
+        showAlert('You can select a maximum of 10 tickets per order.', 'Ticket Limit');
         return prev;
       }
 
@@ -298,7 +315,7 @@ const BookingPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 py-10">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 sm:py-10 py-3">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Navigation & Header */}
@@ -322,7 +339,7 @@ const BookingPage = () => {
           {['Review Tickets', 'Guest Details', 'Payment'].map((s, idx) => {
             const stepNum = idx + 1;
             return (
-              <React.Fragment key={s}>
+              <Fragment key={s}>
                 <div className="flex items-center gap-2 shrink-0">
                   <div 
                     className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
@@ -342,7 +359,7 @@ const BookingPage = () => {
                 {idx < 2 && (
                   <div className={`w-8 h-0.5 ${step > stepNum ? 'bg-rose-300' : 'bg-neutral-200 dark:bg-neutral-800'}`} />
                 )}
-              </React.Fragment>
+              </Fragment>
             );
           })}
         </div>
@@ -367,7 +384,7 @@ const BookingPage = () => {
                   <p className="text-xs text-neutral-500 mb-6">Select the quantity for each ticket type you want to order.</p>
                   
                   <div className="space-y-4">
-                    {eventData.ticketTypes?.map((t: any) => {
+                    {normalizedEventData.ticketTypes?.map((t: any) => {
                       const qty = selectedTickets[t.id] || 0;
                       return (
                         <div key={t.id} className="p-4 flex items-center justify-between border border-neutral-200 dark:border-neutral-800 rounded-2xl hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors">
@@ -402,7 +419,7 @@ const BookingPage = () => {
                   <button
                     onClick={() => {
                       if (totalTicketsCount <= 0) {
-                        alert('Please select at least one ticket.');
+                        showAlert('Please select at least one ticket.', 'No Tickets Selected');
                         return;
                       }
                       setStep(2);
@@ -506,7 +523,7 @@ const BookingPage = () => {
                       }}
                       className="flex-1 flex items-center justify-center gap-2 h-12 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-xs font-extrabold px-6 shadow-md hover:shadow-lg transition-transform active:scale-98"
                     >
-                      Continue to Payment
+                      Continue
                       <ArrowRight className="h-4 w-4" />
                     </button>
                   </div>
@@ -526,49 +543,58 @@ const BookingPage = () => {
                   <p className="text-xs text-neutral-500 mb-6">Choose how you'd like to pay securely</p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    
-                    {/* Paystack gate selection */}
-                    <div 
-                      onClick={() => setPaymentMethod('paystack')}
-                      className={`cursor-pointer rounded-2xl border-2 p-5 flex flex-col justify-between h-36 transition-all ${
-                        paymentMethod === 'paystack'
-                          ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/10'
-                          : 'border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-sm text-neutral-800 dark:text-neutral-100">Paystack</span>
-                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${paymentMethod === 'paystack' ? 'border-rose-500 bg-rose-500 text-white' : 'border-neutral-300'}`}>
-                          {paymentMethod === 'paystack' && <div className="w-2 h-2 rounded-full bg-white" />}
+                    {totalAmount === 0 ? (
+                      <div className="col-span-1 sm:col-span-2 p-6 rounded-2xl border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 flex items-center justify-center">
+                        <div className="text-center">
+                          <p className="text-sm font-extrabold text-emerald-700 dark:text-emerald-400">Free Registration</p>
+                          <p className="text-[11px] text-emerald-600 dark:text-emerald-500 mt-1">No payment is required for these tickets.</p>
                         </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Card, Bank Transfer, USSD</p>
-                        <p className="text-[10px] text-neutral-400 mt-1">Instant ticket confirmation</p>
-                      </div>
-                    </div>
-
-                    {/* OPay gate selection */}
-                    <div 
-                      onClick={() => setPaymentMethod('opay')}
-                      className={`cursor-pointer rounded-2xl border-2 p-5 flex flex-col justify-between h-36 transition-all ${
-                        paymentMethod === 'opay'
-                          ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/10'
-                          : 'border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-sm text-neutral-800 dark:text-neutral-100">OPay Checkout</span>
-                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${paymentMethod === 'opay' ? 'border-rose-500 bg-rose-500 text-white' : 'border-neutral-300'}`}>
-                          {paymentMethod === 'opay' && <div className="w-2 h-2 rounded-full bg-white" />}
+                    ) : (
+                      <>
+                        {/* Paystack gate selection */}
+                        <div 
+                          onClick={() => setPaymentMethod('paystack')}
+                          className={`cursor-pointer rounded-2xl border-2 p-5 flex flex-col justify-between h-36 transition-all ${
+                            paymentMethod === 'paystack'
+                              ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/10'
+                              : 'border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-sm text-neutral-800 dark:text-neutral-100">Paystack</span>
+                            <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${paymentMethod === 'paystack' ? 'border-rose-500 bg-rose-500 text-white' : 'border-neutral-300'}`}>
+                              {paymentMethod === 'paystack' && <div className="w-2 h-2 rounded-full bg-white" />}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Card, Bank Transfer, USSD</p>
+                            <p className="text-[10px] text-neutral-400 mt-1">Instant ticket confirmation</p>
+                          </div>
                         </div>
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-teal-600 dark:text-teal-400">OPay Wallet, Card, Bank</p>
-                        <p className="text-[10px] text-neutral-400 mt-1">Real-time payment clearance</p>
-                      </div>
-                    </div>
 
+                        {/* OPay gate selection */}
+                        <div 
+                          onClick={() => setPaymentMethod('opay')}
+                          className={`cursor-pointer rounded-2xl border-2 p-5 flex flex-col justify-between h-36 transition-all ${
+                            paymentMethod === 'opay'
+                              ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/10'
+                              : 'border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-sm text-neutral-800 dark:text-neutral-100">OPay Checkout</span>
+                            <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${paymentMethod === 'opay' ? 'border-rose-500 bg-rose-500 text-white' : 'border-neutral-300'}`}>
+                              {paymentMethod === 'opay' && <div className="w-2 h-2 rounded-full bg-white" />}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-teal-600 dark:text-teal-400">OPay Wallet, Card, Bank</p>
+                            <p className="text-[10px] text-neutral-400 mt-1">Real-time payment clearance</p>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Payment security indicator */}
@@ -598,6 +624,11 @@ const BookingPage = () => {
                           <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                           Processing...
                         </>
+                      ) : totalAmount === 0 ? (
+                        <>
+                          <Ticket className="h-4 w-4" />
+                          Get for Free
+                        </>
                       ) : (
                         <>
                           <CreditCard className="h-4 w-4" />
@@ -619,13 +650,13 @@ const BookingPage = () => {
               {/* Event card header */}
               <div className="flex gap-4 mb-6 pb-6 border-b border-neutral-100 dark:border-neutral-850">
                 <img 
-                  src={eventData.imageUrl} 
-                  alt={eventData.title} 
+                  src={normalizedEventData.imageUrl} 
+                  alt={normalizedEventData.title} 
                   className="w-20 h-20 object-cover rounded-xl shrink-0" 
                 />
                 <div>
                   <h3 className="font-bold text-sm text-neutral-900 dark:text-white line-clamp-2">
-                    {eventData.title}
+                    {normalizedEventData.title}
                   </h3>
                   <p className="text-[10px] text-neutral-450 mt-1 uppercase tracking-wider">Event Details</p>
                 </div>
@@ -637,21 +668,21 @@ const BookingPage = () => {
                   <Calendar className="h-4 w-4 text-neutral-400 mt-0.5 shrink-0" />
                   <div>
                     <p className="font-bold text-neutral-900 dark:text-white">Date</p>
-                    <p>{formatDate(eventData.date)}</p>
+                    <p>{formatDate(normalizedEventData.date)}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <Clock className="h-4 w-4 text-neutral-400 mt-0.5 shrink-0" />
                   <div>
                     <p className="font-bold text-neutral-900 dark:text-white">Time</p>
-                    <p>{eventData.startTime} – {eventData.endTime}</p>
+                    <p>{normalizedEventData.startTime} – {normalizedEventData.endTime}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <MapPin className="h-4 w-4 text-neutral-400 mt-0.5 shrink-0" />
                   <div>
                     <p className="font-bold text-neutral-900 dark:text-white">Location</p>
-                    <p className="line-clamp-2">{eventData.location}</p>
+                    <p className="line-clamp-2">{normalizedEventData.location}</p>
                   </div>
                 </div>
               </div>
@@ -660,7 +691,7 @@ const BookingPage = () => {
               <div className="space-y-3 pt-2">
                 <h4 className="text-xs font-bold text-neutral-900 dark:text-white">Price Details</h4>
                 
-                {eventData.ticketTypes?.map((t: any) => {
+                {normalizedEventData.ticketTypes?.map((t: any) => {
                   const qty = selectedTickets[t.id] || 0;
                   if (qty <= 0) return null;
                   return (
@@ -694,9 +725,15 @@ const BookingPage = () => {
 
             </div>
           </div>
-
         </div>
       </div>
+
+      <CustomAlertDialog 
+        isOpen={alertDialog.isOpen}
+        title={alertDialog.title}
+        description={alertDialog.message}
+        onClose={() => setAlertDialog(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

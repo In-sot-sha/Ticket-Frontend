@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { Button } from '../components/ui/Button';
@@ -21,10 +22,22 @@ import {
 
 const Profile = () => {
   const { user, updateUser } = useAuth();
-  const [activePanel, setActivePanel] = useState<'menu' | 'personal' | 'security' | 'notifications' | 'billing'>('menu');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activePanel = searchParams.get('tab') || 'menu';
+
+  const setActivePanel = (tab: string) => {
+    if (tab === 'menu') {
+      setSearchParams({});
+    } else {
+      setSearchParams({ tab });
+    }
+  };
+
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const avatarInputRef = React.useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
     firstName: user?.firstName || '',
@@ -41,6 +54,39 @@ const Profile = () => {
     }));
   };
 
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setErrorMsg('Please select an image file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMsg('Image must be under 5MB.');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    try {
+      const response = await api.auth.uploadAvatar(file);
+      if (response.data?.user) {
+        updateUser(response.data.user);
+        setFormData(prev => ({ ...prev, avatar: response.data.user.avatar || '' }));
+        setSuccessMsg('Profile photo updated!');
+        setTimeout(() => setSuccessMsg(''), 3000);
+      }
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || 'Failed to upload photo.');
+    } finally {
+      setIsUploadingAvatar(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
+
   const handleSavePersonal = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
@@ -52,7 +98,6 @@ const Profile = () => {
         firstName: formData.firstName,
         lastName: formData.lastName,
         phone: formData.phone,
-        avatar: formData.avatar
       });
 
       if (response.data && response.data.user) {
@@ -66,6 +111,9 @@ const Profile = () => {
       setIsSaving(false);
     }
   };
+  useLayoutEffect(() => {
+      window.scrollTo(0, 0);
+  }, [searchParams]);
 
   if (!user) {
     return (
@@ -113,7 +161,7 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-neutral-950 dark:text-neutral-100">
       
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 sm:py-12 py-5">
         
         {/* Breadcrumbs / Back */}
         {activePanel !== 'menu' && (
@@ -176,30 +224,50 @@ const Profile = () => {
             </div>
 
             <form onSubmit={handleSavePersonal} className="space-y-6">
-              {/* Photo Upload Simulation */}
-              <div className="flex items-center gap-4 py-4 border-b border-neutral-100 dark:border-neutral-800">
+              {/* Photo upload */}
+              <div className="flex items-center gap-5 py-4 border-b border-neutral-100 dark:border-neutral-800">
                 <div className="relative">
-                  <div className="w-16 h-16 rounded-full bg-rose-500 text-white flex items-center justify-center text-2xl font-extrabold shadow-sm overflow-hidden">
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-rose-500 to-pink-600 text-white flex items-center justify-center text-2xl font-extrabold shadow-md overflow-hidden ring-4 ring-white dark:ring-gray-900">
                     {formData.avatar ? (
                       <img src={formData.avatar} alt="Avatar" className="w-full h-full object-cover" />
                     ) : (
                       user.firstName.charAt(0).toUpperCase()
                     )}
+                    {isUploadingAvatar && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <Loader2 className="h-6 w-6 animate-spin text-white" />
+                      </div>
+                    )}
                   </div>
-                  <button type="button" className="absolute -bottom-1 -right-1 bg-neutral-900 text-white p-1 rounded-full border-2 border-white dark:border-gray-900 hover:bg-neutral-800 transition-colors">
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={isUploadingAvatar}
+                    className="absolute -bottom-1 -right-1 bg-neutral-900 text-white p-1.5 rounded-full border-2 border-white dark:border-gray-900 hover:bg-neutral-800 transition-colors disabled:opacity-50"
+                  >
                     <Camera className="h-3.5 w-3.5" />
                   </button>
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarChange}
+                  />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-neutral-800 dark:text-neutral-200">Profile photo</p>
-                  <input 
-                    type="text" 
-                    name="avatar"
-                    value={formData.avatar}
-                    onChange={handleChange}
-                    placeholder="URL to profile image" 
-                    className="text-[11px] text-neutral-500 dark:text-neutral-400 bg-transparent border-0 border-b border-neutral-200 dark:border-neutral-800 p-0 focus:ring-0 focus:border-rose-500 w-60 mt-1"
-                  />
+                  <p className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Profile photo</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                    JPG, PNG or WebP. Max 5MB.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={isUploadingAvatar}
+                    className="mt-2 text-xs font-bold text-rose-500 hover:text-rose-600 disabled:opacity-50"
+                  >
+                    {isUploadingAvatar ? 'Uploading…' : 'Upload photo'}
+                  </button>
                 </div>
               </div>
 

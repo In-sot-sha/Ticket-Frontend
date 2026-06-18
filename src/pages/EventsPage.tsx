@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Search,
@@ -9,11 +9,18 @@ import {
   Users,
   Map as MapIcon,
   List as ListIcon,
+  Globe,
+  Monitor,
+  Music,
+  Wine,
+  Palette,
+  Briefcase,
+  Leaf,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import EventCard, { Event } from '../components/EventCard';
 import MapComponent from '../components/MapComponent';
-import { api } from '../services/api';
+import { useEvents } from '../hooks/queries/useEvents';
 
 // Mock data for events
 const mockEvents = [
@@ -92,13 +99,13 @@ const mockEvents = [
 ];
 
 const categories = [
-  { name: 'All', icon: '🌐' },
-  { name: 'Technology', icon: '💻' },
-  { name: 'Music', icon: '🎵' },
-  { name: 'Food', icon: '🍷' },
-  { name: 'Arts', icon: '🎨' },
-  { name: 'Business', icon: '💼' },
-  { name: 'Environment', icon: '🌍' },
+  { name: 'All',         Icon: Globe },
+  { name: 'Technology',  Icon: Monitor },
+  { name: 'Music',       Icon: Music },
+  { name: 'Food',        Icon: Wine },
+  { name: 'Arts',        Icon: Palette },
+  { name: 'Business',    Icon: Briefcase },
+  { name: 'Environment', Icon: Leaf },
 ];
 
 const mapApiEventToFrontendEvent = (apiEvent: any): Event => {
@@ -121,8 +128,6 @@ const mapApiEventToFrontendEvent = (apiEvent: any): Event => {
 
 const EventsPage = () => {
   const [searchParams] = useSearchParams();
-  const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [selectedCategory, setSelectedCategory] = useState(
     searchParams.get('category') || 'All'
@@ -132,48 +137,53 @@ const EventsPage = () => {
   const [showMap, setShowMap] = useState(false);
   const [hoveredEventId, setHoveredEventId] = useState<number | null>(null);
 
-  // Fetch events
-  useEffect(() => {
-    const fetchEvents = async () => {
-      setLoading(true);
-      try {
-        const params: any = {};
-        if (searchTerm) params.search = searchTerm;
-        if (selectedCategory !== 'All') params.category = selectedCategory;
-        if (locationFilter) params.location = locationFilter;
+  // Use React Query hooks for data fetching
+  const { data: eventsData = [], isLoading: eventsLoading, error: eventsError } = useEvents(
+    searchTerm || selectedCategory !== 'All' || locationFilter
+      ? {
+          search: searchTerm || undefined,
+          category: selectedCategory !== 'All' ? selectedCategory : undefined,
+          location: locationFilter || undefined,
+          limit: 100,
+        }
+      : { limit: 100 }
+  );
 
-        const response = await api.events.getAll(params);
-        const apiEvents = response.data?.events || [];
-        setEvents(apiEvents.map(mapApiEventToFrontendEvent));
-      } catch (error) {
-        console.error('Failed to fetch events from API, falling back to mocks:', error);
-        let filtered = mockEvents;
+  // Use frontend categories (API fallback removed per requirements)
+  const categories = [
+    { name: 'All', Icon: Globe },
+    { name: 'Technology', Icon: Monitor },
+    { name: 'Music', Icon: Music },
+    { name: 'Food', Icon: Wine },
+    { name: 'Arts', Icon: Palette },
+    { name: 'Business', Icon: Briefcase },
+    { name: 'Wellness', Icon: Leaf },
+  ];
+
+  // Transform API events or use mock
+  const events: Event[] = eventsData.length > 0
+    ? eventsData.map(mapApiEventToFrontendEvent)
+    : mockEvents.filter((e) => {
+        let match = true;
         if (searchTerm) {
-          filtered = filtered.filter(
-            (event) =>
-              event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              event.location.toLowerCase().includes(searchTerm.toLowerCase())
+          match = match && (
+            e.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            e.location.toLowerCase().includes(searchTerm.toLowerCase())
           );
         }
         if (selectedCategory !== 'All') {
-          filtered = filtered.filter((event) => event.category === selectedCategory);
+          match = match && e.category === selectedCategory;
         }
         if (locationFilter) {
-          filtered = filtered.filter((event) =>
-            event.location.toLowerCase().includes(locationFilter.toLowerCase())
-          );
+          match = match && e.location.toLowerCase().includes(locationFilter.toLowerCase());
         }
-        setEvents(filtered);
-      } finally {
-        setLoading(false);
-      }
-    };
+        return match;
+      });
 
-    fetchEvents();
-  }, [searchTerm, selectedCategory, locationFilter]);
+  const loading = eventsLoading;
 
   // Update URL
-  useEffect(() => {
+  React.useEffect(() => {
     const params = new URLSearchParams();
     if (searchTerm) params.set('search', searchTerm);
     if (selectedCategory !== 'All') params.set('category', selectedCategory);
@@ -229,16 +239,14 @@ const EventsPage = () => {
               return (
                 <button
                   key={cat.name}
-                  onClick={() =>
-                    setSelectedCategory(isActive ? 'All' : cat.name)
-                  }
+                  onClick={() => setSelectedCategory(isActive ? 'All' : cat.name)}
                   className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all shrink-0 border ${
                     isActive
                       ? 'bg-neutral-900 text-white border-neutral-900 dark:bg-white dark:text-neutral-900 dark:border-white shadow-md'
                       : 'bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600'
                   }`}
                 >
-                  <span>{cat.icon}</span>
+                  <cat.Icon className={`h-3.5 w-3.5 ${isActive ? 'text-white dark:text-neutral-900' : 'text-neutral-500 dark:text-neutral-400'}`} />
                   <span>{cat.name}</span>
                 </button>
               );
@@ -296,12 +304,12 @@ const EventsPage = () => {
       </div>
 
       {/* ─── Main Content: Events Grid + Map ─── */}
-      <div className="flex-grow flex relative w-full overflow-hidden">
-        {/* Left: Events List */}
+      <div className="flex-grow flex min-h-0 relative w-full">
+        {/* Events List */}
         <div
-          className={`w-full transition-all duration-300 px-4 sm:px-6 lg:px-8 py-8 overflow-y-auto ${
-            showMap ? 'lg:w-3/5 xl:w-[58%] block' : 'w-full block'
-          } ${showMap ? 'hidden md:block' : 'block'}`}
+          className={`transition-all duration-300 overflow-y-auto px-4 sm:px-6 lg:px-8 py-8 ${
+            showMap ? 'hidden md:block md:w-[55%] xl:w-[58%]' : 'w-full'
+          }`}
         >
           {/* Results header */}
           <div className="flex items-center justify-between mb-6">
@@ -332,17 +340,11 @@ const EventsPage = () => {
                   Clear all
                 </button>
               )}
-
-              {/* Show Map Toggle (Desktop) */}
               <button
                 onClick={() => setShowMap(!showMap)}
                 className="hidden lg:flex items-center gap-2 text-xs font-semibold px-4 py-2 border border-neutral-200 dark:border-neutral-800 rounded-full hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all"
               >
-                {showMap ? (
-                  <ListIcon className="h-4 w-4" />
-                ) : (
-                  <MapIcon className="h-4 w-4" />
-                )}
+                {showMap ? <ListIcon className="h-4 w-4" /> : <MapIcon className="h-4 w-4" />}
                 {showMap ? 'Hide map' : 'Show map'}
               </button>
             </div>
@@ -351,9 +353,7 @@ const EventsPage = () => {
           {/* Events Grid */}
           {loading ? (
             <div className={`grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 ${
-              showMap
-                ? 'lg:grid-cols-2 xl:grid-cols-3'
-                : 'md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+              showMap ? 'lg:grid-cols-2 xl:grid-cols-3' : 'md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
             }`}>
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="animate-pulse">
@@ -372,9 +372,7 @@ const EventsPage = () => {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.4 }}
               className={`grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 ${
-                showMap
-                  ? 'lg:grid-cols-2 xl:grid-cols-3'
-                  : 'md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+                showMap ? 'lg:grid-cols-2 xl:grid-cols-3' : 'md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
               }`}
             >
               {events.map((event) => (
@@ -393,20 +391,13 @@ const EventsPage = () => {
               animate={{ opacity: 1, y: 0 }}
               className="text-center py-20 bg-neutral-50 dark:bg-neutral-900 rounded-3xl border border-dashed border-neutral-200 dark:border-neutral-800"
             >
-              <span className="text-5xl block mb-4">🔍</span>
-              <h3 className="text-lg font-bold text-neutral-800 dark:text-white mb-2">
-                No events found
-              </h3>
+              <Search className="h-10 w-10 text-neutral-300 mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-neutral-800 dark:text-white mb-2">No events found</h3>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto mb-6">
-                We couldn't find any events matching your criteria. Try adjusting
-                your search or filters.
+                We couldn't find any events matching your criteria. Try adjusting your search or filters.
               </p>
               <button
-                onClick={() => {
-                  setSearchTerm('');
-                  setSelectedCategory('All');
-                  window.history.replaceState({}, '', window.location.pathname);
-                }}
+                onClick={() => { setSearchTerm(''); setSelectedCategory('All'); window.history.replaceState({}, '', window.location.pathname); }}
                 className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-full px-6 py-3 text-xs font-bold hover:opacity-90 transition-opacity active:scale-95"
               >
                 Clear All Filters
@@ -415,38 +406,43 @@ const EventsPage = () => {
           )}
         </div>
 
-        {/* Right: Map Panel */}
-        <div
-          className={`transition-all duration-300 sticky top-40 h-[calc(100vh-160px)] ${
-            showMap ? 'w-full md:w-2/5 xl:w-[42%] block z-10' : 'w-0 hidden'
-          } ${showMap ? 'block' : 'hidden md:hidden'}`}
-        >
-          <div className="w-full h-full p-4 md:p-6 md:pl-0">
+        {/* Map Panel — sticky, fills remaining height */}
+        {showMap && (
+          <div className="hidden md:block md:w-[45%] xl:w-[42%] sticky top-40 self-start h-[calc(100vh-160px)]">
+            <div className="h-full p-4 pl-0 pr-6">
+              <div className="h-full rounded-3xl overflow-hidden shadow-lg border border-neutral-200 dark:border-neutral-800">
+                <MapComponent
+                  events={events}
+                  hoveredEventId={hoveredEventId}
+                  onSelectEvent={() => {}}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mobile-only full-screen map view */}
+        {showMap && (
+          <div className="md:hidden w-full h-[calc(100vh-200px)]">
             <MapComponent
               events={events}
               hoveredEventId={hoveredEventId}
               onSelectEvent={() => {}}
             />
           </div>
-        </div>
+        )}
       </div>
 
       {/* ─── Floating Mobile Map Toggle ─── */}
-      <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-40 md:bottom-10 lg:hidden">
+      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 md:hidden">
         <button
           onClick={() => setShowMap(!showMap)}
           className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-full px-5 py-3 shadow-xl hover:scale-105 active:scale-95 transition-all text-xs font-bold flex items-center gap-2"
         >
           {showMap ? (
-            <>
-              <ListIcon className="h-4 w-4" />
-              <span>Show list</span>
-            </>
+            <><ListIcon className="h-4 w-4" /><span>Show list</span></>
           ) : (
-            <>
-              <MapIcon className="h-4 w-4" />
-              <span>Show map</span>
-            </>
+            <><MapIcon className="h-4 w-4" /><span>Show map</span></>
           )}
         </button>
       </div>

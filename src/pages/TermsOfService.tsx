@@ -13,7 +13,7 @@ const TermsOfService = () => {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">1. Introduction</h2>
               <p className="mb-4">
-                Welcome to Eventify! These Terms of Service ("Terms") govern your access to and use of our website, 
+                Welcome to PartyStorm! These Terms of Service ("Terms") govern your access to and use of our website, 
                 mobile applications, and related services (collectively, the "Service"). By accessing or using our Service, 
                 you agree to be bound by these Terms and our Privacy Policy.
               </p>
@@ -23,7 +23,7 @@ const TermsOfService = () => {
               <h2 className="text-2xl font-semibold mb-4">2. Eligibility</h2>
               <p className="mb-4">
                 You must be at least 18 years old to use our Service. By agreeing to these Terms, you represent and warrant 
-                that you are of legal age to form a binding contract with Eventify.
+                that you are of legal age to form a binding contract with PartyStorm.
               </p>
             </section>
 
@@ -62,7 +62,7 @@ const TermsOfService = () => {
                 <li>All sales are final unless otherwise specified</li>
                 <li>You are responsible for providing accurate information</li>
                 <li>Tickets are non-transferable unless explicitly allowed</li>
-                <li>Eventify is not liable for event cancellations or changes</li>
+                <li>PartyStorm is not liable for event cancellations or changes</li>
               </ul>
             </section>
 
@@ -83,7 +83,7 @@ const TermsOfService = () => {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">7. Intellectual Property</h2>
               <p className="mb-4">
-                The Service and its original content, features, and functionality are owned by Eventify and are 
+                The Service and its original content, features, and functionality are owned by PartyStorm and are 
                 protected by international copyright, trademark, patent, trade secret, and other intellectual property 
                 or proprietary rights laws.
               </p>
@@ -109,7 +109,7 @@ const TermsOfService = () => {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">10. Limitation of Liability</h2>
               <p className="mb-4">
-                In no event shall Eventify, nor its directors, employees, partners, agents, suppliers, or affiliates, 
+                In no event shall PartyStorm, nor its directors, employees, partners, agents, suppliers, or affiliates, 
                 be liable for any indirect, incidental, special, consequential or punitive damages, including without 
                 limitation, loss of profits, data, use, goodwill, or other intangible losses, resulting from your 
                 access to or use of or inability to access or use the Service.
@@ -130,8 +130,8 @@ const TermsOfService = () => {
                 If you have any questions about these Terms, please contact us at:
               </p>
               <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
-                <p className="font-medium">Eventify Support</p>
-                <p>Email: support@eventify.com</p>
+                <p className="font-medium">PartyStorm Support</p>
+                <p>Email: support@partystorm.com</p>
                 <p>Phone: +234 801 234 5678</p>
                 <p className="mt-2">Address: 123 Event Street, Lagos, Nigeria</p>
               </div>

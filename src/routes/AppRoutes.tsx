@@ -19,6 +19,7 @@ import TermsOfService from '../pages/TermsOfService';
 import PrivacyPolicy from '../pages/PrivacyPolicy';
 import OrganizerPage from '../pages/OrganizerPage';
 import HelpPage from '../pages/HelpPage';
+import ContactPage from '../pages/ContactPage';
 import RecoverTicketPage from '../pages/RecoverTicketPage';
 import BookingPage from '../pages/BookingPage';
 import BookingSuccessPage from '../pages/BookingSuccessPage';
@@ -29,7 +30,6 @@ import Dashboard from '../pages/Dashboard';
 import Profile from '../pages/Profile';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import EventsDashboard from '../pages/EventsDashboard';
-import OrganizerEventPage from '../pages/OrganizerEventPage';
 import CreateEvent from '../pages/CreateEvent';
 import PaymentPage from '../pages/PaymentPage';
 import TicketConfirmationPage from '../pages/TicketConfirmationPage';
@@ -39,12 +39,22 @@ import AnalyticsDashboard from '../pages/AnalyticsDashboard';
 import SettingsDashboard from '../pages/SettingsDashboard';
 import FinanceDashboard from '../pages/FinanceDashboard';
 import BecomeOrganizer from '../pages/BecomeOrganizer';
+import GateScannerPage from '../pages/GateScannerPage';
+import OrganizerEventPage from '../pages/OrganizerEventPage';
 import ApplyAsVendor from '../pages/ApplyAsVendor';
 import VendorApplications from '../pages/VendorApplications';
 import MyVendorApplications from '../pages/MyVendorApplications';
 import GuestDashboard from '../pages/GuestDashboard';
 import WishlistPage from '../pages/WishlistPage';
 import UserDashboard from '../components/layout/UserDashboard';
+import TicketScanner from '../pages/TicketScanner';
+import AdminLayout from '../components/layout/AdminLayout';
+import AdminDashboard from '../pages/admin/AdminDashboard';
+import HostApplicationsPage from '../pages/admin/HostApplicationsPage';
+import AdminUsersPage from '../pages/admin/AdminUsersPage';
+import AdminTransactionsPage from '../pages/admin/AdminTransactionsPage';
+import AdminSupportPage from '../pages/admin/AdminSupportPage';
+import SupportPage from '../pages/SupportPage';
 
 // Route guard component for protected routes
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -90,15 +100,43 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <>{children}</>;
 };
 
+// Route guard for system admin only
+const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, loading, user } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.role !== 'ADMIN') {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 // Define the routes using useRoutes pattern
 const AppRoutes: React.FC = () => {
   const routes = [
+    // ── Gate scanner — fully public, no header/footer, no auth ──
+    {
+      path: '/scan-gate',
+      element: <GateScannerPage />,
+    },
+
     // Public routes with full layout (header and footer)
     {
       path: "/",
       element: <AppIndex />,
-      children: [
-        {
+      children: [        {
           index: true,
           element: <HomePage />,
         },
@@ -159,6 +197,10 @@ const AppRoutes: React.FC = () => {
           element: <HelpPage />,
         },
         {
+          path: "contact",
+          element: <ContactPage />,
+        },
+        {
           path: "wishlist",
           element: <WishlistPage />,
         },
@@ -208,9 +250,9 @@ const AppRoutes: React.FC = () => {
     {
       path: "/organizer",
       element: (
-        // <ProtectedRoute>
+        <ProtectedRoute>
           <DashboardLayout />
-        // </ProtectedRoute>
+         </ProtectedRoute>
       ),
       children: [
         {
@@ -222,16 +264,17 @@ const AppRoutes: React.FC = () => {
           element: <EventsDashboard />,
         },
         {
+          path: "events/:id",
+          element: <OrganizerEventPage />,
+        },
+        {
           path: "events/create",
+
           element: <CreateEvent />,
         },
         {
           path: "events/create/:id",
           element: <CreateEvent />,
-        },
-        {
-          path: "events/:id",
-          element: <OrganizerEventPage />,
         },
         {
           path: "vendors-applications",
@@ -249,8 +292,43 @@ const AppRoutes: React.FC = () => {
           path: "organizer-settings",
           element: <SettingsDashboard />,
         },
+        {
+          path: "scan",
+          element: <TicketScanner />,
+        },
       ],
 
+    },
+    // System admin routes
+    {
+      path: "/admin",
+      element: (
+        <AdminRoute>
+          <AdminLayout />
+        </AdminRoute>
+      ),
+      children: [
+        {
+          index: true,
+          element: <AdminDashboard />,
+        },
+        {
+          path: "host-applications",
+          element: <HostApplicationsPage />,
+        },
+        {
+          path: "users",
+          element: <AdminUsersPage />,
+        },
+        {
+          path: "transactions",
+          element: <AdminTransactionsPage />,
+        },
+        {
+          path: "support",
+          element: <AdminSupportPage />,
+        },
+      ],
     },
     // Other protected routes with full layout
     {
@@ -270,6 +348,14 @@ const AppRoutes: React.FC = () => {
           element: (
             <ProtectedRoute>
               <BecomeOrganizer />
+            </ProtectedRoute>
+          ),
+        },
+        {
+          path: "support",
+          element: (
+            <ProtectedRoute>
+              <SupportPage />
             </ProtectedRoute>
           ),
         },

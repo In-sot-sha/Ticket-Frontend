@@ -1,12 +1,29 @@
 import React, { useState } from 'react';
-import { Search, MessageCircle, Users, Ticket, Store, Calendar, CreditCard, User, Menu, X } from 'lucide-react';
+import { Search, MessageCircle, Users, Ticket, Store, Calendar, CreditCard, User, Menu, X, ChevronRight } from 'lucide-react';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
-import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const HelpPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'user' | 'organizer' | 'vendor'>('user');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  const activeTab = (searchParams.get('role') as 'user' | 'organizer' | 'vendor') || 'user';
+
+  const goToSupport = (newTicket = false) => {
+    const target = newTicket ? '/support?new=1' : '/support';
+    if (isAuthenticated) {
+      navigate(target);
+    } else {
+      navigate(`/login?redirect=${encodeURIComponent(target)}`);
+    }
+  };
+
+  const setActiveTab = (tab: 'user' | 'organizer' | 'vendor') => {
+    setSearchParams({ role: tab });
+  };
 
   // Mock data for help categories based on user type
   const userCategories = [
@@ -14,7 +31,7 @@ const HelpPage = () => {
       id: 1,
       title: 'Getting Started',
       icon: Users,
-      description: 'Learn the basics of using Eventify',
+      description: 'Learn the basics of using PartyStorm',
       articles: [
         'How to create an account',
         'Navigating the dashboard',
@@ -251,7 +268,7 @@ const HelpPage = () => {
     {
       id: 1,
       title: 'How to create an account',
-      description: 'A step-by-step guide to setting up your Eventify account',
+      description: 'A step-by-step guide to setting up your PartyStorm account',
       category: 'Getting Started',
       helpful: 245
     },
@@ -296,7 +313,7 @@ const HelpPage = () => {
     {
       id: 1,
       title: 'Creating your first event',
-      description: 'A step-by-step guide to setting up your first event on Eventify',
+      description: 'A step-by-step guide to setting up your first event on PartyStorm',
       category: 'Getting Started',
       helpful: 245
     },
@@ -416,8 +433,8 @@ const HelpPage = () => {
       answer: 'To create an event, click the "Create Event" button in your dashboard, fill in the event details, set up ticket types, and publish when ready.'
     },
     {
-      question: 'What fees does Eventify charge?',
-      answer: 'Eventify charges a small percentage fee on each ticket sold. The exact fee depends on your plan and can be found on our pricing page.'
+      question: 'What fees does PartyStorm charge?',
+      answer: 'PartyStorm charges a small percentage fee on each ticket sold. The exact fee depends on your plan and can be found on our pricing page.'
     },
     {
       question: 'How do I manage vendor applications?',
@@ -433,7 +450,7 @@ const HelpPage = () => {
     },
     {
       question: 'How do I check in attendees?',
-      answer: 'Use the Eventify mobile app to scan QR codes at the event entrance. The app will verify ticket validity and mark attendees as present.'
+      answer: 'Use the PartyStorm mobile app to scan QR codes at the event entrance. The app will verify ticket validity and mark attendees as present.'
     }
   ];
 
@@ -526,11 +543,11 @@ const HelpPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Eventify Help Center</h1>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">PartyStorm Help Center</h1>
             </div>
             <div className="hidden md:block">
               <div className="ml-4 flex items-center md:ml-6">
-                <Button variant="ghost" className="text-gray-700 dark:text-gray-300">
+                <Button variant="ghost" className="text-gray-700 dark:text-gray-300" onClick={() => goToSupport(true)}>
                   Contact Support
                 </Button>
               </div>
@@ -553,7 +570,7 @@ const HelpPage = () => {
       {isMenuOpen && (
         <div className="md:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            <Button variant="ghost" className="w-full text-left text-gray-700 dark:text-gray-300">
+            <Button variant="ghost" className="w-full text-left text-gray-700 dark:text-gray-300" onClick={() => goToSupport(true)}>
               Contact Support
             </Button>
           </div>
@@ -567,30 +584,30 @@ const HelpPage = () => {
           <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-1 bg-gray-100 dark:bg-gray-800">
             <button
               onClick={() => setActiveTab('user')}
-              className={`px-4 py-2 text-sm font-medium rounded-md ${
+              className={`px-6 py-2.5 text-sm font-bold rounded-full transition-all ${
                 activeTab === 'user'
-                  ? 'bg-white dark:bg-gray-700 text-primary shadow-sm'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                  ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-sm'
+                  : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
               }`}
             >
-              For Users
+              For Guests
             </button>
             <button
               onClick={() => setActiveTab('organizer')}
-              className={`px-4 py-2 text-sm font-medium rounded-md ${
+              className={`px-6 py-2.5 text-sm font-bold rounded-full transition-all ${
                 activeTab === 'organizer'
-                  ? 'bg-white dark:bg-gray-700 text-primary shadow-sm'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                  ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-sm'
+                  : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
               }`}
             >
-              For Organizers
+              For Hosts
             </button>
             <button
               onClick={() => setActiveTab('vendor')}
-              className={`px-4 py-2 text-sm font-medium rounded-md ${
+              className={`px-6 py-2.5 text-sm font-bold rounded-full transition-all ${
                 activeTab === 'vendor'
-                  ? 'bg-white dark:bg-gray-700 text-primary shadow-sm'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                  ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-sm'
+                  : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
               }`}
             >
               For Vendors
@@ -615,8 +632,8 @@ const HelpPage = () => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={`Search ${activeTab} help articles...`}
-                className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                placeholder={`Search ${activeTab === 'user' ? 'guest' : activeTab === 'organizer' ? 'host' : 'vendor'} help articles...`}
+                className="block w-full pl-12 pr-4 py-4 border border-neutral-200 dark:border-neutral-800 rounded-full bg-white dark:bg-gray-900 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent text-base shadow-sm"
               />
             </div>
           </div>
@@ -672,23 +689,23 @@ const HelpPage = () => {
         {/* Popular Articles - only show when not searching */}
         {!searchQuery && (
           <section className="mb-16">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Popular Articles</h2>
+            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white mb-6 tracking-tight">Popular Articles</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {getPopularArticles().map((article) => (
                 <div 
                   key={article.id} 
-                  className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-md transition-shadow cursor-pointer border border-gray-200 dark:border-gray-700"
+                  className="bg-white dark:bg-gray-900 rounded-3xl p-6 hover:shadow-md transition-shadow cursor-pointer border border-neutral-150 dark:border-neutral-800 shadow-sm"
                 >
                   <div className="flex justify-between items-start mb-3">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
                       {article.category}
                     </span>
                     {article.helpful && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400">{article.helpful} people found this helpful</span>
+                      <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 mt-1">{article.helpful} helpful</span>
                     )}
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{article.title}</h3>
-                  <p className="text-gray-600 dark:text-gray-300 text-sm">{article.description}</p>
+                  <h3 className="text-base font-bold text-neutral-900 dark:text-white mb-2">{article.title}</h3>
+                  <p className="text-neutral-500 dark:text-neutral-400 text-sm leading-relaxed">{article.description}</p>
                 </div>
               ))}
             </div>
@@ -697,33 +714,37 @@ const HelpPage = () => {
 
         {/* Help Categories */}
         <section className="mb-16">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Browse Help by Category</h2>
+          <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white mb-6 tracking-tight">Browse Help by Category</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {getCategories().map((category) => {
               const IconComponent = category.icon;
               return (
                 <div 
                   key={category.id} 
-                  className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-md transition-shadow cursor-pointer border border-gray-200 dark:border-gray-700"
+                  className="bg-white dark:bg-gray-900 rounded-3xl p-6 hover:shadow-md transition-shadow cursor-pointer border border-neutral-150 dark:border-neutral-800 shadow-sm flex flex-col justify-between"
                 >
-                  <div className="flex items-center mb-4">
-                    <div className="p-2 rounded-lg bg-primary/10 text-primary mr-4">
-                      <IconComponent className="h-6 w-6" />
+                  <div>
+                    <div className="flex items-center mb-4">
+                      <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/20 mr-4">
+                        <IconComponent className="h-6 w-6 text-rose-500" />
+                      </div>
+                      <h3 className="text-base font-bold text-neutral-900 dark:text-white">{category.title}</h3>
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{category.title}</h3>
+                    <p className="text-neutral-500 dark:text-neutral-400 text-sm mb-5 leading-relaxed">{category.description}</p>
+                    <ul className="text-sm text-neutral-600 dark:text-neutral-300 space-y-2">
+                      {category.articles.map((article, index) => (
+                        <li key={index} className="flex items-start">
+                          <span className="text-rose-500 mr-2 mt-0.5">•</span>
+                          <span>{article}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">{category.description}</p>
-                  <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-                    {category.articles.map((article, index) => (
-                      <li key={index} className="flex items-start">
-                        <span className="text-primary mr-2">•</span>
-                        <span>{article}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Button variant="link" className="p-0 mt-4 text-primary hover:text-primary/80">
-                    View all articles →
-                  </Button>
+                  <div className="flex justify-start pt-6 mt-auto">
+                    <span className="text-xs font-bold text-rose-500 flex items-center gap-0.5 hover:underline">
+                      View all articles <ChevronRight className="h-3.5 w-3.5" />
+                    </span>
+                  </div>
                 </div>
               );
             })}
@@ -753,7 +774,7 @@ const HelpPage = () => {
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">How to Transfer Your Ticket</h3>
                   <ol className="list-decimal list-inside space-y-2 text-gray-600 dark:text-gray-300">
-                    <li>Open your Eventify app</li>
+                    <li>Open your PartyStorm app</li>
                     <li>Navigate to "My Tickets"</li>
                     <li>Select the ticket you want to transfer</li>
                     <li>Tap "Transfer Ticket"</li>
@@ -835,12 +856,12 @@ const HelpPage = () => {
 
         {/* FAQ Section */}
         <section className="mb-16">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Frequently Asked Questions</h2>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow divide-y divide-gray-200 dark:divide-gray-700">
+          <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white mb-6 tracking-tight">Frequently Asked Questions</h2>
+          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-sm border border-neutral-150 dark:border-neutral-800 divide-y divide-neutral-150 dark:divide-neutral-800">
             {getFAQ().map((item, index) => (
               <div key={index} className="p-6">
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{item.question}</h3>
-                <p className="text-gray-600 dark:text-gray-300">{item.answer}</p>
+                <h3 className="text-base font-bold text-neutral-900 dark:text-white mb-2">{item.question}</h3>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">{item.answer}</p>
               </div>
             ))}
           </div>
@@ -858,7 +879,7 @@ const HelpPage = () => {
               <MessageCircle className="h-8 w-8 text-primary mx-auto mb-2" />
               <h3 className="font-medium text-gray-900 dark:text-white mb-1">Live Chat</h3>
               <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">Chat with our support team instantly</p>
-              <Button variant="outline" size="sm" className="w-full">
+              <Button variant="outline" size="sm" className="w-full" onClick={() => goToSupport(true)}>
                 Start Chat
               </Button>
             </div>
@@ -866,7 +887,7 @@ const HelpPage = () => {
               <MessageCircle className="h-8 w-8 text-primary mx-auto mb-2" />
               <h3 className="font-medium text-gray-900 dark:text-white mb-1">Email Support</h3>
               <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">Send us a detailed message</p>
-              <Button variant="outline" size="sm" className="w-full">
+              <Button variant="outline" size="sm" className="w-full" onClick={() => goToSupport(true)}>
                 Email Us
               </Button>
             </div>
@@ -874,7 +895,7 @@ const HelpPage = () => {
               <MessageCircle className="h-8 w-8 text-primary mx-auto mb-2" />
               <h3 className="font-medium text-gray-900 dark:text-white mb-1">Request Callback</h3>
               <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">Get a call from our team</p>
-              <Button variant="outline" size="sm" className="w-full">
+              <Button variant="outline" size="sm" className="w-full" onClick={() => goToSupport(true)}>
                 Request Callback
               </Button>
             </div>
@@ -887,7 +908,7 @@ const HelpPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="md:flex md:items-center md:justify-between">
             <div className="flex justify-center md:justify-start">
-              <span className="text-lg font-bold text-gray-900 dark:text-white">Eventify Help Center</span>
+              <span className="text-lg font-bold text-gray-900 dark:text-white">PartyStorm Help Center</span>
             </div>
             <div className="mt-8 md:mt-0 flex justify-center space-x-6 md:order-2">
               <a href="#" className="text-gray-400 hover:text-gray-500">
@@ -903,7 +924,7 @@ const HelpPage = () => {
           </div>
           <div className="mt-8 text-center md:mt-4">
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              &copy; 2025 Eventify. All rights reserved.
+              &copy; 2025 PartyStorm. All rights reserved.
             </p>
           </div>
         </div>

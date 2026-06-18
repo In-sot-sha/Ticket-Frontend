@@ -23,42 +23,63 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
   const navigate = useNavigate();
   const [currentRole, setCurrentRole] = useState<RoleType>('USER');
 
-  // Determine available roles based on user capabilities
   const availableRoles: RoleType[] = ['USER'];
   
-  // Add organizer role if user has organizer capabilities
   if (user?.role === 'ORGANIZER' || user?.isOrganizer) {
     availableRoles.push('ORGANIZER');
   }
   
-  // Add vendor role if user has vendor capabilities
   if (user?.role === 'VENDOR' || user?.isVendor) {
     availableRoles.push('VENDOR');
   }
   
-  // Add admin role if user is admin
   if (user?.role === 'ADMIN') {
     availableRoles.push('ADMIN');
   }
 
-  
+  // Restore preferred role and sync with current route
+  useEffect(() => {
+    if (!user) {
+      setCurrentRole('USER');
+      return;
+    }
 
-  // Function to switch roles
+    if (location.pathname.startsWith('/admin')) {
+      setCurrentRole('ADMIN');
+      return;
+    }
+
+    if (location.pathname.startsWith('/organizer')) {
+      setCurrentRole('ORGANIZER');
+      return;
+    }
+
+    const stored = localStorage.getItem('preferredRole') as RoleType | null;
+    if (stored && availableRoles.includes(stored)) {
+      setCurrentRole(stored);
+    } else if (user.role === 'ADMIN') {
+      setCurrentRole('USER');
+    } else {
+      setCurrentRole('USER');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, location.pathname]);
+
   const handleSetCurrentRole = (role: RoleType) => {
     if (availableRoles.includes(role)) {
       setCurrentRole(role);
       localStorage.setItem('preferredRole', role);
-      
-      // Navigate to appropriate route
-      if (role !== 'USER') {
-        navigate(`/organizer`);
-      } else {
+
+      if (role === 'ADMIN') {
+        navigate('/admin');
+      } else if (role === 'USER') {
         navigate('/user');
+      } else {
+        navigate('/organizer');
       }
     }
   };
 
-  // Function to check if user can switch to a specific role
   const canSwitchToRole = (role: RoleType): boolean => {
     return availableRoles.includes(role);
   };

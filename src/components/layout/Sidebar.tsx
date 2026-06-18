@@ -2,12 +2,12 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Calendar,
-  Ticket,
   BarChart3,
   Settings,
   X,
   DollarSign,
   LayoutDashboard,
+  Plus,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../context/AuthContext';
@@ -17,14 +17,16 @@ interface NavItem {
   title: string;
   icon: React.ElementType;
   href: string;
+  exact: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { title: 'Dashboard', icon: LayoutDashboard, href: '/organizer' },
-  { title: 'Manage Events', icon: Calendar, href: '/organizer/events' },
-  { title: 'Analytics', icon: BarChart3, href: '/organizer/analytics' },
-  { title: 'Finance', icon: DollarSign, href: '/organizer/finance' },
-  { title: 'Settings', icon: Settings, href: '/organizer/organizer-settings' },
+  { title: 'Dashboard',     icon: LayoutDashboard, href: '/organizer',                    exact: true  },
+  { title: 'Manage Events', icon: Calendar,         href: '/organizer/events',             exact: true  },
+  { title: 'Create Event',  icon: Plus,             href: '/organizer/events/create',      exact: false },
+  { title: 'Analytics',     icon: BarChart3,        href: '/organizer/analytics',          exact: false },
+  { title: 'Finance',       icon: DollarSign,       href: '/organizer/finance',            exact: false },
+  { title: 'Settings',      icon: Settings,         href: '/organizer/organizer-settings', exact: false },
 ];
 
 const Sidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = ({
@@ -34,9 +36,9 @@ const Sidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = ({
   const location = useLocation();
   const { user } = useAuth();
 
-  const isActive = (href: string) => {
-    if (href === '/organizer') return location.pathname === '/organizer';
-    return location.pathname.startsWith(href);
+  const isActive = (item: NavItem) => {
+    if (item.exact) return location.pathname === item.href;
+    return location.pathname.startsWith(item.href);
   };
 
   const initials = user
@@ -54,24 +56,26 @@ const Sidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = ({
 
       <aside
         className={cn(
+          // Mobile: fixed overlay drawer that slides in/out
+          // Desktop (md+): sticky column — stays in place while main scrolls
           'fixed inset-y-0 left-0 z-50 w-64 flex flex-col',
           'bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700',
           'transform transition-transform duration-300 ease-in-out',
-          'md:static md:inset-0 md:translate-x-0',
+          'md:sticky md:top-0 md:h-full md:translate-x-0 md:z-auto md:shrink-0',
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         {/* Brand */}
-        <div className="flex items-center justify-between px-5 py-5 border-b border-gray-100 dark:border-gray-700/80">
-          <Link to="/organizer" className="flex items-center gap-2.5 group">
+        <div className="flex items-center sm:hidden justify-between px-5 py-5 border-b border-gray-100 dark:border-gray-700/80">
+          {/* <Link to="/organizer" className="flex items-center gap-2.5 group">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-500 group-hover:bg-rose-100 dark:group-hover:bg-rose-950/50 transition-colors">
               <Ticket className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">Eventify</p>
+              <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">PartyStorm</p>
               <p className="text-[11px] text-gray-500 dark:text-gray-400">Host dashboard</p>
             </div>
-          </Link>
+          </Link> */}
           <Button
             variant="ghost"
             size="icon"
@@ -87,7 +91,7 @@ const Sidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = ({
          
           <ul className="space-y-1">
             {NAV_ITEMS.map((item) => {
-              const active = isActive(item.href);
+              const active = isActive(item);
               const Icon = item.icon;
               return (
                 <li key={item.href}>

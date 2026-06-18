@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { api } from '../../services/api';
 import { Button } from '../ui/Button';
 import { ModeToggle } from './ModeToggle';
 import { useAuth } from '../../context/AuthContext';
@@ -15,7 +16,11 @@ import {
   User,
   HelpCircle,
   Plus,
-  Heart
+  Heart,
+  LayoutDashboard,
+  Calendar,
+  BarChart3,
+  Shield,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -39,14 +44,51 @@ const Header = () => {
     }
   }, [isUserMenuOpen]);
 
+  const isOrganizerContext = location.pathname.startsWith('/organizer');
+  const isAdminContext = location.pathname.startsWith('/admin');
+  const isAdmin = user?.role === 'ADMIN';
+
   const handleSwitchRole = () => {
-    if (location.pathname.startsWith('/organizer')) {
+    if (isAdminContext) {
       setCurrentRole('USER');
-      navigate('/user');
-    } else {
-      setCurrentRole('ORGANIZER');
-      navigate('/organizer');
+      navigate('/');
+      return;
     }
+    if (isOrganizerContext) {
+      setCurrentRole('USER');
+      navigate('/');
+      return;
+    }
+    if (user?.role === 'ORGANIZER') {
+      if (user.ownedOrganizations?.some(org => org.isVerified)) {
+        setCurrentRole('ORGANIZER');
+        navigate('/organizer');
+      } else {
+        navigate('/become-organizer');
+      }
+    } else {
+      navigate('/become-organizer');
+    }
+  };
+
+  const handleSwitchToAdmin = () => {
+    setCurrentRole('ADMIN');
+    navigate('/admin');
+  };
+
+  const shouldShowSearch = () => {
+    const hiddenPaths = [
+      '/profile', '/login', '/register', '/help', 
+      '/recover-ticket', '/wishlist', '/user', '/organizer', '/events'
+    ];
+    // If the path exactly matches or starts with one of the hidden paths
+    // But we might want to show it on specific organizer pages? 
+    // Actually, it's safer to just check if it starts with these and isn't the homepage
+    if (location.pathname === '/') return true;
+    if (location.pathname.startsWith('/events')) return true;
+    
+    // Hide by default on all other utility/dashboard pages
+    return false;
   };
 
   return (
@@ -58,56 +100,70 @@ const Header = () => {
           <Link to="/" className="flex items-center gap-1.5 group">
             <Ticket className="h-8 w-8 text-rose-500 transform transition-transform group-hover:rotate-12 duration-200" />
             <span className="text-rose-500 font-extrabold text-xl tracking-tight hidden sm:block">
-              eventify
+              partystorm
             </span>
           </Link>
         </div>
 
         {/* Center Search Pill (Desktop/Tablet) */}
-        <div className="hidden md:block">
-          <div 
-            onClick={() => navigate('/events')}
-            className="flex items-center border border-gray-200 dark:border-gray-800 rounded-full py-2 pl-6 pr-2 shadow-sm hover:shadow-md transition-all cursor-pointer bg-white dark:bg-gray-900 duration-200"
-          >
-            <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 border-r border-gray-200 dark:border-gray-800 pr-4">
-              Anywhere
-            </span>
-            <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 border-r border-gray-200 dark:border-gray-800 px-4">
-              Any Date
-            </span>
-            <span className="text-xs text-neutral-500 dark:text-neutral-400 pl-4 pr-3 flex items-center gap-3">
-              Search events
-              <span className="bg-rose-500 p-2 rounded-full text-white hover:bg-rose-600 transition-colors">
-                <Search className="h-3 w-3 stroke-[3]" />
+        {shouldShowSearch() && (
+          <div className="hidden md:block animate-in fade-in zoom-in-95 duration-200 ">
+            <div 
+              onClick={() => navigate('/events')}
+              className="flex w-[350px] justify-between items-center border border-gray-200 dark:border-gray-800 rounded-full py-2 pr-2 shadow-sm hover:shadow-md transition-all cursor-pointer bg-white dark:bg-gray-900 duration-200"
+            >
+              {/* <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 border-r border-gray-200 dark:border-gray-800 pr-4">
+                Anywhere
               </span>
-            </span>
+              <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 border-r border-gray-200 dark:border-gray-800 px-4">
+                Any Date
+              </span> */}
+              <div className="text-xs text-neutral-500 dark:text-neutral-400 pl-4 pr-2 flex w-full items-center justify-between gap-3">
+               Browse events
+                <div className="bg-rose-500 p-2  rounded-full text-white hover:bg-rose-600 transition-colors">
+                  <Search className="h-3 w-3 stroke-[3]" />
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
 
 
         {/* Right side controls */}
         <div className="flex items-center gap-3">
           
-          {/* Switch view/hosting link */}
+          {/* Role switch — one button, same style throughout */}
           {isAuthenticated && (
-            <button 
-              onClick={handleSwitchRole}
+            <button
+              onClick={
+                isAdminContext
+                  ? handleSwitchRole
+                  : isOrganizerContext
+                    ? handleSwitchRole
+                    : isAdmin
+                      ? handleSwitchToAdmin
+                      : handleSwitchRole
+              }
               className="hidden lg:block text-xs font-semibold px-4 py-2.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 transition-colors"
             >
-              {location.pathname.startsWith('/organizer') ? 'Switch to Guest' : 'Switch to Hosting'}
+              {isAdminContext || isOrganizerContext
+                ? 'Switch to Guest'
+                : isAdmin
+                  ? 'Switch to Admin Dashboard'
+                  : 'Switch to Hosting'}
             </button>
           )}
 
           {/* Create event shortcut for organizers */}
-          {isAuthenticated && (user?.role === 'ORGANIZER' || location.pathname.startsWith('/organizer')) && (
+          {/* isAuthenticated && (user?.role === 'ORGANIZER' || location.pathname.startsWith('/organizer')) && (
             <Link to="/organizer/events/create" className="hidden sm:block">
               <button className="flex items-center gap-1 text-xs font-semibold px-4 py-2.5 rounded-full border border-gray-200 dark:border-gray-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
                 <Plus className="h-3.5 w-3.5" />
                 Host Event
               </button>
             </Link>
-          )}
+          ) */}
 
           {/* Theme Mode Toggle */}
           <ModeToggle />
@@ -135,69 +191,106 @@ const Header = () => {
                 {isAuthenticated ? (
                   <>
                     <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-850">
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Welcome back</p>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                        {isAdminContext ? 'System Admin' : isOrganizerContext ? 'Host Dashboard' : 'Welcome back'}
+                      </p>
                       <p className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100 mt-1">
                         {user?.firstName} {user?.lastName}
                       </p>
                     </div>
                     
                     <div className="py-1">
-                      <Link 
-                        to="/profile" 
-                        className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                        onClick={() => setIsUserMenuOpen(false)}
-                      >
-                        <Settings className="h-4 w-4 mr-3 text-gray-400" />
-                        Account settings
-                      </Link>
-
-                      <Link 
-                        to="/user/tickets" 
-                        className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                        onClick={() => setIsUserMenuOpen(false)}
-                      >
-                        <Ticket className="h-4 w-4 mr-3 text-gray-400" />
-                        My tickets
-                      </Link>
-
-                      <Link 
-                        to="/wishlist" 
-                        className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                        onClick={() => setIsUserMenuOpen(false)}
-                      >
-                        <Heart className="h-4 w-4 mr-3 text-gray-400" />
-                        Wishlist
-                      </Link>
-
-                      {location.pathname.startsWith('/organizer') ? (
-                        <Link 
-                          to="/user/tickets" 
-                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
-                          onClick={() => setIsUserMenuOpen(false)}
-                        >
-                          <User className="h-4 w-4 mr-3 text-rose-500" />
-                          Switch to Guest Mode
-                        </Link>
+                      {isAdminContext ? (
+                        <>
+                          <Link to="/admin" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <LayoutDashboard className="h-4 w-4 mr-3 text-gray-400" />Overview
+                          </Link>
+                          <Link to="/admin/host-applications" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Building className="h-4 w-4 mr-3 text-gray-400" />Host Applications
+                          </Link>
+                          <Link to="/admin/users" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <User className="h-4 w-4 mr-3 text-gray-400" />Users
+                          </Link>
+                          <Link to="/admin/transactions" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <BarChart3 className="h-4 w-4 mr-3 text-gray-400" />Transactions
+                          </Link>
+                          <Link to="/admin/support" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <HelpCircle className="h-4 w-4 mr-3 text-gray-400" />Support
+                          </Link>
+                        </>
+                      ) : isOrganizerContext ? (
+                        <>
+                          <Link to="/organizer" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <LayoutDashboard className="h-4 w-4 mr-3 text-gray-400" />Dashboard
+                          </Link>
+                          <Link to="/organizer/events" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Calendar className="h-4 w-4 mr-3 text-gray-400" />My Events
+                          </Link>
+                          <Link to="/organizer/events/create" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Plus className="h-4 w-4 mr-3 text-gray-400" />Create Event
+                          </Link>
+                          <Link to="/organizer/analytics" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <BarChart3 className="h-4 w-4 mr-3 text-gray-400" />Analytics
+                          </Link>
+                          <Link to="/organizer/organizer-settings" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Settings className="h-4 w-4 mr-3 text-gray-400" />Account Settings
+                          </Link>
+                        </>
                       ) : (
-                        <Link 
-                          to="/organizer" 
+                        <>
+                          <Link to="/profile" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Settings className="h-4 w-4 mr-3 text-gray-400" />Account settings
+                          </Link>
+                          <Link to="/user/tickets" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Ticket className="h-4 w-4 mr-3 text-gray-400" />My tickets
+                          </Link>
+                          <Link to="/wishlist" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Heart className="h-4 w-4 mr-3 text-gray-400" />Wishlist
+                          </Link>
+                          <Link to="/help" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <HelpCircle className="h-4 w-4 mr-3 text-gray-400" />Help Center
+                          </Link>
+                          <Link to="/support" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <HelpCircle className="h-4 w-4 mr-3 text-rose-500" />Help & Support
+                          </Link>
+                        </>
+                      )}
+
+                      {/* Switch mode */}
+                      {isAdmin && !isAdminContext && (
+                        <button
+                          onClick={() => { handleSwitchToAdmin(); setIsUserMenuOpen(false); }}
                           className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
-                          onClick={() => setIsUserMenuOpen(false)}
                         >
-                          <Building className="h-4 w-4 mr-3 text-rose-500" />
-                          Switch to Host Mode
-                        </Link>
+                          <Shield className="h-4 w-4 mr-3 text-rose-500" />Switch to Admin Mode
+                        </button>
+                      )}
+                      {!isAdminContext && !isAdmin && (
+                        <button
+                          onClick={() => { handleSwitchRole(); setIsUserMenuOpen(false); }}
+                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
+                        >
+                          {isOrganizerContext
+                            ? <><User className="h-4 w-4 mr-3 text-rose-500" />Switch to Guest Mode</>
+                            : <><Building className="h-4 w-4 mr-3 text-rose-500" />Switch to Host Mode</>
+                          }
+                        </button>
+                      )}
+                      {(isAdminContext || isOrganizerContext) && (
+                        <button
+                          onClick={() => { handleSwitchRole(); setIsUserMenuOpen(false); }}
+                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
+                        >
+                          <User className="h-4 w-4 mr-3 text-rose-500" />Switch to Guest Mode
+                        </button>
                       )}
                     </div>
 
-                    <div className="border-t border-gray-100 dark:border-gray-850 my-1"></div>
+                    <div className="border-t border-gray-100 dark:border-gray-850 my-1" />
                     
                     <div className="py-1">
                       <button
-                        onClick={() => {
-                          logout();
-                          setIsUserMenuOpen(false);
-                        }}
+                        onClick={() => { logout(); setIsUserMenuOpen(false); }}
                         className="w-full text-left px-4 py-3 text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/15 flex items-center transition-colors"
                       >
                         <LogOut className="h-4 w-4 mr-3" />
@@ -228,7 +321,7 @@ const Header = () => {
                     
                     <div className="py-1">
                       <Link 
-                        to="/organizers" 
+                        to="/become-organizer" 
                         className="w-full text-left px-4 py-3 text-xs font-medium text-neutral-600 dark:text-neutral-300 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                         onClick={() => setIsUserMenuOpen(false)}
                       >

@@ -44,8 +44,7 @@ const BookingSuccessPage = () => {
           email: cachedOrder.email,
           phone: cachedOrder.phone,
           eventId: cachedOrder.eventId,
-          ticketTypeId: cachedOrder.ticketTypeId,
-          quantity: cachedOrder.quantity
+          items: cachedOrder.items
         });
 
         if (checkoutRes.status === 201) {
@@ -55,8 +54,12 @@ const BookingSuccessPage = () => {
           const confirmedOrder = {
             eventId: cachedOrder.eventId,
             eventName: cachedOrder.eventName,
-            ticketType: cachedOrder.ticketType || 'General Admission',
-            quantity: cachedOrder.quantity,
+            eventDate: cachedOrder.eventDate,
+            eventTime: cachedOrder.eventTime,
+            eventLocation: cachedOrder.eventLocation,
+            eventImageUrl: cachedOrder.eventImageUrl,
+            ticketType: cachedOrder.items?.[0] ? undefined : 'General Admission',
+            quantity: checkoutRes.data.tickets?.length || cachedOrder.items?.reduce((s: number, i: any) => s + i.quantity, 0) || 1,
             totalAmount: cachedOrder.totalAmount,
             currency: 'NGN',
             tickets: checkoutRes.data.tickets

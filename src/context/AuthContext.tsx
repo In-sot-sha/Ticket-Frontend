@@ -1,6 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
+import { queryKeys } from '../lib/queryKeys';
+import { neonAuthClient } from '../lib/neonAuth';
 
 interface User {
   id: number;
@@ -17,11 +20,25 @@ interface User {
   isOrganizer?: boolean; // Whether user can act as organizer
   isVendor?: boolean;    // Whether user can act as vendor
   
-  // Organizer-specific fields
-  isOrganizerVerified?: boolean;
-  organizerBusinessName?: string;
-  organizerDescription?: string;
-  organizerContactInfo?: string;
+  // Organization data
+  ownedOrganizations?: Array<{
+    id: number;
+    name: string;
+    description?: string;
+    isVerified: boolean;
+    logo?: string;
+    website?: string;
+    socials?: string;
+    payoutBankName?: string;
+    payoutAccountNumber?: string;
+    payoutAccountName?: string;
+    payoutSchedule?: string;
+    taxId?: string;
+    vatNumber?: string;
+    businessAddress?: string;
+    rejectionReason?: string;
+    rejectedAt?: string;
+  }>;
 }
 
 interface AuthContextType {
@@ -45,16 +62,17 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true); // Add loading state
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const updateUser = (updatedUser: User) => {
+  const updateUser = useCallback((updatedUser: User) => {
     setUser(updatedUser);
     localStorage.setItem('user', JSON.stringify(updatedUser));
-  };
+  }, []);
 
+  // Initialize auth only once on mount
   useEffect(() => {
-    // Check if user is logged in on initial load and validate token
     const initializeAuth = async () => {
       const storedToken = localStorage.getItem('token');
       const storedUser = localStorage.getItem('user');
@@ -63,24 +81,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
         
-        // Validate the token with the backend
+        // Prefetch user profile for faster access
         try {
-          // Make a request to validate the token via the verify endpoint
+          // Validate token once at startup
           const response = await api.auth.verify();
           
           if (response.data) {
-            // Token is valid, update user data if it has changed
             setUser(response.data);
             localStorage.setItem('user', JSON.stringify(response.data));
+            
+            // Prefetch profile data for later use
+            queryClient.setQueryData(
+              queryKeys.auth.profile(),
+              response.data
+            );
           } else {
-            // Token is invalid, clear the auth state
+            // Token invalid
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             setToken(null);
             setUser(null);
           }
         } catch (error) {
-          // Token validation failed, clear the auth state
+          // Token validation failed
           console.error('Token validation failed:', error);
           localStorage.removeItem('token');
           localStorage.removeItem('user');
@@ -93,9 +116,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initializeAuth();
+    // Only run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     try {
       const response = await api.auth.login({ email, password });
 
@@ -105,19 +130,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(user);
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(user));
-        navigate('/');
+        
+        // Prefetch profile data
+        queryClient.setQueryData(queryKeys.auth.profile(), user);
+        
         return true;
-      } else {
-        console.error('Login failed: No data in response');
-        return false;
       }
-    } catch (error: any) {
-      console.error('Login error:', error.response?.data?.message || error.message);
       return false;
+    } catch (error: any) {
+      throw error;
     }
-  };
+  }, [queryClient]);
 
-  const loginWithGoogle = async (credential: string): Promise<boolean> => {
+  const loginWithGoogle = useCallback(async (credential: string): Promise<boolean> => {
     try {
       const response = await api.post<{ token: string; user: any }>('/users/google-login', { credential });
 
@@ -127,7 +152,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(user);
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(user));
-        navigate('/');
+        
+        // Prefetch profile data
+        queryClient.setQueryData(queryKeys.auth.profile(), user);
+        
         return true;
       } else {
         console.error('Google login failed: No data in response');
@@ -137,9 +165,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Google login error:', error.response?.data?.message || error.message);
       return false;
     }
-  };
+  }, [queryClient]);
 
-  const register = async (
+  const register = useCallback(async (
     email: string,
     password: string,
     firstName: string,
@@ -154,6 +182,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(user);
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(user));
+        
+        // Prefetch profile data
+        queryClient.setQueryData(queryKeys.auth.profile(), user);
+        
         navigate('/');
         return true;
       } else {
@@ -164,20 +196,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Registration error:', error.response?.data?.message || error.message);
       return false;
     }
-  };
+  }, [navigate, queryClient]);
 
-  const logout = () => {
+  const logout = useCallback(async () => {
+    try {
+      if (neonAuthClient) {
+        await neonAuthClient.signOut();
+      }
+    } catch (e) {
+      console.error('Error signing out of Neon Auth:', e);
+    }
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    
+    // Clear all auth-related caches
+    queryClient.removeQueries({ queryKey: queryKeys.auth.all });
+    
     navigate('/login');
-  };
+  }, [navigate, queryClient]);
 
   const isAuthenticated = !!token;
 
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo<AuthContextType>(
+    () => ({
+      user,
+      token,
+      login,
+      loginWithGoogle,
+      logout,
+      register,
+      updateUser,
+      isAuthenticated,
+      loading,
+    }),
+    [user, token, login, loginWithGoogle, logout, register, updateUser, isAuthenticated, loading]
+  );
+
   return (
-    <AuthContext.Provider value={{ user, token, login, loginWithGoogle, logout, register, updateUser, isAuthenticated, loading }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
