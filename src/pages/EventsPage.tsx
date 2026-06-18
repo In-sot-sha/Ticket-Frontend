@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Search,
@@ -20,7 +20,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import EventCard, { Event } from '../components/EventCard';
 import MapComponent from '../components/MapComponent';
-import { api } from '../services/api';
+import { useEvents } from '../hooks/queries/useEvents';
 
 // Mock data for events
 const mockEvents = [
@@ -128,8 +128,6 @@ const mapApiEventToFrontendEvent = (apiEvent: any): Event => {
 
 const EventsPage = () => {
   const [searchParams] = useSearchParams();
-  const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [selectedCategory, setSelectedCategory] = useState(
     searchParams.get('category') || 'All'
@@ -139,48 +137,53 @@ const EventsPage = () => {
   const [showMap, setShowMap] = useState(false);
   const [hoveredEventId, setHoveredEventId] = useState<number | null>(null);
 
-  // Fetch events
-  useEffect(() => {
-    const fetchEvents = async () => {
-      setLoading(true);
-      try {
-        const params: any = {};
-        if (searchTerm) params.search = searchTerm;
-        if (selectedCategory !== 'All') params.category = selectedCategory;
-        if (locationFilter) params.location = locationFilter;
+  // Use React Query hooks for data fetching
+  const { data: eventsData = [], isLoading: eventsLoading, error: eventsError } = useEvents(
+    searchTerm || selectedCategory !== 'All' || locationFilter
+      ? {
+          search: searchTerm || undefined,
+          category: selectedCategory !== 'All' ? selectedCategory : undefined,
+          location: locationFilter || undefined,
+          limit: 100,
+        }
+      : { limit: 100 }
+  );
 
-        const response = await api.events.getAll(params);
-        const apiEvents = response.data?.events || [];
-        setEvents(apiEvents.map(mapApiEventToFrontendEvent));
-      } catch (error) {
-        console.error('Failed to fetch events from API, falling back to mocks:', error);
-        let filtered = mockEvents;
+  // Use frontend categories (API fallback removed per requirements)
+  const categories = [
+    { name: 'All', Icon: Globe },
+    { name: 'Technology', Icon: Monitor },
+    { name: 'Music', Icon: Music },
+    { name: 'Food', Icon: Wine },
+    { name: 'Arts', Icon: Palette },
+    { name: 'Business', Icon: Briefcase },
+    { name: 'Wellness', Icon: Leaf },
+  ];
+
+  // Transform API events or use mock
+  const events: Event[] = eventsData.length > 0
+    ? eventsData.map(mapApiEventToFrontendEvent)
+    : mockEvents.filter((e) => {
+        let match = true;
         if (searchTerm) {
-          filtered = filtered.filter(
-            (event) =>
-              event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              event.location.toLowerCase().includes(searchTerm.toLowerCase())
+          match = match && (
+            e.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            e.location.toLowerCase().includes(searchTerm.toLowerCase())
           );
         }
         if (selectedCategory !== 'All') {
-          filtered = filtered.filter((event) => event.category === selectedCategory);
+          match = match && e.category === selectedCategory;
         }
         if (locationFilter) {
-          filtered = filtered.filter((event) =>
-            event.location.toLowerCase().includes(locationFilter.toLowerCase())
-          );
+          match = match && e.location.toLowerCase().includes(locationFilter.toLowerCase());
         }
-        setEvents(filtered);
-      } finally {
-        setLoading(false);
-      }
-    };
+        return match;
+      });
 
-    fetchEvents();
-  }, [searchTerm, selectedCategory, locationFilter]);
+  const loading = eventsLoading;
 
   // Update URL
-  useEffect(() => {
+  React.useEffect(() => {
     const params = new URLSearchParams();
     if (searchTerm) params.set('search', searchTerm);
     if (selectedCategory !== 'All') params.set('category', selectedCategory);

@@ -2,12 +2,42 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Eventify - Event Ticketing Platform</title>
-    <script type="module" crossorigin src="/assets/index-bc4d2a17.js"></script>
-    <link rel="stylesheet" href="/assets/index-c01fb3f5.css">
-  </head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+
+    <!-- ── PWA / Install ──────────────────────────────── -->
+    <!-- manifest.json is injected by vite-plugin-pwa at build time -->
+
+    <!-- Android Chrome -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#f43f5e" />
+
+    <!-- iOS Safari -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="PartyStorm" />
+    <link rel="apple-touch-icon" href="/icons/icon.svg" />
+
+    <!-- ── Icons ─────────────────────────────────────── -->
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+
+    <!-- ── SEO / Social ──────────────────────────────── -->
+    <title>PartyStorm — Discover &amp; Book Event Tickets</title>
+    <meta name="description" content="Discover, book and manage event tickets in Nigeria. From concerts to conferences, find events near you on PartyStorm." />
+
+    <!-- Open Graph -->
+    <meta property="og:type"        content="website" />
+    <meta property="og:title"       content="PartyStorm — Discover &amp; Book Event Tickets" />
+    <meta property="og:description" content="Find and book tickets for the best events near you." />
+    <meta property="og:image"       content="/icons/icon.svg" />
+
+    <!-- Twitter card -->
+    <meta name="twitter:card"        content="summary" />
+    <meta name="twitter:title"       content="PartyStorm" />
+    <meta name="twitter:description" content="Find and book tickets for the best events near you." />
+    <meta name="twitter:image"       content="/icons/icon.svg" />
+    <script type="module" crossorigin src="/assets/index-2697c2ae.js"></script>
+    <link rel="stylesheet" href="/assets/index-67ee1afc.css">
+  <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
   <body>
     <div id="root"></div>
     

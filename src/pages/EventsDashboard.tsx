@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Calendar,
@@ -11,39 +11,23 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../services/api';
+import { useOrganizerEvents } from '../hooks/queries/useEvents';
 import { resolveImageUrl } from '../lib/media';
 import EventPhaseBadge from '../components/organizer/EventPhaseBadge';
 import { formatNaira, OrganizerEvent } from '../lib/eventOrganizer';
 
 const EventsDashboard = () => {
   const { user } = useAuth();
-  const [events, setEvents] = useState<OrganizerEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        const response = await api.events.getOrganizerEvents({ limit: 50 });
-        setEvents(response.data?.events ?? []);
-      } catch (err: unknown) {
-        console.error('Error fetching events:', err);
-        setError((err as Error).message || 'Failed to load events');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (user) fetchEvents();
-  }, [user]);
+  
+  // Use React Query hook to fetch organizer's events with caching
+  const { data: events = [], isLoading, error } = useOrganizerEvents();
 
   const totalEvents = events.length;
-  const totalSold = events.reduce((sum, e) => sum + (e.stats?.ticketsSold ?? e.attendees ?? 0), 0);
-  const totalRevenue = events.reduce((sum, e) => sum + (e.stats?.actualRevenue ?? e.revenue ?? 0), 0);
-  const totalExpected = events.reduce((sum, e) => sum + (e.stats?.expectedRevenue ?? 0), 0);
+  const totalSold = events.reduce((sum: number, e: OrganizerEvent) => sum + (e.stats?.ticketsSold ?? e.attendees ?? 0), 0);
+  const totalRevenue = events.reduce((sum: number, e: OrganizerEvent) => sum + (e.stats?.actualRevenue ?? e.revenue ?? 0), 0);
+  const totalExpected = events.reduce((sum: number, e: OrganizerEvent) => sum + (e.stats?.expectedRevenue ?? 0), 0);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="py-6 flex justify-center items-center">
         <div className="text-lg">Loading events...</div>
@@ -54,7 +38,7 @@ const EventsDashboard = () => {
   if (error) {
     return (
       <div className="py-6 flex justify-center items-center">
-        <div className="text-red-500">Error: {error}</div>
+        <div className="text-red-500">Error: {error instanceof Error ? error.message : 'Failed to load events'}</div>
       </div>
     );
   }
@@ -105,7 +89,7 @@ const EventsDashboard = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {events.map((event) => (
+          {events.map((event: OrganizerEvent) => (
             <EventCard key={event.id} event={event} />
           ))}
         </div>

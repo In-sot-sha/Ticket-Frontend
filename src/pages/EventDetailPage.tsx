@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useEventById } from '../hooks/queries/useEvents';
 import {
   Calendar,
   MapPin,
   Clock,
-  Users,
   Ticket,
   Share2,
   Heart,
@@ -18,14 +18,12 @@ import {
   Shield,
   Flag,
   ChevronRight,
-  Minus,
-  Plus,
-  Loader2,
   X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { api } from '../services/api';
+import { LazyImage } from '../components/LazyImage';
 
 interface TicketType {
   id: number;
@@ -188,37 +186,21 @@ const EventDetailPage = () => {
   const [isSaved, setIsSaved] = useState(false);
   const [showAllPhotos, setShowAllPhotos] = useState(false);
   const [showOrganizerModal, setShowOrganizerModal] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [event, setEvent] = useState<EventDetail>(fallbackEvent);
-  const [notFound, setNotFound] = useState(false);
+
+  // Use React Query hook to fetch event with automatic caching
+  const { data: eventData, isLoading, error, isError } = useEventById(
+    id ? Number(id) : 0,
+    !!id
+  );
+
+  const event: EventDetail = eventData ? mapApiEventToDetail(eventData) : fallbackEvent;
+  const notFound = isError && (error as any)?.response?.status === 404;
 
   useEffect(() => {
     if (id) {
       const saved = localStorage.getItem(`wishlist_${id}`);
       setIsSaved(saved === 'true');
     }
-  }, [id]);
-
-  useEffect(() => {
-    const fetchEvent = async () => {
-      if (!id) return;
-      setLoading(true);
-      setNotFound(false);
-      try {
-        const response = await api.events.getById(Number(id));
-        const mapped = mapApiEventToDetail(response.data);
-        setEvent(mapped);
-      } catch (error: any) {
-        console.error('Failed to fetch event:', error);
-        if (error?.response?.status === 404) {
-          setNotFound(true);
-        }
-        // Keep fallback event
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchEvent();
   }, [id]);
 
   const handlePurchaseTicket = () => {
@@ -237,7 +219,7 @@ const EventDetailPage = () => {
     <div className="min-h-screen bg-white dark:bg-gray-950">
 
       {/* ─── Loading State ─── */}
-      {loading && (
+      {isLoading && (
         <div className="animate-pulse">
           {/* Skeleton Gallery */}
           <div className="max-w-7xl mx-auto px-0 md:px-6 lg:px-8 pt-0 md:pt-6">
@@ -282,7 +264,7 @@ const EventDetailPage = () => {
       )}
 
       {/* ─── Not Found State ─── */}
-      {!loading && notFound && (
+      {!isLoading && notFound && (
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center max-w-md px-6">
             <span className="text-5xl block mb-4">🔍</span>
@@ -301,7 +283,7 @@ const EventDetailPage = () => {
       )}
 
       {/* ─── Main Content (only when loaded and found) ─── */}
-      {!loading && !notFound && (<>
+      {!isLoading && !notFound && (<>
 
       {/* ─── Photo Gallery ─── */}
       <div className="max-w-7xl mx-auto px-0 md:px-6 lg:px-8 pt-0 md:pt-6">
@@ -311,10 +293,11 @@ const EventDetailPage = () => {
             className="relative w-full h-[300px] sm:h-[380px] md:h-[460px] rounded-none md:rounded-2xl overflow-hidden cursor-pointer group"
             onClick={() => setShowAllPhotos(true)}
           >
-            <img
+            <LazyImage
               src={event.images[0]}
               alt={event.title}
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+              containerClassName="relative w-full h-full"
             />
           </div>
         ) : (
@@ -331,10 +314,11 @@ const EventDetailPage = () => {
               }`}
               onClick={() => setShowAllPhotos(true)}
             >
-              <img
+              <LazyImage
                 src={event.images[0]}
                 alt={event.title}
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                containerClassName="relative w-full h-full"
               />
             </div>
             {/* Secondary images */}
@@ -344,10 +328,11 @@ const EventDetailPage = () => {
                 className="relative cursor-pointer group overflow-hidden"
                 onClick={() => setShowAllPhotos(true)}
               >
-                <img
+                <LazyImage
                   src={img}
                   alt={`${event.title} ${i + 2}`}
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                  containerClassName="relative w-full h-full"
                 />
               </div>
             ))}
@@ -668,12 +653,14 @@ const EventDetailPage = () => {
           </div>
           <div className="max-w-4xl mx-auto px-4 py-6 space-y-2">
             {event.images.map((img, i) => (
-              <img
-                key={i}
-                src={img}
-                alt={`${event.title} ${i + 1}`}
-                className="w-full rounded-xl object-cover"
-              />
+              <div key={i} className="relative w-full h-96 rounded-xl overflow-hidden">
+                <LazyImage
+                  src={img}
+                  alt={`${event.title} ${i + 1}`}
+                  className="w-full h-full object-cover"
+                  containerClassName="relative w-full h-full"
+                />
+              </div>
             ))}
           </div>
         </div>
@@ -777,7 +764,7 @@ const EventDetailPage = () => {
       </>)}
 
       {/* ─── Sticky Bottom Bar (Mobile only, when not loading) ─── */}
-      {!loading && !notFound && (
+      {!isLoading && !notFound && (
         <div className="lg:hidden fixed bottom-16 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-t border-neutral-200 dark:border-neutral-800 px-4 py-3 flex items-center justify-between shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
           <div>
             <div className="flex items-baseline gap-1">

@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import {
-  SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
   ArrowRight,
@@ -16,7 +15,8 @@ import {
   Leaf,
 } from 'lucide-react';
 import EventCard, { Event } from '../components/EventCard';
-import { api } from '../services/api';
+import { EventLink } from '../components/EventLink';
+import { useEvents } from '../hooks/queries/useEvents';
 
 /* ── Promoted hero slides ─────────────────────────────── */
 const heroSlides = [
@@ -289,31 +289,17 @@ const HeroCarousel = () => {
 /* ── Home Page ────────────────────────────────────────── */
 const HomePage = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Use React Query hooks for data fetching with caching
+  const { data: eventsData, isLoading, error } = useEvents(
+    selectedCategory !== 'All' ? { limit: 20, category: selectedCategory } : { limit: 20 }
+  );
+  
+  // Cache categories for 1 hour
 
-  useEffect(() => {
-    const fetchEvents = async () => {
-      setLoading(true);
-      try {
-        const params: any = { limit: 20 };
-        if (selectedCategory !== 'All') params.category = selectedCategory;
-        const response = await api.events.getAll(params);
-        const apiEvents = response.data?.events || [];
-        setFilteredEvents(apiEvents.map(mapApiEventToFrontendEvent));
-      } catch (error) {
-        console.error('Failed to fetch events, falling back to mocks:', error);
-        if (selectedCategory === 'All') {
-          setFilteredEvents(mockEvents);
-        } else {
-          setFilteredEvents(mockEvents.filter((e) => e.category === selectedCategory));
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchEvents();
-  }, [selectedCategory]);
+
+  // Transform API events to frontend format
+  const filteredEvents: Event[] = eventsData?.map(mapApiEventToFrontendEvent) || [];
 
   return (
     <div className="bg-white dark:bg-gray-950 min-h-[calc(100vh-80px)] flex flex-col relative">
@@ -344,13 +330,6 @@ const HomePage = () => {
             );
           })}
         </div>
-
-
-        {/* Desktop filters icon */}
-        {/* <button className="hidden md:flex items-center gap-2 border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-3 text-xs font-bold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors shadow-sm">
-          <SlidersHorizontal className="h-3.5 w-3.5" />
-          Filters
-        </button> */}
       </div>
 
       {/* ─── Main Content: Events Grid ─── */}
@@ -363,7 +342,7 @@ const HomePage = () => {
                 : `${selectedCategory} events`}
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {loading ? 'Loading events...' : `Showing ${filteredEvents.length} premium event listings near you`}
+              {isLoading ? 'Loading events...' : `Showing ${filteredEvents.length} premium event listings near you`}
             </p>
           </div>
           <Link
@@ -375,7 +354,7 @@ const HomePage = () => {
           </Link>
         </div>
 
-        {loading ? (
+        {isLoading ? (
           <div className="grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {Array.from({ length: 10 }).map((_, i) => (
               <div key={i} className="animate-pulse">
@@ -388,10 +367,22 @@ const HomePage = () => {
               </div>
             ))}
           </div>
+        ) : error ? (
+         <>
+       <div className="grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {mockEvents.map((event) => (
+              <EventLink key={event.id} eventId={event.id}>
+                <EventCard event={event} />
+              </EventLink>
+            ))}
+          </div>
+         </>
         ) : filteredEvents.length > 0 ? (
           <div className="grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filteredEvents.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <EventLink key={event.id} eventId={event.id}>
+                <EventCard event={event} />
+              </EventLink>
             ))}
           </div>
         ) : (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { 
@@ -7,18 +7,16 @@ import {
   MapPin, 
   Clock, 
   Ticket, 
-  User, 
-  Mail, 
-  Phone, 
   Minus, 
   Plus, 
   CreditCard,
   Shield,
   ArrowRight
 } from 'lucide-react';
-import api from '../services/api';
+import { api } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CustomAlertDialog } from '../components/ui/CustomAlertDialog';
+import { useEventById } from '../hooks/queries/useEvents';
 
 
 // Mock event fallback matching EventDetailPage
@@ -45,8 +43,13 @@ const BookingPage = () => {
   const preselectedData = location.state || {};
   const { user, isAuthenticated } = useAuth();
 
+  // React Query hook for fetching event data
+  const { data: eventData } = useEventById(
+    eventId ? Number(eventId) : 0,
+    !!eventId
+  );
+
   // Booking details state
-  const [eventData, setEventData] = useState<any>(mockEvent);
   const [selectedTickets, setSelectedTickets] = useState<Record<number, number>>({});
 
   // Guest details state
@@ -57,72 +60,43 @@ const BookingPage = () => {
 
   // Flow states
   const [step, setStep] = useState<number>(1);
-  const [isLoading, setIsLoading] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'opay'>('paystack');
   const [alertDialog, setAlertDialog] = useState<{isOpen: boolean, title?: string, message: string}>({isOpen: false, message: ''});
+
+  // Normalize event data from API
+  const normalizedEventData = eventData ? {
+    ...eventData,
+    date: eventData.startDate || eventData.date,
+    startTime: eventData.startDate ? new Date(eventData.startDate).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }) : eventData.startTime || '09:00 AM',
+    endTime: eventData.endDate ? new Date(eventData.endDate).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }) : eventData.endTime || '06:00 PM',
+    ticketTypes: eventData.ticketTypes || mockEvent.ticketTypes,
+  } : mockEvent;
 
   const showAlert = (message: string, title?: string) => {
     setAlertDialog({ isOpen: true, message, title });
   };
 
-  // Fetch Event Info
+  // Initialize selectedTickets when event loads
   useEffect(() => {
-    const fetchEvent = async () => {
-      if (!eventId) return;
-      try {
-        const response = await api.events.getById(Number(eventId));
-        if (response.data) {
-          const fetched = response.data;
-          if (!fetched.ticketTypes || fetched.ticketTypes.length === 0) {
-            fetched.ticketTypes = mockEvent.ticketTypes;
-          }
+    if (eventData?.ticketTypes) {
+      const preselectedTypeId = Number(preselectedData.ticketTypeId);
+      const preselectedQty = Number(preselectedData.quantity) || 1;
+      const preselectedExists = eventData.ticketTypes.some((t: any) => Number(t.id) === preselectedTypeId);
 
-          // API returns startDate / endDate as ISO strings — normalise to the
-          // shape the rest of the page expects: date, startTime, endTime
-          if (fetched.startDate && !fetched.date) {
-            fetched.date = fetched.startDate;
-          }
-          if (fetched.startDate && !fetched.startTime) {
-            fetched.startTime = new Date(fetched.startDate).toLocaleTimeString('en-US', {
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: true,
-            });
-          }
-          if (fetched.endDate && !fetched.endTime) {
-            fetched.endTime = new Date(fetched.endDate).toLocaleTimeString('en-US', {
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: true,
-            });
-          }
-
-          setEventData(fetched);
-
-          // Initialize selectedTickets with preselected type or first type
-          const preselectedTypeId = Number(preselectedData.ticketTypeId);
-          const preselectedQty = Number(preselectedData.quantity) || 1;
-          const preselectedExists = fetched.ticketTypes.some((t: any) => Number(t.id) === preselectedTypeId);
-
-          if (preselectedExists) {
-            setSelectedTickets({ [preselectedTypeId]: preselectedQty });
-          } else {
-            // Default to 0 for all tickets so the user has to manually choose
-            setSelectedTickets({});
-          }
-        }
-      } catch (err) {
-        console.warn('Failed to load event from API, using fallback data:', err);
-        setEventData({
-          ...mockEvent,
-          id: Number(eventId)
-        });
-        setSelectedTickets({});
+      if (preselectedExists) {
+        setSelectedTickets({ [preselectedTypeId]: preselectedQty });
       }
-    };
-    fetchEvent();
-  }, [eventId]);
+    }
+  }, [eventData?.ticketTypes, preselectedData.ticketTypeId, preselectedData.quantity]);
 
   // Pre-fill guest details from logged-in user
   useEffect(() => {
@@ -132,7 +106,7 @@ const BookingPage = () => {
       if (user.email && !guestEmail) setGuestEmail(user.email);
       if (user.phone && !guestPhone) setGuestPhone(user.phone);
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, guestFirstName, guestLastName, guestEmail, guestPhone]);
 
   // Dynamically load Paystack script for Step 3
   useEffect(() => {
@@ -150,7 +124,7 @@ const BookingPage = () => {
   // Derived state calculations
   const totalTicketsCount = Object.values(selectedTickets).reduce((acc, qty) => acc + qty, 0);
 
-  const subtotal = eventData.ticketTypes?.reduce((acc: number, t: any) => {
+  const subtotal = normalizedEventData.ticketTypes?.reduce((acc: number, t: any) => {
     const qty = selectedTickets[t.id] || 0;
     return acc + (t.price || 0) * qty;
   }, 0) || 0;
@@ -171,7 +145,6 @@ const BookingPage = () => {
     }
   };
 
-  // Payment executors
   const handlePaymentSuccess = async () => {
     setIsPaying(true);
     try {
@@ -184,18 +157,18 @@ const BookingPage = () => {
         lastName: guestLastName,
         email: guestEmail,
         phone: guestPhone,
-        eventId: Number(eventData.id),
+        eventId: Number(normalizedEventData.id),
         items
       });
 
       if (checkoutRes.status === 201) {
         const confirmedOrder = {
-          eventId: eventData.id,
-          eventName: eventData.title,
-          eventDate: eventData.date,
-          eventTime: `${eventData.startTime || '09:00 AM'} - ${eventData.endTime || '06:00 PM'}`,
-          eventLocation: eventData.location,
-          eventImageUrl: eventData.imageUrl,
+          eventId: normalizedEventData.id,
+          eventName: normalizedEventData.title,
+          eventDate: normalizedEventData.date,
+          eventTime: `${normalizedEventData.startTime || '09:00 AM'} - ${normalizedEventData.endTime || '06:00 PM'}`,
+          eventLocation: normalizedEventData.location,
+          eventImageUrl: normalizedEventData.imageUrl,
           quantity: totalTicketsCount,
           totalAmount: totalAmount,
           currency: 'NGN',
@@ -223,7 +196,7 @@ const BookingPage = () => {
       email: guestEmail,
       amount: Math.round(totalAmount * 100), // Paystack expects amount in kobo
       currency: 'NGN',
-      ref: `EVT_${Date.now()}_${eventData.id}`,
+      ref: `EVT_${Date.now()}_${normalizedEventData.id}`,
       metadata: {
         custom_fields: [
           {
@@ -250,7 +223,7 @@ const BookingPage = () => {
   const handleOpayPayment = async () => {
     setIsPaying(true);
     try {
-      const orderId = `OPAY_${Date.now()}_${eventData.id}`;
+      const orderId = `OPAY_${Date.now()}_${normalizedEventData.id}`;
       
       const items = Object.entries(selectedTickets)
         .filter(([_, qty]) => qty > 0)
@@ -262,12 +235,12 @@ const BookingPage = () => {
         lastName: guestLastName,
         email: guestEmail,
         phone: guestPhone,
-        eventId: Number(eventData.id),
-        eventName: eventData.title,
-        eventDate: eventData.date,
-        eventTime: `${eventData.startTime || '09:00 AM'} - ${eventData.endTime || '06:00 PM'}`,
-        eventLocation: eventData.location,
-        eventImageUrl: eventData.imageUrl,
+        eventId: Number(normalizedEventData.id),
+        eventName: normalizedEventData.title,
+        eventDate: normalizedEventData.date,
+        eventTime: `${normalizedEventData.startTime || '09:00 AM'} - ${normalizedEventData.endTime || '06:00 PM'}`,
+        eventLocation: normalizedEventData.location,
+        eventImageUrl: normalizedEventData.imageUrl,
         items,
         totalAmount: totalAmount
       }));
@@ -366,7 +339,7 @@ const BookingPage = () => {
           {['Review Tickets', 'Guest Details', 'Payment'].map((s, idx) => {
             const stepNum = idx + 1;
             return (
-              <React.Fragment key={s}>
+              <Fragment key={s}>
                 <div className="flex items-center gap-2 shrink-0">
                   <div 
                     className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
@@ -386,7 +359,7 @@ const BookingPage = () => {
                 {idx < 2 && (
                   <div className={`w-8 h-0.5 ${step > stepNum ? 'bg-rose-300' : 'bg-neutral-200 dark:bg-neutral-800'}`} />
                 )}
-              </React.Fragment>
+              </Fragment>
             );
           })}
         </div>
@@ -411,7 +384,7 @@ const BookingPage = () => {
                   <p className="text-xs text-neutral-500 mb-6">Select the quantity for each ticket type you want to order.</p>
                   
                   <div className="space-y-4">
-                    {eventData.ticketTypes?.map((t: any) => {
+                    {normalizedEventData.ticketTypes?.map((t: any) => {
                       const qty = selectedTickets[t.id] || 0;
                       return (
                         <div key={t.id} className="p-4 flex items-center justify-between border border-neutral-200 dark:border-neutral-800 rounded-2xl hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors">
@@ -677,13 +650,13 @@ const BookingPage = () => {
               {/* Event card header */}
               <div className="flex gap-4 mb-6 pb-6 border-b border-neutral-100 dark:border-neutral-850">
                 <img 
-                  src={eventData.imageUrl} 
-                  alt={eventData.title} 
+                  src={normalizedEventData.imageUrl} 
+                  alt={normalizedEventData.title} 
                   className="w-20 h-20 object-cover rounded-xl shrink-0" 
                 />
                 <div>
                   <h3 className="font-bold text-sm text-neutral-900 dark:text-white line-clamp-2">
-                    {eventData.title}
+                    {normalizedEventData.title}
                   </h3>
                   <p className="text-[10px] text-neutral-450 mt-1 uppercase tracking-wider">Event Details</p>
                 </div>
@@ -695,21 +668,21 @@ const BookingPage = () => {
                   <Calendar className="h-4 w-4 text-neutral-400 mt-0.5 shrink-0" />
                   <div>
                     <p className="font-bold text-neutral-900 dark:text-white">Date</p>
-                    <p>{formatDate(eventData.date)}</p>
+                    <p>{formatDate(normalizedEventData.date)}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <Clock className="h-4 w-4 text-neutral-400 mt-0.5 shrink-0" />
                   <div>
                     <p className="font-bold text-neutral-900 dark:text-white">Time</p>
-                    <p>{eventData.startTime} – {eventData.endTime}</p>
+                    <p>{normalizedEventData.startTime} – {normalizedEventData.endTime}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <MapPin className="h-4 w-4 text-neutral-400 mt-0.5 shrink-0" />
                   <div>
                     <p className="font-bold text-neutral-900 dark:text-white">Location</p>
-                    <p className="line-clamp-2">{eventData.location}</p>
+                    <p className="line-clamp-2">{normalizedEventData.location}</p>
                   </div>
                 </div>
               </div>
@@ -718,7 +691,7 @@ const BookingPage = () => {
               <div className="space-y-3 pt-2">
                 <h4 className="text-xs font-bold text-neutral-900 dark:text-white">Price Details</h4>
                 
-                {eventData.ticketTypes?.map((t: any) => {
+                {normalizedEventData.ticketTypes?.map((t: any) => {
                   const qty = selectedTickets[t.id] || 0;
                   if (qty <= 0) return null;
                   return (

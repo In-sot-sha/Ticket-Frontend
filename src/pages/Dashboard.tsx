@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import {
   Calendar,
@@ -14,28 +14,20 @@ import {
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../services/api';
+import { useOrganizerEvents, useOrganizerAnalytics } from '../hooks/queries/useEvents';
 import { resolveImageUrl } from '../lib/media';
 import EventPhaseBadge from '../components/organizer/EventPhaseBadge';
 import { formatNaira, OrganizerEvent } from '../lib/eventOrganizer';
 
 const OrganizerDashboard = () => {
   const { user } = useAuth();
-  const [events, setEvents] = useState<OrganizerEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Use React Query hooks for data fetching with caching
+  const { data: events = [], isLoading } = useOrganizerEvents();
 
-  useEffect(() => {
-    if (!user) return;
-    api.events
-      .getOrganizerEvents({ limit: 5 })
-      .then((res) => setEvents(res.data?.events ?? []))
-      .catch(() => setEvents([]))
-      .finally(() => setLoading(false));
-  }, [user]);
-
-  const liveEvents = events.filter((e) => e.phase === 'live' || e.phase === 'upcoming').length;
-  const totalTickets = events.reduce((sum, e) => sum + (e.stats?.ticketsSold ?? e.attendees ?? 0), 0);
-  const totalRevenue = events.reduce((sum, e) => sum + (e.stats?.actualRevenue ?? e.revenue ?? 0), 0);
+  const liveEvents = events.filter((e: OrganizerEvent) => e.phase === 'live' || e.phase === 'upcoming').length;
+  const totalTickets = events.reduce((sum: number, e: OrganizerEvent) => sum + (e.stats?.ticketsSold ?? e.attendees ?? 0), 0);
+  const totalRevenue = events.reduce((sum: number, e: OrganizerEvent) => sum + (e.stats?.actualRevenue ?? e.revenue ?? 0), 0);
 
   const formatEventDate = (dateStr: string) =>
     new Date(dateStr).toLocaleDateString('en-NG', {
@@ -87,7 +79,7 @@ const OrganizerDashboard = () => {
           </div>
 
           <div className="border border-neutral-150 dark:border-neutral-900 rounded-2xl overflow-hidden divide-y divide-neutral-150 dark:divide-neutral-900">
-            {loading ? (
+            {isLoading ? (
               <div className="p-8 flex justify-center">
                 <Spinner />
               </div>
@@ -102,7 +94,7 @@ const OrganizerDashboard = () => {
                 </Link>
               </div>
             ) : (
-              events.map((event) => {
+              events.map((event: OrganizerEvent) => {
                 const cover = resolveImageUrl(event.imageUrl);
                 const sold = event.stats?.ticketsSold ?? event.attendees ?? 0;
                 const earned = event.stats?.actualRevenue ?? event.revenue ?? 0;

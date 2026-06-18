@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Star, Heart } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { LazyImage } from './LazyImage';
 
 // Define the event type
 interface Event {
@@ -85,11 +86,11 @@ const EventCard: React.FC<EventCardProps> = ({
         
         {/* Card Image Wrapper */}
         <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-100/50 dark:border-neutral-900/30">
-          <img
+          <LazyImage
             src={event.image}
             alt={event.title}
             className="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
-            loading="lazy"
+            containerClassName="relative w-full h-full"
           />
 
           {/* Heart Button Overlay */}
