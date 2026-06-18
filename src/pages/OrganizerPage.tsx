@@ -1,30 +1,24 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Ticket, 
   ArrowRight, 
-  CheckCircle, 
-  HelpCircle, 
+
   ChevronDown, 
   ChevronUp, 
-  DollarSign, 
   QrCode, 
-  Users, 
-  ShieldCheck, 
-  Percent, 
+
   Store,
   Layers,
   Sparkles,
   TrendingUp,
-  MapPin,
-  Calendar,
-  Star,
-  Award,
+
   ChevronRight
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import EventCard, { Event } from '../components/EventCard';
+import { useEvents } from '../hooks/queries/useEvents';
+import { EventLink } from '../components/EventLink';
 
 const OrganizerPage: React.FC = () => {
   // Estimator State
@@ -36,34 +30,10 @@ const OrganizerPage: React.FC = () => {
   // FAQ State
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
 
-  // Estimator Calculations
-  const grossEarnings = price * attendees;
-  const platformFee = price === 0 ? 0 : Math.round(grossEarnings * 0.035);
-  const netEarnings = grossEarnings - platformFee;
+  // Fetch events with React Query (with fallback)
+  const { data: apiEvents = [], isLoading, error } = useEvents({ limit: 10 });
 
-  const faqData = [
-    {
-      q: "How much does it cost to use PartyStorm?",
-      a: "It is completely free to create and publish events on PartyStorm. For paid tickets, we charge a simple, transparent flat fee of 3.5% per ticket sold. If your event is free, PartyStorm is 100% free to use."
-    },
-    {
-      q: "When and how do I receive my payouts?",
-      a: "Payouts are automatically initiated within 24 hours after the start of your event. They are sent securely via bank transfer to the payout details linked in your Organizer Dashboard."
-    },
-    {
-      q: "Can I sell vendor booths or vendor spaces?",
-      a: "Yes! PartyStorm offers a fully integrated vendor management system. You can create customized vendor booth tiers (e.g., Premium, Standard, Corner), set registration fees, review vendor profile submissions, and collect booth fee payments. The best part? PartyStorm charges a 0% commission on vendor payments, meaning you keep 100% of vendor sales!"
-    },
-    {
-      q: "Do I need special hardware to scan tickets?",
-      a: "No special hardware required! You can scan tickets directly using your smartphone's camera. Just log into your PartyStorm dashboard on any mobile browser, access your event, and tap the built-in mobile scanner to check in guests instantly."
-    },
-    {
-      q: "Can I set up multiple ticket tiers?",
-      a: "Absolutely. You can create VIP, Regular, Early Bird, Group, or customized promotional ticket tiers with specific quantities, pricing, and purchase limits."
-    }
-  ];
-
+  // Mock fallback events
   const mockEvents: Event[] = [
     {
       id: 901,
@@ -100,6 +70,52 @@ const OrganizerPage: React.FC = () => {
     }
   ];
 
+  // Transform API events to EventCard format
+  const transformedApiEvents = apiEvents
+    .slice(0, 3)
+    .map((e: any) => ({
+      id: e.id,
+      title: e.title,
+      date: e.startDate,
+      location: e.location || 'Online',
+      image: e.imageUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
+      category: e.category || 'Other',
+      ticketsAvailable: e.ticketTypes?.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0) || 0,
+      price: e.price ?? 0,
+      rating: 4.5 + (e.id % 5) * 0.1
+    }));
+
+  // Use API events if available, fallback to mock
+  const showcaseEvents = error || apiEvents.length === 0 ? mockEvents : transformedApiEvents;
+
+  // Estimator Calculations
+  const grossEarnings = price * attendees;
+  const platformFee = price === 0 ? 0 : Math.round(grossEarnings * 0.05);
+  const netEarnings = grossEarnings - platformFee;
+
+  const faqData = [
+    {
+      q: "How much does it cost to use PartyStorm?",
+      a: "It is completely free to create and publish events on PartyStorm. For paid tickets, we charge a simple, transparent flat fee of 5% per ticket sold. If your event is free, PartyStorm is 100% free to use."
+    },
+    {
+      q: "When and how do I receive my payouts?",
+      a: "Payouts are automatically initiated within 24 hours after the start of your event. They are sent securely via bank transfer to the payout details linked in your Organizer Dashboard."
+    },
+    {
+      q: "Can I sell vendor booths or vendor spaces?",
+      a: "Yes! PartyStorm offers a fully integrated vendor management system. You can create customized vendor booth tiers (e.g., Premium, Standard, Corner), set registration fees, review vendor profile submissions, and collect booth fee payments. The best part? PartyStorm charges a 0% commission on vendor payments, meaning you keep 100% of vendor sales!"
+    },
+    {
+      q: "Do I need special hardware to scan tickets?",
+      a: "No special hardware required! You can scan tickets directly using your smartphone's camera. Just log into your PartyStorm dashboard on any mobile browser, access your event, and tap the built-in mobile scanner to check in guests instantly."
+    },
+    {
+      q: "Can I set up multiple ticket tiers?",
+      a: "Absolutely. You can create VIP, Regular, Early Bird, Group, or customized promotional ticket tiers with specific quantities, pricing, and purchase limits."
+    }
+  ];
+
   const toggleFaq = (index: number) => {
     setActiveFaq(activeFaq === index ? null : index);
   };
@@ -108,7 +124,7 @@ const OrganizerPage: React.FC = () => {
     <div className="bg-white dark:bg-gray-950 min-h-screen text-neutral-900 dark:text-neutral-100 transition-colors duration-200">
       
       {/* ─── Hero & Estimator Section ─── */}
-      <section className="relative overflow-hidden py-12 lg:py-24 border-b border-neutral-100 dark:border-neutral-900">
+      <section className="relative overflow-hidden sm:py-12 py-6 lg:py-24 border-b border-neutral-100 dark:border-neutral-900">
         {/* Simple Background without blobs */}
 
         <div className="container mx-auto px-6 max-w-7xl">
@@ -127,7 +143,7 @@ const OrganizerPage: React.FC = () => {
               </h1>
               
               <p className="text-base sm:text-lg text-neutral-500 dark:text-neutral-400 max-w-xl leading-relaxed">
-                Set your ticket tiers, manage vendors, and scan doors using your smartphone. With just a flat 3.5% fee on paid tickets and direct payouts in 24 hours.
+                Set your ticket tiers, manage vendors, and scan doors using your smartphone. With just a flat 5% fee on paid tickets and direct payouts in 24 hours.
               </p>
 
               {/* Stats Row */}
@@ -137,7 +153,7 @@ const OrganizerPage: React.FC = () => {
                   <div className="text-xs text-neutral-450 dark:text-neutral-500 mt-0.5">Setup Fee</div>
                 </div>
                 <div>
-                  <div className="text-2xl sm:text-3xl font-black text-rose-500 dark:text-rose-450">3.5%</div>
+                  <div className="text-2xl sm:text-3xl font-black text-rose-500 dark:text-rose-450">5%</div>
                   <div className="text-xs text-neutral-450 dark:text-neutral-500 mt-0.5">Flat Ticket Fee</div>
                 </div>
                 <div>
@@ -261,7 +277,7 @@ const OrganizerPage: React.FC = () => {
                           <span className="font-semibold text-neutral-800 dark:text-white">₦{grossEarnings.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between text-rose-600 dark:text-rose-450">
-                          <span>PartyStorm Fee (3.5%):</span>
+                          <span>PartyStorm Fee (5%):</span>
                           <span>-₦{platformFee.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between pt-1 border-t border-dashed border-rose-200/50 dark:border-rose-900/30 font-bold text-neutral-850 dark:text-neutral-200">
@@ -306,7 +322,7 @@ const OrganizerPage: React.FC = () => {
                 Paid Tiers
               </div>
               <div className="text-4xl md:text-5xl font-black text-neutral-900 dark:text-white mb-2">
-                3.5%
+                5%
               </div>
               <h3 className="font-bold text-neutral-850 dark:text-neutral-200 mb-3">Per Paid Ticket sold</h3>
               <p className="text-xs text-neutral-550 dark:text-neutral-400 leading-relaxed">
@@ -559,9 +575,11 @@ const OrganizerPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {mockEvents.map((event) => (
+            {showcaseEvents.map((event: any) => (
               <div key={event.id} className="relative">
-                <EventCard event={event} showPrice={true} showRating={true} />
+                <EventLink eventId={event.id}>
+                  <EventCard event={event} showPrice={true} showRating={true} />
+                </EventLink>
               </div>
             ))}
           </div>

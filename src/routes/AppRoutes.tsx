@@ -23,6 +23,7 @@ import RecoverTicketPage from '../pages/RecoverTicketPage';
 import BookingPage from '../pages/BookingPage';
 import BookingSuccessPage from '../pages/BookingSuccessPage';
 import OpayMockCheckout from '../pages/OpayMockCheckout';
+import NotFoundPage from '../pages/NotFoundPage';
 
 // Protected pages
 import Dashboard from '../pages/Dashboard';
@@ -32,8 +33,6 @@ import EventsDashboard from '../pages/EventsDashboard';
 import CreateEvent from '../pages/CreateEvent';
 import PaymentPage from '../pages/PaymentPage';
 import TicketConfirmationPage from '../pages/TicketConfirmationPage';
-import TicketsDashboard from '../pages/TicketsDashboard';
-import VendorsDashboard from '../pages/VendorsDashboard';
 import AnalyticsDashboard from '../pages/AnalyticsDashboard';
 import SettingsDashboard from '../pages/SettingsDashboard';
 import FinanceDashboard from '../pages/FinanceDashboard';
@@ -42,10 +41,8 @@ import GateScannerPage from '../pages/GateScannerPage';
 import OrganizerEventPage from '../pages/OrganizerEventPage';
 import ApplyAsVendor from '../pages/ApplyAsVendor';
 import VendorApplications from '../pages/VendorApplications';
-import MyVendorApplications from '../pages/MyVendorApplications';
 import GuestDashboard from '../pages/GuestDashboard';
 import WishlistPage from '../pages/WishlistPage';
-import UserDashboard from '../components/layout/UserDashboard';
 import TicketScanner from '../pages/TicketScanner';
 
 // Route guard component for protected routes
@@ -142,7 +139,7 @@ const AppRoutes: React.FC = () => {
           element: <PrivacyPolicy />,
         },
         {
-          path: "organizers",
+          path: "for-organizers",
           element: <OrganizerPage />,
         },
         {
@@ -306,6 +303,11 @@ const AppRoutes: React.FC = () => {
           element: <TicketConfirmationPage />,
         },
       ],
+    },
+    // Catch-all 404 route
+    {
+      path: "*",
+      element: <NotFoundPage />,
     },
   ];
 

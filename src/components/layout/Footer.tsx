@@ -44,8 +44,8 @@ const Footer = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/organizers" className="text-muted-foreground hover:text-foreground">
-                  For Organizers
+                <Link to="/for-organizers" className="text-muted-foreground hover:text-foreground">
+                  Become an Organizer
                 </Link>
               </li>
               <li>

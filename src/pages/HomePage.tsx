@@ -279,8 +279,10 @@ const HeroCarousel = () => {
                 : 'w-2 h-2 bg-white/50 hover:bg-white/70'
             }`}
             aria-label={`Go to slide ${i + 1}`}
+            
           />
         ))}
+        
       </div>
     </div>
   );
@@ -289,7 +291,6 @@ const HeroCarousel = () => {
 /* ── Home Page ────────────────────────────────────────── */
 const HomePage = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
-  
   // Use React Query hooks for data fetching with caching
   const { data: eventsData, isLoading, error } = useEvents(
     selectedCategory !== 'All' ? { limit: 20, category: selectedCategory } : { limit: 20 }

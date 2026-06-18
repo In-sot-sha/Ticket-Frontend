@@ -56,7 +56,7 @@ const DashboardLayout: React.FC = () => {
         )}
 
         {/* Main content — this is the ONLY thing that scrolls */}
-        <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
+        <main className="flex-1 overflow-y-auto pb-24 md:pb-0">
           <div
             className={
               isCreateEvent || isScanner

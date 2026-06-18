@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Eye, EyeOff, Ticket, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Ticket, Loader2, QrCode } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { neonAuthClient } from '../lib/neonAuth';
 
@@ -37,7 +37,14 @@ const Login = () => {
   };
 
   // After Neon Auth redirects back, check for an active session
+  // Use a ref to ensure this runs only once, preventing double calls in strict mode
+  const hasCheckedSession = useRef(false);
+  
   useEffect(() => {
+    // Skip if already checked (prevents duplicate calls in React strict mode)
+    if (hasCheckedSession.current) return;
+    hasCheckedSession.current = true;
+    
     const client = neonAuthClient;
     if (!client) return;
     
@@ -58,7 +65,7 @@ const Login = () => {
       }
     };
     checkNeonSession();
-  }, []);
+  }, [loginWithGoogle, navigate]);
 
   // ---------- Email / Password via custom backend ----------
   const handleSubmit = async (e: React.FormEvent) => {
@@ -284,6 +291,17 @@ const Login = () => {
             Don't have an account?{' '}
             <Link to="/register" className="font-bold text-rose-500 hover:underline">
               Sign up
+            </Link>
+          </div>
+
+          {/* Scan Tickets Link for Staff */}
+          <div className="pt-6 border-t border-neutral-200 dark:border-neutral-800">
+            <Link
+              to="/scan-gate"
+              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-xs font-semibold text-neutral-600 dark:text-neutral-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+            >
+              <QrCode className="h-4 w-4" />
+              Staff: Scan Tickets
             </Link>
           </div>
         </motion.div>

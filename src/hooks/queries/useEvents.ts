@@ -67,7 +67,7 @@ export const useEventCategories = () => {
 export const useOrganizerEvents = (params?: { page?: number; limit?: number }) => {
   return useQuery({
     queryKey: queryKeys.events.organizerEvents(),
-    queryFn: () => api.events.getOrganizerEvents(params).then(res => res.data),
+    queryFn: () => api.events.getOrganizerEvents(params).then(res => res.data.events),
   });
 };
 
