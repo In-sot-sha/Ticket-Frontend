@@ -1,18 +1,54 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Heart, Loader2 } from 'lucide-react';
-import Header from '../components/layout/Header';
 import EventCard from '../components/EventCard';
-import { api } from '../services/api';
 import { Button } from '../components/ui/Button';
 import { Link } from 'react-router-dom';
+import { useEvents } from '../hooks/queries/useEvents';
 
 const WishlistPage = () => {
-  const [events, setEvents] = useState<any[]>([]);
-  const [wishlistIds, setWishlistIds] = useState<number[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [wishlistIds, setWishlistIds] = useState<number[]>(() => {
+    // Load wishlist IDs from localStorage on mount
+    const ids: number[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('wishlist_')) {
+        const val = localStorage.getItem(key);
+        if (val === 'true') {
+          const id = Number(key.replace('wishlist_', ''));
+          if (!isNaN(id)) {
+            ids.push(id);
+          }
+        }
+      }
+    }
+    return ids;
+  });
 
-  // Helper to load wishlist IDs from localStorage
-  const loadWishlistIds = () => {
+  // Fetch all events using React Query (cached automatically)
+  const { data: allEvents = [], isLoading } = useEvents({ limit: 100 });
+
+  // Map API events to EventCard format (memoized to prevent re-renders)
+  const mappedEvents = useMemo(() => {
+    return allEvents.map((e: any) => ({
+      id: e.id,
+      title: e.title,
+      date: e.startDate,
+      location: e.location || 'Online',
+      image: e.imageUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
+      category: e.category,
+      ticketsAvailable: e.ticketTypes?.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0) || 0,
+      price: e.price ?? 0,
+      rating: 4.5 + (e.id % 5) * 0.1
+    }));
+  }, [allEvents]);
+
+  // Filter events matching wishlist IDs
+  const wishlistEvents = useMemo(() => {
+    return mappedEvents.filter((e: any) => wishlistIds.includes(e.id));
+  }, [mappedEvents, wishlistIds]);
+
+  // Listen to storage changes for real-time wishlist updates
+  const handleWishlistChange = () => {
     const ids: number[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -29,49 +65,6 @@ const WishlistPage = () => {
     setWishlistIds(ids);
   };
 
-  useEffect(() => {
-    loadWishlistIds();
-  }, []);
-
-  useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        setLoading(true);
-        // Fetch all events from API
-        const response = await api.events.getAll({ limit: 100 });
-        if (response.data && response.data.events) {
-          // Map API events to frontend shape needed by EventCard
-          const mapped = response.data.events.map((e: any) => ({
-            id: e.id,
-            title: e.title,
-            date: e.startDate,
-            location: e.location || 'Online',
-            image: e.imageUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
-            category: e.category,
-            ticketsAvailable: e.ticketTypes?.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0) || 0,
-            price: e.price ?? 0,
-            rating: 4.5 + (e.id % 5) * 0.1
-          }));
-          setEvents(mapped);
-        }
-      } catch (err) {
-        console.error('Failed to load events for wishlist:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchEvents();
-  }, []);
-
-  // Filter events matching our wishlist IDs
-  const wishlistEvents = events.filter(e => wishlistIds.includes(e.id));
-
-  // Handler to listen to wishlist changes from cards
-  const handleWishlistChange = () => {
-    loadWishlistIds();
-  };
-
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-neutral-900 dark:text-neutral-100 pb-16">
 
@@ -81,7 +74,7 @@ const WishlistPage = () => {
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Wishlist</h1>
         </div>
 
-        {loading ? (
+        {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-rose-500 mb-2" />
             <p className="text-xs text-neutral-450 dark:text-neutral-500">Loading your saved events...</p>
@@ -104,7 +97,7 @@ const WishlistPage = () => {
             onClick={handleWishlistChange} 
             className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
           >
-            {wishlistEvents.map(event => (
+            {wishlistEvents.map((event: any) => (
               <EventCard 
                 key={event.id} 
                 event={event} 
