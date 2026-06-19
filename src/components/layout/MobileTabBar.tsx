@@ -8,6 +8,7 @@ import {
   PlusCircle,
   BarChart3,
   Home,
+  HomeIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useRole } from '../../context/RoleContext';
@@ -27,15 +28,15 @@ const MobileTabBar: React.FC = () => {
 
   const userTabs = [
     {
-      label: 'Explore',
-      icon: Search,
+      label: 'Home',
+      icon: HomeIcon,
       path: '/',
       exact: true,
     },
     {
-      label: 'Wishlists',
-      icon: Heart,
-      path: '/wishlist',
+      label: 'Explore',
+      icon: Search,
+      path: '/events',
     },
     {
       label: 'Tickets',

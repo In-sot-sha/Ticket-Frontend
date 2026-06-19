@@ -312,7 +312,7 @@ const Login = () => {
           </div>
 
           {/* Scan Tickets Link for Staff */}
-          <div className="pt-6 border-t border-neutral-200 dark:border-neutral-800">
+          {/* <div className="pt-6 border-t border-neutral-200 dark:border-neutral-800">
             <Link
               to="/scan-gate"
               className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-xs font-semibold text-neutral-600 dark:text-neutral-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
@@ -320,7 +320,7 @@ const Login = () => {
               <QrCode className="h-4 w-4" />
               Staff: Scan Tickets
             </Link>
-          </div>
+          </div> */}
         </motion.div>
       </div>
     </div>

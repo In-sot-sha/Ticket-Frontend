@@ -542,7 +542,7 @@ const BookingPage = () => {
                   <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Select payment method</h2>
                   <p className="text-xs text-neutral-500 mb-6">Choose how you'd like to pay securely</p>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols- gap-4">
                     {totalAmount === 0 ? (
                       <div className="col-span-1 sm:col-span-2 p-6 rounded-2xl border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 flex items-center justify-center">
                         <div className="text-center">
@@ -574,7 +574,7 @@ const BookingPage = () => {
                         </div>
 
                         {/* OPay gate selection */}
-                        <div 
+                        {/* <div 
                           onClick={() => setPaymentMethod('opay')}
                           className={`cursor-pointer rounded-2xl border-2 p-5 flex flex-col justify-between h-36 transition-all ${
                             paymentMethod === 'opay'
@@ -592,7 +592,7 @@ const BookingPage = () => {
                             <p className="text-xs font-bold text-teal-600 dark:text-teal-400">OPay Wallet, Card, Bank</p>
                             <p className="text-[10px] text-neutral-400 mt-1">Real-time payment clearance</p>
                           </div>
-                        </div>
+                        </div> */}
                       </>
                     )}
                   </div>

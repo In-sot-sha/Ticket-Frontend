@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../services/api';
+import { api } from '../services/api';
 import {
   Ticket,
   Mail,
@@ -15,43 +15,6 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-// Mock recovered tickets
-const mockRecoveredTickets = [
-  {
-    id: 'TKT-001',
-    eventTitle: 'Tech Conference 2023',
-    eventDate: 'Dec 15, 2023',
-    location: 'Lagos, Nigeria',
-    ticketType: 'VIP',
-    status: 'VALID',
-    qrCode: 'TKT-001-VIP-2023',
-    image:
-      'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
-  },
-  {
-    id: 'TKT-002',
-    eventTitle: 'Music Festival',
-    eventDate: 'Jan 20, 2024',
-    location: 'Abuja, Nigeria',
-    ticketType: 'General',
-    status: 'VALID',
-    qrCode: 'TKT-002-GEN-2024',
-    image:
-      'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
-  },
-  {
-    id: 'TKT-003',
-    eventTitle: 'Food & Wine Expo',
-    eventDate: 'Feb 10, 2024',
-    location: 'Port Harcourt, Nigeria',
-    ticketType: 'General',
-    status: 'USED',
-    qrCode: 'TKT-003-GEN-2024',
-    image:
-      'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
-  },
-];
 
 type Step = 'input' | 'verify' | 'results';
 
@@ -86,7 +49,7 @@ const RecoverTicketPage = () => {
     }
   };
 
-  // Real sending verification code
+  // Send verification code via email/SMS
   const handleSendCode = async () => {
     if (!inputValue) return;
     setIsLoading(true);
@@ -104,7 +67,7 @@ const RecoverTicketPage = () => {
     }
   };
 
-  // Real verification
+  // Verify code and retrieve tickets
   const handleVerify = async () => {
     const code = verificationCode.join('');
     if (code.length < 6) return;
@@ -126,7 +89,7 @@ const RecoverTicketPage = () => {
         location: t.event?.location || 'Location Pending',
         ticketType: t.ticketType?.name || 'General',
         status: t.status || 'VALID',
-        qrCode: t.qrCode,
+        qrCode: t.qrCode || '',
         image: t.event?.imageUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
       }));
 

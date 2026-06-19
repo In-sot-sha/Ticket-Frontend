@@ -21,82 +21,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import EventCard, { Event } from '../components/EventCard';
 import MapComponent from '../components/MapComponent';
 import { useEvents } from '../hooks/queries/useEvents';
-
-// Mock data for events
-const mockEvents = [
-  {
-    id: 1,
-    title: 'AI & Web3 Developer Summit',
-    date: '2026-06-15',
-    location: 'BUK Convocation Arena, Kano, Nigeria',
-    category: 'Technology',
-    price: 5000,
-    ticketsAvailable: 250,
-    rating: 4.8,
-    image:
-      'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
-  },
-  {
-    id: 2,
-    title: 'Afrobeats Live Fest',
-    date: '2026-07-20',
-    location: 'Sani Abacha Stadium, Kofar Mata, Kano, Nigeria',
-    category: 'Music',
-    price: 10000,
-    ticketsAvailable: 500,
-    rating: 4.9,
-    image:
-      'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
-  },
-  {
-    id: 3,
-    title: 'Street Food Carnival',
-    date: '2026-08-10',
-    location: 'Kano Golf Club, Club Road, Kano, Nigeria',
-    category: 'Food',
-    price: 7500,
-    ticketsAvailable: 180,
-    rating: 4.7,
-    image:
-      'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
-  },
-  {
-    id: 4,
-    title: 'Contemporary Art Showcase',
-    date: '2026-09-05',
-    location: 'Gidan Makama Museum, Kano, Nigeria',
-    category: 'Arts',
-    price: 3000,
-    ticketsAvailable: 320,
-    rating: 4.6,
-    image:
-      'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
-  },
-  {
-    id: 5,
-    title: 'Business Leadership Conference',
-    date: '2026-10-15',
-    location: 'Bristol Palace Hotel, Kano, Nigeria',
-    category: 'Business',
-    price: 8000,
-    ticketsAvailable: 120,
-    rating: 4.5,
-    image:
-      'https://images.unsplash.com/photo-1521737711867-e3b97375f7b7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1184&q=80',
-  },
-  {
-    id: 6,
-    title: 'Kano Durbar Soundwave',
-    date: '2026-11-20',
-    location: 'Gidan Rumfa (Emir\'s Palace), Kano, Nigeria',
-    category: 'Music',
-    price: 4500,
-    ticketsAvailable: 200,
-    rating: 4.4,
-    image:
-      'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1171&q=80',
-  },
-];
+import { mockEvents, mapApiEventToFrontendEvent } from '../data/mockEvents';
 
 const categories = [
   { name: 'All',         Icon: Globe },
@@ -107,24 +32,6 @@ const categories = [
   { name: 'Business',    Icon: Briefcase },
   { name: 'Environment', Icon: Leaf },
 ];
-
-const mapApiEventToFrontendEvent = (apiEvent: any): Event => {
-  const ticketsAvailable = apiEvent.ticketTypes
-    ? apiEvent.ticketTypes.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0)
-    : 100;
-  return {
-    id: apiEvent.id,
-    title: apiEvent.title,
-    date: apiEvent.startDate,
-    location: apiEvent.location || 'Online',
-    image: apiEvent.imageUrl || 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?q=80&w=800',
-    category: apiEvent.category || 'Other',
-    ticketsAvailable,
-    price: apiEvent.price ?? 0,
-    rating: apiEvent.rating || 4.5 + (apiEvent.id % 5) * 0.1,
-    attendees: apiEvent.attendees || 0
-  };
-};
 
 const EventsPage = () => {
   const [searchParams] = useSearchParams();

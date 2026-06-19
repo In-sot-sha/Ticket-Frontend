@@ -14,6 +14,7 @@ interface LazyImageProps {
  * - Lazy loads image using native img loading="lazy"
  * - Smooth fade-in animation when loaded
  * - Reduces Largest Contentful Paint (LCP)
+ * - Handles re-renders properly by using a unique key when src changes
  */
 export const LazyImage: React.FC<LazyImageProps> = ({
   src,
@@ -24,11 +25,13 @@ export const LazyImage: React.FC<LazyImageProps> = ({
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState(false);
+  const [imageKey, setImageKey] = useState(src);
 
   useEffect(() => {
-    // Reset state if src changes
+    // When src changes, reset loaded state and force re-render of img element
     setIsLoaded(false);
     setError(false);
+    setImageKey(src);
   }, [src]);
 
   return (
@@ -41,8 +44,9 @@ export const LazyImage: React.FC<LazyImageProps> = ({
         />
       )}
 
-      {/* Main image */}
+      {/* Main image — key changes force complete re-mount to ensure fresh load */}
       <img
+        key={imageKey}
         src={src}
         alt={alt}
         loading="lazy"

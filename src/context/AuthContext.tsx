@@ -186,6 +186,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Prefetch profile data
         queryClient.setQueryData(queryKeys.auth.profile(), user);
         
+        // Send welcome email (fire and forget)
+        try {
+          await api.post('/emails/send-welcome', {});
+        } catch (emailErr) {
+          console.warn('Failed to send welcome email:', emailErr);
+          // Don't fail registration if welcome email fails
+        }
+        
         navigate('/');
         return true;
       } else {
