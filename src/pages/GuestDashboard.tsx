@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Ticket,
   MapPin,
@@ -13,6 +13,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
 import TicketCard, {
   downloadTicketCard,
@@ -37,25 +38,19 @@ import {
 const GuestDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [tickets, setTickets] = useState<TicketCardTicket[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState<TicketCardTicket | null>(null);
 
-  useEffect(() => {
-    const fetchTickets = async () => {
-      if (!user?.id) return;
-      try {
-        setLoading(true);
-        const res = await api.tickets.getAll({ userId: user.id });
-        setTickets(res.data || []);
-      } catch (err) {
-        console.error('Failed to fetch user tickets:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchTickets();
-  }, [user]);
+  // Use TanStack Query for fetching tickets
+  const { data: tickets = [], isLoading, error } = useQuery({
+    queryKey: ['tickets', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const res = await api.tickets.getAll({ userId: user.id });
+      return res.data || [];
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '';
@@ -188,7 +183,7 @@ const GuestDashboard = () => {
         <div className="space-y-6">
           <h2 className="text-lg font-bold tracking-tight">Your Purchased Tickets</h2>
 
-          {loading ? (
+          {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-rose-500 mb-2" />
               <p className="text-xs text-neutral-500">Loading your passes...</p>

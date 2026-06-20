@@ -37,12 +37,12 @@ export const LazyImage: React.FC<LazyImageProps> = ({
   return (
     <div className={containerClassName}>
       {/* Placeholder blur — shown while loading */}
-      {!isLoaded && !error && (
+      {/* {!isLoaded && !error && (
         <div 
           className="absolute inset-0 bg-neutral-200 dark:bg-neutral-800 animate-pulse"
           style={{ filter: `blur(${blurRadius}px)` }}
         />
-      )}
+      )} */}
 
       {/* Main image — key changes force complete re-mount to ensure fresh load */}
       <img
@@ -50,10 +50,10 @@ export const LazyImage: React.FC<LazyImageProps> = ({
         src={src}
         alt={alt}
         loading="lazy"
-        onLoad={() => setIsLoaded(true)}
-        onError={() => setError(true)}
+        // onLoad={() => setIsLoaded(true)}
+        // onError={() => setError(true)}
         className={`${className} ${
-          isLoaded ? 'opacity-100' : 'opacity-0'
+          'opacity-100'
         } transition-opacity duration-300`}
       />
 

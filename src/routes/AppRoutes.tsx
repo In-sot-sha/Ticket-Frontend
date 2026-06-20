@@ -4,6 +4,8 @@ import {
   Navigate
 } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ProtectedRoute from '../components/ProtectedRoute';
+import PublicRoute from '../components/PublicRoute';
 
 // Layouts
 import AppIndex from './AppIndex';
@@ -53,51 +55,7 @@ import AdminTransactionsPage from '../pages/admin/AdminTransactionsPage';
 import AdminSupportPage from '../pages/admin/AdminSupportPage';
 import SupportPage from '../pages/SupportPage';
 
-// Route guard component for protected routes
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
-  
-  // If still loading the auth state, show a loading indicator
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-  
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  return <>{children}</>;
-};
-
-
-
-
-// Route guard component for public routes (redirects if already logged in)
-const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
-  
-  // If still loading the auth state, show a loading indicator
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-  
-  // Uncomment if you want to redirect authenticated users away from login/register pages
-  if (isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
-  
-  return <>{children}</>;
-};
-
-// Route guard for system admin only
+// Admin-only route guard
 const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, loading, user } = useAuth();
 

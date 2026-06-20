@@ -1,5 +1,7 @@
 // src/services/api.ts
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import { isTokenExpired } from '../lib/tokenUtils';
+
 let localEndpoint = import.meta.env.VITE_API_URL || "http://localhost:33333/api";
 let productionEndpoint = "https://partystormapi.vercel.app/api";
 
@@ -19,6 +21,14 @@ apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
+      // Check if token is expired before sending request
+      if (isTokenExpired(token)) {
+        // Token expired — remove it and redirect
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login?expired=true';
+        return Promise.reject(new Error('Token expired'));
+      }
       config.headers.Authorization = `Bearer ${token}`;
     }
     if (config.data instanceof FormData) {
@@ -36,12 +46,16 @@ apiClient.interceptors.request.use(
   }
 );
 
+// Track refresh attempts to avoid infinite loops
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
 // Response interceptor to handle responses
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
     return response;
   },
-  (error) => {
+  async (error) => {
     // Only auto-logout on 401 if it's NOT an auth endpoint.
     // Auth endpoints (login/register) legitimately return 401 for bad credentials
     // — intercepting those would prevent the error from reaching the caller.
@@ -50,10 +64,51 @@ apiClient.interceptors.response.use(
       requestUrl.includes('/users/login') ||
       requestUrl.includes('/users/register') ||
       requestUrl.includes('/users/google-login') ||
+      requestUrl.includes('/users/refresh-token') ||
       requestUrl.includes('/gate-pins/verify') ||  // public — wrong PIN returns 401
       requestUrl.includes('/tickets/validate');     // public — invalid ticket returns 400/404, never 401, but belt-and-braces
 
     if (error.response?.status === 401 && !isAuthEndpoint) {
+      // Attempt token refresh — import dynamically to avoid circular dependency
+      if (!isRefreshing) {
+        isRefreshing = true;
+        try {
+          // Import AuthContext here to access attemptTokenRefresh
+          const { useAuth } = await import('../context/AuthContext');
+          // Note: This is called from an interceptor, not a component, so we can't use the hook directly
+          // Instead, we'll call the refresh endpoint directly
+          const storedToken = localStorage.getItem('token');
+          if (storedToken) {
+            const response = await axios.post(
+              `${currentEndpoint}/users/refresh-token`,
+              { token: storedToken }
+            );
+            
+            if (response.data?.token) {
+              // Update token in storage and headers
+              localStorage.setItem('token', response.data.token);
+              if (response.data.user) {
+                localStorage.setItem('user', JSON.stringify(response.data.user));
+              }
+              
+              // Retry the original request with new token
+              if (error.config) {
+                error.config.headers.Authorization = `Bearer ${response.data.token}`;
+                isRefreshing = false;
+                return apiClient.request(error.config);
+              }
+            }
+          }
+        } catch (refreshError) {
+          console.error('[API] Token refresh failed:', refreshError);
+          // Refresh failed — logout
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+          isRefreshing = false;
+        }
+      }
+    } else if (error.response?.status === 401 && !isAuthEndpoint) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';

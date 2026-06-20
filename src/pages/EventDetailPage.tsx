@@ -286,7 +286,7 @@ const EventDetailPage = () => {
       {!isLoading && !notFound && (<>
 
       {/* ─── Photo Gallery ─── */}
-      <div className="max-w-7xl mx-auto px-0 md:px-6 lg:px-8 pt-0 md:pt-6">
+      <div className="max-w-8xl mx-auto px-0 md:px-6 lg:px-8 pt-0 md:pt-6">
         {event.images.length === 1 ? (
           /* Single image — full width */
           <div
@@ -348,7 +348,7 @@ const EventDetailPage = () => {
       </div>
 
       {/* ─── Mobile Booking Card (shown only on mobile, right after gallery) ─── */}
-      <div className="lg:hidden max-w-7xl mx-auto px-4 sm:px-6 pt-6">
+      <div className="lg:hidden max-w-8xl mx-auto px-4 sm:px-6 pt-6">
         <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 shadow-sm bg-white dark:bg-gray-900">
           {/* Price + Rating */}
           <div className="flex items-baseline justify-between mb-4">

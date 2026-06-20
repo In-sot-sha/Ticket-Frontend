@@ -275,16 +275,24 @@ const HomePage = () => {
             ))}
           </div>
         ) : error ? (
-         <>
-
-       <div className="grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {mockEvents.map((event) => (
-              <EventLink key={event.id} eventId={event.id}>
-                <EventCard event={event} />
-              </EventLink>
-            ))}
-          </div>
-         </>
+          <>
+            <div className="rounded-2xl border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-950/20 p-6 mb-6">
+              <h3 className="font-bold text-red-700 dark:text-red-300 mb-2">Unable to load events</h3>
+              <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+                {error instanceof Error ? error.message : 'An error occurred while fetching events. Please try again.'}
+              </p>
+              <p className="text-xs text-red-600 dark:text-red-400">
+                Showing offline events for now. Check your connection and refresh to see live listings.
+              </p>
+            </div>
+            <div className="grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {mockEvents.map((event) => (
+                <EventLink key={event.id} eventId={event.id}>
+                  <EventCard event={event} />
+                </EventLink>
+              ))}
+            </div>
+          </>
         ) : filteredEvents.length > 0 ? (
           <div className="grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filteredEvents.map((event) => (
