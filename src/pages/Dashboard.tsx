@@ -94,7 +94,7 @@ const OrganizerDashboard = () => {
                 </Link>
               </div>
             ) : (
-              events.map((event: OrganizerEvent) => {
+              events.slice(0, 5).map((event: OrganizerEvent) => {
                 const cover = resolveImageUrl(event.imageUrl);
                 const sold = event.stats?.ticketsSold ?? event.attendees ?? 0;
                 const earned = event.stats?.actualRevenue ?? event.revenue ?? 0;

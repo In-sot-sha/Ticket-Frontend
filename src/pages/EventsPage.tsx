@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import EventCard, { Event } from '../components/EventCard';
 import MapComponent from '../components/MapComponent';
 import { useEvents } from '../hooks/queries/useEvents';
+import { CACHE_CONFIGS } from '../lib/queryClient';
 import { mockEvents, mapApiEventToFrontendEvent } from '../data/mockEvents';
 
 const categories = [
@@ -44,7 +45,7 @@ const EventsPage = () => {
   const [showMap, setShowMap] = useState(false);
   const [hoveredEventId, setHoveredEventId] = useState<number | null>(null);
 
-  // Use React Query hooks for data fetching
+  // Use React Query hooks for data fetching with 3min cache (EVENTS_LIST config)
   const { data: eventsData = [], isLoading: eventsLoading, error: eventsError } = useEvents(
     searchTerm || selectedCategory !== 'All' || locationFilter
       ? {
@@ -53,7 +54,8 @@ const EventsPage = () => {
           location: locationFilter || undefined,
           limit: 100,
         }
-      : { limit: 100 }
+      : { limit: 100 },
+    CACHE_CONFIGS.EVENTS_LIST
   );
 
   // Use frontend categories (API fallback removed per requirements)
@@ -259,8 +261,8 @@ const EventsPage = () => {
 
           {/* Events Grid */}
           {loading ? (
-            <div className={`grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 ${
-              showMap ? 'lg:grid-cols-2 xl:grid-cols-3' : 'md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+            <div className={`grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 ${
+              showMap ? 'sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3' : 'sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
             }`}>
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="animate-pulse">
@@ -278,8 +280,8 @@ const EventsPage = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.4 }}
-              className={`grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 ${
-                showMap ? 'lg:grid-cols-2 xl:grid-cols-3' : 'md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+              className={`grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 ${
+                showMap ? 'sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3' : 'sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
               }`}
             >
               {events.map((event) => (

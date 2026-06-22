@@ -2,25 +2,28 @@ import { QueryClient } from '@tanstack/react-query';
 
 /**
  * Query Client configuration for React Query
- * Optimized for caching, stale time, and performance
+ * Default: Fresh data (staleTime: 0) for organizer pages
+ * Pages with caching: HomePage, EventDetailPage, EventsPage, GuestDashboard
+ * Pages without caching: OrganizerEventPage, EventsDashboard, Dashboard
  */
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Keep data in cache for 5 minutes before marking as stale
-      staleTime: 5 * 60 * 1000,
+      // Default: Mark data as stale immediately (0ms) - forces fresh fetch on mount
+      // Override this in specific pages that need caching
+      staleTime: 0,
       
-      // Keep unused data in cache for 10 minutes before garbage collection
-      gcTime: 10 * 60 * 1000,
+      // Keep unused data in cache for 5 minutes before garbage collection
+      gcTime: 5 * 60 * 1000,
       
       // Automatically refetch stale data when window regains focus
       refetchOnWindowFocus: true,
       
-      // Don't retry failed requests on mount
-      refetchOnMount: false,
+      // Refetch on mount if data is stale
+      refetchOnMount: true,
       
-      // Don't refetch on network reconnect to reduce API calls
-      refetchOnReconnect: false,
+      // Refetch on network reconnect
+      refetchOnReconnect: true,
       
       // Retry failed requests up to 2 times with exponential backoff
       retry: 2,
@@ -32,3 +35,39 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+/**
+ * Cache configurations for specific pages
+ * Use these when calling useQuery/useInfiniteQuery to enable caching
+ */
+export const CACHE_CONFIGS = {
+  // Public pages with caching (5 min)
+  HOMEPAGE_EVENTS: {
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  },
+  
+  // Event detail pages with caching (3 min)
+  EVENT_DETAIL: {
+    staleTime: 3 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  },
+  
+  // Events list page with caching (3 min)
+  EVENTS_LIST: {
+    staleTime: 3 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  },
+  
+  // Guest tickets with caching (5 min)
+  GUEST_TICKETS: {
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  },
+  
+  // Organizer pages: NO caching (always fresh)
+  ORGANIZER_FRESH: {
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
+  },
+};

@@ -16,25 +16,37 @@ interface EventMutationData {
   formData?: FormData;
 }
 
+interface QueryConfig {
+  staleTime?: number;
+  gcTime?: number;
+}
+
 /**
  * Fetch all events with optional filters
+ * @param params - Filter parameters
+ * @param config - Optional React Query config (staleTime, gcTime)
  */
-export const useEvents = (params?: EventListParams) => {
+export const useEvents = (params?: EventListParams, config?: QueryConfig) => {
   return useQuery({
     queryKey: queryKeys.events.list(params),
     queryFn: () => api.events.getAll(params).then(res => res.data.events),
     enabled: true,
+    ...config,
   });
 };
 
 /**
  * Fetch a single event by ID (public endpoint)
+ * @param id - Event ID
+ * @param enabled - Whether query should run
+ * @param config - Optional React Query config (staleTime, gcTime)
  */
-export const useEventById = (id: number, enabled = true) => {
+export const useEventById = (id: number, enabled = true, config?: QueryConfig) => {
   return useQuery({
     queryKey: queryKeys.events.detail(id),
     queryFn: () => api.events.getById(id).then(res => res.data),
     enabled: enabled && !!id,
+    ...config,
   });
 };
 

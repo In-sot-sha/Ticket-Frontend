@@ -15,6 +15,7 @@ import { Button } from '../components/ui/Button';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
+import { CACHE_CONFIGS } from '../lib/queryClient';
 import TicketCard, {
   downloadTicketCard,
   getTicketSerial,
@@ -40,7 +41,7 @@ const GuestDashboard = () => {
   const navigate = useNavigate();
   const [selectedTicket, setSelectedTicket] = useState<TicketCardTicket | null>(null);
 
-  // Use TanStack Query for fetching tickets
+  // Use TanStack Query for fetching tickets with 5min cache (GUEST_TICKETS config)
   const { data: tickets = [], isLoading, error } = useQuery({
     queryKey: ['tickets', user?.id],
     queryFn: async () => {
@@ -49,7 +50,7 @@ const GuestDashboard = () => {
       return res.data || [];
     },
     enabled: !!user?.id,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    ...CACHE_CONFIGS.GUEST_TICKETS,
   });
 
   const formatDate = (dateString?: string) => {

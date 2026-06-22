@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEventById } from '../hooks/queries/useEvents';
+import { CACHE_CONFIGS } from '../lib/queryClient';
 import {
   Calendar,
   MapPin,
@@ -19,11 +20,13 @@ import {
   Flag,
   ChevronRight,
   X,
+  ArrowRight,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { api } from '../services/api';
 import { LazyImage } from '../components/LazyImage';
+import { LocationMap } from '../components/organizer/LocationMap';
 
 interface TicketType {
   id: number;
@@ -66,6 +69,15 @@ interface EventDetail {
   amenities: string[];
   highlights: Highlight[];
   vendorApplicationsAllowed: boolean;
+  vendorSettings?: {
+    stallTypes: Array<{
+      id: string;
+      name: string;
+      price: number;
+      maxStalls: number;
+      description?: string;
+    }>;
+  };
   vendorApplications: any[];
 }
 
@@ -120,6 +132,12 @@ const fallbackEvent: EventDetail = {
     { icon: '📜', label: 'Certificate' },
   ],
   vendorApplicationsAllowed: true,
+  vendorSettings: {
+    stallTypes: [
+      { id: 'stall_1', name: 'Basic Booth', price: 5000, maxStalls: 10, description: 'Perfect for startups' },
+      { id: 'stall_2', name: 'Premium Booth', price: 15000, maxStalls: 5, description: 'Larger space with branding' },
+    ],
+  },
   vendorApplications: [] as any[],
 };
 
@@ -175,6 +193,11 @@ const mapApiEventToDetail = (apiEvent: any): EventDetail => {
       }
     })(),
     vendorApplicationsAllowed: apiEvent.allowVendors || false,
+    vendorSettings: apiEvent.vendorSettings ? {
+      stallTypes: Array.isArray(apiEvent.vendorSettings.stallTypes)
+        ? apiEvent.vendorSettings.stallTypes
+        : [],
+    } : undefined,
     vendorApplications: apiEvent.vendorApplications || [],
   };
 };
@@ -187,10 +210,11 @@ const EventDetailPage = () => {
   const [showAllPhotos, setShowAllPhotos] = useState(false);
   const [showOrganizerModal, setShowOrganizerModal] = useState(false);
 
-  // Use React Query hook to fetch event with automatic caching
+  // Use React Query hook to fetch event with 3min cache (EVENT_DETAIL config)
   const { data: eventData, isLoading, error, isError } = useEventById(
     id ? Number(id) : 0,
-    !!id
+    !!id,
+    CACHE_CONFIGS.EVENT_DETAIL
   );
 
   const event: EventDetail = eventData ? mapApiEventToDetail(eventData) : fallbackEvent;
@@ -367,13 +391,38 @@ const EventDetailPage = () => {
             )}
           </div>
 
-          {/* Reserve Button */}
-          <button
-            onClick={handlePurchaseTicket}
-            className="w-full h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
-          >
-            Reserve Tickets
-          </button>
+          {/* Button(s) */}
+          {event.vendorApplicationsAllowed ? (
+            <div className="space-y-2">
+              <button
+                onClick={handlePurchaseTicket}
+                className="w-full h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                <Ticket className="h-4 w-4" />
+                Buy Tickets
+              </button>
+              <button
+                onClick={() => {
+                  if (isAuthenticated ) {
+                    navigate(`/book/${event.id}?type=vendor`);
+                  } else {
+                    navigate(`/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor`)}`);
+                  }
+                }}
+                className="w-full h-11 border-2 border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-xl text-sm font-bold hover:border-rose-300 dark:hover:border-rose-700 hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                <Store className="h-4 w-4" />
+                Apply as Vendor
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handlePurchaseTicket}
+              className="w-full h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
+            >
+              Reserve Tickets
+            </button>
+          )}
         </div>
       </div>
 
@@ -518,6 +567,16 @@ const EventDetailPage = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Show map for physical events */}
+              {event.location && event.location !== 'Online' && (
+                <div className="mb-8 rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800">
+                  <LocationMap 
+                    location={event.location} 
+                    onLocationChange={() => {}}
+                  />
+                </div>
+              )}
             </div>
 
             <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
@@ -562,25 +621,68 @@ const EventDetailPage = () => {
                       <Store className="h-5 w-5 text-rose-500" />
                       Vendor Opportunities
                     </h2>
-                    {user?.role === 'VENDOR' && (
-                      <button
-                        onClick={() => navigate(`/events/${event.id}/apply-vendor`)}
-                        className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-full px-4 py-2 text-xs font-bold hover:opacity-90 transition-opacity active:scale-95"
-                      >
-                        Apply as Vendor
-                      </button>
-                    )}
                   </div>
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
-                    Interested in showcasing your products or services? Apply to become a vendor.
-                  </p>
+
+                  {/* Vendor Stall Type Cards */}
+                  {event.vendorSettings && event.vendorSettings.stallTypes && event.vendorSettings.stallTypes.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                      {event.vendorSettings.stallTypes.map((stall: any) => (
+                        <motion.div
+                          key={stall.id}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 bg-white dark:bg-neutral-900 hover:border-rose-300 dark:hover:border-rose-700 transition-colors"
+                        >
+                          <div className="mb-3">
+                            <h3 className="text-sm font-extrabold text-neutral-900 dark:text-white">{stall.name}</h3>
+                            <p className="text-xs text-neutral-500 mt-1">₦{stall.price.toLocaleString()} per stall</p>
+                          </div>
+
+                          {stall.description && (
+                            <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-3">{stall.description}</p>
+                          )}
+
+                          <p className="text-[10px] text-neutral-400 mb-4">
+                            Max {stall.maxStalls} stalls available
+                          </p>
+
+                          {isAuthenticated && user?.role === 'VENDOR' ? (
+                            <button
+                              onClick={() => navigate(`/book/${event.id}?type=vendor&stallType=${stall.id}`)}
+                              className="w-full bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-lg px-4 py-2.5 text-xs font-bold hover:shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                            >
+                              Apply Now
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => navigate(`/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor&stallType=${stall.id}`)}`)}
+                              className="w-full border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-lg px-4 py-2.5 text-xs font-bold hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center gap-2"
+                            >
+                              Sign in to Apply
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </motion.div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+                      No specific stall types defined. Contact the organizer for more details.
+                    </p>
+                  )}
+
                   {!isAuthenticated && (
-                    <button
-                      onClick={() => navigate('/login')}
-                      className="text-xs font-bold text-rose-500 hover:underline"
-                    >
-                      Log in to apply →
-                    </button>
+                    <div className="bg-neutral-50 dark:bg-neutral-900/50 rounded-lg p-3 text-xs text-neutral-600 dark:text-neutral-400">
+                      Interested in becoming a vendor?{' '}
+                      <button
+                        onClick={() => navigate('/login')}
+                        className="font-bold text-rose-500 hover:underline"
+                      >
+                        Create an account
+                      </button>{' '}
+                      to apply.
+                    </div>
                   )}
                 </div>
               </>
@@ -613,17 +715,52 @@ const EventDetailPage = () => {
                   )}
                 </div>
 
-                {/* Reserve button */}
-                <button
-                  onClick={handlePurchaseTicket}
-                  className="w-full h-12 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] mb-3 mt-4"
-                >
-                  Reserve Tickets
-                </button>
+                {/* Show choice buttons if vendors are allowed, otherwise just reserve button */}
+                {event.vendorApplicationsAllowed ? (
+                  <>
+                    {/* Reserve Tickets Button */}
+                    <button
+                      onClick={handlePurchaseTicket}
+                      className="w-full h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] mb-2 flex items-center justify-center gap-2"
+                    >
+                      <Ticket className="h-4 w-4" />
+                      Buy Tickets
+                    </button>
 
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center mb-4">
-                  You won't be charged yet
-                </p>
+                    {/* Apply as Vendor Button */}
+                    <button
+                      onClick={() => {
+                        if (isAuthenticated && user?.role === 'VENDOR') {
+                          navigate(`/book/${event.id}?type=vendor`);
+                        } else {
+                          navigate(`/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor`)}`);
+                        }
+                      }}
+                      className="w-full h-11 border-2 border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-xl text-sm font-bold hover:border-rose-300 dark:hover:border-rose-700 hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    >
+                      <Store className="h-4 w-4" />
+                      Apply as Vendor
+                    </button>
+
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center mt-3">
+                      You won't be charged yet
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    {/* Reserve button */}
+                    <button
+                      onClick={handlePurchaseTicket}
+                      className="w-full h-12 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] mb-3 mt-4"
+                    >
+                      Reserve Tickets
+                    </button>
+
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center mb-4">
+                      You won't be charged yet
+                    </p>
+                  </>
+                )}
               </motion.div>
 
               {/* Report listing */}
@@ -774,12 +911,35 @@ const EventDetailPage = () => {
               <span className="text-xs text-neutral-500 dark:text-neutral-400">/ ticket</span>
             </div>
           </div>
-          <button
-            onClick={handlePurchaseTicket}
-            className="bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-xs font-bold px-6 py-3 shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
-          >
-            Reserve
-          </button>
+          {event.vendorApplicationsAllowed ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePurchaseTicket}
+                className="bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-lg text-xs font-bold px-4 py-2.5 shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
+              >
+                Buy
+              </button>
+              <button
+                onClick={() => {
+                  if (isAuthenticated && user?.role === 'VENDOR') {
+                    navigate(`/book/${event.id}?type=vendor`);
+                  } else {
+                    navigate(`/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor`)}`);
+                  }
+                }}
+                className="border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-lg text-xs font-bold px-4 py-2.5 hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98]"
+              >
+                Vendor
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handlePurchaseTicket}
+              className="bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-xs font-bold px-6 py-3 shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
+            >
+              Reserve
+            </button>
+          )}
         </div>
       )}
     </div>

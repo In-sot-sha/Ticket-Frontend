@@ -37,14 +37,20 @@ const BookingSuccessPage = () => {
       try {
         const cachedOrder = JSON.parse(cachedOrderStr);
         
-        // Execute checkout on backend
+        // Execute checkout on backend - use first item from items array
+        const firstItem = cachedOrder.items?.[0];
+        if (!firstItem) {
+          throw new Error('No items in cached order');
+        }
+
         const checkoutRes = await api.post<any>('/tickets/checkout/guest', {
           firstName: cachedOrder.firstName,
           lastName: cachedOrder.lastName,
           email: cachedOrder.email,
           phone: cachedOrder.phone,
           eventId: cachedOrder.eventId,
-          items: cachedOrder.items
+          ticketTypeId: firstItem.ticketTypeId,
+          quantity: firstItem.quantity
         });
 
         if (checkoutRes.status === 201) {

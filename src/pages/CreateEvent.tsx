@@ -23,6 +23,8 @@ import { EVENT_TEMPLATES, EventTemplate, TicketDraft } from '../data/eventTempla
 import { TICKET_DESIGNS } from '../data/ticketDesigns';
 import { INCLUDED_SUGGESTIONS, TICKET_TYPE_PRESETS } from '../data/eventExtras';
 import EventTicketCard from '../components/tickets/EventTicketCard';
+import VendorSettingsStep, { VendorSettings, VendorStallType } from '../components/organizer/VendorSettingsStep';
+import { LocationMap } from '../components/organizer/LocationMap';
 import { cn } from '../lib/utils';
 import { resolveImageUrl } from '../lib/media';
 import {
@@ -35,7 +37,7 @@ import {
   splitTime12,
 } from '../lib/time12';
 
-type Step = 'details' | 'tickets' | 'review';
+type Step = 'details' | 'tickets' | 'vendors' | 'review';
 
 interface FormState {
   templateId: string;
@@ -52,11 +54,13 @@ interface FormState {
   tickets: TicketDraft[];
   imageUrl: string;
   includedItems: string[];
+  vendorSettings: VendorSettings;
 }
 
 const STEPS: { key: Step; label: string }[] = [
   { key: 'details', label: 'Details' },
   { key: 'tickets', label: 'Tickets' },
+  { key: 'vendors', label: 'Vendors' },
   { key: 'review', label: 'Publish' },
 ];
 
@@ -87,6 +91,13 @@ const defaultForm = (): FormState => ({
   tickets: [defaultTicket()],
   imageUrl: '',
   includedItems: [],
+  vendorSettings: {
+    allowVendors: false,
+    stallTypes: [],
+    allowedRoles: [],
+    approvalMode: 'auto',
+    applicationDeadline: 7,
+  },
 });
 
 function parseJsonField<T>(value: unknown, fallback: T): T {
@@ -145,6 +156,21 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
       }))
     )
   );
+
+  // Add vendor settings if vendors are enabled
+  if (form.vendorSettings.allowVendors) {
+    fd.append(
+      'vendorSettings',
+      JSON.stringify({
+        allowVendors: true,
+        stallTypes: form.vendorSettings.stallTypes,
+        allowedRoles: form.vendorSettings.allowedRoles,
+        approvalMode: form.vendorSettings.approvalMode,
+        applicationDeadline: form.vendorSettings.applicationDeadline,
+      })
+    );
+  }
+
   if (form.includedItems.length) fd.append('amenities', JSON.stringify(form.includedItems));
 
   if (form.locationType === 'online') {
@@ -356,6 +382,13 @@ const CreateEvent: React.FC = () => {
             : [defaultTicket()],
           imageUrl: event.imageUrl || '',
           includedItems: included,
+          vendorSettings: event.vendorSettings || {
+            allowVendors: false,
+            stallTypes: [],
+            allowedRoles: [],
+            approvalMode: 'auto',
+            applicationDeadline: 7,
+          },
         });
         const resolvedCover = resolveImageUrl(event.imageUrl);
         if (resolvedCover) setImagePreview(resolvedCover);
@@ -384,6 +417,13 @@ const CreateEvent: React.FC = () => {
       tickets: template.tickets.map((t) => ({ ...t })),
       imageUrl: template.image,
       includedItems: template.amenities ? [...template.amenities] : [],
+      vendorSettings: {
+        allowVendors: false,
+        stallTypes: [],
+        allowedRoles: [],
+        approvalMode: 'auto',
+        applicationDeadline: 7,
+      },
     });
     setImagePreview(template.image);
     setImageFile(null);
@@ -563,7 +603,8 @@ const CreateEvent: React.FC = () => {
     }
     setError(null);
     if (step === 'details') setStep('tickets');
-    else if (step === 'tickets') setStep('review');
+    else if (step === 'tickets') setStep('vendors');
+    else if (step === 'vendors') setStep('review');
     // Scroll the main scrollable container (or window) to top on mobile
     window.scrollTo({ top: 0, behavior: 'smooth' });
     document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -573,7 +614,8 @@ const CreateEvent: React.FC = () => {
     setError(null);
     if (step === 'details') navigate('/organizer/events');
     else if (step === 'tickets') setStep('details');
-    else if (step === 'review') setStep('tickets');
+    else if (step === 'vendors') setStep('tickets');
+    else if (step === 'review') setStep('vendors');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -880,7 +922,13 @@ const CreateEvent: React.FC = () => {
                   <div>
                     <FieldLabel>{form.locationType === 'physical' ? 'Venue or address' : 'Meeting link'}</FieldLabel>
                     {form.locationType === 'physical' ? (
-                      <input value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))} placeholder="e.g. 12 Admiralty Way, Lekki" className={inputClass} />
+                      <div className="space-y-3">
+                        <input value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))} placeholder="e.g. 12 Admiralty Way, Lekki" className={inputClass} />
+                        <LocationMap 
+                          location={form.location} 
+                          onLocationChange={(location) => setForm((p) => ({ ...p, location }))}
+                        />
+                      </div>
                     ) : (
                       <input value={form.onlineUrl} onChange={(e) => setForm((p) => ({ ...p, onlineUrl: e.target.value }))} placeholder="e.g. https://zoom.us/j/..." className={inputClass} />
                     )}
@@ -1084,6 +1132,48 @@ const CreateEvent: React.FC = () => {
             </motion.div>
           )}
 
+          {step === 'vendors' && (
+            <motion.div key="vendors" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="max-w-2xl">
+                <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-4">Vendor Settings</h2>
+                <p className="text-xs text-neutral-500 mb-6">
+                  Allow vendors to apply for booth spaces at your event with customizable stall types and pricing.
+                </p>
+
+                {/* Allow Vendors Toggle */}
+                <div className="mb-6 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-sm text-neutral-900 dark:text-white">Allow Vendor Applications</p>
+                    <p className="text-xs text-neutral-500 mt-1">Enable vendors to apply for booth spaces</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setForm(p => ({ ...p, vendorSettings: { ...p.vendorSettings, allowVendors: !p.vendorSettings.allowVendors } }))}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                      form.vendorSettings.allowVendors ? 'bg-rose-500' : 'bg-neutral-300 dark:bg-neutral-700'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                        form.vendorSettings.allowVendors ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Vendor Settings Form */}
+                {form.vendorSettings.allowVendors && (
+                  <VendorSettingsStep
+                    settings={form.vendorSettings}
+                    onSettingsChange={(vendorSettings) => setForm(p => ({ ...p, vendorSettings }))}
+                  />
+                )}
+              </div>
+
+              <StepActions onBack={goBack} onNext={goNext} error={error} onDismissError={clearError} />
+            </motion.div>
+          )}
+
           {step === 'review' && (
             <motion.div key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -1127,6 +1217,30 @@ const CreateEvent: React.FC = () => {
                       </p>
                     </div>
                   ))}
+
+                  {/* Vendor Settings Summary */}
+                  {form.vendorSettings.allowVendors && (
+                    <>
+                      <h3 className="text-sm font-semibold mt-6">Vendor Settings</h3>
+                      <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Stall Types</span>
+                          <span className="text-sm text-neutral-500">{form.vendorSettings.stallTypes.length} types</span>
+                        </div>
+                        {form.vendorSettings.stallTypes.map((stall) => (
+                          <div key={stall.id} className="text-xs text-neutral-600 pl-3">
+                            {stall.name}: ₦{stall.price.toLocaleString()} · {stall.maxStalls} max stalls
+                          </div>
+                        ))}
+                        <div className="text-xs text-neutral-600 pt-1">
+                          Roles: {form.vendorSettings.allowedRoles.join(', ') || 'None selected'}
+                        </div>
+                        <div className="text-xs text-neutral-600">
+                          Approval: {form.vendorSettings.approvalMode === 'auto' ? 'Auto-approve' : form.vendorSettings.approvalMode === 'manual' ? 'Manual review' : 'Vetted only'}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 

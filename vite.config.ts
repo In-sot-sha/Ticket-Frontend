@@ -61,9 +61,17 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         runtimeCaching: [
           {
-            // API — never cache, always fresh
+            // API — always try network first for fresh data
             urlPattern: /^https?:\/\/.*\/api\//,
-            handler: 'NetworkOnly',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              networkTimeoutSeconds: 5,
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 0, // Expire immediately
+              },
+            },
           },
           {
             urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com/,
@@ -85,6 +93,9 @@ export default defineConfig({
         ],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
+        // Force service worker to update immediately
+        skipWaiting: true,
+        clientsClaim: true,
       },
 
       devOptions: {

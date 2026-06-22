@@ -108,47 +108,49 @@ const EventCard: React.FC<EventCardProps> = ({
             />
           </button>
 
-          {/* Available tickets badge */}
+          {/* Available tickets badge — hide on mobile */}
           {showTicketsAvailable && event.ticketsAvailable !== undefined && event.ticketsAvailable > 0 && (
-            <div className="absolute bottom-3 left-3 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-extrabold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
+            <div className="hidden sm:block absolute bottom-3 left-3 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-extrabold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
               {event.ticketsAvailable} left
             </div>
           )}
         </div>
 
         {/* Details section */}
-        <div className="mt-3 flex flex-col">
+        <div className="mt-2 flex flex-col">
           
-          {/* First Line: Title and Rating */}
+          {/* First Line: Title */}
           <div className="flex justify-between items-start gap-2">
-            <h3 className="font-bold text-sm text-neutral-900 dark:text-neutral-100 line-clamp-1 leading-tight">
+            <h3 className="font-bold text-xs sm:text-sm text-neutral-900 dark:text-neutral-100 line-clamp-2 leading-tight flex-1">
               {event.title}
             </h3>
-            {showRating && event.rating && (
-              <div className="flex items-center gap-1 text-xs shrink-0">
-                <Star className="h-3 w-3 fill-neutral-900 text-neutral-900 dark:fill-neutral-100 dark:text-neutral-100" />
-                <span className="font-semibold text-neutral-850 dark:text-neutral-200">
-                  {event.rating.toFixed(1)}
-                </span>
-              </div>
-            )}
           </div>
 
-          {/* Second Line: Location & Category */}
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 line-clamp-1">
-            {event.location} &bull; {event.category}
+          {/* Second Line: Location */}
+          <p className="text-[10px] sm:text-xs text-neutral-500 dark:text-neutral-400 mt-1 line-clamp-1">
+            {event.location}
           </p>
 
           {/* Third Line: Date */}
-          <p className="text-xs text-neutral-450 dark:text-neutral-505 mt-0.5 font-normal">
+          <p className="text-[10px] sm:text-xs text-neutral-450 dark:text-neutral-505 mt-0.5 font-normal">
             {formattedDate}
           </p>
 
           {/* Fourth Line: Price */}
           {shouldShowPrice && (
-            <p className="text-xs text-neutral-900 dark:text-white mt-1.5 font-bold leading-none">
-              {formattedPrice} <span className="font-normal text-neutral-500 dark:text-neutral-400">ticket</span>
+            <p className="text-[10px] sm:text-xs text-neutral-900 dark:text-white mt-1.5 font-bold leading-none">
+              {formattedPrice}
             </p>
+          )}
+
+          {/* Fifth Line: Rating (tablet+) */}
+          {showRating && event.rating && (
+            <div className="hidden sm:flex items-center gap-1 text-xs mt-1 text-neutral-600 dark:text-neutral-400">
+              <Star className="h-3 w-3 fill-neutral-900 text-neutral-900 dark:fill-neutral-100 dark:text-neutral-100" />
+              <span className="font-semibold text-neutral-850 dark:text-neutral-200">
+                {event.rating.toFixed(1)}
+              </span>
+            </div>
           )}
         </div>
         

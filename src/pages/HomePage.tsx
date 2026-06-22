@@ -18,6 +18,7 @@ import EventCard, { Event } from '../components/EventCard';
 import { EventLink } from '../components/EventLink';
 import { useEvents } from '../hooks/queries/useEvents';
 import { mockEvents, mapApiEventToFrontendEvent } from '../data/mockEvents';
+import { CACHE_CONFIGS } from '../lib/queryClient';
 
 /* ── Promoted hero slides ─────────────────────────────── */
 const heroSlides = [
@@ -198,9 +199,10 @@ const HeroCarousel = () => {
 /* ── Home Page ────────────────────────────────────────── */
 const HomePage = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
-  // Use React Query hooks for data fetching with caching
+  // Use React Query hooks for data fetching with 5min cache (HOMEPAGE_EVENTS config)
   const { data: eventsData, isLoading, error } = useEvents(
-    selectedCategory !== 'All' ? { limit: 20, category: selectedCategory } : { limit: 20 }
+    selectedCategory !== 'All' ? { limit: 20, category: selectedCategory } : { limit: 20 },
+    CACHE_CONFIGS.HOMEPAGE_EVENTS
   );
   
   // Transform API events to frontend format, fallback to mock if empty
@@ -262,7 +264,7 @@ const HomePage = () => {
         </div>
 
         {isLoading ? (
-          <div className="grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {Array.from({ length: 10 }).map((_, i) => (
               <div key={i} className="animate-pulse">
                 <div className="aspect-square rounded-2xl bg-neutral-200 dark:bg-neutral-800" />
@@ -285,7 +287,7 @@ const HomePage = () => {
                 Showing offline events for now. Check your connection and refresh to see live listings.
               </p>
             </div>
-            <div className="grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {mockEvents.map((event) => (
                 <EventLink key={event.id} eventId={event.id}>
                   <EventCard event={event} />
@@ -294,7 +296,7 @@ const HomePage = () => {
             </div>
           </>
         ) : filteredEvents.length > 0 ? (
-          <div className="grid gap-x-6 gap-y-10 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filteredEvents.map((event) => (
               <EventLink key={event.id} eventId={event.id}>
                 <EventCard event={event} />

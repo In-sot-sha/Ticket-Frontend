@@ -36,6 +36,20 @@ export interface OrganizerEvent {
   attendees?: number;
   stats?: EventStats;
   ticketTypes?: Array<{ id: number; name: string; price: number; quantity: number | null }>;
+  allowVendors?: boolean;
+  vendorSettings?: {
+    allowVendors: boolean;
+    stallTypes: Array<{
+      id: string;
+      name: string;
+      price: number;
+      maxStalls: number;
+      description?: string;
+    }>;
+    allowedRoles: string[];
+    approvalMode: 'auto' | 'manual' | 'vetted';
+    applicationDeadline: number;
+  };
 }
 
 export function getEventPhase(event: {

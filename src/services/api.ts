@@ -48,7 +48,18 @@ apiClient.interceptors.request.use(
 
 // Track refresh attempts to avoid infinite loops
 let isRefreshing = false;
-let refreshPromise: Promise<boolean> | null = null;
+let failedQueue: Array<{ resolve: (value?: any) => void; reject: (error?: any) => void }> = [];
+
+const processQueue = (error?: any, token?: string) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
 
 // Response interceptor to handle responses
 apiClient.interceptors.response.use(
@@ -58,61 +69,81 @@ apiClient.interceptors.response.use(
   async (error) => {
     // Only auto-logout on 401 if it's NOT an auth endpoint.
     // Auth endpoints (login/register) legitimately return 401 for bad credentials
-    // — intercepting those would prevent the error from reaching the caller.
     const requestUrl: string = error.config?.url ?? '';
     const isAuthEndpoint =
       requestUrl.includes('/users/login') ||
       requestUrl.includes('/users/register') ||
       requestUrl.includes('/users/google-login') ||
       requestUrl.includes('/users/refresh-token') ||
-      requestUrl.includes('/gate-pins/verify') ||  // public — wrong PIN returns 401
-      requestUrl.includes('/tickets/validate');     // public — invalid ticket returns 400/404, never 401, but belt-and-braces
+      requestUrl.includes('/gate-pins/verify') ||
+      requestUrl.includes('/tickets/validate');
 
     if (error.response?.status === 401 && !isAuthEndpoint) {
-      // Attempt token refresh — import dynamically to avoid circular dependency
       if (!isRefreshing) {
         isRefreshing = true;
+        
         try {
-          // Import AuthContext here to access attemptTokenRefresh
-          const { useAuth } = await import('../context/AuthContext');
-          // Note: This is called from an interceptor, not a component, so we can't use the hook directly
-          // Instead, we'll call the refresh endpoint directly
           const storedToken = localStorage.getItem('token');
-          if (storedToken) {
-            const response = await axios.post(
-              `${currentEndpoint}/users/refresh-token`,
-              { token: storedToken }
-            );
-            
-            if (response.data?.token) {
-              // Update token in storage and headers
-              localStorage.setItem('token', response.data.token);
-              if (response.data.user) {
-                localStorage.setItem('user', JSON.stringify(response.data.user));
-              }
-              
-              // Retry the original request with new token
-              if (error.config) {
-                error.config.headers.Authorization = `Bearer ${response.data.token}`;
-                isRefreshing = false;
-                return apiClient.request(error.config);
-              }
+          if (!storedToken) throw new Error('No stored token');
+
+          // Create a new axios instance to avoid interceptor recursion
+          const refreshClient = axios.create({
+            baseURL: currentEndpoint,
+            timeout: 10000,
+          });
+
+          const response = await refreshClient.post('/users/refresh-token', { token: storedToken });
+
+          if (response.data?.accessToken) {
+            const newToken = response.data.accessToken;
+            localStorage.setItem('token', newToken);
+            if (response.data.user) {
+              localStorage.setItem('user', JSON.stringify(response.data.user));
             }
+            
+            // Update default header for new requests
+            apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+            
+            // Process queued requests with new token
+            processQueue(undefined, newToken);
+            isRefreshing = false;
+            
+            // Retry original request with new token
+            if (error.config) {
+              error.config.headers.Authorization = `Bearer ${newToken}`;
+              return apiClient.request(error.config);
+            }
+          } else {
+            throw new Error('No access token in response');
           }
         } catch (refreshError) {
           console.error('[API] Token refresh failed:', refreshError);
-          // Refresh failed — logout
+          processQueue(refreshError, undefined);
+          isRefreshing = false;
+          
+          // Logout on refresh failure
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           window.location.href = '/login';
-          isRefreshing = false;
+          return Promise.reject(refreshError);
         }
+      } else {
+        // Queue the request while refresh is in progress
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then(token => {
+          if (error.config) {
+            error.config.headers.Authorization = `Bearer ${token}`;
+            return apiClient.request(error.config);
+          }
+        });
       }
     } else if (error.response?.status === 401 && !isAuthEndpoint) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
+    
     return Promise.reject(error);
   }
 );
