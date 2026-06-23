@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import {
   ChevronLeft,
   ChevronRight,
@@ -19,6 +20,7 @@ import { EventLink } from '../components/EventLink';
 import { useEvents } from '../hooks/queries/useEvents';
 import { mockEvents, mapApiEventToFrontendEvent } from '../data/mockEvents';
 import { CACHE_CONFIGS } from '../lib/queryClient';
+import { generateEventCollectionStructuredData } from '../lib/seo';
 
 /* ── Promoted hero slides ─────────────────────────────── */
 const heroSlides = [
@@ -212,6 +214,21 @@ const HomePage = () => {
 
   return (
     <div className="bg-white dark:bg-gray-950 min-h-[calc(100vh-80px)] flex flex-col relative">
+
+      <Helmet>
+        <title>Discover Events in Kano | PartyStorm</title>
+        <meta name="description" content="Browse and book tickets for amazing events in Kano. Music, food, business, sports, and more. Find your next unforgettable experience." />
+        <meta property="og:title" content="Discover Events in Kano | PartyStorm" />
+        <meta property="og:description" content="Browse and book tickets for amazing events in Kano. Music, food, business, sports, and more." />
+        <meta property="og:type" content="website" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Discover Events in Kano | PartyStorm" />
+        <meta name="twitter:description" content="Browse and book tickets for amazing events in Kano." />
+        <link rel="canonical" href="https://partystorm.com/" />
+        <script type="application/ld+json">
+          {JSON.stringify(generateEventCollectionStructuredData(filteredEvents, "Discover Events in Kano"))}
+        </script>
+      </Helmet>
 
       {/* ─── Hero Carousel Section ─── */}
       <section className="w-full px-0 md:px-6 lg:px-8 pt-0 md:pt-4">

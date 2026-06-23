@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { useEventById } from '../hooks/queries/useEvents';
 import { CACHE_CONFIGS } from '../lib/queryClient';
+import { generateEventStructuredData } from '../lib/seo';
 import {
   Calendar,
   MapPin,
@@ -26,7 +28,7 @@ import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { api } from '../services/api';
 import { LazyImage } from '../components/LazyImage';
-import { LocationMap } from '../components/organizer/LocationMap';
+import { GoogleMapLocation } from '../components/GoogleMapLocation';
 
 interface TicketType {
   id: number;
@@ -58,6 +60,8 @@ interface EventDetail {
   startTime: string;
   endTime: string;
   location: string;
+  latitude?: number;
+  longitude?: number;
   category: string;
   price: number;
   ticketsAvailable: number;
@@ -160,6 +164,8 @@ const mapApiEventToDetail = (apiEvent: any): EventDetail => {
     startTime: formatTime(startDate),
     endTime: formatTime(endDate),
     location: apiEvent.location || 'Online',
+    latitude: apiEvent.latitude,
+    longitude: apiEvent.longitude,
     category: apiEvent.category || 'Other',
     price: apiEvent.price ?? 0,
     ticketsAvailable: apiEvent.ticketTypes
@@ -242,7 +248,23 @@ const EventDetailPage = () => {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
 
-      {/* ─── Loading State ─── */}
+      <Helmet>
+        <title>{event?.title || 'Event Details'} | PartyStorm</title>
+        <meta name="description" content={event?.description?.substring(0, 160) || 'Book tickets for amazing events in Kano.'} />
+        <meta property="og:title" content={event?.title || 'Event Details'} />
+        <meta property="og:description" content={event?.description?.substring(0, 160) || 'Book tickets for amazing events.'} />
+        <meta property="og:type" content="event" />
+        {event?.images && event.images.length > 0 && <meta property="og:image" content={event.images[0]} />}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={event?.title || 'Event Details'} />
+        <meta name="twitter:description" content={event?.description?.substring(0, 160) || 'Book tickets for amazing events.'} />
+        {event?.id && <link rel="canonical" href={`https://partystorm.com/event/${event.id}`} />}
+        {event?.id && (
+          <script type="application/ld+json">
+            {JSON.stringify(generateEventStructuredData(event))}
+          </script>
+        )}
+      </Helmet>
       {isLoading && (
         <div className="animate-pulse">
           {/* Skeleton Gallery */}
@@ -404,6 +426,7 @@ const EventDetailPage = () => {
               <button
                 onClick={() => {
                   if (isAuthenticated ) {
+              
                     navigate(`/book/${event.id}?type=vendor`);
                   } else {
                     navigate(`/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor`)}`);
@@ -571,9 +594,11 @@ const EventDetailPage = () => {
               {/* Show map for physical events */}
               {event.location && event.location !== 'Online' && (
                 <div className="mb-8 rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800">
-                  <LocationMap 
-                    location={event.location} 
-                    onLocationChange={() => {}}
+                  <GoogleMapLocation 
+                    location={event.location}
+                    latitude={event.latitude}
+                    longitude={event.longitude}
+                    eventTitle={event.title}
                   />
                 </div>
               )}
@@ -730,7 +755,7 @@ const EventDetailPage = () => {
                     {/* Apply as Vendor Button */}
                     <button
                       onClick={() => {
-                        if (isAuthenticated && user?.role === 'VENDOR') {
+                        if (isAuthenticated ) {
                           navigate(`/book/${event.id}?type=vendor`);
                         } else {
                           navigate(`/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor`)}`);

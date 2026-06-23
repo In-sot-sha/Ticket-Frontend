@@ -109,7 +109,7 @@ const BookingPage = () => {
       hour12: true,
     }) : eventData.endTime || '06:00 PM',
     ticketTypes: eventData.ticketTypes || mockEvent.ticketTypes,
-    stallTypes: (eventData.vendorSettings && eventData.vendorSettings.stallTypes) ? eventData.vendorSettings.stallTypes : [],
+    stallTypes: (eventData.vendorTypes && eventData.vendorTypes) ? eventData.vendorTypes : [],
     allowVendors: eventData.allowVendors === true,
   } : mockEvent;
 
@@ -601,7 +601,7 @@ const BookingPage = () => {
                               )}
                             </div>
                             <div className="text-right">
-                              <p className="font-bold text-sm text-rose-500">₦{stall.price.toLocaleString()}</p>
+                              <p className="font-bold text-sm text-rose-500">₦{stall.fee.toLocaleString()}</p>
                               <p className="text-xs text-neutral-500 mt-0.5">Max {stall.maxStalls} stalls</p>
                             </div>
                           </div>
@@ -1160,12 +1160,12 @@ const BookingPage = () => {
                         <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
                           <span>Booth Fee</span>
                           <span className="font-bold text-neutral-900 dark:text-white">
-                            ₦{normalizedEventData.stallTypes.find((s: any) => s.id === selectedStallType)?.price.toLocaleString() || '0'}
+                            ₦{normalizedEventData.stallTypes.find((s: any) => s.id === selectedStallType)?.fee.toLocaleString() || '0'}
                           </span>
                         </div>
                         <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3 flex items-center justify-between text-sm font-extrabold text-neutral-900 dark:text-white">
                           <span>Total (NGN)</span>
-                          <span>₦{normalizedEventData.stallTypes.find((s: any) => s.id === selectedStallType)?.price.toLocaleString() || '0'}</span>
+                          <span>₦{normalizedEventData.stallTypes.find((s: any) => s.id === selectedStallType)?.fee.toLocaleString() || '0'}</span>
                         </div>
                       </>
                     )}

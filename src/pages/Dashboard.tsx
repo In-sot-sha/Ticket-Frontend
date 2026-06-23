@@ -12,9 +12,9 @@ import {
   Scan,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { Spinner } from '../components/ui/Spinner';
+import { Skeleton } from '../components/ui/skeleton';
 import { useAuth } from '../context/AuthContext';
-import { useOrganizerEvents, useOrganizerAnalytics } from '../hooks/queries/useEvents';
+import { useOrganizerEvents } from '../hooks/queries/useEvents';
 import { resolveImageUrl } from '../lib/media';
 import EventPhaseBadge from '../components/organizer/EventPhaseBadge';
 import { formatNaira, OrganizerEvent } from '../lib/eventOrganizer';
@@ -23,7 +23,7 @@ const OrganizerDashboard = () => {
   const { user } = useAuth();
   
   // Use React Query hooks for data fetching with caching
-  const { data: events = [], isLoading } = useOrganizerEvents();
+  const { data: events = [], isLoading, error } = useOrganizerEvents();
 
   const liveEvents = events.filter((e: OrganizerEvent) => e.phase === 'live' || e.phase === 'upcoming').length;
   const totalTickets = events.reduce((sum: number, e: OrganizerEvent) => sum + (e.stats?.ticketsSold ?? e.attendees ?? 0), 0);
@@ -36,10 +36,12 @@ const OrganizerDashboard = () => {
       year: 'numeric',
     });
 
+  const hasError = error && !isLoading;
+
   return (
-    <div className="py-4 px-2 sm:py-2 sm:px-2 max-w-7xl mx-auto  text-neutral-900 dark:text-neutral-100 pb-6">
+    <div className=" sm:py-2 sm:px-2 max-w-7xl mx-auto  text-neutral-900 dark:text-neutral-100 pb-6">
       <div className="mb-6 border-b border-neutral-100 dark:border-neutral-900 pb-4 sm:pb-6">
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+        <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight">
           Hosting <span className="text-rose-500">Dashboard</span>
         </h1>
         <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
@@ -50,10 +52,10 @@ const OrganizerDashboard = () => {
       {/* Stats — 2 columns on mobile, 4 on desktop */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-8">
         {[
-          { label: 'Live Events', value: String(liveEvents), icon: <Calendar className="h-4 w-4" />, change: `${events.length} total` },
-          { label: 'Tickets Sold', value: String(totalTickets), icon: <TicketIcon className="h-4 w-4" />, change: 'All events' },
-          { label: 'Total Events', value: String(events.length), icon: <Users className="h-4 w-4" />, change: 'Incl. drafts' },
-          { label: 'Revenue', value: `₦${totalRevenue.toLocaleString()}`, icon: <CreditCard className="h-4 w-4" />, change: 'Ticket sales' },
+          { label: 'Live Events', value: liveEvents, icon: <Calendar className="h-4 w-4" />, change: `${events.length} total` },
+          { label: 'Tickets Sold', value: totalTickets, icon: <TicketIcon className="h-4 w-4" />, change: 'All events' },
+          { label: 'Total Events', value: events.length, icon: <Users className="h-4 w-4" />, change: 'Incl. drafts' },
+          { label: 'Revenue', value: totalRevenue, icon: <CreditCard className="h-4 w-4" />, change: 'Ticket sales' },
         ].map((stat, i) => (
           <div
             key={i}
@@ -63,8 +65,21 @@ const OrganizerDashboard = () => {
               <span className="text-[9px] sm:text-xs font-bold uppercase tracking-wider leading-tight">{stat.label}</span>
               {stat.icon}
             </div>
-            <p className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight">{stat.value}</p>
-            <p className="text-[10px] font-semibold text-neutral-450 dark:text-neutral-500 mt-1 leading-tight">{stat.change}</p>
+            {isLoading ? (
+              <>
+                <Skeleton className="h-8 w-24 mb-2" />
+                <Skeleton className="h-2 w-32" />
+              </>
+            ) : hasError ? (
+              <p className="text-xs text-red-500 font-semibold">Unable to load</p>
+            ) : (
+              <>
+                <p className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight">
+                  {stat.label === 'Revenue' ? `₦${stat.value.toLocaleString()}` : String(stat.value)}
+                </p>
+                <p className="text-[10px] font-semibold text-neutral-450 dark:text-neutral-500 mt-1 leading-tight">{stat.change}</p>
+              </>
+            )}
           </div>
         ))}
       </div>
@@ -80,8 +95,26 @@ const OrganizerDashboard = () => {
 
           <div className="border border-neutral-150 dark:border-neutral-900 rounded-2xl overflow-hidden divide-y divide-neutral-150 dark:divide-neutral-900">
             {isLoading ? (
-              <div className="p-8 flex justify-center">
-                <Spinner />
+              [...Array(5)].map((_, i) => (
+                <div key={i} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-neutral-900">
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <Skeleton className="w-16 h-16 rounded-xl shrink-0" />
+                    <div className="flex-1 space-y-2 min-w-0">
+                      <Skeleton className="h-4 w-40 mb-1" />
+                      <Skeleton className="h-3 w-48 mb-2" />
+                      <Skeleton className="h-3 w-56" />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                    <Skeleton className="h-9 w-20 rounded-full" />
+                    <Skeleton className="h-9 w-16 rounded-full" />
+                  </div>
+                </div>
+              ))
+            ) : hasError ? (
+              <div className="p-8 text-center bg-rose-50 dark:bg-rose-950/20">
+                <p className="text-sm text-rose-600 dark:text-rose-400 font-semibold">Failed to load events</p>
+                <p className="text-xs text-rose-500 dark:text-rose-300 mt-1">{error instanceof Error ? error.message : 'Please try again later'}</p>
               </div>
             ) : events.length === 0 ? (
               <div className="p-8 text-center">
@@ -99,49 +132,50 @@ const OrganizerDashboard = () => {
                 const sold = event.stats?.ticketsSold ?? event.attendees ?? 0;
                 const earned = event.stats?.actualRevenue ?? event.revenue ?? 0;
                 return (
-                <div
-                  key={event.id}
-                  className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-neutral-900 hover:bg-neutral-50/50 dark:hover:bg-neutral-850/50 transition-colors"
-                >
-                  <Link to={`/organizer/events/${event.id}`} className="flex items-center gap-4 flex-1 min-w-0">
-                    {cover ? (
-                      <img
-                        src={cover}
-                        alt={event.title}
-                        className="w-16 h-16 rounded-xl object-cover border border-neutral-100 dark:border-neutral-800 shrink-0"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded-xl bg-neutral-100 dark:bg-neutral-800 shrink-0" />
-                    )}
-                    <div className="min-w-0">
-                      <h3 className="font-bold text-sm leading-tight text-neutral-900 dark:text-white truncate">{event.title}</h3>
-                      <p className="text-xs text-neutral-450 dark:text-neutral-500 mt-0.5">
-                        {formatEventDate(event.startDate)} · {event.location || (event.locationType === 'online' ? 'Online' : 'TBD')}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                        <EventPhaseBadge event={event} />
-                        <span className="text-[10px] text-neutral-500">
-                          {sold} sold · {formatNaira(earned)}
-                        </span>
+                  <div
+                    key={event.id}
+                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-neutral-900 hover:bg-neutral-50/50 dark:hover:bg-neutral-850/50 transition-colors"
+                  >
+                    <Link to={`/organizer/events/${event.id}`} className="flex items-center gap-4 flex-1 min-w-0">
+                      {cover ? (
+                        <img
+                          src={cover}
+                          alt={event.title}
+                          className="w-16 h-16 rounded-xl object-cover border border-neutral-100 dark:border-neutral-800 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-xl bg-neutral-100 dark:bg-neutral-800 shrink-0" />
+                      )}
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-sm leading-tight text-neutral-900 dark:text-white truncate">{event.title}</h3>
+                        <p className="text-xs text-neutral-450 dark:text-neutral-500 mt-0.5">
+                          {formatEventDate(event.startDate)} · {event.location || (event.locationType === 'online' ? 'Online' : 'TBD')}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                          <EventPhaseBadge event={event} />
+                          <span className="text-[10px] text-neutral-500">
+                            {sold} sold · {formatNaira(earned)}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </Link>
+                    </Link>
 
-                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                    <Link to={`/organizer/events/${event.id}`}>
-                      <Button variant="outline" size="sm" className="rounded-full text-xs font-semibold px-4">
-                        <Eye className="h-3.5 w-3.5 mr-1" />
-                        Stats
-                      </Button>
-                    </Link>
-                    <Link to={`/organizer/events/create/${event.id}`}>
-                      <Button size="sm" className="rounded-full text-xs font-semibold px-4 bg-rose-500 hover:bg-rose-600 text-white border-0">
-                        Edit
-                      </Button>
-                    </Link>
+                    <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                      <Link to={`/organizer/events/${event.id}`}>
+                        <Button variant="outline" size="sm" className="rounded-full text-xs font-semibold px-4">
+                          <Eye className="h-3.5 w-3.5 mr-1" />
+                          Stats
+                        </Button>
+                      </Link>
+                      <Link to={`/organizer/events/create/${event.id}`}>
+                        <Button size="sm" className="rounded-full text-xs font-semibold px-4 bg-rose-500 hover:bg-rose-600 text-white border-0">
+                          Edit
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
-                </div>
-              );})
+                );
+              })
             )}
           </div>
         </div>

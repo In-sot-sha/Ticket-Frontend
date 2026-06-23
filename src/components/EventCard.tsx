@@ -16,6 +16,8 @@ interface Event {
   price?: string | number;
   rating?: number;
   attendees?: number;
+  latitude?: number;
+  longitude?: number;
 }
 
 interface EventCardProps {
@@ -24,6 +26,7 @@ interface EventCardProps {
   showRating?: boolean;
   showTicketsAvailable?: boolean;
   showPrice?: boolean;
+  distance?: number; // Distance in km from user
   onHover?: (id: number | null) => void;
 }
 
@@ -33,6 +36,7 @@ const EventCard: React.FC<EventCardProps> = ({
   showRating = true, 
   showTicketsAvailable = false,
   showPrice = true,
+  distance,
   onHover
 }) => {
   const [isSaved, setIsSaved] = useState(false);
@@ -130,6 +134,12 @@ const EventCard: React.FC<EventCardProps> = ({
           <p className="text-[10px] sm:text-xs text-neutral-500 dark:text-neutral-400 mt-1 line-clamp-1">
             {event.location}
           </p>
+          {/* TODO: Uncomment when distance sorting is enabled */}
+          {/* {distance !== undefined && (
+            <p className="text-[10px] sm:text-xs text-rose-500 dark:text-rose-400 font-semibold inline-block ml-1">
+              {distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`}
+            </p>
+          )} */}
 
           {/* Third Line: Date */}
           <p className="text-[10px] sm:text-xs text-neutral-450 dark:text-neutral-505 mt-0.5 font-normal">

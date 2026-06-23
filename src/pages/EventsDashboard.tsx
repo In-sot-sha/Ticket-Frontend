@@ -10,11 +10,13 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { Skeleton } from '../components/ui/skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useOrganizerEvents } from '../hooks/queries/useEvents';
 import { resolveImageUrl } from '../lib/media';
 import EventPhaseBadge from '../components/organizer/EventPhaseBadge';
 import { formatNaira, OrganizerEvent } from '../lib/eventOrganizer';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const EventsDashboard = () => {
   const { user } = useAuth();
@@ -26,19 +28,30 @@ const EventsDashboard = () => {
   const totalSold = events.reduce((sum: number, e: OrganizerEvent) => sum + (e.stats?.ticketsSold ?? e.attendees ?? 0), 0);
   const totalRevenue = events.reduce((sum: number, e: OrganizerEvent) => sum + (e.stats?.actualRevenue ?? e.revenue ?? 0), 0);
   const totalExpected = events.reduce((sum: number, e: OrganizerEvent) => sum + (e.stats?.expectedRevenue ?? 0), 0);
-
-  if (isLoading) {
-    return (
-      <div className="py-6 flex justify-center items-center">
-        <div className="text-lg">Loading events...</div>
-      </div>
-    );
-  }
+  const isMobile = useIsMobile();
 
   if (error) {
     return (
-      <div className="py-6 flex justify-center items-center">
-        <div className="text-red-500">Error: {error instanceof Error ? error.message : 'Failed to load events'}</div>
+      <div>
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-extrabold">
+              Your <span className="text-rose-500">Events</span>
+            </h1>
+            <p className="text-sm text-neutral-500 mt-0.5">{totalEvents} total</p>
+          </div>
+          <Link to="/organizer/events/create">
+            <Button className="rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0" size={isMobile ? 'sm' : 'default'}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              Create event
+            </Button>
+          </Link>
+        </div>
+
+        <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 p-6 text-center">
+          <p className="text-sm text-red-600 dark:text-red-400 font-semibold">Failed to load events</p>
+          <p className="text-xs text-red-500 dark:text-red-300 mt-2">{error instanceof Error ? error.message : 'Please try again later'}</p>
+        </div>
       </div>
     );
   }
@@ -47,13 +60,13 @@ const EventsDashboard = () => {
     <div>
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold">
+          <h1 className="sm:text-3xl text-xl font-extrabold">
             Your <span className="text-rose-500">Events</span>
           </h1>
           <p className="text-sm text-neutral-500 mt-0.5">{totalEvents} total</p>
         </div>
         <Link to="/organizer/events/create">
-          <Button className="rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0">
+          <Button className="rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0" size={isMobile ? 'sm' : 'default'}>
             <Plus className="h-4 w-4 mr-1.5" />
             Create event
           </Button>
@@ -62,10 +75,10 @@ const EventsDashboard = () => {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { label: 'Events', value: String(totalEvents), icon: <Calendar className="h-5 w-5" /> },
-          { label: 'Tickets sold', value: String(totalSold), icon: <Ticket className="h-5 w-5" /> },
-          { label: 'Revenue earned', value: formatNaira(totalRevenue), icon: <TrendingUp className="h-5 w-5" /> },
-          { label: 'Expected (max)', value: formatNaira(totalExpected), icon: <TrendingUp className="h-5 w-5" /> },
+          { label: 'Events', value: totalEvents, icon: <Calendar className="h-5 w-5" /> },
+          { label: 'Tickets sold', value: totalSold, icon: <Ticket className="h-5 w-5" /> },
+          { label: 'Revenue earned', value: totalRevenue, icon: <TrendingUp className="h-5 w-5" /> },
+          { label: 'Expected (max)', value: totalExpected, icon: <TrendingUp className="h-5 w-5" /> },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -75,7 +88,17 @@ const EventsDashboard = () => {
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{stat.label}</span>
               {stat.icon}
             </div>
-            <p className="text-xl font-bold">{stat.value}</p>
+            {isLoading ? (
+              <>
+                <Skeleton className="h-6 w-20 mb-1" />
+              </>
+            ) : (
+              <p className="text-xl font-bold">
+                {stat.label === 'Revenue earned' || stat.label === 'Expected (max)'
+                  ? formatNaira(stat.value)
+                  : String(stat.value)}
+              </p>
+            )}
           </div>
         ))}
       </div>
@@ -89,9 +112,30 @@ const EventsDashboard = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {events.map((event: OrganizerEvent) => (
-            <EventCard key={event.id} event={event} />
-          ))}
+          {isLoading
+            ? [...Array(6)].map((_, i) => (
+                <div key={i} className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
+                  <Skeleton className="aspect-[2/1] w-full" />
+                  <div className="p-3.5 sm:p-4">
+                    <Skeleton className="h-4 w-3/4 mb-3" />
+                    <div className="space-y-2 mb-3">
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-4/5" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 pt-3 border-t border-neutral-100 dark:border-neutral-800">
+                      {[1, 2, 3, 4].map((j) => (
+                        <div key={j}>
+                          <Skeleton className="h-2 w-12 mb-1" />
+                          <Skeleton className="h-4 w-16" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))
+            : events.map((event: OrganizerEvent) => (
+                <EventCard key={event.id} event={event} />
+              ))}
         </div>
       )}
     </div>

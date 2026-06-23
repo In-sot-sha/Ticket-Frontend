@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Homepage: Priority 1.0, crawled daily -->
+  <url>
+    <loc>https://partystorm.com/</loc>
+    <priority>1.0</priority>
+    <changefreq>daily</changefreq>
+    <lastmod>2026-06-23</lastmod>
+  </url>
+
+  <!-- Events browse page: Priority 0.9, crawled daily -->
+  <url>
+    <loc>https://partystorm.com/events</loc>
+    <priority>0.9</priority>
+    <changefreq>daily</changefreq>
+    <lastmod>2026-06-23</lastmod>
+  </url>
+
+  <!-- Wishlist page: Priority 0.7, crawled weekly -->
+  <url>
+    <loc>https://partystorm.com/wishlist</loc>
+    <priority>0.7</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-06-23</lastmod>
+  </url>
+
+  <!-- Sample event pages (update these with your actual event IDs) -->
+  <!-- Priority 0.8: Event detail pages are important but not as critical as homepage -->
+  <url>
+    <loc>https://partystorm.com/event/52</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-06-22</lastmod>
+  </url>
+
+  <!-- Add more event URLs here as you scale -->
+  <!-- Format: https://partystorm.com/event/{eventId} -->
+
+</urlset>

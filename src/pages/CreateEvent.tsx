@@ -12,7 +12,6 @@ import {
   ImageIcon,
   X,
   Plus,
-  Ticket,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
@@ -23,8 +22,9 @@ import { EVENT_TEMPLATES, EventTemplate, TicketDraft } from '../data/eventTempla
 import { TICKET_DESIGNS } from '../data/ticketDesigns';
 import { INCLUDED_SUGGESTIONS, TICKET_TYPE_PRESETS } from '../data/eventExtras';
 import EventTicketCard from '../components/tickets/EventTicketCard';
-import VendorSettingsStep, { VendorSettings, VendorStallType } from '../components/organizer/VendorSettingsStep';
+import VendorSettingsStep, { VendorSettings } from '../components/organizer/VendorSettingsStep';
 import { LocationMap } from '../components/organizer/LocationMap';
+import GoogleMapLocationPicker from '../components/organizer/GoogleMapLocationPicker';
 import { cn } from '../lib/utils';
 import { resolveImageUrl } from '../lib/media';
 import {
@@ -49,6 +49,8 @@ interface FormState {
   endTime12: string;
   locationType: 'physical' | 'online';
   location: string;
+  latitude?: number;
+  longitude?: number;
   onlineUrl: string;
   capacity: string;
   tickets: TicketDraft[];
@@ -86,6 +88,8 @@ const defaultForm = (): FormState => ({
   endTime12: '10:00 PM',
   locationType: 'physical',
   location: '',
+  latitude: undefined,
+  longitude: undefined,
   onlineUrl: '',
   capacity: '',
   tickets: [defaultTicket()],
@@ -141,6 +145,13 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
   fd.append('locationType', form.locationType);
   fd.append('capacity', form.capacity);
   fd.append('isPublished', String(isPublished));
+  
+  // Add latitude/longitude if physical event
+  if (form.locationType === 'physical' && form.latitude && form.longitude) {
+    fd.append('latitude', String(form.latitude));
+    fd.append('longitude', String(form.longitude));
+  }
+  
   fd.append(
     'ticketTypes',
     JSON.stringify(
@@ -315,6 +326,7 @@ const CreateEvent: React.FC = () => {
   const [activeTicketIndex, setActiveTicketIndex] = useState(0);
   const [customIncluded, setCustomIncluded] = useState('');
   const [showTicketPresets, setShowTicketPresets] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
 
   const stepIndex = STEPS.findIndex((s) => s.key === step);
   const isEditing = !!id;
@@ -356,6 +368,8 @@ const CreateEvent: React.FC = () => {
           endTime12: formatTime12(end),
           locationType: event.locationType === 'online' ? 'online' : 'physical',
           location: event.location || '',
+          latitude: event.latitude,
+          longitude: event.longitude,
           onlineUrl: event.onlineUrl || '',
           capacity: event.capacity ? String(event.capacity) : '',
           tickets: event.ticketTypes?.length
@@ -635,7 +649,7 @@ const CreateEvent: React.FC = () => {
   }
 
   return (
-    <div className="pb-20 md:pb-6">
+    <div className="pb-6 md:pb-6">
       {/* ── Page header — sticky on mobile, part of normal flow on desktop ── */}
       <div className="sticky top-0 z-20 bg-white/97 dark:bg-gray-900/97 backdrop-blur-sm border-b border-neutral-100 dark:border-neutral-800 px-4 py-3 flex items-center justify-between gap-3 shrink-0 md:static md:bg-transparent md:dark:bg-transparent md:border-0 md:px-0 md:pt-0 md:pb-4 md:backdrop-blur-none mb-3">
         {/* Left: back + title */}
@@ -923,11 +937,28 @@ const CreateEvent: React.FC = () => {
                     <FieldLabel>{form.locationType === 'physical' ? 'Venue or address' : 'Meeting link'}</FieldLabel>
                     {form.locationType === 'physical' ? (
                       <div className="space-y-3">
-                        <input value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))} placeholder="e.g. 12 Admiralty Way, Lekki" className={inputClass} />
+                        <div className="flex gap-2">
+                          <input value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))} placeholder="e.g. 12 Admiralty Way, Lekki" className={cn(inputClass, 'flex-1')} />
+                          <button
+                            type="button"
+                            onClick={() => setShowMapPicker(true)}
+                            className="px-4 py-2.5 bg-rose-500 text-white rounded-lg font-semibold text-sm hover:bg-rose-600 transition-colors flex items-center gap-2 shrink-0"
+                          >
+                            <MapPin className="h-4 w-4" />
+                            Pick Location
+                          </button>
+                        </div>
+                        {/* {form.latitude && form.longitude && (
+                          <div className="p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/30 rounded-lg">
+                            <p className="text-xs font-semibold text-rose-900 dark:text-rose-100">
+                              ✓ Coordinates saved: {form.latitude.toFixed(4)}, {form.longitude.toFixed(4)}
+                            </p>
+                          </div>
+                        )}
                         <LocationMap 
                           location={form.location} 
                           onLocationChange={(location) => setForm((p) => ({ ...p, location }))}
-                        />
+                        /> */}
                       </div>
                     ) : (
                       <input value={form.onlineUrl} onChange={(e) => setForm((p) => ({ ...p, onlineUrl: e.target.value }))} placeholder="e.g. https://zoom.us/j/..." className={inputClass} />
@@ -1258,6 +1289,42 @@ const CreateEvent: React.FC = () => {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Map Picker Modal */}
+      <AnimatePresence>
+        {showMapPicker && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-neutral-900 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 border border-neutral-200 dark:border-neutral-800"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-neutral-900 dark:text-white">Pick Event Location</h2>
+                <button
+                  onClick={() => setShowMapPicker(false)}
+                  className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                >
+                  <X className="h-5 w-5 text-neutral-500" />
+                </button>
+              </div>
+              <GoogleMapLocationPicker
+                onLocationSelect={(location) => {
+                  setForm((p) => ({
+                    ...p,
+                    location: location.address,
+                    latitude: location.lat,
+                    longitude: location.lng,
+                  }));
+                  setShowMapPicker(false);
+                }}
+                initialAddress={form.location || 'Kano, Nigeria'}
+              />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import { BrowserRouter as Router } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { HelmetProvider } from 'react-helmet-async';
 import { ThemeProvider } from './theme/ThemeProvider';
 import { AuthProvider } from './context/AuthContext';
 import { RoleProvider } from './context/RoleContext';
@@ -15,21 +16,23 @@ import './index.css';
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <ScrollToTop />
-        <ErrorBoundary>
-          <ThemeProvider>
-            <AuthProvider>
-              <RoleProvider>
-                {/* Top-level offline indicator */}
-                <OfflineBadge />
-                <AppRoutes />
-                {/* <InstallPrompt /> */}
-              </RoleProvider>
-            </AuthProvider>
-          </ThemeProvider>
-        </ErrorBoundary>
-      </Router>
+      <HelmetProvider>
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <ScrollToTop />
+          <ErrorBoundary>
+            <ThemeProvider>
+              <AuthProvider>
+                <RoleProvider>
+                  {/* Top-level offline indicator */}
+                  <OfflineBadge />
+                  <AppRoutes />
+                  {/* <InstallPrompt /> */}
+                </RoleProvider>
+              </AuthProvider>
+            </ThemeProvider>
+          </ErrorBoundary>
+        </Router>
+      </HelmetProvider>
       {/* React Query DevTools — only visible in development */}
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>

@@ -1,0 +1,32 @@
+# PartyStorm robots.txt
+# Allow search engines to crawl public pages
+
+User-agent: *
+Allow: /
+Allow: /events
+Allow: /event/
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /login
+Disallow: /register
+Disallow: /api/
+Disallow: /booking/
+Disallow: /*.json$
+Disallow: /*?*sort=
+Disallow: /*?*filter=
+
+# Crawl delay in seconds (be nice to servers)
+Crawl-delay: 1
+
+# Specify sitemap location
+Sitemap: https://partystorm.com/sitemap.xml
+
+# Google-specific
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0
+
+# Bing-specific
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
