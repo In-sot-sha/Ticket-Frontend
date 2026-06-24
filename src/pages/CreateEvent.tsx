@@ -649,7 +649,7 @@ const CreateEvent: React.FC = () => {
   }
 
   return (
-    <div className="pb-6 md:pb-6">
+    <div className="pb-6 md:pb-6 sm:px-2">
       {/* ── Page header — sticky on mobile, part of normal flow on desktop ── */}
       <div className="sticky top-0 z-20 bg-white/97 dark:bg-gray-900/97 backdrop-blur-sm border-b border-neutral-100 dark:border-neutral-800 px-4 py-3 flex items-center justify-between gap-3 shrink-0 md:static md:bg-transparent md:dark:bg-transparent md:border-0 md:px-0 md:pt-0 md:pb-4 md:backdrop-blur-none mb-3">
         {/* Left: back + title */}

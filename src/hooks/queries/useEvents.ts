@@ -51,6 +51,23 @@ export const useEventById = (id: number, enabled = true, config?: QueryConfig) =
 };
 
 /**
+ * Fetch a single event by identifier (slug or numeric ID).
+ * Uses the unified backend endpoint that auto-detects the type.
+ * This handles old events without slugs (falls back to ID lookup).
+ */
+export const useEventByIdentifier = (identifier: string, enabled = true, config?: QueryConfig) => {
+  return useQuery({
+    queryKey: ['event', identifier],
+    queryFn: () => api.events.getByIdentifier(identifier).then(res => res.data),
+    enabled: enabled && !!identifier,
+    ...config,
+  });
+};
+
+// Keep slug alias for backwards compat
+export const useEventBySlug = useEventByIdentifier;
+
+/**
  * Fetch a single event by ID (authenticated endpoint)
  */
 export const useEventByIdAuth = (id: number, enabled = true) => {

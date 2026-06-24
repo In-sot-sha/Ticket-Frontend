@@ -100,7 +100,7 @@ const AppRoutes: React.FC = () => {
           element: <EventsPage />,
         },
         {
-          path: "events/:id",
+          path: "events/:slug",
           element: <EventDetailPage />,
         },
         {

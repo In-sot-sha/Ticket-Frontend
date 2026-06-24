@@ -108,6 +108,7 @@ export const mapApiEventToFrontendEvent = (apiEvent: any): Event => {
     : 100;
   return {
     id: apiEvent.id,
+    slug: apiEvent.slug,
     title: apiEvent.title,
     date: apiEvent.startDate,
     location: apiEvent.location || 'Online',
@@ -115,7 +116,8 @@ export const mapApiEventToFrontendEvent = (apiEvent: any): Event => {
     category: apiEvent.category || 'Other',
     ticketsAvailable,
     price: apiEvent.price ?? 0,
-    rating: apiEvent.rating || 4.5 + (apiEvent.id % 5) * 0.1,
+    ticketTypes: apiEvent.ticketTypes, // Pass down for advanced pricing logic
+    rating: apiEvent.rating ?? 0,
     attendees: apiEvent.attendees || 0
   };
 };

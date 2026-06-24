@@ -19,6 +19,7 @@ import { Button } from '../components/ui/Button';
 import EventCard, { Event } from '../components/EventCard';
 import { useEvents } from '../hooks/queries/useEvents';
 import { EventLink } from '../components/EventLink';
+import { mapApiEventToFrontendEvent } from '../data/mockEvents';
 
 const OrganizerPage: React.FC = () => {
   // Estimator State
@@ -73,17 +74,7 @@ const OrganizerPage: React.FC = () => {
   // Transform API events to EventCard format
   const transformedApiEvents = apiEvents
     .slice(0, 3)
-    .map((e: any) => ({
-      id: e.id,
-      title: e.title,
-      date: e.startDate,
-      location: e.location || 'Online',
-      image: e.imageUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
-      category: e.category || 'Other',
-      ticketsAvailable: e.ticketTypes?.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0) || 0,
-      price: e.price ?? 0,
-      rating: 4.5 + (e.id % 5) * 0.1
-    }));
+    .map(mapApiEventToFrontendEvent);
 
   // Use API events if available, fallback to mock
   const showcaseEvents = error || apiEvents.length === 0 ? mockEvents : transformedApiEvents;
@@ -559,7 +550,7 @@ const OrganizerPage: React.FC = () => {
 
       {/* ─── Inspiring Events Section (Airbnb Style) ─── */}
       <section className="py-20 border-b border-neutral-100 dark:border-neutral-900">
-        <div className="container mx-auto px-6 max-w-7xl">
+        <div className="container mx-auto px-3 sm:px-6 max-w-7xl">
           <div className="flex justify-between items-end mb-12">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400 block mb-2">
@@ -574,7 +565,7 @@ const OrganizerPage: React.FC = () => {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {showcaseEvents.map((event: any) => (
               <div key={event.id} className="relative">
                 <EventLink eventId={event.id}>

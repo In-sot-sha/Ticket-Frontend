@@ -60,6 +60,7 @@ const BookingSuccessPage = () => {
           const confirmedOrder = {
             eventId: cachedOrder.eventId,
             eventName: cachedOrder.eventName,
+            eventSlug: cachedOrder.eventSlug || null,
             eventDate: cachedOrder.eventDate,
             eventTime: cachedOrder.eventTime,
             eventLocation: cachedOrder.eventLocation,

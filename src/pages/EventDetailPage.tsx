@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { useEventById } from '../hooks/queries/useEvents';
+import { useEventBySlug } from '../hooks/queries/useEvents';
 import { CACHE_CONFIGS } from '../lib/queryClient';
 import { generateEventStructuredData } from '../lib/seo';
 import {
@@ -23,12 +23,14 @@ import {
   ChevronRight,
   X,
   ArrowRight,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { api } from '../services/api';
 import { LazyImage } from '../components/LazyImage';
 import { GoogleMapLocation } from '../components/GoogleMapLocation';
+import TicketFlierGenerator from '../components/checkout/TicketFlierGenerator';
 
 interface TicketType {
   id: number;
@@ -54,6 +56,7 @@ interface Highlight {
 
 interface EventDetail {
   id: number;
+  slug?: string;
   title: string;
   description: string;
   date: string;
@@ -158,6 +161,7 @@ const mapApiEventToDetail = (apiEvent: any): EventDetail => {
 
   return {
     id: apiEvent.id,
+    slug: apiEvent.slug,
     title: apiEvent.title,
     description: apiEvent.description || '',
     date: apiEvent.startDate,
@@ -209,17 +213,18 @@ const mapApiEventToDetail = (apiEvent: any): EventDetail => {
 };
 
 const EventDetailPage = () => {
-  const { id } = useParams();
+  const { slug } = useParams();
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const [isSaved, setIsSaved] = useState(false);
   const [showAllPhotos, setShowAllPhotos] = useState(false);
   const [showOrganizerModal, setShowOrganizerModal] = useState(false);
+  const [showFlier, setShowFlier] = useState(false);
 
   // Use React Query hook to fetch event with 3min cache (EVENT_DETAIL config)
-  const { data: eventData, isLoading, error, isError } = useEventById(
-    id ? Number(id) : 0,
-    !!id,
+  const { data: eventData, isLoading, error, isError } = useEventBySlug(
+    slug || '',
+    !!slug,
     CACHE_CONFIGS.EVENT_DETAIL
   );
 
@@ -227,11 +232,11 @@ const EventDetailPage = () => {
   const notFound = isError && (error as any)?.response?.status === 404;
 
   useEffect(() => {
-    if (id) {
-      const saved = localStorage.getItem(`wishlist_${id}`);
+    if (eventData?.id) {
+      const saved = localStorage.getItem(`wishlist_${eventData.id}`);
       setIsSaved(saved === 'true');
     }
-  }, [id]);
+  }, [eventData?.id]);
 
   const handlePurchaseTicket = () => {
     navigate(`/book/${event.id}`);
@@ -244,6 +249,47 @@ const EventDetailPage = () => {
       month: 'long',
       day: 'numeric',
     });
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: event.title,
+          text: `Check out ${event.title} happening at ${event.location}!`,
+          url: window.location.href,
+        });
+      } catch (error) {
+        if ((error as Error).name !== 'AbortError') {
+          console.error('Error sharing:', error);
+        }
+      }
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      alert('Event link copied to clipboard!');
+    }
+  };
+
+  // Pricing Logic
+  let displayPrice = '';
+  if (event.ticketTypes && event.ticketTypes.length > 0) {
+    const prices = event.ticketTypes.map(t => Number(t.price));
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    
+    if (minPrice === 0 && maxPrice === 0) {
+      displayPrice = 'Free';
+    } else if (minPrice === 0 && maxPrice > 0) {
+      displayPrice = 'Free - Paid';
+    } else if (event.ticketTypes.length > 1 && minPrice < maxPrice) {
+      displayPrice = `From ₦${minPrice.toLocaleString()}`;
+    } else {
+      displayPrice = `₦${minPrice.toLocaleString()}`;
+    }
+  } else if (typeof event.price === 'number') {
+    displayPrice = event.price === 0 ? 'Free' : `₦${event.price.toLocaleString()}`;
+  } else if (event.price) {
+    displayPrice = String(event.price);
+  }
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
@@ -258,7 +304,7 @@ const EventDetailPage = () => {
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={event?.title || 'Event Details'} />
         <meta name="twitter:description" content={event?.description?.substring(0, 160) || 'Book tickets for amazing events.'} />
-        {event?.id && <link rel="canonical" href={`https://partystorm.com/event/${event.id}`} />}
+        {event?.slug && <link rel="canonical" href={`https://partystorm.com/events/${event.slug}`} />}
         {event?.id && (
           <script type="application/ld+json">
             {JSON.stringify(generateEventStructuredData(event))}
@@ -400,9 +446,8 @@ const EventDetailPage = () => {
           <div className="flex items-baseline justify-between mb-4">
             <div className="flex items-baseline gap-1">
               <span className="text-xl font-extrabold text-neutral-900 dark:text-white">
-                ₦{event.price.toLocaleString()}
+                {displayPrice}
               </span>
-              <span className="text-sm text-neutral-500 dark:text-neutral-400">/ ticket</span>
             </div>
             {event.reviewCount > 0 && (
               <div className="flex items-center gap-1 text-xs">
@@ -437,14 +482,30 @@ const EventDetailPage = () => {
                 <Store className="h-4 w-4" />
                 Apply as Vendor
               </button>
+              <button
+                onClick={() => setShowFlier(true)}
+                className="w-full h-11 border-2 border-dashed border-rose-200 dark:border-rose-900 text-rose-500 hover:text-rose-600 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                <Sparkles className="h-4 w-4" />
+                Shareable Flier
+              </button>
             </div>
           ) : (
-            <button
-              onClick={handlePurchaseTicket}
-              className="w-full h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
-            >
-              Reserve Tickets
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={handlePurchaseTicket}
+                className="w-full h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
+              >
+                Reserve Tickets
+              </button>
+              <button
+                onClick={() => setShowFlier(true)}
+                className="w-full h-11 border-2 border-dashed border-rose-200 dark:border-rose-900 text-rose-500 hover:text-rose-600 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                <Sparkles className="h-4 w-4" />
+                Shareable Flier
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -465,13 +526,13 @@ const EventDetailPage = () => {
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => {
-                    if (!id) return;
+                    if (!event.id) return;
                     const newState = !isSaved;
                     setIsSaved(newState);
                     if (newState) {
-                      localStorage.setItem(`wishlist_${id}`, 'true');
+                      localStorage.setItem(`wishlist_${event.id}`, 'true');
                     } else {
-                      localStorage.removeItem(`wishlist_${id}`);
+                      localStorage.removeItem(`wishlist_${event.id}`);
                     }
                   }}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
@@ -485,10 +546,22 @@ const EventDetailPage = () => {
                     {isSaved ? 'Saved' : 'Save'}
                   </span>
                 </button>
-                <button className="flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
+                <button 
+                  onClick={handleShare}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                >
                   <Share2 className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
                   <span className="text-xs font-bold underline text-neutral-700 dark:text-neutral-300">
                     Share
+                  </span>
+                </button>
+                <button 
+                  onClick={() => setShowFlier(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                >
+                  <Sparkles className="h-4 w-4 text-rose-500" />
+                  <span className="text-xs font-bold underline text-neutral-700 dark:text-neutral-300">
+                    Flier
                   </span>
                 </button>
               </div>
@@ -727,9 +800,8 @@ const EventDetailPage = () => {
                 <div className="flex items-baseline justify-between mb-6">
                   <div className="flex items-baseline gap-1">
                     <span className="text-2xl font-extrabold text-neutral-900 dark:text-white">
-                      ₦{event.price.toLocaleString()}
+                      {displayPrice}
                     </span>
-                    <span className="text-sm text-neutral-500 dark:text-neutral-400">/ ticket</span>
                   </div>
                   {event.reviewCount > 0 && (
                     <div className="flex items-center gap-1 text-xs">
@@ -767,6 +839,15 @@ const EventDetailPage = () => {
                       Apply as Vendor
                     </button>
 
+                    {/* Shareable Flier Button */}
+                    <button
+                      onClick={() => setShowFlier(true)}
+                      className="w-full h-11 border-2 border-dashed border-rose-200 dark:border-rose-900 text-rose-500 hover:text-rose-600 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all flex items-center justify-center gap-2 mt-2"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      Shareable Flier
+                    </button>
+
                     <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center mt-3">
                       You won't be charged yet
                     </p>
@@ -781,7 +862,16 @@ const EventDetailPage = () => {
                       Reserve Tickets
                     </button>
 
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center mb-4">
+                    {/* Shareable Flier Button */}
+                    <button
+                      onClick={() => setShowFlier(true)}
+                      className="w-full h-11 border-2 border-dashed border-rose-200 dark:border-rose-900 text-rose-500 hover:text-rose-600 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      Shareable Flier
+                    </button>
+
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center mb-4 mt-3">
                       You won't be charged yet
                     </p>
                   </>
@@ -844,7 +934,7 @@ const EventDetailPage = () => {
 
             {/* Modal header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 dark:border-neutral-800">
-              <h2 className="text-sm font-extrabold text-neutral-900 dark:text-white">Organizer Info</h2>
+              <h2 className="text-sm font-extrabold text-neutral-900 dark:text-white">About the Organizer</h2>
               <button
                 onClick={() => setShowOrganizerModal(false)}
                 className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
@@ -896,19 +986,26 @@ const EventDetailPage = () => {
 
               {/* Contact details */}
               <div className="space-y-3 border-t border-neutral-100 dark:border-neutral-800 pt-4">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Contact</p>
-                <div className="flex items-center gap-3 text-sm text-neutral-700 dark:text-neutral-300">
-                  <div className="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl shrink-0">
-                    <Mail className="h-4 w-4 text-neutral-500" />
+                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Contact Details</p>
+                {event.organizer.email && (
+                  <div className="flex items-center gap-3 text-sm text-neutral-700 dark:text-neutral-300">
+                    <div className="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl shrink-0">
+                      <Mail className="h-4 w-4 text-neutral-500" />
+                    </div>
+                    <span className="font-medium truncate">{event.organizer.email}</span>
                   </div>
-                  <span className="font-medium truncate">{event.organizer.email}</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm text-neutral-700 dark:text-neutral-300">
-                  <div className="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl shrink-0">
-                    <User className="h-4 w-4 text-neutral-500" />
+                )}
+                {event.organizer.phone && (
+                  <div className="flex items-center gap-3 text-sm text-neutral-700 dark:text-neutral-300">
+                    <div className="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl shrink-0">
+                      <User className="h-4 w-4 text-neutral-500" />
+                    </div>
+                    <span className="font-medium">{event.organizer.phone}</span>
                   </div>
-                  <span className="font-medium">{event.organizer.phone}</span>
-                </div>
+                )}
+                {!event.organizer.email && !event.organizer.phone && (
+                   <p className="text-sm text-neutral-500 italic">No contact details provided.</p>
+                )}
               </div>
 
               {/* Trust notice */}
@@ -923,6 +1020,27 @@ const EventDetailPage = () => {
         </div>
       )}
 
+      {/* ─── Shareable Flier Modal/Overlay ─── */}
+      {showFlier && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/95 dark:bg-gray-950/95 backdrop-blur-md overflow-y-auto p-4 sm:p-6 lg:p-8 animation-fade-in">
+          <div className="relative w-full max-w-4xl my-auto">
+            <TicketFlierGenerator 
+              event={{
+                title: event.title || 'Event',
+                date: event.date || new Date().toISOString(),
+                location: event.location || 'Location',
+                image: event.images?.[0] || '',
+                eventUrl: event.slug 
+                  ? `/events/${event.slug}` 
+                  : `/events/${event.id}`
+              }}
+              user={user}
+              onClose={() => setShowFlier(false)}
+            />
+          </div>
+        </div>
+      )}
+
       </>)}
 
       {/* ─── Sticky Bottom Bar (Mobile only, when not loading) ─── */}
@@ -931,9 +1049,8 @@ const EventDetailPage = () => {
           <div>
             <div className="flex items-baseline gap-1">
               <span className="text-lg font-extrabold text-neutral-900 dark:text-white">
-                From ₦{(event.price || 0).toLocaleString()}
+                {displayPrice}
               </span>
-              <span className="text-xs text-neutral-500 dark:text-neutral-400">/ ticket</span>
             </div>
           </div>
           {event.vendorApplicationsAllowed ? (

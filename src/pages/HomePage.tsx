@@ -259,7 +259,7 @@ const HomePage = () => {
       </div>
 
       {/* ─── Main Content: Events Grid ─── */}
-      <div className="flex-grow w-full px-6 py-6 md:px-8">
+      <div className="flex-grow w-full px-3 sm:px-6 py-6 md:px-8">
         <div className="mb-6 flex items-end justify-between gap-4">
           <div>
             <h1 className="text-xl font-extrabold tracking-tight text-neutral-900 dark:text-white">

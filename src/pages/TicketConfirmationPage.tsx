@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { CheckCircle, Shield, Download, ArrowLeft } from 'lucide-react';
@@ -9,11 +9,13 @@ import TicketCard, {
   type TicketCardEventMeta,
   type TicketCardTicket,
 } from '../components/TicketCard';
+import TicketFlierGenerator from '../components/checkout/TicketFlierGenerator';
 
 const TicketConfirmationPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const [showFlier, setShowFlier] = useState(false);
 
   const orderData = location.state || {
     eventId: 1,
@@ -101,13 +103,39 @@ const TicketConfirmationPage = () => {
           <h1 className="text-xl sm:text-2xl font-black text-neutral-900 dark:text-white tracking-tight uppercase">
             Your Digital Entrance Pass
           </h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-md mx-auto">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-md mx-auto mb-6">
             Show this card at the entry post or download the PNG to your device.
           </p>
+          
+          <button
+            onClick={() => setShowFlier(true)}
+            className="bg-gradient-to-r from-rose-500 to-pink-600 text-white font-bold px-6 py-3 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 mx-auto active:scale-[0.98]"
+          >
+            ✨ Generate Shareable Flier
+          </button>
         </div>
 
-        {/* Ticket cards */}
-        <div className="space-y-6 sm:space-y-10">
+        {showFlier && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/95 dark:bg-gray-950/95 backdrop-blur-md overflow-y-auto p-4 sm:p-6 lg:p-8 animation-fade-in">
+            <div className="relative w-full max-w-4xl my-auto">
+              <TicketFlierGenerator 
+                event={{
+                  title: eventMeta.eventName || 'Event',
+                  date: eventMeta.eventDate || new Date().toISOString(),
+                  location: eventMeta.eventLocation || 'Location',
+                  image: eventMeta.eventImageUrl || '',
+                  eventUrl: orderData.eventSlug 
+                    ? `/events/${orderData.eventSlug}` 
+                    : `/events/${orderData.eventId}`
+                }}
+                user={user}
+                onClose={() => setShowFlier(false)}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-6 sm:space-y-10 animation-fade-in">
           {ticketsList.map((ticket, index) => (
             <TicketCard
               key={ticket.id ?? index}

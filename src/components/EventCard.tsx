@@ -7,6 +7,7 @@ import { LazyImage } from './LazyImage';
 // Define the event type
 interface Event {
   id: number;
+  slug?: string;
   title: string;
   date: string;
   location: string;
@@ -18,6 +19,7 @@ interface Event {
   attendees?: number;
   latitude?: number;
   longitude?: number;
+  ticketTypes?: Array<{ price: number }>;
 }
 
 interface EventCardProps {
@@ -62,20 +64,63 @@ const EventCard: React.FC<EventCardProps> = ({
     }
   };
 
-  // Format the price if it exists
-  const formattedPrice = typeof event.price === 'number' 
-    ? `₦${event.price.toLocaleString()}` 
-    : event.price;
+  // Pricing Logic
+  let displayPrice = '';
+  if (event.ticketTypes && event.ticketTypes.length > 0) {
+    const prices = event.ticketTypes.map(t => Number(t.price));
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    
+    if (minPrice === 0 && maxPrice === 0) {
+      displayPrice = 'Free';
+    } else if (minPrice === 0 && maxPrice > 0) {
+      displayPrice = 'Free - Paid';
+    } else if (event.ticketTypes.length > 1 && minPrice < maxPrice) {
+      displayPrice = `From ₦${minPrice.toLocaleString()}`;
+    } else {
+      displayPrice = `₦${minPrice.toLocaleString()}`;
+    }
+  } else if (typeof event.price === 'number') {
+    displayPrice = event.price === 0 ? 'Free' : `₦${event.price.toLocaleString()}`;
+  } else if (event.price) {
+    displayPrice = String(event.price);
+  }
 
   // Determine if we should show price
-  const shouldShowPrice = showPrice && (event.price !== undefined);
+  const shouldShowPrice = showPrice && (displayPrice !== '');
 
-  // Format the date range or single date nicely
-  const formattedDate = new Date(event.date).toLocaleDateString('en-US', { 
-    month: 'short', 
-    day: 'numeric', 
-    year: 'numeric' 
-  });
+  // Format the date relatively
+  const formatRelativeDate = (dateString: string) => {
+    const eventDate = new Date(dateString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const eventDay = new Date(eventDate);
+    eventDay.setHours(0, 0, 0, 0);
+
+    const diffTime = eventDay.getTime() - today.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      return 'Today';
+    } else if (diffDays === 1) {
+      return 'Tomorrow';
+    } else if (diffDays > 1 && diffDays < 7) {
+      // Return day of week (e.g. "Saturday")
+      return eventDate.toLocaleDateString('en-US', { weekday: 'long' });
+    } else {
+      // Standard format
+      return eventDate.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      });
+    }
+  };
+
+  const formattedDate = formatRelativeDate(event.date);
 
   return (
     <motion.div
@@ -86,7 +131,7 @@ const EventCard: React.FC<EventCardProps> = ({
       onMouseEnter={() => onHover && onHover(event.id)}
       onMouseLeave={() => onHover && onHover(null)}
     >
-      <Link to={`/events/${event.id}`} className="block w-full">
+      <Link to={`/events/${event.slug || event.id}`} className="block w-full">
         
         {/* Card Image Wrapper */}
         <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-100/50 dark:border-neutral-900/30">
@@ -149,19 +194,12 @@ const EventCard: React.FC<EventCardProps> = ({
           {/* Fourth Line: Price */}
           {shouldShowPrice && (
             <p className="text-[10px] sm:text-xs text-neutral-900 dark:text-white mt-1.5 font-bold leading-none">
-              {formattedPrice}
+              {displayPrice}
             </p>
           )}
 
           {/* Fifth Line: Rating (tablet+) */}
-          {showRating && event.rating && (
-            <div className="hidden sm:flex items-center gap-1 text-xs mt-1 text-neutral-600 dark:text-neutral-400">
-              <Star className="h-3 w-3 fill-neutral-900 text-neutral-900 dark:fill-neutral-100 dark:text-neutral-100" />
-              <span className="font-semibold text-neutral-850 dark:text-neutral-200">
-                {event.rating.toFixed(1)}
-              </span>
-            </div>
-          )}
+          
         </div>
         
       </Link>

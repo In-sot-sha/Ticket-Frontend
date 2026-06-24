@@ -275,7 +275,12 @@ export const api = {
       location?: string;
     }) => apiRequest<any>('GET', '/events', undefined, { params }),
     
-    getById: (id: number) => apiRequest<any>('GET', `/events/get-event/${id}`),
+    getById: (id: number) => apiRequest<any>('GET', `/events/get/${id}`),
+
+    getBySlug: (slug: string) => apiRequest<any>('GET', `/events/get/${slug}`),
+
+    // Unified: works with slug or numeric ID
+    getByIdentifier: (identifier: string) => apiRequest<any>('GET', `/events/get/${identifier}`),
 
     getByIdAuth: (id: number) => apiRequest<any>('GET', `/events/${id}`),
     

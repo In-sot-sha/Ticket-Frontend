@@ -4,6 +4,7 @@ import EventCard from '../components/EventCard';
 import { Button } from '../components/ui/Button';
 import { Link } from 'react-router-dom';
 import { useEvents } from '../hooks/queries/useEvents';
+import { mapApiEventToFrontendEvent } from '../data/mockEvents';
 
 const WishlistPage = () => {
   const [wishlistIds, setWishlistIds] = useState<number[]>(() => {
@@ -29,17 +30,7 @@ const WishlistPage = () => {
 
   // Map API events to EventCard format (memoized to prevent re-renders)
   const mappedEvents = useMemo(() => {
-    return allEvents.map((e: any) => ({
-      id: e.id,
-      title: e.title,
-      date: e.startDate,
-      location: e.location || 'Online',
-      image: e.imageUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
-      category: e.category,
-      ticketsAvailable: e.ticketTypes?.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0) || 0,
-      price: e.price ?? 0,
-      rating: 4.5 + (e.id % 5) * 0.1
-    }));
+    return allEvents.map(mapApiEventToFrontendEvent);
   }, [allEvents]);
 
   // Filter events matching wishlist IDs

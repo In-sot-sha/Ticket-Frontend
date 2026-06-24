@@ -208,6 +208,7 @@ const BookingPage = () => {
         const confirmedOrder = {
           eventId: normalizedEventData.id,
           eventName: normalizedEventData.title,
+          eventSlug: normalizedEventData.slug || null,
           eventDate: normalizedEventData.date,
           eventTime: `${normalizedEventData.startTime || '09:00 AM'} - ${normalizedEventData.endTime || '06:00 PM'}`,
           eventLocation: normalizedEventData.location,
@@ -280,6 +281,7 @@ const BookingPage = () => {
         phone: guestPhone,
         eventId: Number(normalizedEventData.id),
         eventName: normalizedEventData.title,
+        eventSlug: normalizedEventData.slug || null,
         eventDate: normalizedEventData.date,
         eventTime: `${normalizedEventData.startTime || '09:00 AM'} - ${normalizedEventData.endTime || '06:00 PM'}`,
         eventLocation: normalizedEventData.location,
