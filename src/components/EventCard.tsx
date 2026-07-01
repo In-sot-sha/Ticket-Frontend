@@ -123,13 +123,8 @@ const EventCard: React.FC<EventCardProps> = ({
   const formattedDate = formatRelativeDate(event.date);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="group cursor-pointer w-full"
-      onMouseEnter={() => onHover && onHover(event.id)}
-      onMouseLeave={() => onHover && onHover(null)}
+    <div
+  
     >
       <Link to={`/events/${event.slug || event.id}`} className="block w-full">
         
@@ -203,7 +198,7 @@ const EventCard: React.FC<EventCardProps> = ({
         </div>
         
       </Link>
-    </motion.div>
+    </div>
   );
 };
 

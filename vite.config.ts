@@ -61,16 +61,11 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         runtimeCaching: [
           {
-            // API — always try network first for fresh data
+            // API requests: Do NOT cache (always network first with no fallback)
             urlPattern: /^https?:\/\/.*\/api\//,
-            handler: 'NetworkFirst',
+            handler: 'NetworkOnly',
             options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 5,
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 0, // Expire immediately
-              },
+              cacheName: 'api-cache-disabled',
             },
           },
           {

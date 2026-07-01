@@ -92,33 +92,43 @@ export const useEventCategories = () => {
 
 /**
  * Fetch organizer's events
+ * @param params - Optional parameters (page, limit)
+ * @param config - Optional React Query config (staleTime, gcTime) — defaults to FRESH (no cache)
  */
-export const useOrganizerEvents = (params?: { page?: number; limit?: number }) => {
+export const useOrganizerEvents = (params?: { page?: number; limit?: number }, config?: QueryConfig) => {
   return useQuery({
     queryKey: queryKeys.events.organizerEvents(),
     queryFn: () => api.events.getOrganizerEvents(params).then(res => res.data.events),
+    ...config,
   });
 };
 
 /**
  * Fetch organizer's event by ID
+ * @param config - Optional React Query config (staleTime, gcTime) — defaults to FRESH (no cache)
  */
-export const useOrganizerEventById = (id: number, enabled = true) => {
+export const useOrganizerEventById = (id: number, enabled = true, config?: QueryConfig) => {
   return useQuery({
     queryKey: queryKeys.events.organizerEventDetail(id),
     queryFn: () => api.events.getOrganizerEventById(id).then(res => res.data),
     enabled: enabled && !!id,
+    staleTime: 0, // No caching by default
+    gcTime: 0, // Don't keep in cache
+    ...config,
   });
 };
 
 /**
  * Fetch organizer analytics
+ * @param config - Optional React Query config (staleTime, gcTime) — defaults to FRESH (no cache)
  */
-export const useOrganizerAnalytics = () => {
+export const useOrganizerAnalytics = (config?: QueryConfig) => {
   return useQuery({
     queryKey: queryKeys.events.analytics(),
     queryFn: () => api.events.getOrganizerAnalytics().then(res => res.data),
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    staleTime: 0, // No caching by default
+    gcTime: 0, // Don't keep in cache
+    ...config,
   });
 };
 

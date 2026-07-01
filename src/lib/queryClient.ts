@@ -38,36 +38,39 @@ export const queryClient = new QueryClient({
 
 /**
  * Cache configurations for specific pages
- * Use these when calling useQuery/useInfiniteQuery to enable caching
+ * ONLY HomePage, EventsPage, and EventDetailPage use caching
+ * All other pages use FRESH config (no caching)
  */
 export const CACHE_CONFIGS = {
-  // Public pages with caching (5 min)
+  // HomePage: cache for 5 minutes
   HOMEPAGE_EVENTS: {
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   },
   
-  // Event detail pages with caching (3 min)
+  // EventDetailPage: cache for 3 minutes
   EVENT_DETAIL: {
     staleTime: 3 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   },
   
-  // Events list page with caching (3 min)
+  // EventsPage: cache for 3 minutes
   EVENTS_LIST: {
     staleTime: 3 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   },
   
-  // Guest tickets with caching (5 min)
+  // GuestDashboard: minimal cache for guest tickets (1 minute — user needs fresh ticket status)
   GUEST_TICKETS: {
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
+    staleTime: 1 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
   },
   
-  // Organizer pages: NO caching (always fresh)
-  ORGANIZER_FRESH: {
+  // ALL OTHER PAGES: NO caching (always fresh) ⚠️
+  // Used for: Dashboard, EventsDashboard, AnalyticsDashboard, FinanceDashboard,
+  // OrganizerEventPage, BookingPage, etc.
+  FRESH: {
     staleTime: 0,
-    gcTime: 5 * 60 * 1000,
+    gcTime: 0, // Disable garbage collection — don't cache at all
   },
 };

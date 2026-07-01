@@ -30,7 +30,7 @@ import { motion } from 'framer-motion';
 import { api } from '../services/api';
 import { LazyImage } from '../components/LazyImage';
 import { GoogleMapLocation } from '../components/GoogleMapLocation';
-import TicketFlierGenerator from '../components/checkout/TicketFlierGenerator';
+
 
 interface TicketType {
   id: number;
@@ -242,21 +242,59 @@ const EventDetailPage = () => {
     navigate(`/book/${event.id}`);
   };
 
-  const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
+  const formatDate = (dateString: string) => {
+    const eventDate = new Date(dateString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const eventDay = new Date(eventDate);
+    eventDay.setHours(0, 0, 0, 0);
+    
+    const diffTime = eventDay.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Format with relative day
+    let relativeDay = '';
+    if (diffDays === 0) {
+      relativeDay = 'Today';
+    } else if (diffDays === 1) {
+      relativeDay = 'Tomorrow';
+    } else if (diffDays > 1 && diffDays <= 7) {
+      relativeDay = eventDate.toLocaleDateString('en-US', { weekday: 'long' });
+    } else if (diffDays > 7 && diffDays <= 14) {
+      relativeDay = 'Next week';
+    } else {
+      // Default full date for events far in the future
+      return eventDate.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+    }
+    
+    // Format: "Today, December 15, 2024" or "Tomorrow, December 16, 2024" etc.
+    const fullDate = eventDate.toLocaleDateString('en-US', {
       month: 'long',
       day: 'numeric',
+      year: 'numeric',
     });
+    
+    return `${relativeDay}, ${fullDate}`;
+  };
 
   const handleShare = async () => {
+    // Create URL with slug if available, otherwise use ID
+    const shareUrl = event.slug 
+      ? `${window.location.origin}/events/${event.slug}`
+      : `${window.location.origin}/events/${event.id}`;
+    
     if (navigator.share) {
       try {
         await navigator.share({
           title: event.title,
           text: `Check out ${event.title} happening at ${event.location}!`,
-          url: window.location.href,
+          url: shareUrl,
         });
       } catch (error) {
         if ((error as Error).name !== 'AbortError') {
@@ -264,8 +302,9 @@ const EventDetailPage = () => {
         }
       }
     } else {
-      navigator.clipboard.writeText(window.location.href);
-      alert('Event link copied to clipboard!');
+      // Fallback: copy to clipboard with slug URL
+      navigator.clipboard.writeText(shareUrl);
+      alert(`Event link copied to clipboard!\n\n${shareUrl}`);
     }
   };
 
@@ -482,13 +521,13 @@ const EventDetailPage = () => {
                 <Store className="h-4 w-4" />
                 Apply as Vendor
               </button>
-              <button
+              {/* <button
                 onClick={() => setShowFlier(true)}
                 className="w-full h-11 border-2 border-dashed border-rose-200 dark:border-rose-900 text-rose-500 hover:text-rose-600 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
               >
                 <Sparkles className="h-4 w-4" />
                 Shareable Flier
-              </button>
+              </button> */}
             </div>
           ) : (
             <div className="space-y-2">
@@ -498,13 +537,13 @@ const EventDetailPage = () => {
               >
                 Reserve Tickets
               </button>
-              <button
+              {/* <button
                 onClick={() => setShowFlier(true)}
                 className="w-full h-11 border-2 border-dashed border-rose-200 dark:border-rose-900 text-rose-500 hover:text-rose-600 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
               >
                 <Sparkles className="h-4 w-4" />
                 Shareable Flier
-              </button>
+              </button> */}
             </div>
           )}
         </div>
@@ -555,7 +594,7 @@ const EventDetailPage = () => {
                     Share
                   </span>
                 </button>
-                <button 
+                {/* <button 
                   onClick={() => setShowFlier(true)}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
                 >
@@ -563,7 +602,7 @@ const EventDetailPage = () => {
                   <span className="text-xs font-bold underline text-neutral-700 dark:text-neutral-300">
                     Flier
                   </span>
-                </button>
+                </button> */}
               </div>
             </div>
 
@@ -840,13 +879,13 @@ const EventDetailPage = () => {
                     </button>
 
                     {/* Shareable Flier Button */}
-                    <button
+                    {/* <button
                       onClick={() => setShowFlier(true)}
                       className="w-full h-11 border-2 border-dashed border-rose-200 dark:border-rose-900 text-rose-500 hover:text-rose-600 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all flex items-center justify-center gap-2 mt-2"
                     >
                       <Sparkles className="h-4 w-4" />
                       Shareable Flier
-                    </button>
+                    </button> */}
 
                     <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center mt-3">
                       You won't be charged yet
@@ -863,13 +902,14 @@ const EventDetailPage = () => {
                     </button>
 
                     {/* Shareable Flier Button */}
-                    <button
+                 { /*  <button
                       onClick={() => setShowFlier(true)}
                       className="w-full h-11 border-2 border-dashed border-rose-200 dark:border-rose-900 text-rose-500 hover:text-rose-600 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all flex items-center justify-center gap-2"
                     >
                       <Sparkles className="h-4 w-4" />
                       Shareable Flier
                     </button>
+         */ }
 
                     <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center mb-4 mt-3">
                       You won't be charged yet
@@ -1020,26 +1060,7 @@ const EventDetailPage = () => {
         </div>
       )}
 
-      {/* ─── Shareable Flier Modal/Overlay ─── */}
-      {showFlier && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/95 dark:bg-gray-950/95 backdrop-blur-md overflow-y-auto p-4 sm:p-6 lg:p-8 animation-fade-in">
-          <div className="relative w-full max-w-4xl my-auto">
-            <TicketFlierGenerator 
-              event={{
-                title: event.title || 'Event',
-                date: event.date || new Date().toISOString(),
-                location: event.location || 'Location',
-                image: event.images?.[0] || '',
-                eventUrl: event.slug 
-                  ? `/events/${event.slug}` 
-                  : `/events/${event.id}`
-              }}
-              user={user}
-              onClose={() => setShowFlier(false)}
-            />
-          </div>
-        </div>
-      )}
+   
 
       </>)}
 

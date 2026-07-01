@@ -18,6 +18,7 @@ import { api } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CustomAlertDialog } from '../components/ui/CustomAlertDialog';
 import { useEventById } from '../hooks/queries/useEvents';
+import { CACHE_CONFIGS } from '../lib/queryClient';
 
 
 // Mock event fallback matching EventDetailPage
@@ -57,10 +58,11 @@ const BookingPage = () => {
   const stallTypeId = queryParams.get('stallType');
   const { user, isAuthenticated } = useAuth();
 
-  // React Query hook for fetching event data
+  // React Query hook for fetching event data — always fresh (no cache)
   const { data: eventData } = useEventById(
     eventId ? Number(eventId) : 0,
-    !!eventId
+    !!eventId,
+    CACHE_CONFIGS.FRESH
   );
 
   // Booking mode state
