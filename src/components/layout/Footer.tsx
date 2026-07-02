@@ -6,7 +6,7 @@ const Footer = () => {
   return (
     <footer className="border-t bg-background">
       <div className="container py-12 md:py-16">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Company Info */}
           <div>
             <div className="flex items-center space-x-2 mb-4">
@@ -28,6 +28,7 @@ const Footer = () => {
               </a>
             </div>
           </div>
+<div className='grid grid-cols-2'>
 
           {/* Quick Links */}
           <div>
@@ -82,6 +83,7 @@ const Footer = () => {
               </li>
             </ul>
           </div>
+</div>
 
           {/* Contact Info */}
           <div>

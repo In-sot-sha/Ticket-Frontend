@@ -1,7 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Search,
-  Heart,
   Ticket,
   UserCircle,
   Calendar,
@@ -14,7 +13,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useRole } from '../../context/RoleContext';
 
 const MobileTabBar: React.FC = () => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { currentRole } = useRole();
   const location = useLocation();
 
@@ -41,7 +40,7 @@ const MobileTabBar: React.FC = () => {
     {
       label: 'Tickets',
       icon: Ticket,
-      path: isAuthenticated ? '/user/tickets' : '/login',
+      path: '/my-tickets',
     },
     {
       label: 'Profile',
@@ -105,9 +104,9 @@ const MobileTabBar: React.FC = () => {
               className="flex flex-col items-center justify-center gap-0.5 py-2 px-0.5 min-w-0 flex-1 relative transition-all active:scale-95"
             >
               {/* Active dot indicator */}
-              {isActive && (
+              {/* {isActive && (
                 <span className="absolute top-0.5 w-1 h-1 rounded-full bg-rose-500" />
-              )}
+              )} */}
               <Icon
                 className={`h-5 w-5 transition-colors ${
                   isActive

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { useEventBySlug } from '../hooks/queries/useEvents';
+import { useEventBySlug, useEvents } from '../hooks/queries/useEvents';
 import { CACHE_CONFIGS } from '../lib/queryClient';
 import { generateEventStructuredData } from '../lib/seo';
 import {
@@ -30,6 +30,7 @@ import { motion } from 'framer-motion';
 import { api } from '../services/api';
 import { LazyImage } from '../components/LazyImage';
 import { GoogleMapLocation } from '../components/GoogleMapLocation';
+import EventCard from '../components/EventCard';
 
 
 interface TicketType {
@@ -228,8 +229,33 @@ const EventDetailPage = () => {
     CACHE_CONFIGS.EVENT_DETAIL
   );
 
+  // Fetch similar events by category
+  const { data: similarEventsData } = useEvents(
+    eventData ? { category: eventData.category, limit: 4 } : undefined,
+    { staleTime: 1000 * 60 * 5 }
+  );
+
   const event: EventDetail = eventData ? mapApiEventToDetail(eventData) : fallbackEvent;
   const notFound = isError && (error as any)?.response?.status === 404;
+
+  // Filter out current event and format similar events
+  const similarEvents = similarEventsData
+    ? similarEventsData
+        .filter((e: any) => e.id !== event.id)
+        .slice(0, 2)
+        .map((e: any) => ({
+          id: e.id,
+          slug: e.slug,
+          title: e.title,
+          date: e.startDate,
+          location: e.location || 'Online',
+          image: e.imageUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
+          category: e.category || 'Other',
+          price: 0,
+          ticketTypes: e.ticketTypes || [],
+          rating: 0,
+        }))
+    : [];
 
   useEffect(() => {
     if (eventData?.id) {
@@ -479,78 +505,10 @@ const EventDetailPage = () => {
       </div>
 
       {/* ─── Mobile Booking Card (shown only on mobile, right after gallery) ─── */}
-      <div className="lg:hidden max-w-8xl mx-auto px-4 sm:px-6 pt-6">
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 shadow-sm bg-white dark:bg-gray-900">
-          {/* Price + Rating */}
-          <div className="flex items-baseline justify-between mb-4">
-            <div className="flex items-baseline gap-1">
-              <span className="text-xl font-extrabold text-neutral-900 dark:text-white">
-                {displayPrice}
-              </span>
-            </div>
-            {event.reviewCount > 0 && (
-              <div className="flex items-center gap-1 text-xs">
-                <Star className="h-3 w-3 fill-neutral-900 text-neutral-900 dark:fill-white dark:text-white" />
-                <span className="font-bold text-neutral-900 dark:text-white">{event.rating}</span>
-                <span className="text-neutral-500">· {event.reviewCount}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Button(s) */}
-          {event.vendorApplicationsAllowed ? (
-            <div className="space-y-2">
-              <button
-                onClick={handlePurchaseTicket}
-                className="w-full h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-              >
-                <Ticket className="h-4 w-4" />
-                Buy Tickets
-              </button>
-              <button
-                onClick={() => {
-                  if (isAuthenticated ) {
-              
-                    navigate(`/book/${event.id}?type=vendor`);
-                  } else {
-                    navigate(`/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor`)}`);
-                  }
-                }}
-                className="w-full h-11 border-2 border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-xl text-sm font-bold hover:border-rose-300 dark:hover:border-rose-700 hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-              >
-                <Store className="h-4 w-4" />
-                Apply as Vendor
-              </button>
-              {/* <button
-                onClick={() => setShowFlier(true)}
-                className="w-full h-11 border-2 border-dashed border-rose-200 dark:border-rose-900 text-rose-500 hover:text-rose-600 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-              >
-                <Sparkles className="h-4 w-4" />
-                Shareable Flier
-              </button> */}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <button
-                onClick={handlePurchaseTicket}
-                className="w-full h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
-              >
-                Reserve Tickets
-              </button>
-              {/* <button
-                onClick={() => setShowFlier(true)}
-                className="w-full h-11 border-2 border-dashed border-rose-200 dark:border-rose-900 text-rose-500 hover:text-rose-600 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-              >
-                <Sparkles className="h-4 w-4" />
-                Shareable Flier
-              </button> */}
-            </div>
-          )}
-        </div>
-      </div>
+     
 
       {/* ─── Content ─── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex flex-col lg:flex-row gap-12">
 
           {/* Left: Event Details */}
@@ -558,7 +516,7 @@ const EventDetailPage = () => {
             {/* Title Row */}
             <div className="flex items-start justify-between gap-4 mb-2">
               <div className="flex-1">
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 dark:text-white leading-tight">
+                <h1 className="text-xl sm:text-3xl font-extrabold text-neutral-900 dark:text-white leading-tight">
                   {event.title}
                 </h1>
               </div>
@@ -623,9 +581,45 @@ const EventDetailPage = () => {
             </div>
 
             {/* Divider */}
+            <hr className="border-neutral-100 dark:border-neutral-900 mb-4" />
+
+            {/* Event details - Date/Time/Location (Simplified) */}
+            <div className="space-y-2 mb-6">
+              <div className="flex items-center gap-3 text-sm">
+                <Calendar className="h-4 w-4 text-rose-500 shrink-0" />
+                <span className="text-neutral-700 dark:text-neutral-300 font-medium">
+                  {formatDate(event.date)}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <Clock className="h-4 w-4 text-rose-500 shrink-0" />
+                <span className="text-neutral-700 dark:text-neutral-300 font-medium">
+                  {event.startTime} – {event.endTime}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <MapPin className="h-4 w-4 text-rose-500 shrink-0" />
+                <span className="text-neutral-700 dark:text-neutral-300 font-medium">
+                  {event.location}
+                </span>
+              </div>
+            </div>
+
             <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
 
-            {/* Organizer section */}
+            {/* About */}
+            <div className="mb-8">
+              <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white mb-4">
+                About this event
+              </h2>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed whitespace-pre-line">
+                {event.description}
+              </p>
+            </div>
+
+            <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+
+            {/* Hosted by - Organizer section */}
             <button
               onClick={() => setShowOrganizerModal(true)}
               className="w-full flex items-center gap-4 mb-6 group text-left hover:bg-neutral-50 dark:hover:bg-neutral-900/50 rounded-2xl p-3 -mx-3 transition-colors"
@@ -649,6 +643,22 @@ const EventDetailPage = () => {
 
             <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
 
+            {/* Map - for physical events */}
+            {event.location && event.location !== 'Online' && (
+              <>
+                <div className="mb-8 rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800">
+                  <GoogleMapLocation 
+                    location={event.location}
+                    latitude={event.latitude}
+                    longitude={event.longitude}
+                    eventTitle={event.title}
+                  />
+                </div>
+                <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+              </>
+            )}
+
+            {/* Highlights */}
             {event.highlights.length > 0 && (
               <>
                 <div className="space-y-5 mb-6">
@@ -664,71 +674,6 @@ const EventDetailPage = () => {
                 <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
               </>
             )}
-
-            {/* Event details */}
-            <div className="mb-8">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-                <div className="flex items-start gap-3 p-4 bg-neutral-50 dark:bg-neutral-900/50 rounded-2xl">
-                  <div className="p-2.5 bg-rose-50 dark:bg-rose-950/30 rounded-xl">
-                    <Calendar className="h-5 w-5 text-rose-500" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Date</p>
-                    <p className="text-sm font-semibold text-neutral-900 dark:text-white">
-                      {formatDate(event.date)}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 p-4 bg-neutral-50 dark:bg-neutral-900/50 rounded-2xl">
-                  <div className="p-2.5 bg-rose-50 dark:bg-rose-950/30 rounded-xl">
-                    <Clock className="h-5 w-5 text-rose-500" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Time</p>
-                    <p className="text-sm font-semibold text-neutral-900 dark:text-white">
-                      {event.startTime} – {event.endTime}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 p-4 bg-neutral-50 dark:bg-neutral-900/50 rounded-2xl">
-                  <div className="p-2.5 bg-rose-50 dark:bg-rose-950/30 rounded-xl">
-                    <MapPin className="h-5 w-5 text-rose-500" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Location</p>
-                    <p className="text-sm font-semibold text-neutral-900 dark:text-white">
-                      {event.location}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Show map for physical events */}
-              {event.location && event.location !== 'Online' && (
-                <div className="mb-8 rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800">
-                  <GoogleMapLocation 
-                    location={event.location}
-                    latitude={event.latitude}
-                    longitude={event.longitude}
-                    eventTitle={event.title}
-                  />
-                </div>
-              )}
-            </div>
-
-            <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
-
-            {/* About */}
-            <div className="mb-8">
-              <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white mb-4">
-                About this event
-              </h2>
-              <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed whitespace-pre-line">
-                {event.description}
-              </p>
-            </div>
-
-            <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
 
             {event.amenities.length > 0 && (
               <div className="mb-8">
@@ -824,6 +769,33 @@ const EventDetailPage = () => {
                 </div>
               </>
             )}
+
+            {/* ─── Events You May Like ─── */}
+            <div className="mt-12">
+              <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white mb-6">
+                More in {event.category}
+              </h2>
+              {similarEvents.length > 0 ? (
+                <div className="grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
+                  {similarEvents.map((evt: any, idx: number) => (
+                    <motion.div
+                      key={evt.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.1 }}
+                    >
+                      <EventCard event={evt} showPrice={true} />
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6 rounded-2xl border border-dashed border-neutral-200 dark:border-neutral-800 text-center">
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                    No similar events found. Check back soon!
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* ─── Right: Booking Card (Sticky, Desktop only) ─── */}

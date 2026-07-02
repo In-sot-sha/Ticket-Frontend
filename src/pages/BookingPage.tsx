@@ -11,6 +11,7 @@ import {
   Plus, 
   CreditCard,
   Shield,
+  CheckCircle,
   ArrowRight,
   Store
 } from 'lucide-react';
@@ -32,9 +33,9 @@ const mockEvent = {
   price: 5000,
   imageUrl: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
   ticketTypes: [
-    { id: 1, name: 'General Admission', price: 5000 },
-    { id: 2, name: 'VIP', price: 15000 },
-    { id: 3, name: 'Student', price: 2500 }
+    { id: 1, name: 'General Admission', price: 5000, maxPerPerson: 5 },
+    { id: 2, name: 'VIP', price: 15000, maxPerPerson: 1 },
+    { id: 3, name: 'Student', price: 2500, maxPerPerson: 3 }
   ]
 };
 
@@ -337,10 +338,65 @@ const BookingPage = () => {
     return true;
   };
 
+  // Helper: Get previous bookings for a ticket type from localStorage
+  const getPreviousBookings = (ticketTypeId: number): number => {
+    try {
+      const key = `bookings_${normalizedEventData.id}_${ticketTypeId}`;
+      const stored = localStorage.getItem(key);
+      return stored ? parseInt(stored, 10) : 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  // Helper: Get max per person for a ticket type (default 5, or 1 for free events)
+  const getMaxPerPerson = (ticketType: any): number => {
+    if (ticketType.maxPerPerson) {
+      return ticketType.maxPerPerson;
+    }
+    // For free events, cap at 1
+    if (ticketType.price === 0) {
+      return 1;
+    }
+    // Default fallback
+    return 5;
+  };
+
+  // Helper: Get available count for a ticket type
+  const getAvailableCount = (ticketTypeId: number, ticketType: any): number => {
+    const maxPerPerson = getMaxPerPerson(ticketType);
+    const previousBookings = getPreviousBookings(ticketTypeId);
+    return Math.max(0, maxPerPerson - previousBookings);
+  };
+
   const updateTicketQty = (id: number, delta: number) => {
     setSelectedTickets(prev => {
       const currentQty = prev[id] || 0;
       const newQty = Math.max(0, currentQty + delta);
+      
+      // Find the ticket type to get max per person
+      const ticketType = normalizedEventData.ticketTypes?.find((t: any) => t.id === id);
+      if (!ticketType) return prev;
+
+      const maxPerPerson = getMaxPerPerson(ticketType);
+      const availableCount = getAvailableCount(id, ticketType);
+
+      // Check per-ticket-type limit
+      if (newQty > availableCount) {
+        const previousBookings = getPreviousBookings(id);
+        if (previousBookings > 0) {
+          showAlert(
+            `You can buy ${availableCount} more ${ticketType.name} ticket(s).\nYou already have ${previousBookings} from previous bookings.`,
+            'Per-Person Limit Reached'
+          );
+        } else {
+          showAlert(
+            `Maximum ${maxPerPerson} ${ticketType.name} ticket(s) per person.`,
+            'Ticket Limit'
+          );
+        }
+        return prev;
+      }
       
       // Enforce total transaction limit (max 10 tickets)
       const currentTotal = Object.entries(prev).reduce((acc, [k, v]) => acc + (Number(k) === id ? 0 : v), 0);
@@ -528,31 +584,65 @@ const BookingPage = () => {
                   <div className="space-y-4">
                     {normalizedEventData.ticketTypes?.map((t: any) => {
                       const qty = selectedTickets[t.id] || 0;
+                      const availableCount = getAvailableCount(t.id, t);
+                      const previousBookings = getPreviousBookings(t.id);
+                      const maxPerPerson = getMaxPerPerson(t);
+                      const canBuyMore = availableCount > 0;
+
                       return (
-                        <div key={t.id} className="p-4 flex items-center justify-between border border-neutral-200 dark:border-neutral-800 rounded-2xl hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors">
-                          <div>
-                            <p className="font-extrabold text-sm text-neutral-900 dark:text-white">{t.name}</p>
-                            <p className="text-xs font-bold text-rose-500 mt-1">₦{t.price.toLocaleString()}</p>
+                        <div key={t.id} className="space-y-2">
+                          <div className="p-4 flex items-center justify-between border border-neutral-200 dark:border-neutral-800 rounded-2xl hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors">
+                            <div>
+                              <p className="font-extrabold text-sm text-neutral-900 dark:text-white">{t.name}</p>
+                              <p className="text-xs font-bold text-rose-500 mt-1">₦{t.price.toLocaleString()}</p>
+                            </div>
+                            
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => updateTicketQty(t.id, -1)}
+                                className="border border-neutral-300 dark:border-neutral-700 rounded-full p-1.5 hover:border-neutral-500 dark:hover:border-neutral-500 transition-colors disabled:opacity-30"
+                                disabled={qty <= 0}
+                              >
+                                <Minus className="h-4 w-4 text-neutral-600 dark:text-neutral-350" />
+                              </button>
+                              <span className="text-sm font-bold w-6 text-center text-neutral-900 dark:text-white">
+                                {qty}
+                              </span>
+                              <button
+                                onClick={() => updateTicketQty(t.id, 1)}
+                                disabled={!canBuyMore}
+                                className="border border-neutral-300 dark:border-neutral-700 rounded-full p-1.5 hover:border-neutral-500 dark:hover:border-neutral-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                              >
+                                <Plus className="h-4 w-4 text-neutral-600 dark:text-neutral-350" />
+                              </button>
+                            </div>
                           </div>
-                          
-                          <div className="flex items-center gap-3">
-                            <button
-                              onClick={() => updateTicketQty(t.id, -1)}
-                              className="border border-neutral-300 dark:border-neutral-700 rounded-full p-1.5 hover:border-neutral-500 dark:hover:border-neutral-500 transition-colors disabled:opacity-30"
-                              disabled={qty <= 0}
-                            >
-                              <Minus className="h-4 w-4 text-neutral-600 dark:text-neutral-350" />
-                            </button>
-                            <span className="text-sm font-bold w-6 text-center text-neutral-900 dark:text-white">
-                              {qty}
-                            </span>
-                            <button
-                              onClick={() => updateTicketQty(t.id, 1)}
-                              className="border border-neutral-300 dark:border-neutral-700 rounded-full p-1.5 hover:border-neutral-500 dark:hover:border-neutral-500 transition-colors"
-                            >
-                              <Plus className="h-4 w-4 text-neutral-600 dark:text-neutral-350" />
-                            </button>
+
+                          {/* Availability badge */}
+                          <div className={`px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 ${
+                            canBuyMore 
+                              ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30'
+                              : 'bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 border border-red-100 dark:border-red-900/30'
+                          }`}>
+                            {canBuyMore ? (
+                              <>
+                                <CheckCircle className="h-3.5 w-3.5" />
+                                You can buy {availableCount} more
+                              </>
+                            ) : (
+                              <>
+                                <Shield className="h-3.5 w-3.5" />
+                                Limit reached ({maxPerPerson} per person)
+                              </>
+                            )}
                           </div>
+
+                          {/* Previous bookings warning */}
+                          {previousBookings > 0 && (
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400 px-3">
+                              You already have {previousBookings} from previous bookings
+                            </p>
+                          )}
                         </div>
                       );
                     })}

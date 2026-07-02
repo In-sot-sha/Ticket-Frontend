@@ -160,21 +160,12 @@ const AppRoutes: React.FC = () => {
           element: <WishlistPage />,
         },
         {
-          path: "user",
-          children: [
-            {
-              index: true,
-              element: <Navigate to="/user/tickets" replace />,
-            },
-            {
-              path: "tickets",
-              element: (
-                <ProtectedRoute>
-                  <GuestDashboard />
-                </ProtectedRoute>
-              ),
-            },
-          ],
+          path: "my-tickets",
+          element: (
+            // <ProtectedRoute>
+              <GuestDashboard />
+            // </ProtectedRoute>
+          ),
         },
       ],
     },

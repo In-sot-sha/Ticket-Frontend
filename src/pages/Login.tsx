@@ -59,6 +59,28 @@ const Login = () => {
     }
   };
 
+    useEffect(() => {
+      const client = neonAuthClient;
+      if (!client) return;
+      
+      const checkNeonSession = async () => {
+        try {
+          const result = await client.getSession();
+          
+          if (result.data?.session && result.data?.user) {
+            const token = result.data.session.token;
+            const success = await loginWithGoogle(token);
+            
+            if (success) {
+              navigate('/');
+            }
+          }
+        } catch (err) {
+          // Silent catch for when no session exists
+        }
+      };
+      checkNeonSession();
+    }, []);
   // ---------- Email / Password via custom backend ----------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

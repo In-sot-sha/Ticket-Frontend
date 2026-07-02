@@ -5,16 +5,15 @@ import {
   Ticket,
   Mail,
   Phone,
-  Search,
   ArrowRight,
   Calendar,
   MapPin,
   Download,
   QrCode,
-  ChevronRight,
   CheckCircle2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { QRCodeSVG } from 'qrcode.react';
 
 type Step = 'input' | 'verify' | 'results';
 
@@ -27,6 +26,7 @@ const RecoverTicketPage = () => {
   const [recoveredTickets, setRecoveredTickets] = useState<any[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const inputRefs = React.useRef<(HTMLInputElement | null)[]>([]);
 
   // Handle OTP input
   const handleCodeChange = (index: number, value: string) => {
@@ -47,6 +47,19 @@ const RecoverTicketPage = () => {
       const prev = document.getElementById(`otp-${index - 1}`);
       prev?.focus();
     }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!pasted) return;
+    const next = ['', '', '', '', '', ''];
+    for (let i = 0; i < pasted.length; i++) next[i] = pasted[i];
+    setVerificationCode(next);
+    setError('');
+    // Focus the box after the last pasted digit (or last box)
+    const focusIdx = Math.min(pasted.length, 5);
+    setTimeout(() => inputRefs.current[focusIdx]?.focus(), 10);
   };
 
   // Send verification code via email/SMS
@@ -103,48 +116,47 @@ const RecoverTicketPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
+    <div className="min-h-screen bg-gradient-to-br from-white via-neutral-50 to-neutral-100 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
 
         {/* Header */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-rose-50 dark:bg-rose-950/30 rounded-full mb-4">
-            <Ticket className="h-8 w-8 text-rose-500" />
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-rose-100 to-pink-100 dark:from-rose-950/40 dark:to-pink-950/40 rounded-2xl mb-6 shadow-lg">
+            <Ticket className="h-10 w-10 text-rose-600 dark:text-rose-400" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
-            Recover Your Tickets
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-neutral-900 dark:text-white tracking-tight mb-3">
+            Find Your Tickets
           </h1>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-2 max-w-md mx-auto">
-            Lost access to your tickets? Enter your email address or phone number
-            to retrieve them instantly.
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 max-w-md mx-auto leading-relaxed">
+            Lost access to your tickets? We'll help you recover them instantly using your email or phone number.
           </p>
         </div>
 
         {/* Step indicator */}
-        <div className="flex items-center justify-center gap-2 mb-10">
+        <div className="flex items-center justify-center gap-2 mb-12">
           {(['input', 'verify', 'results'] as Step[]).map((s, i) => (
             <React.Fragment key={s}>
               <div
-                className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold transition-all ${
+                className={`flex items-center justify-center w-10 h-10 rounded-full text-xs font-bold transition-all shadow-md ${
                   step === s
-                    ? 'bg-rose-500 text-white shadow-md'
+                    ? 'bg-rose-500 text-white shadow-lg'
                     : i < ['input', 'verify', 'results'].indexOf(step)
-                    ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400'
-                    : 'bg-neutral-100 text-neutral-400 dark:bg-neutral-900 dark:text-neutral-600'
+                    ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400'
+                    : 'bg-neutral-200 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-600'
                 }`}
               >
                 {i < ['input', 'verify', 'results'].indexOf(step) ? (
-                  <CheckCircle2 className="h-4 w-4" />
+                  <CheckCircle2 className="h-5 w-5" />
                 ) : (
                   i + 1
                 )}
               </div>
               {i < 2 && (
                 <div
-                  className={`w-12 h-0.5 rounded-full ${
+                  className={`w-8 h-1 rounded-full transition-all ${
                     i < ['input', 'verify', 'results'].indexOf(step)
-                      ? 'bg-rose-300 dark:bg-rose-700'
-                      : 'bg-neutral-200 dark:bg-neutral-800'
+                      ? 'bg-emerald-300 dark:bg-emerald-700'
+                      : 'bg-neutral-300 dark:bg-neutral-700'
                   }`}
                 />
               )}
@@ -161,66 +173,75 @@ const RecoverTicketPage = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -16 }}
               transition={{ duration: 0.3 }}
-              className="border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 md:p-8 bg-white dark:bg-gray-900 shadow-lg"
+              className="bg-white dark:bg-neutral-900/80 backdrop-blur border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 shadow-lg"
             >
               {error && (
-                <div className="mb-4 rounded-xl bg-red-50 dark:bg-red-950/20 p-4 border border-red-100 dark:border-red-900/35">
-                  <p className="text-xs text-red-600 dark:text-red-400 font-bold">{error}</p>
+                <div className="mb-6 rounded-xl bg-red-50/80 dark:bg-red-950/30 p-4 border border-red-100 dark:border-red-900/40">
+                  <p className="text-xs text-red-700 dark:text-red-300 font-bold leading-relaxed">{error}</p>
                 </div>
               )}
+
               {/* Method toggle */}
-              <div className="flex bg-neutral-100 dark:bg-neutral-800 rounded-xl p-1 mb-6">
+              <div className="flex bg-neutral-100 dark:bg-neutral-800/50 rounded-xl p-1 mb-8">
                 <button
                   onClick={() => {
                     setMethod('email');
                     setInputValue('');
+                    setError('');
                   }}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${
                     method === 'email'
-                      ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-white'
+                      ? 'bg-white dark:bg-neutral-700 shadow-md text-neutral-900 dark:text-white'
                       : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300'
                   }`}
                 >
-                  <Mail className="h-3.5 w-3.5" />
+                  <Mail className="h-4 w-4" />
                   Email
                 </button>
                 <button
                   onClick={() => {
                     setMethod('phone');
                     setInputValue('');
+                    setError('');
                   }}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${
                     method === 'phone'
-                      ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-white'
+                      ? 'bg-white dark:bg-neutral-700 shadow-md text-neutral-900 dark:text-white'
                       : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300'
                   }`}
                 >
-                  <Phone className="h-3.5 w-3.5" />
+                  <Phone className="h-4 w-4" />
                   Phone
                 </button>
               </div>
 
               {/* Input field */}
-              <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden mb-6">
+              <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden mb-8 bg-neutral-50 dark:bg-neutral-950/50">
                 <div className="relative">
-                  <label className="absolute top-2.5 left-4 text-[10px] font-bold text-neutral-450 dark:text-neutral-500 uppercase tracking-wide">
+                  <label className="absolute top-3 left-4 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
                     {method === 'email' ? 'Email Address' : 'Phone Number'}
                   </label>
                   {method === 'email' ? (
                     <input
                       type="email"
                       value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
+                      onChange={(e) => {
+                        setInputValue(e.target.value);
+                        setError('');
+                      }}
                       placeholder="you@example.com"
-                      className="w-full px-4 pt-7 pb-3 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-800 dark:text-neutral-100"
+                      className="w-full px-4 pt-8 pb-4 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600"
                     />
                   ) : (
                     <input
                       type="tel"
                       value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
+                      onChange={(e) => {
+                        setInputValue(e.target.value);
+                        setError('');
+                      }}
                       placeholder="+234 801 234 5678"
-                      className="w-full px-4 pt-7 pb-3 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-800 dark:text-neutral-100"
+                      className="w-full px-4 pt-8 pb-4 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600"
                     />
                   )}
                 </div>
@@ -241,8 +262,8 @@ const RecoverTicketPage = () => {
                 )}
               </button>
 
-              <p className="text-[11px] text-neutral-400 dark:text-neutral-500 text-center mt-4">
-                We'll send a 6-digit code to verify your identity
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 text-center mt-5">
+                We'll send a secure 6-digit code to verify your identity
               </p>
             </motion.div>
           )}
@@ -255,31 +276,34 @@ const RecoverTicketPage = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -16 }}
               transition={{ duration: 0.3 }}
-              className="border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 md:p-8 bg-white dark:bg-gray-900 shadow-lg"
+              className="bg-white dark:bg-neutral-900/80 backdrop-blur border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 shadow-lg"
             >
-              <div className="text-center mb-8">
-                <h3 className="text-lg font-extrabold text-neutral-900 dark:text-white mb-2">
-                  Enter verification code
+              <div className="text-center mb-10">
+                <h3 className="text-2xl font-extrabold text-neutral-900 dark:text-white mb-2">
+                  Enter Verification Code
                 </h3>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">
                   We sent a code to{' '}
-                  <span className="font-bold text-neutral-700 dark:text-neutral-300">
+                  <span className="font-bold text-neutral-900 dark:text-white break-all">
                     {inputValue}
                   </span>
                 </p>
               </div>
 
               {error && (
-                <div className="mb-6 rounded-xl bg-red-50 dark:bg-red-950/20 p-4 border border-red-100 dark:border-red-900/35">
-                  <p className="text-xs text-red-650 dark:text-red-300 font-bold">{error}</p>
+                <div className="mb-8 rounded-xl bg-red-50/80 dark:bg-red-950/30 p-4 border border-red-100 dark:border-red-900/40">
+                  <p className="text-xs text-red-700 dark:text-red-300 font-bold leading-relaxed">{error}</p>
                 </div>
               )}
 
               {/* OTP inputs */}
-              <div className="flex items-center justify-center gap-2 sm:gap-3 mb-8">
+              <div className="flex items-center justify-center gap-2.5 mb-10">
                 {verificationCode.map((digit, i) => (
                   <input
                     key={i}
+                    ref={(el) => {
+                      inputRefs.current[i] = el;
+                    }}
                     id={`otp-${i}`}
                     type="text"
                     inputMode="numeric"
@@ -287,7 +311,8 @@ const RecoverTicketPage = () => {
                     value={digit}
                     onChange={(e) => handleCodeChange(i, e.target.value)}
                     onKeyDown={(e) => handleCodeKeyDown(i, e)}
-                    className="w-11 h-14 sm:w-13 sm:h-16 text-center text-xl font-extrabold bg-neutral-50 dark:bg-neutral-800 border-2 border-neutral-200 dark:border-neutral-700 rounded-xl focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all text-neutral-900 dark:text-white"
+                    onPaste={handlePaste}
+                    className="w-12 h-14 sm:w-14 sm:h-16 text-center text-2xl font-extrabold bg-neutral-50 dark:bg-neutral-800 border-2 border-neutral-200 dark:border-neutral-700 rounded-xl focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all text-neutral-900 dark:text-white"
                   />
                 ))}
               </div>
@@ -307,17 +332,18 @@ const RecoverTicketPage = () => {
                 )}
               </button>
 
-              <div className="text-center mt-4">
+              {/* Helper links */}
+              <div className="mt-6 space-y-3 text-center">
                 <button
-                  onClick={() => setStep('input')}
-                  className="text-xs font-bold text-rose-500 hover:underline"
+                  onClick={() => {
+                    setStep('input');
+                    setError('');
+                  }}
+                  className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline transition-colors"
                 >
                   ← Use a different {method}
                 </button>
-              </div>
-
-              <div className="text-center mt-3">
-                <button className="text-xs text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-400">
+                <button className="block w-full text-xs text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors">
                   Didn't receive a code?{' '}
                   <span className="font-bold underline">Resend</span>
                 </button>
@@ -335,83 +361,85 @@ const RecoverTicketPage = () => {
               transition={{ duration: 0.3 }}
             >
               {/* Success message */}
-              <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center w-12 h-12 bg-emerald-50 dark:bg-emerald-950/30 rounded-full mb-3">
-                  <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+              <div className="text-center mb-10">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 dark:bg-emerald-950/40 rounded-2xl mb-4 shadow-lg">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <h3 className="text-lg font-extrabold text-neutral-900 dark:text-white mb-1">
+                <h3 className="text-2xl font-extrabold text-neutral-900 dark:text-white mb-2">
                   {recoveredTickets.length} ticket{recoveredTickets.length !== 1 ? 's' : ''} found
                 </h3>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  Associated with {inputValue}
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                  Associated with <span className="font-bold break-all">{inputValue}</span>
                 </p>
               </div>
 
               {/* Ticket cards */}
-              <div className="space-y-4">
-                {recoveredTickets.map((ticket) => (
+              <div className="space-y-5 mb-10">
+                {recoveredTickets.map((ticket, idx) => (
                   <motion.div
                     key={ticket.id}
-                    initial={{ opacity: 0, y: 8 }}
+                    initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden bg-white dark:bg-gray-900 shadow-sm hover:shadow-md transition-shadow"
+                    transition={{ delay: idx * 0.1 }}
+                    className="bg-white dark:bg-neutral-900/80 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all group"
                   >
-                    <div className="flex">
+                    <div className="flex flex-col sm:flex-row">
                       {/* Thumbnail */}
-                      <div className="w-28 sm:w-36 shrink-0">
+                      <div className="w-full sm:w-36 h-40 sm:h-auto shrink-0 overflow-hidden bg-neutral-100 dark:bg-neutral-800">
                         <img
                           src={ticket.image}
                           alt={ticket.eventTitle}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                         />
                       </div>
 
                       {/* Details */}
-                      <div className="flex-1 p-4 flex flex-col justify-between">
+                      <div className="flex-1 p-4 sm:p-5 flex flex-col justify-between">
                         <div>
-                          <div className="flex items-start justify-between gap-2">
-                            <h4 className="font-bold text-sm text-neutral-900 dark:text-white line-clamp-1">
+                          <div className="flex items-start justify-between gap-3 mb-3">
+                            <h4 className="font-bold text-sm sm:text-base text-neutral-900 dark:text-white line-clamp-2">
                               {ticket.eventTitle}
                             </h4>
                             <span
-                              className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold tracking-wider uppercase shrink-0 ${
+                              className={`px-2.5 py-1 rounded-full text-[9px] font-extrabold tracking-wider uppercase shrink-0 whitespace-nowrap ${
                                 ticket.status === 'VALID'
-                                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30'
-                                  : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
+                                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/40'
+                                  : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700'
                               }`}
                             >
                               {ticket.status}
                             </span>
                           </div>
-                          <div className="mt-2 space-y-1 text-xs text-neutral-500 dark:text-neutral-400">
-                            <p className="flex items-center gap-1.5">
-                              <Calendar className="h-3 w-3" />
-                              {ticket.eventDate}
+                          <div className="space-y-2 text-xs text-neutral-600 dark:text-neutral-400 mb-3">
+                            <p className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-rose-500 shrink-0" />
+                              <span>{ticket.eventDate}</span>
                             </p>
-                            <p className="flex items-center gap-1.5">
-                              <MapPin className="h-3 w-3" />
-                              {ticket.location}
+                            <p className="flex items-center gap-2">
+                              <MapPin className="h-4 w-4 text-rose-500 shrink-0" />
+                              <span className="line-clamp-1">{ticket.location}</span>
                             </p>
                           </div>
-                          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
-                            {ticket.ticketType} · {ticket.id}
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                            <span className="font-semibold">{ticket.ticketType}</span> · {ticket.id}
                           </p>
                         </div>
 
-                        <div className="flex items-center gap-2 mt-3">
+                        {/* Actions */}
+                        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
                           <button
                             onClick={() =>
                               setSelectedTicket(
                                 selectedTicket === ticket.id ? null : ticket.id
                               )
                             }
-                            className="flex items-center gap-1.5 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 px-3 py-1.5 rounded-full transition-colors"
+                            className="flex items-center gap-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 px-3 py-2 rounded-lg transition-colors"
                           >
-                            <QrCode className="h-3.5 w-3.5" />
+                            <QrCode className="h-4 w-4" />
                             {selectedTicket === ticket.id ? 'Hide QR' : 'View QR'}
                           </button>
-                          <button className="flex items-center gap-1.5 text-xs font-bold text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 px-3 py-1.5 rounded-full transition-colors">
-                            <Download className="h-3.5 w-3.5" />
+                          <button className="flex items-center gap-1.5 text-xs font-bold text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 px-3 py-2 rounded-lg transition-colors">
+                            <Download className="h-4 w-4" />
                             Download
                           </button>
                         </div>
@@ -422,23 +450,28 @@ const RecoverTicketPage = () => {
                     <AnimatePresence>
                       {selectedTicket === ticket.id && (
                         <motion.div
-                          initial={{ height: 0 }}
-                          animate={{ height: 'auto' }}
-                          exit={{ height: 0 }}
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
                           className="overflow-hidden"
                         >
-                          <div className="border-t border-neutral-100 dark:border-neutral-800 p-6 flex flex-col items-center">
-                            <div className="bg-white dark:bg-neutral-800 p-4 rounded-2xl border border-neutral-200 dark:border-neutral-700 shadow-inner">
-                              {ticket.qrCode ? (
-                                <img src={ticket.qrCode} alt="Ticket QR Code" className="w-40 h-40 object-contain mx-auto" />
-                              ) : (
-                                <div className="w-40 h-40 bg-neutral-100 dark:bg-neutral-700 rounded-xl flex items-center justify-center">
-                                  <QrCode className="h-20 w-20 text-neutral-300 dark:text-neutral-500" />
-                                </div>
-                              )}
+                          <div className="border-t border-neutral-100 dark:border-neutral-800 p-6 bg-neutral-50 dark:bg-neutral-950/50 flex flex-col items-center">
+                            <p className="text-xs font-bold text-neutral-500 dark:text-neutral-400 mb-4 uppercase tracking-wider">Scan to enter</p>
+                            <div className="bg-white dark:bg-neutral-900 p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-lg">
+                         
+                                <QRCodeSVG
+                                  value={ticket.qrCode}
+                                  size={160}
+                                  fgColor="#000000"
+                                  bgColor="#ffffff"
+                                  level="H"
+                                  includeMargin={true}
+                                />
+                         
                             </div>
-                            <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-3 font-mono">
-                              {ticket.qrCode}
+                            <p className="text-[10px] text-neutral-400 dark:text-neutral-600 mt-3 font-mono text-center">
+                              {ticket.qrCode || ticket.id}
                             </p>
                           </div>
                         </motion.div>
@@ -449,20 +482,22 @@ const RecoverTicketPage = () => {
               </div>
 
               {/* Actions */}
-              <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={() => {
                     setStep('input');
                     setInputValue('');
                     setVerificationCode(['', '', '', '', '', '']);
+                    setRecoveredTickets([]);
+                    setError('');
                   }}
-                  className="text-xs font-bold text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-800 rounded-full px-5 py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                  className="flex-1 text-sm font-bold text-neutral-700 dark:text-neutral-300 border-2 border-neutral-200 dark:border-neutral-800 rounded-xl px-6 py-3 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 >
-                  Search another account
+                  Search Another Account
                 </button>
                 <Link
                   to="/"
-                  className="text-xs font-bold text-white bg-neutral-900 dark:bg-white dark:text-neutral-900 rounded-full px-5 py-2.5 hover:opacity-90 transition-opacity"
+                  className="flex-1 text-sm font-bold text-white bg-gradient-to-r from-neutral-900 to-neutral-800 dark:from-white dark:to-neutral-200 dark:text-neutral-900 rounded-xl px-6 py-3 hover:opacity-90 transition-opacity text-center"
                 >
                   Back to Home
                 </Link>
