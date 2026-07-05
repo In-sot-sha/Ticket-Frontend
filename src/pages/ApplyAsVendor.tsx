@@ -77,30 +77,15 @@ const ApplyAsVendor = () => {
     setError('');
 
     try {
-      // First, get the user's vendor profiles
-      const vendorProfilesResponse = await api.vendors.getAll();
-      let vendorId = null;
-
-      if (vendorProfilesResponse.data.length > 0) {
-        // If user already has a vendor profile, use the first one
-        vendorId = vendorProfilesResponse.data[0].id;
-      } else {
-        // If user doesn't have a vendor profile, create one
-        const newVendorResponse = await api.vendors.create({
-          businessName,
-          description,
-          contactEmail,
-          contactPhone
-        });
-        vendorId = newVendorResponse.data.vendor.id;
-      }
-
-      // Submit the vendor application with the selected vendor type
+      // Submit the vendor application with the selected vendor type and business details
       const response = await api.vendors.register({
         eventId: Number(eventId),
-        vendorId,
         vendorTypeId: selectedVendorType || undefined,
-        paymentAmount: paymentAmount || undefined
+        paymentAmount: paymentAmount || undefined,
+        businessName,
+        businessEmail: contactEmail,
+        businessPhone: contactPhone,
+        description,
       });
 
       setSuccess(true);

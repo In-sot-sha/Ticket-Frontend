@@ -14,6 +14,7 @@ import {
   Palette,
   Trophy,
   Leaf,
+  Store,
 } from 'lucide-react';
 import EventCard, { Event } from '../components/EventCard';
 import { EventLink } from '../components/EventLink';
@@ -68,6 +69,7 @@ const heroSlides = [
 
 const categories = [
   { name: 'All',        icon: Globe },
+  { name: 'Fairs',      icon: Store },
   { name: 'Music',      icon: Music },
   { name: 'Food',       icon: Wine },
   { name: 'Business',   icon: Briefcase },
@@ -78,18 +80,21 @@ const categories = [
 ];
 
 /* ── Hero Carousel ────────────────────────────────────── */
-const HeroCarousel = () => {
+const HeroCarousel = ({ slides }: { slides: typeof heroSlides }) => {
   const [current, setCurrent] = useState(0);
-  const total = heroSlides.length;
+  const total = slides.length;
 
   const next = useCallback(() => setCurrent((c) => (c + 1) % total), [total]);
   const prev = useCallback(() => setCurrent((c) => (c - 1 + total) % total), [total]);
 
   // Auto-advance
   useEffect(() => {
+    if (total === 0) return;
     const id = setInterval(next, 6000);
     return () => clearInterval(id);
-  }, [next]);
+  }, [next, total]);
+
+  if (total === 0) return null;
 
   return (
     <div className="relative w-full h-[340px] sm:h-[420px] md:h-[480px] overflow-hidden rounded-none md:rounded-3xl group">
@@ -104,8 +109,8 @@ const HeroCarousel = () => {
           className="absolute inset-0"
         >
           <img
-            src={heroSlides[current].image}
-            alt={heroSlides[current].title}
+            src={slides[current].image}
+            alt={slides[current].title}
             className="w-full h-full object-cover"
           />
           {/* Gradient overlays */}
@@ -124,7 +129,7 @@ const HeroCarousel = () => {
             transition={{ delay: 0.2 }}
             className="inline-block px-3 py-1 bg-rose-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-full mb-3"
           >
-            {heroSlides[current].tag}
+            {slides[current].tag}
           </motion.span>
           <motion.h2
             key={`title-${current}`}
@@ -133,7 +138,7 @@ const HeroCarousel = () => {
             transition={{ delay: 0.3 }}
             className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white leading-tight mb-2"
           >
-            {heroSlides[current].title}
+            {slides[current].title}
           </motion.h2>
           <motion.p
             key={`sub-${current}`}
@@ -142,7 +147,7 @@ const HeroCarousel = () => {
             transition={{ delay: 0.4 }}
             className="text-sm sm:text-base text-white/80 mb-5"
           >
-            {heroSlides[current].subtitle}
+            {slides[current].subtitle}
           </motion.p>
           <motion.div
             key={`cta-${current}`}
@@ -151,10 +156,10 @@ const HeroCarousel = () => {
             transition={{ delay: 0.5 }}
           >
             <Link
-              to={heroSlides[current].link}
+              to={slides[current].link}
               className="inline-flex items-center gap-2 bg-white text-neutral-900 font-bold text-sm px-6 py-3 rounded-full hover:bg-rose-500 hover:text-white transition-colors shadow-lg active:scale-95"
             >
-              {heroSlides[current].cta}
+              {slides[current].cta}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </motion.div>
@@ -179,7 +184,7 @@ const HeroCarousel = () => {
 
       {/* Dots */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
-        {heroSlides.map((_, i) => (
+        {slides.map((_, i) => (
           <button
             key={i}
             onClick={() => setCurrent(i)}
@@ -189,10 +194,8 @@ const HeroCarousel = () => {
                 : 'w-2 h-2 bg-white/50 hover:bg-white/70'
             }`}
             aria-label={`Go to slide ${i + 1}`}
-            
           />
         ))}
-        
       </div>
     </div>
   );
@@ -201,9 +204,16 @@ const HeroCarousel = () => {
 /* ── Home Page ────────────────────────────────────────── */
 const HomePage = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
+  
   // Use React Query hooks for data fetching with 5min cache (HOMEPAGE_EVENTS config)
   const { data: eventsData, isLoading, error } = useEvents(
     selectedCategory !== 'All' ? { limit: 20, category: selectedCategory } : { limit: 20 },
+    CACHE_CONFIGS.HOMEPAGE_EVENTS
+  );
+
+  // Fetch promoted events for carousel
+  const { data: promotedData } = useEvents(
+    { promoted: 'true', limit: 5 },
     CACHE_CONFIGS.HOMEPAGE_EVENTS
   );
   
@@ -211,6 +221,18 @@ const HomePage = () => {
   const filteredEvents: Event[] = (eventsData && eventsData.length > 0)
     ? eventsData.map(mapApiEventToFrontendEvent)
     : mockEvents;
+
+  const dynamicSlides = promotedData && promotedData.length > 0
+    ? promotedData.map(mapApiEventToFrontendEvent).map((e: any) => ({
+        id: e.id,
+        title: e.title,
+        subtitle: e.description.length > 80 ? e.description.substring(0, 80) + '...' : e.description,
+        cta: 'Get Tickets',
+        link: `/events/${e.slug || e.id}`,
+        image: e.imageUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
+        tag: e.category || 'Featured',
+      }))
+    : heroSlides;
 
   return (
     <div className="bg-white dark:bg-gray-950 min-h-[calc(100vh-80px)] flex flex-col relative">
@@ -232,7 +254,7 @@ const HomePage = () => {
 
       {/* ─── Hero Carousel Section ─── */}
       <section className="w-full px-0 md:px-6 lg:px-8 pt-0 md:pt-4">
-        <HeroCarousel />
+        <HeroCarousel slides={dynamicSlides} />
       </section>
 
       {/* ─── Sticky Category Bar ─── */}

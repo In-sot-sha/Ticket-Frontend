@@ -17,6 +17,7 @@ import {
   Ticket,
   Clock,
   Delete,
+  ChevronRight,
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -30,7 +31,7 @@ const SESSION_KEY    = 'gate_active_session';
 
 // ── Pin Entry screen ──────────────────────────────────────────────────────────
 
-const PinEntry: React.FC<{ onUnlock: (name: string) => void }> = ({ onUnlock }) => {
+const PinEntry: React.FC<{ onUnlock: (name: string, orgId: number) => void }> = ({ onUnlock }) => {
   const [digits,    setDigits]    = useState<string[]>(['', '', '', '', '', '']);
   const [verifying, setVerifying] = useState(false);
   const [error,     setError]     = useState('');
@@ -87,8 +88,12 @@ const PinEntry: React.FC<{ onUnlock: (name: string) => void }> = ({ onUnlock }) 
     setVerifying(true); setError('');
     try {
       const res = await api.gatePins.verify(pinValue);
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ pin: pinValue, name: res.data.staffName }));
-      onUnlock(res.data.staffName);
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ 
+        pin: pinValue, 
+        name: res.data.staffName, 
+        organizationId: res.data.organizationId 
+      }));
+      onUnlock(res.data.staffName, res.data.organizationId);
     } catch (e: any) {
       // Show error WITHOUT clearing digits so the user can see and edit what they typed
       setError(e?.response?.data?.message ?? 'Invalid PIN. Check the code and try again.');
@@ -205,8 +210,9 @@ const PinEntry: React.FC<{ onUnlock: (name: string) => void }> = ({ onUnlock }) 
 
 // ── Gate scanner UI ───────────────────────────────────────────────────────────
 
-const GateScanner: React.FC<{ staffName: string; onLogout: () => void }> = ({
+const GateScanner: React.FC<{ staffName: string; organizationId: number | null; onLogout: () => void }> = ({
   staffName,
+  organizationId,
   onLogout,
 }) => {
   const [scanStatus,   setScanStatus]   = useState<ScanStatus>('idle');
@@ -218,9 +224,29 @@ const GateScanner: React.FC<{ staffName: string; onLogout: () => void }> = ({
   const [tab,          setTab]          = useState<'camera' | 'manual'>('camera');
   const [scanCount,    setScanCount]    = useState(0);
 
+  // Event lock states for Gate staff
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
+  const [selectedEventTitle, setSelectedEventTitle] = useState('');
+  const [eventsList, setEventsList] = useState<any[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+
   const scannerRef     = useRef<Html5Qrcode | null>(null);
   const isVerifyingRef = useRef(false);
   const handleVerifRef = useRef<(code: string) => void>(() => {});
+
+  // Fetch organization events on mount
+  useEffect(() => {
+    if (!organizationId) return;
+    setLoadingEvents(true);
+    api.events.getAll({ organizationId: organizationId, limit: 100 })
+      .then((res: any) => {
+        // The API returns events either in res.data or res.data.events depending on paginated structure
+        const list = res.data?.events || res.data || [];
+        setEventsList(list);
+      })
+      .catch((err) => console.error('Failed to load events:', err))
+      .finally(() => setLoadingEvents(false));
+  }, [organizationId]);
 
   // ── Verify ──────────────────────────────────────────────────────────────────
   const handleVerification = useCallback(async (code: string) => {
@@ -235,7 +261,7 @@ const GateScanner: React.FC<{ staffName: string; onLogout: () => void }> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     try {
-      const res = await api.tickets.validate(code);
+      const res = await api.tickets.validate(code, selectedEventId || undefined);
       setScanStatus('success');
       setMessage(res.data.message || 'Ticket validated — entry approved');
       setTicketData(res.data.ticket);
@@ -257,6 +283,8 @@ const GateScanner: React.FC<{ staffName: string; onLogout: () => void }> = ({
         displayMessage = 'This event has already ended. Ticket cannot be accepted.';
       } else if (serverStatus === 'EVENT_NOT_STARTED' || /not.*started|too early/i.test(serverMsg)) {
         displayMessage = 'This event has not started yet. Please wait until the event begins.';
+      } else if (serverStatus === 'INVALID_EVENT' || /not.*this event/i.test(serverMsg)) {
+        displayMessage = 'This ticket is for a different event. Entry not permitted.';
       } else if (httpStatus === 404 || /invalid.*qr|not found|invalid.*code/i.test(serverMsg)) {
         displayMessage = 'QR code not recognised. This ticket does not exist in the system.';
       } else if (serverMsg) {
@@ -266,7 +294,7 @@ const GateScanner: React.FC<{ staffName: string; onLogout: () => void }> = ({
       }
       setMessage(displayMessage);
     } finally { isVerifyingRef.current = false; }
-  }, []);
+  }, [selectedEventId]);
 
   useEffect(() => { handleVerifRef.current = handleVerification; }, [handleVerification]);
 
@@ -309,6 +337,7 @@ const GateScanner: React.FC<{ staffName: string; onLogout: () => void }> = ({
   useEffect(() => () => { stopCamera(); }, [stopCamera]);
 
   useEffect(() => {
+    if (!selectedEventId) return;
     if (tab === 'camera' && !['success','error','loading'].includes(scanStatus)) {
       const t = setTimeout(() => startCamera(), 100);
       return () => clearTimeout(t);
@@ -317,12 +346,29 @@ const GateScanner: React.FC<{ staffName: string; onLogout: () => void }> = ({
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, [tab, selectedEventId]);
 
   const resetScanner = () => {
     setScanStatus('idle'); setMessage(''); setTicketData(null); setManualCode('');
     isVerifyingRef.current = false;
-    if (tab === 'camera') setTimeout(() => startCamera(), 100);
+    if (tab === 'camera' && selectedEventId) setTimeout(() => startCamera(), 100);
+  };
+
+  const handleSelectEvent = (id: number, title: string) => {
+    setSelectedEventId(id);
+    setSelectedEventTitle(title);
+    if (tab === 'camera') {
+      setTimeout(() => startCamera(), 100);
+    }
+  };
+
+  const handleResetEvent = () => {
+    stopCamera();
+    setSelectedEventId(null);
+    setSelectedEventTitle('');
+    setScanStatus('idle');
+    setMessage('');
+    setTicketData(null);
   };
 
   // Derive title/colour for error screen
@@ -369,8 +415,26 @@ const GateScanner: React.FC<{ staffName: string; onLogout: () => void }> = ({
         </button>
       </div>
 
+      {/* Event lock indicator */}
+      {selectedEventId && (
+        <div className="bg-rose-50 dark:bg-rose-950/20 border-b border-rose-100 dark:border-rose-900/30 px-4 py-2.5 flex items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse shrink-0" />
+            <span className="text-[11px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider truncate">
+              Locked to: {selectedEventTitle}
+            </span>
+          </div>
+          <button
+            onClick={handleResetEvent}
+            className="text-[11px] font-extrabold text-neutral-500 dark:text-neutral-400 hover:text-rose-500 underline shrink-0"
+          >
+            Change Event
+          </button>
+        </div>
+      )}
+
       {/* Camera error banner */}
-      {cameraError && (
+      {cameraError && selectedEventId && (
         <div className="bg-red-50 dark:bg-red-950/30 border-b border-red-200 dark:border-red-900/40 px-4 py-3 flex items-start gap-3">
           <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
           <p className="flex-1 text-xs font-bold text-red-700 dark:text-red-400 break-words">{cameraError}</p>
@@ -378,8 +442,53 @@ const GateScanner: React.FC<{ staffName: string; onLogout: () => void }> = ({
         </div>
       )}
 
+      {/* Event selector if none is locked */}
+      {!selectedEventId && (
+        <div className="flex-1 max-w-lg mx-auto w-full px-4 py-6 pb-24">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-sm p-6 mb-6">
+            <h2 className="text-base font-extrabold text-neutral-900 dark:text-white mb-1">Select Event</h2>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-6">
+              Choose the event you are validating tickets for.
+            </p>
+
+            {loadingEvents ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-16 bg-neutral-100 dark:bg-neutral-850 rounded-2xl animate-pulse" />
+                ))}
+              </div>
+            ) : eventsList.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">No events found</p>
+                <p className="text-xs text-neutral-500 mt-1">This organization has no active events.</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                {eventsList.map((e) => (
+                  <button
+                    key={e.id}
+                    onClick={() => handleSelectEvent(e.id, e.title)}
+                    className="w-full text-left p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-rose-300 dark:hover:border-rose-700 transition-colors flex items-center justify-between gap-3 group"
+                  >
+                    <div className="min-w-0">
+                      <h3 className="font-extrabold text-sm text-neutral-900 dark:text-white group-hover:text-rose-500 transition-colors truncate">
+                        {e.title}
+                      </h3>
+                      <p className="text-xs text-neutral-500 mt-1">
+                        {new Date(e.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-neutral-400 group-hover:text-rose-500 group-hover:translate-x-0.5 transition-all shrink-0" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Result screen */}
-      {showResult && (
+      {selectedEventId && showResult && (
         <div className="flex-1 flex flex-col items-center justify-center px-5 py-8 pb-12">
           {scanStatus === 'loading' && (
             <div className="flex flex-col items-center gap-4">
@@ -439,7 +548,7 @@ const GateScanner: React.FC<{ staffName: string; onLogout: () => void }> = ({
       )}
 
       {/* Camera + Manual tabs */}
-      {!showResult && (
+      {selectedEventId && !showResult && (
         <>
           <div className="flex bg-white dark:bg-gray-900 border-b border-neutral-100 dark:border-neutral-800 shrink-0">
             {(['camera', 'manual'] as const).map((t) => (
@@ -489,8 +598,11 @@ const GateScanner: React.FC<{ staffName: string; onLogout: () => void }> = ({
                     )}
                   </div>
                 </div>
-                <div className="px-5 py-3 text-center">
-                  <p className="text-xs text-neutral-400">{cameraActive ? 'Hold QR code inside the frame' : 'Tap to start'}</p>
+
+                <div className="absolute bottom-6 left-0 right-0 text-center z-10">
+                  <p className="text-[10px] uppercase font-bold tracking-widest text-neutral-300 drop-shadow">
+                    {cameraActive ? 'Hold QR code inside the frame' : 'Tap to start'}
+                  </p>
                 </div>
               </div>
               {cameraActive && (
@@ -507,13 +619,13 @@ const GateScanner: React.FC<{ staffName: string; onLogout: () => void }> = ({
             <div className="max-w-lg mx-auto w-full px-4 pt-6 pb-12 space-y-4">
               <div className="bg-white dark:bg-gray-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-sm p-5">
                 <h3 className="text-sm font-extrabold text-neutral-900 dark:text-white mb-1">Enter Ticket Code</h3>
-                <p className="text-xs text-neutral-500 mb-4">Type the ticket ID shown below the QR code.</p>
+                <p className="text-xs text-neutral-500 mb-4">Type the ticket ID or QR code shown on the pass.</p>
                 <form onSubmit={e => { e.preventDefault(); const code = manualCode.trim(); if (code && !isVerifyingRef.current) { isVerifyingRef.current = true; handleVerification(code); }}} className="space-y-3">
                   <div className="relative">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                    <input type="text" value={manualCode} onChange={e => setManualCode(e.target.value)} placeholder="e.g. TKT-105-31"
-                      className="w-full pl-10 pr-4 py-4 bg-neutral-50 dark:bg-gray-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                      autoCapitalize="characters" autoCorrect="off" spellCheck={false} />
+                    <input type="text" value={manualCode} onChange={e => setManualCode(e.target.value)} placeholder="e.g. QR-105-31"
+                       className="w-full pl-10 pr-4 py-4 bg-neutral-50 dark:bg-gray-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                       autoCapitalize="characters" autoCorrect="off" spellCheck={false} />
                   </div>
                   <button type="submit" disabled={!manualCode.trim()} className="w-full py-4 rounded-2xl text-sm font-extrabold bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white shadow-md disabled:opacity-40 transition-all active:scale-[0.98]">
                     Verify Ticket
@@ -547,12 +659,24 @@ const GateScannerPage: React.FC = () => {
   const [staffName, setStaffName] = useState<string>(() => {
     try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? '{}').name ?? ''; } catch { return ''; }
   });
+  const [organizationId, setOrganizationId] = useState<number | null>(() => {
+    try { return Number(JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? '{}').organizationId) || null; } catch { return null; }
+  });
 
-  const handleUnlock = (name: string) => { setStaffName(name); setPageState('scanner'); };
-  const handleLogout = () => { sessionStorage.removeItem(SESSION_KEY); setPageState('pin-entry'); setStaffName(''); };
+  const handleUnlock = (name: string, orgId: number) => { 
+    setStaffName(name); 
+    setOrganizationId(orgId);
+    setPageState('scanner'); 
+  };
+  const handleLogout = () => { 
+    sessionStorage.removeItem(SESSION_KEY); 
+    setPageState('pin-entry'); 
+    setStaffName(''); 
+    setOrganizationId(null);
+  };
 
   if (pageState === 'pin-entry') return <PinEntry onUnlock={handleUnlock} />;
-  return <GateScanner staffName={staffName} onLogout={handleLogout} />;
+  return <GateScanner staffName={staffName} organizationId={organizationId} onLogout={handleLogout} />;
 };
 
 export default GateScannerPage;

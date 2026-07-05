@@ -8,6 +8,7 @@ import {
   Shield,
   CreditCard,
   MessageSquare,
+  Ticket,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../context/AuthContext';
@@ -23,7 +24,8 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { title: 'Overview',          icon: LayoutDashboard, href: '/admin',                   exact: true  },
   { title: 'Transactions',      icon: CreditCard,      href: '/admin/transactions',      exact: true  },
-  { title: 'Host Applications', icon: Building2,       href: '/admin/host-applications', exact: true  },
+  { title: 'Tickets Audit',     icon: Ticket,          href: '/admin/tickets',           exact: true  },
+  { title: 'Organizations',     icon: Building2,       href: '/admin/organizations',     exact: true  },
   { title: 'Help & Support',    icon: MessageSquare,   href: '/admin/support',           exact: true  },
   { title: 'Users',             icon: Users,           href: '/admin/users',             exact: true  },
 ];

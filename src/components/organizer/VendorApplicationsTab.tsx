@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Store, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { Spinner } from '../ui/Spinner';
+import { Skeleton } from '../ui/skeleton';
 import { motion } from 'framer-motion';
 import { api } from '../../services/api';
 
@@ -59,8 +59,10 @@ const VendorApplicationsTab: React.FC<VendorApplicationsTabProps> = ({ eventId }
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
-        <Spinner />
+      <div className="space-y-4 px-4 py-8">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-24 w-full rounded-lg" />
+        ))}
       </div>
     );
   }

@@ -243,3 +243,61 @@ export function useAdminUpdateSupportTicket() {
     },
   });
 }
+
+export function useAdminTickets() {
+  return useQuery({
+    queryKey: ['admin', 'tickets', 'all'],
+    queryFn: async () => {
+      const res = await api.tickets.getAdminTickets();
+      return res.data || [];
+    },
+    ...liveQueryOptions,
+  });
+}
+
+export function useUpdateOrganizationFee() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, serviceFeePercent, absorbFee }: { id: number; serviceFeePercent?: number; absorbFee?: boolean }) =>
+      api.admin.updateOrganizationFee(id, { serviceFeePercent, absorbFee }),
+    onSuccess: async (res) => {
+      (['pending', 'verified', 'rejected', 'all'] as const).forEach((status) => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.admin.hostApplications(status) });
+      });
+      await refreshAdminQueries(queryClient);
+    },
+  });
+}
+
+export function useAdminPayouts(status?: string) {
+  return useQuery({
+    queryKey: ['admin', 'payouts', status || 'all'],
+    queryFn: async () => {
+      const res = await api.admin.getPayouts(status === 'all' ? undefined : status);
+      return res.data || [];
+    },
+    ...liveQueryOptions,
+  });
+}
+
+export function useApprovePayout() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.admin.approvePayout(id),
+    onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'payouts'] });
+      await refreshAdminQueries(queryClient);
+    },
+  });
+}
+
+export function useRejectPayout() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.admin.rejectPayout(id),
+    onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'payouts'] });
+      await refreshAdminQueries(queryClient);
+    },
+  });
+}

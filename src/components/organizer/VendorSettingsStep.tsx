@@ -239,7 +239,7 @@ const VendorSettingsStep: React.FC<VendorSettingsStepProps> = ({ settings, onSet
       </AnimatePresence>
 
       {/* Allowed Vendor Roles */}
-      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
+      {/* <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
         <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Allowed Vendor Roles</h3>
         <p className="text-xs text-neutral-500">Select which vendor categories can apply</p>
 
@@ -256,7 +256,7 @@ const VendorSettingsStep: React.FC<VendorSettingsStepProps> = ({ settings, onSet
             </label>
           ))}
         </div>
-      </div>
+      </div> */}
 
       {/* Approval Flow */}
       <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">

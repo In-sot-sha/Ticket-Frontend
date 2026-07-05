@@ -17,7 +17,8 @@ import {
   ArrowLeft,
   Phone,
   Camera,
-  Loader2
+  Loader2,
+  Store
 } from 'lucide-react';
 
 const Profile = () => {
@@ -46,12 +47,61 @@ const Profile = () => {
     avatar: user?.avatar || ''
   });
 
+  const [vendorData, setVendorData] = useState({
+    businessName: user?.vendorProfile?.businessName || '',
+    description: user?.vendorProfile?.description || '',
+    contactEmail: user?.vendorProfile?.contactEmail || user?.email || '',
+    contactPhone: user?.vendorProfile?.contactPhone || user?.phone || '',
+    website: user?.vendorProfile?.website || '',
+    category: user?.vendorProfile?.category || 'Food',
+  });
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
+  };
+
+  const handleVendorChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setVendorData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSaveVendor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setSuccessMsg('');
+    setErrorMsg('');
+
+    try {
+      const response = await api.vendors.saveProfile({
+        businessName: vendorData.businessName,
+        description: vendorData.description,
+        contactEmail: vendorData.contactEmail,
+        contactPhone: vendorData.contactPhone,
+        website: vendorData.website,
+        category: vendorData.category
+      });
+
+      if (response.data && response.data.vendor) {
+        const updatedUser = {
+          ...user,
+          vendorProfile: response.data.vendor
+        };
+        updateUser(updatedUser as any);
+        setSuccessMsg('Vendor business details saved successfully!');
+        setTimeout(() => setSuccessMsg(''), 3000);
+      }
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || 'Failed to save vendor details.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -155,6 +205,12 @@ const Profile = () => {
       title: 'Payments & Payouts',
       desc: 'Review payments, payouts, coupons, and billing info.',
       icon: CreditCard,
+    },
+    {
+      id: 'vendor',
+      title: 'Vendor Business Info',
+      desc: 'Save your business details so event applications pre-fill automatically.',
+      icon: Store,
     }
   ];
 
@@ -455,6 +511,143 @@ const Profile = () => {
                 <p className="text-xs text-neutral-500 mt-1">No payment methods added. You can add one during reservation checkout.</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ─── VENDOR PROFILE PANEL ─── */}
+        {activePanel === 'vendor' && (
+          <div className="bg-white dark:bg-gray-900 border border-neutral-150 dark:border-neutral-900 rounded-3xl p-6 md:p-8 shadow-sm">
+            <div className="mb-6">
+              <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Vendor Business Details</h2>
+              <p className="text-xs text-neutral-500 mt-1">Your business details are saved here to automatically fill future event bookings.</p>
+            </div>
+
+            <form onSubmit={handleSaveVendor} className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-550 dark:text-neutral-400 mb-2">Business Name *</label>
+                  <input
+                    type="text"
+                    name="businessName"
+                    required
+                    value={vendorData.businessName}
+                    onChange={handleVendorChange}
+                    className="w-full px-4 py-3 border border-neutral-200 dark:border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent text-sm bg-transparent"
+                    placeholder="e.g. Catering Co"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-550 dark:text-neutral-400 mb-2">Vendor Category *</label>
+                  <select
+                    name="category"
+                    value={vendorData.category}
+                    onChange={handleVendorChange}
+                    className="w-full px-4 py-3 border border-neutral-200 dark:border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent text-sm bg-transparent dark:bg-gray-900"
+                  >
+                    {['Food & Beverage', 'Merchandise', 'Services', 'Entertainment', 'Beauty & Fashion', 'Other'].map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-550 dark:text-neutral-400 mb-2">Contact Email *</label>
+                  <input
+                    type="email"
+                    name="contactEmail"
+                    required
+                    value={vendorData.contactEmail}
+                    onChange={handleVendorChange}
+                    className="w-full px-4 py-3 border border-neutral-200 dark:border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent text-sm bg-transparent"
+                    placeholder="vendor@business.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-550 dark:text-neutral-400 mb-2">Contact Phone</label>
+                  <input
+                    type="tel"
+                    name="contactPhone"
+                    value={vendorData.contactPhone}
+                    onChange={handleVendorChange}
+                    className="w-full px-4 py-3 border border-neutral-200 dark:border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent text-sm bg-transparent"
+                    placeholder="+234..."
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-neutral-550 dark:text-neutral-400 mb-2">Website URL</label>
+                  <input
+                    type="url"
+                    name="website"
+                    value={vendorData.website}
+                    onChange={handleVendorChange}
+                    className="w-full px-4 py-3 border border-neutral-200 dark:border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent text-sm bg-transparent"
+                    placeholder="https://..."
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-neutral-550 dark:text-neutral-400 mb-2">Description</label>
+                  <textarea
+                    name="description"
+                    rows={4}
+                    value={vendorData.description}
+                    onChange={handleVendorChange}
+                    className="w-full px-4 py-3 border border-neutral-200 dark:border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent text-sm bg-transparent resize-none"
+                    placeholder="Tell us about your services or products..."
+                  />
+                </div>
+              </div>
+
+              {/* Status messages */}
+              {successMsg && (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30 rounded-xl text-xs font-bold flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4" /> {successMsg}
+                </div>
+              )}
+              {errorMsg && (
+                <div className="p-3 bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 border border-red-100 dark:border-red-900/30 rounded-xl text-xs font-bold flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" /> {errorMsg}
+                </div>
+              )}
+
+              <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800 flex justify-end gap-3">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    setVendorData({
+                      businessName: user.vendorProfile?.businessName || '',
+                      description: user.vendorProfile?.description || '',
+                      contactEmail: user.vendorProfile?.contactEmail || user.email || '',
+                      contactPhone: user.vendorProfile?.contactPhone || user.phone || '',
+                      website: user.vendorProfile?.website || '',
+                      category: user.vendorProfile?.category || 'Food & Beverage',
+                    });
+                    setActivePanel('menu');
+                  }}
+                  className="rounded-full px-6 text-xs font-bold"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={isSaving}
+                  className="rounded-full px-6 text-xs font-bold bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-100 disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save changes'
+                  )}
+                </Button>
+              </div>
+            </form>
           </div>
         )}
 

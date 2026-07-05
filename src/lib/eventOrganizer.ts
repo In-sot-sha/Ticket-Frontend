@@ -26,8 +26,11 @@ export interface OrganizerEvent {
   description?: string;
   startDate: string;
   endDate: string;
+  startTime?: string;
   location?: string;
   locationType?: string;
+  onlineUrl?: string;
+  category?: string;
   imageUrl?: string;
   isPublished?: boolean;
   capacity?: number;

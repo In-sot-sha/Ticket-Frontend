@@ -8,6 +8,7 @@ export interface TicketDraft {
   accentColor: string;
   ticketHeadline: string;
   venueLabel: string;
+  maxPerPerson?: string;
 }
 
 export interface EventTemplate {
@@ -21,6 +22,8 @@ export interface EventTemplate {
   capacity: string;
   tickets: TicketDraft[];
   amenities?: string[];
+  category?: string;
+  vendorSettings?: any;
 }
 
 const defaultTicket = (overrides: Partial<TicketDraft>): TicketDraft => ({
@@ -37,6 +40,55 @@ const defaultTicket = (overrides: Partial<TicketDraft>): TicketDraft => ({
 });
 
 export const EVENT_TEMPLATES: EventTemplate[] = [
+    {
+    id: 'custom',
+    name: 'Start from Scratch',
+    tagline: 'Start with a blank canvas',
+    image: '',
+    title: '',
+    description: '',
+    locationType: 'physical',
+    capacity: '',
+    tickets: [{
+      name: 'General Admission',
+      price: '',
+      quantity: '100',
+      isFree: false,
+      ticketStyle: 'rose',
+      badgeText: '',
+      accentColor: '',
+      ticketHeadline: 'COME AND JOIN',
+      venueLabel: 'LIVE AT',
+    }],
+    amenities: [],
+    category: 'Other',
+  },
+  {
+    id: 'fair',
+    name: 'Fair',
+    tagline: 'Exhibitions, food & vendor stalls',
+    image: 'https://images.unsplash.com/photo-1533105079780-92b9be482077?w=800&q=80',
+    title: 'Kano Community Fair',
+    description: 'Welcome to the Kano Community Fair! Explore local vendor stalls, delicious street food, artisan crafts, live games, and family-friendly entertainment.',
+    locationType: 'physical',
+    capacity: '1000',
+    tickets: [
+      defaultTicket({ name: 'General Admission', price: '0', quantity: '800', isFree: true, ticketStyle: 'rose' }),
+      defaultTicket({ name: 'VIP Pass', price: '5000', quantity: '200', ticketStyle: 'gold', badgeText: 'FAST TRACK' })
+    ],
+    amenities: ['Catering Included', 'Live Performances', 'Security Provided', 'Restrooms', 'Parking Space'],
+    category: 'Fairs',
+    vendorSettings: {
+      allowVendors: true,
+      stallTypes: [
+        { id: 'stall_food', name: 'Food Stall', price: 15000, maxStalls: 15, description: 'Stall for food & beverage sales' },
+        { id: 'stall_craft', name: 'Craft Stall', price: 10000, maxStalls: 25, description: 'Stall for local crafts & art goods' }
+      ],
+      allowedRoles: ['Catering', 'Decoration'],
+      approvalMode: 'manual',
+      applicationDeadline: 7,
+    }
+  },
   {
     id: 'conference',
     name: 'Conference',
@@ -47,6 +99,7 @@ export const EVENT_TEMPLATES: EventTemplate[] = [
     locationType: 'physical',
     capacity: '500',
     tickets: [defaultTicket({ name: 'General Admission', price: '15000', quantity: '300', ticketStyle: 'midnight' })],
+    category: 'Business',
   },
   {
     id: 'party',
@@ -58,6 +111,7 @@ export const EVENT_TEMPLATES: EventTemplate[] = [
     locationType: 'physical',
     capacity: '200',
     tickets: [defaultTicket({ name: 'Entry', price: '5000', quantity: '200', ticketStyle: 'rose' })],
+    category: 'Music',
   },
   {
     id: 'workshop',
@@ -69,6 +123,7 @@ export const EVENT_TEMPLATES: EventTemplate[] = [
     locationType: 'physical',
     capacity: '40',
     tickets: [defaultTicket({ name: 'Workshop Seat', price: '8000', quantity: '40', ticketStyle: 'emerald' })],
+    category: 'Technology',
   },
   {
     id: 'concert',
@@ -84,6 +139,7 @@ export const EVENT_TEMPLATES: EventTemplate[] = [
       defaultTicket({ name: 'VIP', price: '25000', quantity: '200', ticketStyle: 'gold', badgeText: 'VIP ACCESS' }),
     ],
     amenities: ['Free WiFi', 'Lunch Provided', 'Networking Sessions', 'Swag Bag', 'Live Performances', 'Catering Included'],
+    category: 'Music',
   },
   {
     id: 'meetup',
@@ -95,6 +151,7 @@ export const EVENT_TEMPLATES: EventTemplate[] = [
     locationType: 'physical',
     capacity: '80',
     tickets: [defaultTicket({ name: 'Free RSVP', price: '0', quantity: '80', isFree: true, ticketStyle: 'ocean' })],
+    category: 'Business',
   },
   {
     id: 'webinar',
@@ -106,5 +163,7 @@ export const EVENT_TEMPLATES: EventTemplate[] = [
     locationType: 'online',
     capacity: '500',
     tickets: [defaultTicket({ name: 'Online Access', price: '3000', quantity: '500', ticketStyle: 'purple' })],
+    category: 'Technology',
   },
+
 ];

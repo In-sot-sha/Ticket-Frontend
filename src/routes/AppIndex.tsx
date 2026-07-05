@@ -7,7 +7,7 @@ import MobileTabBar from '../components/layout/MobileTabBar';
 // This component is used for pages that should have the full layout (header and footer)
 const AppIndex: React.FC = () => {
   return (
-    <div className="flex flex-col min-h-screen pb-16 md:pb-0">
+    <div className="flex flex-col min-h-screen pb-16 md:pb-0 relative">
       <Header />
       <main className="flex-grow">
         <Outlet />

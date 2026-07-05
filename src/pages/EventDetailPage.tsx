@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useEventBySlug, useEvents } from '../hooks/queries/useEvents';
 import { CACHE_CONFIGS } from '../lib/queryClient';
@@ -24,14 +24,59 @@ import {
   X,
   ArrowRight,
   Sparkles,
+  AlertCircle,
+  MessageCircle,
+  CheckCircle2,
+  Globe,
+  Instagram,
+  Twitter,
+  Linkedin,
+  TicketIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { api } from '../services/api';
 import { LazyImage } from '../components/LazyImage';
 import { GoogleMapLocation } from '../components/GoogleMapLocation';
-import EventCard from '../components/EventCard';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { ResponsiveModal } from './GuestDashboard';
+import EventCard from '@/components/EventCard';
+import { Button } from '@/components/ui/Button';
+import { cn } from '@/lib/utils';
 
+const formatDeadlineFriendly = (dateStr: string) => {
+  try {
+    const deadlineDate = new Date(dateStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deadlineDay = new Date(deadlineDate);
+    deadlineDay.setHours(0, 0, 0, 0);
+
+    const diffTime = deadlineDay.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      return `Closed on ${deadlineDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    }
+    if (diffDays === 0) {
+      return "Closes Today!";
+    }
+    if (diffDays === 1) {
+      return "Closes Tomorrow!";
+    }
+    if (diffDays <= 7) {
+      return `Closes in ${diffDays} days (${deadlineDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })})`;
+    }
+    return `Applications close: ${deadlineDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  } catch {
+    return `Applications close: ${dateStr}`;
+  }
+};
 
 interface TicketType {
   id: number;
@@ -48,6 +93,10 @@ interface Organizer {
   joinedYear: number;
   responseRate: number;
   avatar: string;
+  logo?: string;
+  website?: string;
+  description?: string;
+  isVerified?: boolean;
 }
 
 interface Highlight {
@@ -77,6 +126,8 @@ interface EventDetail {
   amenities: string[];
   highlights: Highlight[];
   vendorApplicationsAllowed: boolean;
+  isPublished: boolean;
+  endDateRaw: string;
   vendorSettings?: {
     stallTypes: Array<{
       id: string;
@@ -87,6 +138,7 @@ interface EventDetail {
     }>;
   };
   vendorApplications: any[];
+  vendorDeadline?: string;
 }
 
 // Fallback mock event data (used if API fails)
@@ -147,6 +199,8 @@ const fallbackEvent: EventDetail = {
     ],
   },
   vendorApplications: [] as any[],
+  isPublished: true,
+  endDateRaw: '2026-08-20'
 };
 
 // Map API response to the shape used by the page
@@ -181,12 +235,16 @@ const mapApiEventToDetail = (apiEvent: any): EventDetail => {
     images,
     organizer: {
       name: apiEvent.organization?.name || 'Event Organizer',
-      email: apiEvent.organization?.email || '',
+      email: apiEvent.organization?.owner?.email || '',
       phone: '',
       eventsHosted: 0,
       joinedYear: new Date(apiEvent.createdAt || Date.now()).getFullYear(),
       responseRate: 0,
       avatar: (apiEvent.organization?.name || 'E')[0].toUpperCase(),
+      logo: apiEvent.organization?.logo,
+      website: apiEvent.organization?.website,
+      description: apiEvent.organization?.description,
+      isVerified: apiEvent.organization?.isVerified,
     },
     ticketTypes: apiEvent.ticketTypes || [],
     amenities: (() => {
@@ -204,12 +262,15 @@ const mapApiEventToDetail = (apiEvent: any): EventDetail => {
       }
     })(),
     vendorApplicationsAllowed: apiEvent.allowVendors || false,
+    isPublished: apiEvent.isPublished ?? false,
+    endDateRaw: apiEvent.endDate,
     vendorSettings: apiEvent.vendorSettings ? {
       stallTypes: Array.isArray(apiEvent.vendorSettings.stallTypes)
         ? apiEvent.vendorSettings.stallTypes
         : [],
     } : undefined,
     vendorApplications: apiEvent.vendorApplications || [],
+    vendorDeadline: apiEvent.vendorDeadline,
   };
 };
 
@@ -220,6 +281,10 @@ const EventDetailPage = () => {
   const [isSaved, setIsSaved] = useState(false);
   const [showAllPhotos, setShowAllPhotos] = useState(false);
   const [showOrganizerModal, setShowOrganizerModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDescription, setReportDescription] = useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [showFlier, setShowFlier] = useState(false);
 
   // Use React Query hook to fetch event with 3min cache (EVENT_DETAIL config)
@@ -237,6 +302,34 @@ const EventDetailPage = () => {
 
   const event: EventDetail = eventData ? mapApiEventToDetail(eventData) : fallbackEvent;
   const notFound = isError && (error as any)?.response?.status === 404;
+
+  // Derived status flags
+  const isEventDraft = !event.isPublished;
+  const isEventEnded = event.endDateRaw ? new Date(event.endDateRaw) < new Date() : false;
+  const ticketingBlocked = isEventDraft || isEventEnded;
+  const isVendorDeadlinePassed = event.vendorDeadline ? new Date() > new Date(event.vendorDeadline) : false;
+
+  const getEventBadge = () => {
+    if (!event.date) return null;
+    const eventDate = new Date(event.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffTime = eventDate.getTime() - today.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays >= 0 && diffDays <= 1) {
+      return { text: 'Sales End Soon', className: 'bg-rose-500 text-white' };
+    }
+    if (event.ticketsAvailable !== undefined && event.ticketsAvailable > 0 && event.ticketsAvailable <= 15) {
+      return { text: 'Almost Full', className: 'bg-amber-500 text-white' };
+    }
+    if (event.ticketsAvailable !== undefined && event.ticketsAvailable > 0 && event.ticketsAvailable <= 50) {
+      return { text: 'Going Fast', className: 'bg-indigo-600 text-white' };
+    }
+    return null;
+  };
+
+  const badge = getEventBadge();
 
   // Filter out current event and format similar events
   const similarEvents = similarEventsData
@@ -256,6 +349,28 @@ const EventDetailPage = () => {
           rating: 0,
         }))
     : [];
+
+  const handleReportSubmit = async () => {
+    if (!reportReason) return;
+    setIsSubmittingReport(true);
+    try {
+      // Submit report to backend
+      await api.post('/support/report', {
+        eventId: event.id,
+        reason: reportReason,
+        description: reportDescription,
+      });
+      setShowReportModal(false);
+      setReportReason('');
+      setReportDescription('');
+      alert('Thank you for your report. Our team will review it shortly.');
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      alert('Failed to submit report. Please try again.');
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
 
   useEffect(() => {
     if (eventData?.id) {
@@ -422,21 +537,87 @@ const EventDetailPage = () => {
 
       {/* ─── Not Found State ─── */}
       {!isLoading && notFound && (
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center max-w-md px-6">
-            <span className="text-5xl block mb-4">🔍</span>
-            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white mb-2">Event not found</h2>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6">
-              The event you're looking for doesn't exist or may have been removed.
-            </p>
-            <button
-              onClick={() => navigate('/events')}
-              className="bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-full px-6 py-3 text-sm font-bold hover:opacity-90 transition-opacity active:scale-95"
-            >
-              Browse All Events
-            </button>
+ 
+      
+            <div className="min-h-[90vh] bg-gradient-to-br from-white to-gray-50 dark:from-gray-950 dark:to-gray-900 flex items-center justify-center px-4 py-6">
+      <div className="max-w-md w-full text-center">
+        {/* Icon */}
+        <div className="mb-6 flex justify-center">
+          <div className="relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-rose-500/20 to-pink-500/20 blur-2xl rounded-full" />
+            <div className="relative bg-rose-100 dark:bg-rose-900/20 rounded-full p-4">
+              <TicketIcon className="h-12 w-12 text-rose-600 dark:text-rose-400" />
+            </div>
           </div>
         </div>
+
+        {/* 404 Text */}
+        <h1 className="text-6xl font-extrabold text-neutral-900 dark:text-white mb-2 tracking-tighter">
+          404
+        </h1>
+
+        <p className="text-lg font-semibold text-neutral-700 dark:text-neutral-200 mb-2">
+          Event not found
+        </p>
+
+        <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-8">
+          The page you're looking for doesn't exist or has been moved. Check the URL and try again, or explore our other pages.
+        </p>
+
+        {/* Suggestions */}
+        <div className="mb-8 space-y-3 text-left bg-neutral-50 dark:bg-neutral-900/50 rounded-lg p-4 border border-neutral-200 dark:border-neutral-800">
+          <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wide">
+            You might want to:
+          </p>
+          <ul className="space-y-2 text-sm text-neutral-600 dark:text-neutral-400">
+            <li className="flex items-center gap-2">
+              <span className="text-rose-500">•</span>
+              <span>Check the URL spelling</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-rose-500">•</span>
+              <span>Return to the home page</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-rose-500">•</span>
+              <span>Browse events and discover</span>
+            </li>
+          </ul>
+        </div>
+
+        {/* CTA Buttons */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* <Button
+            asChild
+            className="flex-1 rounded-full bg-rose-500 hover:bg-rose-600 text-white font-semibold"
+          >
+            <Link to="/" className="flex items-center justify-center gap-2">
+              <Home className="h-4 w-4" />
+              Go Home
+            </Link>
+          </Button> */}
+
+          <Button
+            asChild
+            variant="outline"
+            className="flex-1 rounded-full border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          >
+            <Link to="/events" className="flex items-center justify-center gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Explore Events
+            </Link>
+          </Button>
+        </div>
+
+        {/* Fun message */}
+        <div className="mt-8 pt-8 border-t border-neutral-200 dark:border-neutral-800">
+          <p className="text-xs text-neutral-500 dark:text-neutral-500 italic">
+            "The event you're looking for is not in the universe... yet."
+          </p>
+        </div>
+      </div>
+    </div>
+
       )}
 
       {/* ─── Main Content (only when loaded and found) ─── */}
@@ -516,6 +697,11 @@ const EventDetailPage = () => {
             {/* Title Row */}
             <div className="flex items-start justify-between gap-4 mb-2">
               <div className="flex-1">
+                {badge && (
+                  <span className={`inline-block px-2 py-0.5 rounded text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wider mb-2 ${badge.className}`}>
+                    {badge.text}
+                  </span>
+                )}
                 <h1 className="text-xl sm:text-3xl font-extrabold text-neutral-900 dark:text-white leading-tight">
                   {event.title}
                 </h1>
@@ -616,16 +802,50 @@ const EventDetailPage = () => {
                 {event.description}
               </p>
             </div>
+                {/* Highlights */}
+            {event.highlights.length > 0 && (
+              <>
+                <div className="space-y-5 mb-2">
+                  {event.highlights.map((h, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <span className="text-2xl">{h.icon}</span>
+                      <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
+                        {h.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <hr className="border-neutral-100 dark:border-neutral-900 mb-1" />
+              </>
+            )}
 
-            <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+            {event.amenities.length > 0 && (
+              <div className="mb-2">
+                <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white mb-4">
+                  What's included
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                  {event.amenities.map((amenity, i) => (
+                    <div key={i} className="flex items-center gap-3 py-3">
+                      <CheckCircle className="h-5 w-5 text-rose-500 shrink-0" />
+                      <span className="text-sm text-neutral-700 dark:text-neutral-300 font-medium">
+                        {amenity}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <hr className="border-neutral-100 dark:border-neutral-900 mb-1" />
 
             {/* Hosted by - Organizer section */}
             <button
               onClick={() => setShowOrganizerModal(true)}
-              className="w-full flex items-center gap-4 mb-6 group text-left hover:bg-neutral-50 dark:hover:bg-neutral-900/50 rounded-2xl p-3 -mx-3 transition-colors"
+              className="w-full flex items-center gap-4 mb-2 group text-left hover:bg-neutral-50 dark:hover:bg-neutral-900/50 rounded-2xl p-3 -mx-3 transition-colors"
             >
-              <div className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-full w-14 h-14 flex items-center justify-center text-white text-xl font-extrabold shadow-md shrink-0">
-                {event.organizer.avatar}
+              <div className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-full w-14 h-14 flex items-center justify-center text-white text-xl font-extrabold shadow-md shrink-0 overflow-hidden">
+               <img src={event.organizer.logo || event.organizer.avatar} alt={event.organizer.name} className='w-full h-full object-cover' />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-neutral-900 dark:text-white">
@@ -658,117 +878,7 @@ const EventDetailPage = () => {
               </>
             )}
 
-            {/* Highlights */}
-            {event.highlights.length > 0 && (
-              <>
-                <div className="space-y-5 mb-6">
-                  {event.highlights.map((h, i) => (
-                    <div key={i} className="flex items-center gap-4">
-                      <span className="text-2xl">{h.icon}</span>
-                      <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
-                        {h.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
-              </>
-            )}
-
-            {event.amenities.length > 0 && (
-              <div className="mb-8">
-                <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white mb-4">
-                  What's included
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {event.amenities.map((amenity, i) => (
-                    <div key={i} className="flex items-center gap-3 py-3">
-                      <CheckCircle className="h-5 w-5 text-rose-500 shrink-0" />
-                      <span className="text-sm text-neutral-700 dark:text-neutral-300 font-medium">
-                        {amenity}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Vendor section */}
-            {event.vendorApplicationsAllowed && (
-              <>
-                <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
-                <div className="mb-8">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white flex items-center gap-2">
-                      <Store className="h-5 w-5 text-rose-500" />
-                      Vendor Opportunities
-                    </h2>
-                  </div>
-
-                  {/* Vendor Stall Type Cards */}
-                  {event.vendorSettings && event.vendorSettings.stallTypes && event.vendorSettings.stallTypes.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                      {event.vendorSettings.stallTypes.map((stall: any) => (
-                        <motion.div
-                          key={stall.id}
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 bg-white dark:bg-neutral-900 hover:border-rose-300 dark:hover:border-rose-700 transition-colors"
-                        >
-                          <div className="mb-3">
-                            <h3 className="text-sm font-extrabold text-neutral-900 dark:text-white">{stall.name}</h3>
-                            <p className="text-xs text-neutral-500 mt-1">₦{stall.price.toLocaleString()} per stall</p>
-                          </div>
-
-                          {stall.description && (
-                            <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-3">{stall.description}</p>
-                          )}
-
-                          <p className="text-[10px] text-neutral-400 mb-4">
-                            Max {stall.maxStalls} stalls available
-                          </p>
-
-                          {isAuthenticated && user?.role === 'VENDOR' ? (
-                            <button
-                              onClick={() => navigate(`/book/${event.id}?type=vendor&stallType=${stall.id}`)}
-                              className="w-full bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-lg px-4 py-2.5 text-xs font-bold hover:shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
-                            >
-                              Apply Now
-                              <ArrowRight className="h-3.5 w-3.5" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => navigate(`/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor&stallType=${stall.id}`)}`)}
-                              className="w-full border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-lg px-4 py-2.5 text-xs font-bold hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center gap-2"
-                            >
-                              Sign in to Apply
-                              <ArrowRight className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </motion.div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-                      No specific stall types defined. Contact the organizer for more details.
-                    </p>
-                  )}
-
-                  {!isAuthenticated && (
-                    <div className="bg-neutral-50 dark:bg-neutral-900/50 rounded-lg p-3 text-xs text-neutral-600 dark:text-neutral-400">
-                      Interested in becoming a vendor?{' '}
-                      <button
-                        onClick={() => navigate('/login')}
-                        className="font-bold text-rose-500 hover:underline"
-                      >
-                        Create an account
-                      </button>{' '}
-                      to apply.
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
+        
 
             {/* ─── Events You May Like ─── */}
             <div className="mt-12">
@@ -824,7 +934,23 @@ const EventDetailPage = () => {
                 </div>
 
                 {/* Show choice buttons if vendors are allowed, otherwise just reserve button */}
-                {event.vendorApplicationsAllowed ? (
+                {ticketingBlocked ? (
+                  <div className="rounded-xl bg-neutral-100 dark:bg-neutral-800 p-4 text-center">
+                    {isEventDraft ? (
+                      <>
+                        <AlertCircle className="h-6 w-6 text-amber-500 mx-auto mb-2" />
+                        <p className="text-sm font-bold text-neutral-900 dark:text-white mb-1">Tickets not available yet</p>
+                        <p className="text-xs text-neutral-500">This event hasn't been published. Check back later.</p>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-6 w-6 text-neutral-400 mx-auto mb-2" />
+                        <p className="text-sm font-bold text-neutral-900 dark:text-white mb-1">This event has ended</p>
+                        <p className="text-xs text-neutral-500">Ticket sales are closed. Thanks for your interest!</p>
+                      </>
+                    )}
+                  </div>
+                ) : event.vendorApplicationsAllowed ? (
                   <>
                     {/* Reserve Tickets Button */}
                     <button
@@ -837,27 +963,51 @@ const EventDetailPage = () => {
 
                     {/* Apply as Vendor Button */}
                     <button
+                      disabled={isVendorDeadlinePassed}
                       onClick={() => {
+                        if (isVendorDeadlinePassed) return;
                         if (isAuthenticated ) {
                           navigate(`/book/${event.id}?type=vendor`);
                         } else {
                           navigate(`/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor`)}`);
                         }
                       }}
-                      className="w-full h-11 border-2 border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-xl text-sm font-bold hover:border-rose-300 dark:hover:border-rose-700 hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                      className={cn(
+                        "w-full h-11 border-2 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98]",
+                        isVendorDeadlinePassed
+                          ? "border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 text-neutral-400 dark:text-neutral-600 cursor-not-allowed"
+                          : "border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white hover:border-rose-300 dark:hover:border-rose-700 hover:bg-rose-50/50 dark:hover:bg-rose-950/10"
+                      )}
                     >
                       <Store className="h-4 w-4" />
-                      Apply as Vendor
+                      {isVendorDeadlinePassed ? 'Vendor Application Closed' : 'Apply as Vendor'}
                     </button>
 
-                    {/* Shareable Flier Button */}
-                    {/* <button
-                      onClick={() => setShowFlier(true)}
-                      className="w-full h-11 border-2 border-dashed border-rose-200 dark:border-rose-900 text-rose-500 hover:text-rose-600 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all flex items-center justify-center gap-2 mt-2"
-                    >
-                      <Sparkles className="h-4 w-4" />
-                      Shareable Flier
-                    </button> */}
+                    {event.vendorDeadline && (
+                      <p className={cn(
+                        "text-[10px] font-bold text-center mt-2.5 uppercase tracking-wide",
+                        isVendorDeadlinePassed ? "text-rose-500" : "text-amber-605 dark:text-amber-500"
+                      )}>
+                        Vendor: {formatDeadlineFriendly(event.vendorDeadline)}
+                      </p>
+                    )}
+
+                    {(() => {
+                      if (!event.date) return null;
+                      const eventDate = new Date(event.date);
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const diffTime = eventDate.getTime() - today.getTime();
+                      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+                      if (diffDays >= 0 && diffDays <= 1) {
+                        return (
+                          <p className="text-[10px] font-bold text-center mt-2 text-rose-500 uppercase tracking-wide">
+                            Tickets: Closes {diffDays === 0 ? 'Today' : 'Tomorrow'}!
+                          </p>
+                        );
+                      }
+                      return null;
+                    })()}
 
                     <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center mt-3">
                       You won't be charged yet
@@ -873,16 +1023,6 @@ const EventDetailPage = () => {
                       Reserve Tickets
                     </button>
 
-                    {/* Shareable Flier Button */}
-                 { /*  <button
-                      onClick={() => setShowFlier(true)}
-                      className="w-full h-11 border-2 border-dashed border-rose-200 dark:border-rose-900 text-rose-500 hover:text-rose-600 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all flex items-center justify-center gap-2"
-                    >
-                      <Sparkles className="h-4 w-4" />
-                      Shareable Flier
-                    </button>
-         */ }
-
                     <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center mb-4 mt-3">
                       You won't be charged yet
                     </p>
@@ -893,7 +1033,10 @@ const EventDetailPage = () => {
               {/* Report listing */}
               <div className="flex items-center justify-center gap-2 mt-4">
                 <Flag className="h-3.5 w-3.5 text-neutral-400" />
-                <button className="text-xs font-medium text-neutral-500 dark:text-neutral-400 underline hover:text-neutral-700 dark:hover:text-neutral-300">
+                <button 
+                  onClick={() => setShowReportModal(true)}
+                  className="text-xs font-medium text-neutral-500 dark:text-neutral-400 underline hover:text-neutral-700 dark:hover:text-neutral-300"
+                >
                   Report this listing
                 </button>
               </div>
@@ -904,7 +1047,7 @@ const EventDetailPage = () => {
       </div>
 
       {/* ─── Full-screen Photo Gallery Modal ─── */}
-      {showAllPhotos && (
+      {/* {showAllPhotos && (
         <div className="fixed inset-0 bg-white dark:bg-gray-950 z-50 overflow-y-auto">
           <div className="sticky top-0 z-10 bg-white/95 dark:bg-gray-950/95 backdrop-blur border-b border-neutral-100 dark:border-neutral-900 px-4 py-3 flex items-center">
             <button
@@ -928,108 +1071,257 @@ const EventDetailPage = () => {
             ))}
           </div>
         </div>
-      )}
+      )} */}
 
       {/* ─── Organizer Detail Modal ─── */}
       {showOrganizerModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-neutral-900/60 dark:bg-neutral-950/80 backdrop-blur-sm p-0 sm:p-4"
-          onClick={e => { if (e.target === e.currentTarget) setShowOrganizerModal(false); }}
+        <ResponsiveModal
+          open={showOrganizerModal}
+          onOpenChange={() => setShowOrganizerModal(false)}
+          size={3}
         >
-          {/* On mobile: sheet stops above tab bar (pb-16). On sm+: centred card */}
-          <div className="bg-white dark:bg-gray-900 w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl border border-neutral-200 dark:border-neutral-800 animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 overflow-hidden pb-16 sm:pb-0">
-
-            {/* Drag handle (mobile only) */}
-            <div className="flex justify-center pt-3 pb-1 sm:hidden">
-              <div className="w-10 h-1 rounded-full bg-neutral-200 dark:bg-neutral-700" />
+          <div className="w-full max-h-[90vh] overflow-y-auto mb-8">
+            {/* Header with close button */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b border-neutral-100 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+              <h2 className="text-lg font-extrabold text-neutral-900 dark:text-white">Event Organizer</h2>
+             
             </div>
 
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 dark:border-neutral-800">
-              <h2 className="text-sm font-extrabold text-neutral-900 dark:text-white">About the Organizer</h2>
+            {/* Content */}
+            <div className="p-2 space-y-6">
+              {/* Hero section with avatar and name */}
+              <div className="relative  mb-6">
+                <div className="px- pt-0 pb-4 relative">
+                  <div className="flex items-end gap-4  mb-4">
+                    <div className="relative">
+                        <div className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-full w-20 h-20 flex items-center justify-center text-white text-xl font-extrabold shadow-md shrink-0 overflow-hidden">
+                          <img src={event.organizer.logo || event.organizer.avatar} alt={event.organizer.name} className='w-full h-full object-cover' />
+
+                      </div>
+                      {/* Verified badge */}
+                      <div className="absolute -bottom-2 -right-2 flex items-center justify-center w-8 h-8 rounded-full bg-rose-500 border-4 border-white dark:border-neutral-900 shadow-lg">
+                        <svg viewBox="0 0 24 24" className="w-4 h-4 fill-white" aria-hidden="true">
+                          <path d="M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                        </svg>
+                      </div>
+                    </div>
+                    <div className="pb-2">
+                      <h3 className="font-extrabold text-2xl text-neutral-900 dark:text-white mb-1">
+                        {event.organizer.name}
+                      </h3>
+                      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                        Verified Organizer
+                      </p>
+                         <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                        Member Since {event.organizer.joinedYear}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+           
+
+              {/* About organizer */}
+              <div>
+                <h4 className="text-sm font-extrabold text-neutral-900 dark:text-white mb-3">About</h4>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                  {event.organizer.name} has been hosting high-quality events and maintaining excellent relationships with attendees. They are a trusted member of the PartyStorm community.
+                </p>
+              </div>
+
+              {/* Contact Details Section */}
+              {/* <div className="space-y-4 p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-2xl border border-neutral-100 dark:border-neutral-800">
+                <h4 className="text-sm font-extrabold text-neutral-900 dark:text-white">Contact Information</h4>
+                
+                {event.organizer.email && (
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg shrink-0 mt-0.5">
+                      <Mail className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase tracking-wide mb-1">Email</p>
+                      <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 break-all">
+                        {event.organizer.email}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {event.organizer.phone && (
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 bg-green-100 dark:bg-green-900/30 rounded-lg shrink-0 mt-0.5">
+                      <MessageCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase tracking-wide mb-1">Phone</p>
+                      <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                        {event.organizer.phone}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {!event.organizer.email && !event.organizer.phone && (
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400 italic">Contact details available through the platform.</p>
+                )}
+              </div> */}
+
+              {/* Social Links Placeholder */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-extrabold text-neutral-900 dark:text-white">Connect</h4>
+                <div className="flex items-center gap-3">
+                  <button className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+                    <Globe className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
+                    <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Website</span>
+                  </button>
+                  <button className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+                    <Instagram className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
+                    <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Instagram</span>
+                  </button>
+                  <button className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+                    <Twitter className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
+                    <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Twitter</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Trust & Safety Section */}
+              {/* <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 rounded-2xl space-y-3">
+                <div className="flex items-start gap-3">
+                  <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">Verified & Trusted</p>
+                    <p className="text-xs text-blue-800 dark:text-blue-200 leading-relaxed">
+                      This organizer's identity and events have been reviewed by the PartyStorm team. All transactions are protected by our buyer protection policy.
+                    </p>
+                  </div>
+                </div>
+              </div> */}
+
+              {/* Action Button */}
+              {/* <button
+                onClick={() => {
+                  setShowOrganizerModal(false);
+                  // Scroll to contact form or similar
+                }}
+                className="w-full h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
+              >
+                Contact Organizer
+              </button> */}
+            </div>
+          </div>
+        </ResponsiveModal>
+      )}
+
+      {/* ─── Report Listing Modal ─── */}
+      {showReportModal && (
+        <ResponsiveModal
+          open={showReportModal}
+          onOpenChange={() => setShowReportModal(false)}
+          size={2}
+        >
+          <div className="w-full max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b border-neutral-100 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+              <h2 className="text-lg font-extrabold text-neutral-900 dark:text-white">Report Listing</h2>
               <button
-                onClick={() => setShowOrganizerModal(false)}
+                onClick={() => setShowReportModal(false)}
                 className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Organizer profile */}
-            <div className="p-5 space-y-5 overflow-y-auto max-h-[60vh] sm:max-h-none">
-              {/* Avatar + name + Twitter/Instagram-style verified badge */}
-              <div className="flex items-center gap-4">
-                <div className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-full w-16 h-16 flex items-center justify-center text-white text-2xl font-extrabold shadow-md shrink-0">
-                  {event.organizer.avatar}
-                </div>
+            {/* Content */}
+            <div className="p-6 space-y-5">
+              {/* Alert */}
+              <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 rounded-2xl">
+                <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <div>
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="font-extrabold text-base text-neutral-900 dark:text-white">
-                      {event.organizer.name}
-                    </h3>
-                    {/* Verified badge — solid filled circle with checkmark, like Twitter/Instagram */}
-                    <span title="Verified Organizer" className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-rose-500 shrink-0">
-                      <svg viewBox="0 0 24 24" className="w-3 h-3 fill-white" aria-hidden="true">
-                        <path d="M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                      </svg>
-                    </span>
-                  </div>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                    Member since {event.organizer.joinedYear}
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">Help us improve</p>
+                  <p className="text-xs text-amber-800 dark:text-amber-200">
+                    Your report helps us maintain a safe and trustworthy platform. Our team will review it within 24 hours.
                   </p>
                 </div>
               </div>
 
-              {/* Stats row */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-neutral-50 dark:bg-neutral-800/60 rounded-2xl p-3 text-center">
-                  <p className="text-lg font-extrabold text-neutral-900 dark:text-white">{event.organizer.eventsHosted}</p>
-                  <p className="text-[10px] text-neutral-500 font-medium mt-0.5">Events Hosted</p>
-                </div>
-                <div className="bg-neutral-50 dark:bg-neutral-800/60 rounded-2xl p-3 text-center">
-                  <p className="text-lg font-extrabold text-neutral-900 dark:text-white">{event.organizer.responseRate}%</p>
-                  <p className="text-[10px] text-neutral-500 font-medium mt-0.5">Response Rate</p>
-                </div>
-                <div className="bg-neutral-50 dark:bg-neutral-800/60 rounded-2xl p-3 text-center">
-                  <p className="text-lg font-extrabold text-rose-500">{event.rating}</p>
-                  <p className="text-[10px] text-neutral-500 font-medium mt-0.5">Avg. Rating</p>
+              {/* Report Reason */}
+              <div>
+                <label className="text-sm font-extrabold text-neutral-900 dark:text-white block mb-3">
+                  What's the issue? <span className="text-rose-500">*</span>
+                </label>
+                <div className="space-y-2">
+                  {[
+                    { id: 'misleading', label: 'Misleading information', description: 'Event details are incorrect or misleading' },
+                    { id: 'fraud', label: 'Suspicious activity', description: 'Possible fraudulent or scam event' },
+                    { id: 'inappropriate', label: 'Inappropriate content', description: 'Content violates community guidelines' },
+                    { id: 'other', label: 'Something else', description: 'Other issue' },
+                  ].map((reason) => (
+                    <label
+                      key={reason.id}
+                      className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                        reportReason === reason.id
+                          ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/20'
+                          : 'border-neutral-200 dark:border-neutral-800 hover:border-rose-300 dark:hover:border-rose-700'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="reason"
+                        value={reason.id}
+                        checked={reportReason === reason.id}
+                        onChange={(e) => setReportReason(e.target.value)}
+                        className="mt-1"
+                      />
+                      <div>
+                        <p className="font-semibold text-neutral-900 dark:text-white text-sm">{reason.label}</p>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">{reason.description}</p>
+                      </div>
+                    </label>
+                  ))}
                 </div>
               </div>
 
-              {/* Contact details */}
-              <div className="space-y-3 border-t border-neutral-100 dark:border-neutral-800 pt-4">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Contact Details</p>
-                {event.organizer.email && (
-                  <div className="flex items-center gap-3 text-sm text-neutral-700 dark:text-neutral-300">
-                    <div className="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl shrink-0">
-                      <Mail className="h-4 w-4 text-neutral-500" />
-                    </div>
-                    <span className="font-medium truncate">{event.organizer.email}</span>
-                  </div>
-                )}
-                {event.organizer.phone && (
-                  <div className="flex items-center gap-3 text-sm text-neutral-700 dark:text-neutral-300">
-                    <div className="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl shrink-0">
-                      <User className="h-4 w-4 text-neutral-500" />
-                    </div>
-                    <span className="font-medium">{event.organizer.phone}</span>
-                  </div>
-                )}
-                {!event.organizer.email && !event.organizer.phone && (
-                   <p className="text-sm text-neutral-500 italic">No contact details provided.</p>
-                )}
+              {/* Description */}
+              <div>
+                <label className="text-sm font-extrabold text-neutral-900 dark:text-white block mb-2">
+                  Additional details
+                </label>
+                <textarea
+                  value={reportDescription}
+                  onChange={(e) => setReportDescription(e.target.value)}
+                  placeholder="Please provide more context about your report..."
+                  className="w-full h-24 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-rose-500/50 resize-none"
+                />
               </div>
 
-              {/* Trust notice */}
-              <div className="flex items-start gap-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 rounded-2xl p-3 text-xs text-blue-700 dark:text-blue-400">
-                <Shield className="h-4 w-4 shrink-0 mt-0.5" />
-                <p className="leading-relaxed">
-                  This organizer's identity and events have been reviewed by the PartyStorm team. Always pay through the platform for buyer protection.
-                </p>
+              {/* Actions */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowReportModal(false)}
+                  className="flex-1 h-11 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white rounded-xl text-sm font-bold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleReportSubmit}
+                  disabled={!reportReason || isSubmittingReport}
+                  className="flex-1 h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmittingReport ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Submitting...
+                    </div>
+                  ) : (
+                    'Submit Report'
+                  )}
+                </button>
               </div>
             </div>
           </div>
-        </div>
+        </ResponsiveModal>
       )}
 
    
@@ -1045,8 +1337,36 @@ const EventDetailPage = () => {
                 {displayPrice}
               </span>
             </div>
+            {event.vendorApplicationsAllowed && event.vendorDeadline && (
+              <p className={cn(
+                "text-[9px] font-bold uppercase tracking-wider mt-0.5",
+                isVendorDeadlinePassed ? "text-rose-500 animate-pulse" : "text-amber-600 dark:text-amber-500"
+              )}>
+                Vendor: {formatDeadlineFriendly(event.vendorDeadline)}
+              </p>
+            )}
+            {(() => {
+              if (!event.date) return null;
+              const eventDate = new Date(event.date);
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const diffTime = eventDate.getTime() - today.getTime();
+              const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+              if (diffDays >= 0 && diffDays <= 1) {
+                return (
+                  <p className="text-[9px] font-bold uppercase tracking-wider mt-0.5 text-rose-500 animate-pulse">
+                    Tickets: Closes {diffDays === 0 ? 'Today' : 'Tomorrow'}!
+                  </p>
+                );
+              }
+              return null;
+            })()}
           </div>
-          {event.vendorApplicationsAllowed ? (
+          {ticketingBlocked ? (
+            <span className="text-xs font-bold text-neutral-400 px-4 py-2.5 rounded-lg bg-neutral-100 dark:bg-neutral-800">
+              {isEventDraft ? 'Coming Soon' : 'Event Ended'}
+            </span>
+          ) : event.vendorApplicationsAllowed ? (
             <div className="flex items-center gap-2">
               <button
                 onClick={handlePurchaseTicket}
@@ -1054,18 +1374,20 @@ const EventDetailPage = () => {
               >
                 Buy
               </button>
-              <button
-                onClick={() => {
-                  if (isAuthenticated && user?.role === 'VENDOR') {
-                    navigate(`/book/${event.id}?type=vendor`);
-                  } else {
-                    navigate(`/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor`)}`);
-                  }
-                }}
-                className="border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-lg text-xs font-bold px-4 py-2.5 hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98]"
-              >
-                Vendor
-              </button>
+              {!isVendorDeadlinePassed && (
+                <button
+                  onClick={() => {
+                    if (isAuthenticated && user?.role === 'VENDOR') {
+                      navigate(`/book/${event.id}?type=vendor`);
+                    } else {
+                      navigate(`/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor`)}`);
+                    }
+                  }}
+                  className="border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-lg text-xs font-bold px-4 py-2.5 hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98]"
+                >
+                  Vendor
+                </button>
+              )}
             </div>
           ) : (
             <button

@@ -141,10 +141,19 @@ const BookingPage = () => {
       if (user.email && !guestEmail) setGuestEmail(user.email);
       if (user.phone && !guestPhone) setGuestPhone(user.phone);
       
-      // Also pre-fill vendor business details from user
+      // Also pre-fill vendor business details from user's saved vendorProfile card
       if (bookMode === 'vendor') {
-        if (user.email && !businessEmail) setBusinessEmail(user.email);
-        if (user.phone && !businessPhone) setBusinessPhone(user.phone);
+        const vp = (user as any).vendorProfile;
+        if (vp) {
+          if (vp.businessName && !businessName) setBusinessName(vp.businessName);
+          if (vp.contactEmail && !businessEmail) setBusinessEmail(vp.contactEmail);
+          if (vp.contactPhone && !businessPhone) setBusinessPhone(vp.contactPhone);
+          if (vp.description && !description) setDescription(vp.description);
+          if (vp.category && !vendorRole) setVendorRole(vp.category);
+        } else {
+          if (user.email && !businessEmail) setBusinessEmail(user.email);
+          if (user.phone && !businessPhone) setBusinessPhone(user.phone);
+        }
       }
     }
   }, [isAuthenticated, user, guestFirstName, guestLastName, guestEmail, guestPhone, bookMode]);
@@ -165,12 +174,19 @@ const BookingPage = () => {
   // Derived state calculations
   const totalTicketsCount = Object.values(selectedTickets).reduce((acc, qty) => acc + qty, 0);
 
-  const subtotal = normalizedEventData.ticketTypes?.reduce((acc: number, t: any) => {
-    const qty = selectedTickets[t.id] || 0;
-    return acc + (t.price || 0) * qty;
-  }, 0) || 0;
+  const subtotal = bookMode === 'vendor'
+    ? (normalizedEventData.stallTypes?.find((s: any) => Number(s.id) === Number(selectedStallType))?.fee || 0)
+    : (normalizedEventData.ticketTypes?.reduce((acc: number, t: any) => {
+        const qty = selectedTickets[t.id] || 0;
+        return acc + (t.price || 0) * qty;
+      }, 0) || 0);
 
-  const serviceFee = Math.round(subtotal * 0.05);
+  const feePercent = normalizedEventData.organization?.serviceFeePercent !== undefined
+    ? Number(normalizedEventData.organization.serviceFeePercent)
+    : 5.0;
+  const absorbFee = !!normalizedEventData.organization?.absorbFee;
+
+  const serviceFee = absorbFee ? 0 : Math.round(subtotal * (feePercent / 100));
   const totalAmount = subtotal + serviceFee;
 
   const formatDate = (dateString: string) => {
@@ -186,9 +202,28 @@ const BookingPage = () => {
     }
   };
 
-  const handlePaymentSuccess = async () => {
+  const handlePaymentSuccess = async (paymentRef?: string) => {
     setIsPaying(true);
     try {
+      if (bookMode === 'vendor') {
+        await api.vendors.register({
+          eventId: Number(normalizedEventData.id),
+          vendorTypeId: selectedStallType ? Number(selectedStallType) : undefined,
+          businessName,
+          businessEmail,
+          businessPhone,
+          description,
+          category: vendorRole,
+          staffCount: staffCount || undefined,
+          paymentAmount: totalAmount,
+          paymentReference: paymentRef || `VND_${Date.now()}_${normalizedEventData.id}`
+        });
+
+        showAlert('Your vendor application has been submitted successfully!', 'Application Received');
+        navigate(`/events/${normalizedEventData.slug || normalizedEventData.id}`);
+        return;
+      }
+
       // Get first ticket type (backend expects single ticketTypeId/quantity)
       const firstTicketEntry = Object.entries(selectedTickets).find(([_, qty]) => qty > 0);
       if (!firstTicketEntry) {
@@ -224,7 +259,7 @@ const BookingPage = () => {
         navigate('/ticket-confirmation', { state: confirmedOrder });
       }
     } catch (err: any) {
-      showAlert('Reservation succeeded but ticket generation failed: ' + (err.response?.data?.message || err.message), 'Ticket Error');
+      showAlert('Reservation succeeded but registration failed: ' + (err.response?.data?.message || err.message), 'Error');
     } finally {
       setIsPaying(false);
     }
@@ -240,7 +275,7 @@ const BookingPage = () => {
 
     const handler = (window as any).PaystackPop.setup({
       key: publicKey,
-      email: guestEmail,
+      email: bookMode === 'vendor' ? businessEmail : guestEmail,
       amount: Math.round(totalAmount * 100), // Paystack expects amount in kobo
       currency: 'NGN',
       ref: `EVT_${Date.now()}_${normalizedEventData.id}`,
@@ -249,7 +284,7 @@ const BookingPage = () => {
           {
             display_name: 'Customer Name',
             variable_name: 'customer_name',
-            value: `${guestFirstName} ${guestLastName}`
+            value: bookMode === 'vendor' ? businessName : `${guestFirstName} ${guestLastName}`
           }
         ]
       },
@@ -257,7 +292,7 @@ const BookingPage = () => {
       callback: function(response: any) {
         console.log('[Paystack] Payment successful. Reference:', response.reference);
         // Fire the async checkout without awaiting here
-        handlePaymentSuccess();
+        handlePaymentSuccess(response.reference);
       },
       onClose: function() {
         console.log('[Paystack] Checkout popup closed by user.');
@@ -399,6 +434,51 @@ const BookingPage = () => {
       }
       
       // Enforce total transaction limit (max 10 tickets)
+      const currentTotal = Object.entries(prev).reduce((acc, [k, v]) => acc + (Number(k) === id ? 0 : v), 0);
+      if (currentTotal + newQty > 10) {
+        showAlert('You can select a maximum of 10 tickets per order.', 'Ticket Limit');
+        return prev;
+      }
+
+      if (newQty === 0) {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      }
+      return {
+        ...prev,
+        [id]: newQty
+      };
+    });
+  };
+
+  const handleTicketQtyChange = (id: number, valStr: string) => {
+    const newQty = valStr === '' ? 0 : parseInt(valStr, 10);
+    if (isNaN(newQty) || newQty < 0) return;
+
+    const ticketType = normalizedEventData.ticketTypes?.find((t: any) => t.id === id);
+    if (!ticketType) return;
+
+    const availableCount = getAvailableCount(id, ticketType);
+
+    if (newQty > availableCount) {
+      const maxPerPerson = getMaxPerPerson(ticketType);
+      const previousBookings = getPreviousBookings(id);
+      if (previousBookings > 0) {
+        showAlert(
+          `You can buy ${availableCount} more ${ticketType.name} ticket(s).\nYou already have ${previousBookings} from previous bookings.`,
+          'Per-Person Limit Reached'
+        );
+      } else {
+        showAlert(
+          `Maximum ${maxPerPerson} ${ticketType.name} ticket(s) per person.`,
+          'Ticket Limit'
+        );
+      }
+      return;
+    }
+
+    setSelectedTickets(prev => {
       const currentTotal = Object.entries(prev).reduce((acc, [k, v]) => acc + (Number(k) === id ? 0 : v), 0);
       if (currentTotal + newQty > 10) {
         showAlert('You can select a maximum of 10 tickets per order.', 'Ticket Limit');
@@ -587,7 +667,7 @@ const BookingPage = () => {
                       const availableCount = getAvailableCount(t.id, t);
                       const previousBookings = getPreviousBookings(t.id);
                       const maxPerPerson = getMaxPerPerson(t);
-                      const canBuyMore = availableCount > 0;
+                      const canBuyMore = availableCount > qty && totalTicketsCount < 10;
 
                       return (
                         <div key={t.id} className="space-y-2">
@@ -605,9 +685,14 @@ const BookingPage = () => {
                               >
                                 <Minus className="h-4 w-4 text-neutral-600 dark:text-neutral-350" />
                               </button>
-                              <span className="text-sm font-bold w-6 text-center text-neutral-900 dark:text-white">
-                                {qty}
-                              </span>
+                              <input
+                                type="number"
+                                min={0}
+                                max={availableCount + qty}
+                                value={qty || ''}
+                                onChange={(e) => handleTicketQtyChange(t.id, e.target.value)}
+                                className="w-12 text-center text-sm font-bold bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-md py-1 focus:ring-1 focus:ring-rose-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              />
                               <button
                                 onClick={() => updateTicketQty(t.id, 1)}
                                 disabled={!canBuyMore}
@@ -1236,9 +1321,9 @@ const BookingPage = () => {
                     )}
 
                     <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
-                      <span className="underline">Service Fee (5%)</span>
+                      <span className="underline">Service Fee ({feePercent}%)</span>
                       <span className="font-bold text-neutral-900 dark:text-white">
-                        ₦{serviceFee.toLocaleString()}
+                        {absorbFee ? '₦0 (Absorbed)' : `₦${serviceFee.toLocaleString()}`}
                       </span>
                     </div>
 
@@ -1254,12 +1339,18 @@ const BookingPage = () => {
                         <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
                           <span>Booth Fee</span>
                           <span className="font-bold text-neutral-900 dark:text-white">
-                            ₦{normalizedEventData.stallTypes.find((s: any) => s.id === selectedStallType)?.fee.toLocaleString() || '0'}
+                            ₦{subtotal.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
+                          <span className="underline">Service Fee ({feePercent}%)</span>
+                          <span className="font-bold text-neutral-900 dark:text-white">
+                            {absorbFee ? '₦0 (Absorbed)' : `₦${serviceFee.toLocaleString()}`}
                           </span>
                         </div>
                         <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3 flex items-center justify-between text-sm font-extrabold text-neutral-900 dark:text-white">
                           <span>Total (NGN)</span>
-                          <span>₦{normalizedEventData.stallTypes.find((s: any) => s.id === selectedStallType)?.fee.toLocaleString() || '0'}</span>
+                          <span>₦{totalAmount.toLocaleString()}</span>
                         </div>
                       </>
                     )}

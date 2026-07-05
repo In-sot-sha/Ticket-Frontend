@@ -14,6 +14,7 @@ import {
   Hash,
   Loader2,
   MapPin,
+  ChevronRight,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useNavigate } from 'react-router-dom';
@@ -33,9 +34,26 @@ const TicketScanner: React.FC = () => {
   const [manualCode, setManualCode] = useState('');
   const [tab, setTab] = useState<'camera' | 'manual'>('camera');
 
+  // Event lock states
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
+  const [selectedEventTitle, setSelectedEventTitle] = useState('');
+  const [eventsList, setEventsList] = useState<any[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const isVerifyingRef = useRef(false);
   const handleVerificationRef = useRef<(code: string) => void>(() => {});
+
+  // Fetch organizer events on mount
+  useEffect(() => {
+    setLoadingEvents(true);
+    api.events.getOrganizerEvents()
+      .then((res) => {
+        setEventsList(res.data?.events || []);
+      })
+      .catch((err) => console.error('Failed to load events:', err))
+      .finally(() => setLoadingEvents(false));
+  }, []);
 
   // ── Verify ─────────────────────────────────────────────────────────────────
   const handleVerification = useCallback(async (code: string) => {
@@ -56,7 +74,7 @@ const TicketScanner: React.FC = () => {
     document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
 
     try {
-      const response = await api.tickets.validate(code);
+      const response = await api.tickets.validate(code, selectedEventId || undefined);
       setScanStatus('success');
       setMessage(response.data.message || 'Ticket validated — entry approved');
       setTicketData(response.data.ticket);
@@ -80,6 +98,8 @@ const TicketScanner: React.FC = () => {
         displayMessage = 'This event has already ended. Ticket cannot be accepted.';
       } else if (serverStatus === 'EVENT_NOT_STARTED' || /not.*started|too early/i.test(serverMsg)) {
         displayMessage = 'This event has not started yet. Please wait until the event begins.';
+      } else if (serverStatus === 'INVALID_EVENT' || /not.*this event/i.test(serverMsg)) {
+        displayMessage = 'This ticket is for a different event. Entry not permitted.';
       } else if (httpStatus === 404 || /invalid.*qr|not found|invalid.*code/i.test(serverMsg)) {
         displayMessage = 'QR code not recognised. This ticket does not exist in the system.';
       } else if (serverMsg) {
@@ -92,7 +112,7 @@ const TicketScanner: React.FC = () => {
     } finally {
       isVerifyingRef.current = false;
     }
-  }, []);
+  }, [selectedEventId]);
 
   useEffect(() => {
     handleVerificationRef.current = handleVerification;
@@ -156,6 +176,7 @@ const TicketScanner: React.FC = () => {
 
   // React to tab changes
   useEffect(() => {
+    if (!selectedEventId) return;
     if (tab === 'camera' && !['success', 'error', 'loading'].includes(scanStatus)) {
       const t = setTimeout(() => startCamera(), 100);
       return () => clearTimeout(t);
@@ -166,7 +187,7 @@ const TicketScanner: React.FC = () => {
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, [tab, selectedEventId]);
 
   // ── Manual submit ──────────────────────────────────────────────────────────
   const handleManualSubmit = (e: React.FormEvent) => {
@@ -185,7 +206,24 @@ const TicketScanner: React.FC = () => {
     setTicketData(null);
     setManualCode('');
     isVerifyingRef.current = false;
-    if (tab === 'camera') setTimeout(() => startCamera(), 100);
+    if (tab === 'camera' && selectedEventId) setTimeout(() => startCamera(), 100);
+  };
+
+  const handleSelectEvent = (id: number, title: string) => {
+    setSelectedEventId(id);
+    setSelectedEventTitle(title);
+    if (tab === 'camera') {
+      setTimeout(() => startCamera(), 100);
+    }
+  };
+
+  const handleResetEvent = () => {
+    stopCamera();
+    setSelectedEventId(null);
+    setSelectedEventTitle('');
+    setScanStatus('idle');
+    setMessage('');
+    setTicketData(null);
   };
 
   // ── Whether to show the result screen instead of camera/manual ─────────────
@@ -214,8 +252,26 @@ const TicketScanner: React.FC = () => {
         </div>
       </div>
 
+      {/* Event lock indicator */}
+      {selectedEventId && (
+        <div className="bg-rose-50 dark:bg-rose-950/20 border-b border-rose-100 dark:border-rose-900/30 px-4 py-2.5 flex items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse shrink-0" />
+            <span className="text-[11px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider truncate">
+              Locked to: {selectedEventTitle}
+            </span>
+          </div>
+          <button
+            onClick={handleResetEvent}
+            className="text-[11px] font-extrabold text-neutral-500 dark:text-neutral-400 hover:text-rose-500 underline shrink-0"
+          >
+            Change Event
+          </button>
+        </div>
+      )}
+
       {/* Camera error banner — shown at top so it's always visible */}
-      {cameraError && (
+      {cameraError && selectedEventId && (
         <div className="bg-red-50 dark:bg-red-950/30 border-b border-red-200 dark:border-red-900/40 px-4 py-3 flex items-start gap-3">
           <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
@@ -235,8 +291,53 @@ const TicketScanner: React.FC = () => {
         </div>
       )}
 
+      {/* Event selector if none is locked */}
+      {!selectedEventId && (
+        <div className="flex-1 max-w-lg mx-auto w-full px-4 py-6 pb-24">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-sm p-6 mb-6">
+            <h2 className="text-base font-extrabold text-neutral-900 dark:text-white mb-1">Select Event</h2>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-6">
+              Choose the event you are validating tickets for.
+            </p>
+
+            {loadingEvents ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-16 bg-neutral-100 dark:bg-neutral-850 rounded-2xl animate-pulse" />
+                ))}
+              </div>
+            ) : eventsList.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">No events found</p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Create an event to start scanning tickets.</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                {eventsList.map((e) => (
+                  <button
+                    key={e.id}
+                    onClick={() => handleSelectEvent(e.id, e.title)}
+                    className="w-full text-left p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-rose-300 dark:hover:border-rose-700 transition-colors flex items-center justify-between gap-3 group"
+                  >
+                    <div className="min-w-0">
+                      <h3 className="font-extrabold text-sm text-neutral-900 dark:text-white group-hover:text-rose-500 transition-colors truncate">
+                        {e.title}
+                      </h3>
+                      <p className="text-xs text-neutral-500 mt-1">
+                        {new Date(e.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-neutral-400 group-hover:text-rose-500 group-hover:translate-x-0.5 transition-all shrink-0" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── RESULT SCREEN — replaces everything when a scan fires ── */}
-      {showResult && (
+      {selectedEventId && showResult && (
         <div className="flex-1 flex flex-col items-center justify-center px-5 py-8 pb-28">
           {scanStatus === 'loading' && (
             <div className="flex flex-col items-center gap-4">
@@ -261,42 +362,31 @@ const TicketScanner: React.FC = () => {
               {/* Ticket details card */}
               <div className="bg-white dark:bg-gray-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 overflow-hidden shadow-sm mb-5">
                 <div className="px-5 py-3 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50">
-                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Attendee Details</p>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-rose-500">{ticketData.ticketType.name}</span>
+                  <h3 className="text-base font-extrabold text-neutral-900 dark:text-white mt-0.5">{ticketData.event.title}</h3>
                 </div>
 
-                <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                <div className="divide-y divide-neutral-100 dark:divide-neutral-900">
                   <div className="flex items-center gap-3 px-5 py-4">
                     <div className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-950/30 flex items-center justify-center shrink-0">
                       <User className="h-4 w-4 text-rose-500" />
                     </div>
                     <div>
-                      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider leading-none mb-0.5">Name</p>
-                      <p className="text-sm font-bold text-neutral-900 dark:text-white">
-                        {ticketData.user?.firstName} {ticketData.user?.lastName}
+                      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider leading-none mb-0.5">Attendee</p>
+                      <p className="text-sm font-semibold text-neutral-900 dark:text-white leading-tight">
+                        {ticketData.user ? `${ticketData.user.firstName} ${ticketData.user.lastName}` : 'Guest Attendee'}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 px-5 py-4">
-                    <div className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-950/30 flex items-center justify-center shrink-0">
-                      <CalendarDays className="h-4 w-4 text-rose-500" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider leading-none mb-0.5">Event</p>
-                      <p className="text-sm font-bold text-neutral-900 dark:text-white">
-                        {ticketData.event?.title}
-                      </p>
-                    </div>
-                  </div>
-
-                  {ticketData.event?.location && (
+                  {ticketData.event.location && (
                     <div className="flex items-center gap-3 px-5 py-4">
                       <div className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-950/30 flex items-center justify-center shrink-0">
                         <MapPin className="h-4 w-4 text-rose-500" />
                       </div>
                       <div>
                         <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider leading-none mb-0.5">Location</p>
-                        <p className="text-sm font-bold text-neutral-900 dark:text-white">
+                        <p className="text-sm font-semibold text-neutral-900 dark:text-white leading-tight">
                           {ticketData.event.location}
                         </p>
                       </div>
@@ -357,7 +447,7 @@ const TicketScanner: React.FC = () => {
                   : 'text-red-700 dark:text-red-400'
               }`}>
                 {/already been scanned|already.*used/i.test(message)
-                  ? 'Already Used'
+                  ? 'Already Scanned'
                   : /cancelled/i.test(message)
                   ? 'Ticket Cancelled'
                   : /not recognised|does not exist/i.test(message)
@@ -366,6 +456,8 @@ const TicketScanner: React.FC = () => {
                   ? 'Event Ended'
                   : /not.*started|too early/i.test(message)
                   ? 'Event Not Started'
+                  : /different event/i.test(message)
+                  ? 'Wrong Event'
                   : 'Access Denied'}
               </h2>
 
@@ -385,8 +477,8 @@ const TicketScanner: React.FC = () => {
         </div>
       )}
 
-      {/* ── CAMERA + MANUAL TABS (hidden while result is showing) ── */}
-      {!showResult && (
+      {/* ── CAMERA + MANUAL TABS (hidden while result or event selection is showing) ── */}
+      {selectedEventId && !showResult && (
         <>
           {/* Tab bar */}
           <div className="flex bg-white dark:bg-gray-900 border-b border-neutral-100 dark:border-neutral-800 shrink-0">
@@ -413,21 +505,17 @@ const TicketScanner: React.FC = () => {
             ))}
           </div>
 
-          {/* ── Camera tab
-               The viewfinder div MUST stay in the DOM while scanner is running.
-               Use display:none visibility rather than conditional rendering. ── */}
+          {/* ── Camera tab ── */}
           <div className={tab === 'camera' ? 'flex flex-col flex-1' : 'hidden'}>
             <div className="flex-1 flex flex-col max-w-lg mx-auto w-full px-4 pt-4 pb-24 gap-4">
 
               {/* Viewfinder */}
               <div className="bg-black rounded-3xl overflow-hidden shadow-lg relative">
-                {/* Fixed square viewfinder — takes up most of the screen height */}
+                {/* Fixed square viewfinder */}
                 <div className="relative w-full" style={{ paddingBottom: '100%' }}>
                   <div className="absolute inset-0">
-                    {/* html5-qrcode injects <video> here */}
                     <div id={SCANNER_DIV_ID} className="w-full h-full" />
 
-                    {/* Scanning overlay with cutout */}
                     {cameraActive && (
                       <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                         <div
@@ -451,57 +539,15 @@ const TicketScanner: React.FC = () => {
                         </div>
                       </div>
                     )}
-
-                    {/* Camera error */}
-                    {cameraError && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-950/98 text-white text-center px-6 gap-4">
-                        <XCircle className="h-12 w-12 text-red-400" strokeWidth={1.5} />
-                        <p className="text-sm font-medium leading-snug">{cameraError}</p>
-                        <button
-                          onClick={startCamera}
-                          className="flex items-center gap-2 bg-rose-500 text-white rounded-full px-5 py-2.5 text-xs font-bold"
-                        >
-                          <RefreshCw className="h-3.5 w-3.5" /> Try again
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Pre-start */}
-                    {!cameraActive && !cameraError && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-950 text-white gap-5">
-                        <div className="w-20 h-20 rounded-full bg-neutral-800 flex items-center justify-center">
-                          <Camera className="h-10 w-10 text-neutral-400" strokeWidth={1.5} />
-                        </div>
-                        <div className="text-center px-6">
-                          <p className="text-sm font-bold mb-1">Camera not started</p>
-                          <p className="text-xs text-neutral-400">Tap below to enable your camera</p>
-                        </div>
-                        <button
-                          onClick={startCamera}
-                          className="bg-rose-500 hover:bg-rose-600 text-white rounded-full px-6 py-3 text-sm font-bold shadow-xl"
-                        >
-                          Enable Camera
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
 
-                {/* Caption */}
-                <div className="px-5 py-3 text-center">
-                  <p className="text-xs text-neutral-400">
+                <div className="absolute bottom-6 left-0 right-0 text-center z-10">
+                  <p className="text-[10px] uppercase font-bold tracking-widest text-neutral-300 drop-shadow">
                     {cameraActive ? 'Hold QR code inside the frame' : 'Tap to start'}
                   </p>
                 </div>
               </div>
-
-              {/* Active indicator */}
-              {cameraActive && (
-                <div className="flex items-center justify-center gap-2 text-xs text-neutral-400">
-                  <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-                  Scanner active — waiting for QR code
-                </div>
-              )}
             </div>
           </div>
 
@@ -511,7 +557,7 @@ const TicketScanner: React.FC = () => {
               <div className="bg-white dark:bg-gray-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-sm p-5">
                 <h3 className="text-sm font-extrabold text-neutral-900 dark:text-white mb-1">Enter Ticket Code</h3>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-4">
-                  Type the ticket ID shown below the QR code on the pass.
+                  Type the ticket ID or QR code shown on the pass.
                 </p>
                 <form onSubmit={handleManualSubmit} className="space-y-3">
                   <div className="relative">
@@ -520,7 +566,7 @@ const TicketScanner: React.FC = () => {
                       type="text"
                       value={manualCode}
                       onChange={(e) => setManualCode(e.target.value)}
-                      placeholder="e.g. TKT-105-31"
+                      placeholder="e.g. QR-105-31"
                       className="w-full pl-10 pr-4 py-4 bg-neutral-50 dark:bg-gray-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent"
                       autoCapitalize="characters"
                       autoCorrect="off"

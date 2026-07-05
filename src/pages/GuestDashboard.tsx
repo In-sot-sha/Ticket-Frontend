@@ -45,7 +45,7 @@ const TicketsDashboard = () => {
     queryKey: ['tickets', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const res = await api.tickets.getAll({ userId: user.id });
+      const res = await api.tickets.getMyTickets();
       return res.data || [];
     },
     enabled: !!user?.id,
@@ -389,6 +389,7 @@ const TicketsDashboard = () => {
       <ResponsiveModal
         open={!!selectedTicket}
         onOpenChange={() => setSelectedTicket(null)}
+        size={6}
       >
         {/* Modal header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
@@ -396,16 +397,11 @@ const TicketsDashboard = () => {
             <p className="text-xs font-black uppercase tracking-widest text-rose-500">Entry Pass</p>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Present at gate for scanning</p>
           </div>
-          <button
-            onClick={() => setSelectedTicket(null)}
-            className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg"
-          >
-            <span className="text-xl">×</span>
-          </button>
+       
         </div>
 
         {/* Download Button */}
-        <div className="px-6 pt-5 pb-4 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
+        <div className="">
           <button
             onClick={() =>
               downloadTicketCard(`ticket-card-${serial}`, `ticket-${serial}.png`).catch(() =>
@@ -468,12 +464,14 @@ type Props = {
   children: React.ReactNode
   title?: string
   description?: string
+  size?:number
 }
 
 export function ResponsiveModal({
   open,
   onOpenChange,
   children,
+  size=5
 }: Props) {
   const isMobile = useIsMobile()
 
@@ -489,7 +487,7 @@ export function ResponsiveModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl p-1">
+      <DialogContent className={`${size == 5 ? 'lg:max-w-5xl' : size == 6 ? 'lg:max-w-6xl' : 'lg:max-w-3xl'} p-1`}>
         {children}
       </DialogContent>
     </Dialog>

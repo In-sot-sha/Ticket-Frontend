@@ -9,6 +9,7 @@ interface EventListParams {
   search?: string;
   category?: string;
   location?: string;
+  promoted?: string;
 }
 
 interface EventMutationData {

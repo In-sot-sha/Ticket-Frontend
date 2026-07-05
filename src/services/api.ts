@@ -10,7 +10,7 @@ let currentEndpoint =
 // Create axios instance with default config
 const apiClient: AxiosInstance = axios.create({
   baseURL: currentEndpoint,
-  timeout: 10000,
+  timeout: 60000, // Increased from 10s to 60s for image uploads on slow networks
   headers: {
     'Content-Type': 'application/json',
   },
@@ -273,6 +273,8 @@ export const api = {
       search?: string;
       category?: string;
       location?: string;
+      promoted?: string;
+      organizationId?: number;
     }) => apiRequest<any>('GET', '/events', undefined, { params }),
     
     getById: (id: number) => apiRequest<any>('GET', `/events/get/${id}`),
@@ -316,7 +318,18 @@ export const api = {
 
   // Ticket endpoints
   tickets: {
-    getAll: (params?: { userId?: number; eventId?: number }) => apiRequest<any[]>('GET', '/tickets', undefined, { params }),
+    getAll: (params?: { userId?: number; eventId?: number }) => {
+      if (params?.eventId) {
+        return apiRequest<any[]>('GET', `/tickets/event/${params.eventId}`);
+      }
+      return apiRequest<any[]>('GET', '/tickets/my-tickets');
+    },
+    
+    getMyTickets: () => apiRequest<any[]>('GET', '/tickets/my-tickets'),
+    
+    getEventAttendance: (eventId: number) => apiRequest<any[]>('GET', `/tickets/event/${eventId}`),
+    
+    getAdminTickets: () => apiRequest<any[]>('GET', '/tickets/admin/all'),
     
     getById: (id: number) => apiRequest<any>('GET', `/tickets/${id}`),
     
@@ -326,38 +339,41 @@ export const api = {
       quantity: number;
     }) => apiRequest<any>('POST', '/tickets/purchase', ticketData),
     
-    validate: (qrCode: string) => apiRequest<any>('POST', '/tickets/validate', { qrCode }),
+    validate: (qrCode: string, eventId?: number) => 
+      apiRequest<any>('POST', '/tickets/validate', { qrCode, eventId }),
   },
 
   // Vendor endpoints
   vendors: {
     register: (vendorData: {
       eventId: number;
-      vendorId: number;
       vendorTypeId?: number;
       vendorType?: string;
       paymentAmount?: number;
-    }) => apiRequest<any>('POST', '/vendors/register', vendorData),
-    
-    create: (vendorData: {
+      paymentReference?: string;
       businessName: string;
-      description: string;
+      businessEmail: string;
+      businessPhone?: string;
+      description?: string;
+      category?: string;
+      staffCount?: string;
+    }) => apiRequest<any>('POST', '/vendors/applications', vendorData),
+    
+    getMyProfile: () => apiRequest<any>('GET', '/vendors/profiles/me'),
+    
+    saveProfile: (vendorData: {
+      businessName: string;
+      description?: string;
       contactEmail: string;
-      contactPhone: string;
+      contactPhone?: string;
       website?: string;
       category?: string;
     }) => apiRequest<any>('POST', '/vendors/profiles', vendorData),
     
-    getAll: () => apiRequest<any[]>('GET', '/user-roles/my-vendor-applications'), // Changed to get user's vendor applications
+    getAll: () => apiRequest<any[]>('GET', '/user-roles/my-vendor-applications'), // User's applications
     
-    getById: (id: number) => apiRequest<any>('GET', `/vendors/${id}`),
-    
-    updateStatus: (id: number, statusData: {
-      isApproved: boolean;
-      isPaid?: boolean;
-    }) => apiRequest<any>('PUT', `/vendors/${id}`, statusData),
-    
-    delete: (id: number) => apiRequest<any>('DELETE', `/vendors/${id}`),
+    updateStatus: (id: number, applicationStatus: 'APPROVED' | 'REJECTED', paymentStatus?: 'PENDING' | 'PAID' | 'FAILED') => 
+      apiRequest<any>('PUT', `/vendors/applications/${id}/status`, { applicationStatus, paymentStatus }),
   },
 
   // Gate PIN endpoints
@@ -365,7 +381,7 @@ export const api = {
     list:   ()                        => apiRequest<any[]>('GET',    '/gate-pins'),
     create: (staffName: string)       => apiRequest<any>('POST',   '/gate-pins', { staffName }),
     delete: (id: number)              => apiRequest<any>('DELETE',  `/gate-pins/${id}`),
-    verify: (pin: string)             => apiRequest<{ valid: boolean; staffName: string }>('POST', '/gate-pins/verify', { pin }),
+    verify: (pin: string)             => apiRequest<{ valid: boolean; staffName: string; organizationId: number }>('POST', '/gate-pins/verify', { pin }),
   },
 
   // Vendor type endpoints
@@ -439,6 +455,44 @@ export const api = {
 
     updateUserRole: (id: number, role: string) =>
       apiRequest<any>('PUT', `/admin/users/${id}/role`, { role }),
+
+    getEvents: (params?: { search?: string }) =>
+      apiRequest<any[]>('GET', '/admin/events', undefined, { params }),
+
+    promoteEvent: (id: number, data: { isPromoted: boolean; promotedUntil?: string | null }) =>
+      apiRequest<any>('PUT', `/admin/events/${id}/promote`, data),
+
+    updateOrganizationFee: (id: number, data: { serviceFeePercent?: number; absorbFee?: boolean }) =>
+      apiRequest<any>('PUT', `/admin/host-applications/${id}/fee`, data),
+
+    getPayouts: (status?: string) =>
+      apiRequest<any[]>('GET', '/admin/payouts', undefined, { params: status ? { status } : undefined }),
+
+    approvePayout: (id: number) =>
+      apiRequest<any>('POST', `/admin/payouts/${id}/approve`),
+
+    rejectPayout: (id: number) =>
+      apiRequest<any>('POST', `/admin/payouts/${id}/reject`),
+  },
+
+  // Finance and Payouts endpoints
+  finance: {
+    getBalance: () => apiRequest<{
+      totalEarnings: number;
+      totalPaidOut: number;
+      totalPending: number;
+      availableBalance: number;
+      payouts: any[];
+      bankSettings: {
+        payoutBankName: string | null;
+        payoutAccountNumber: string | null;
+        payoutAccountName: string | null;
+        payoutSchedule: string | null;
+      };
+    }>('GET', '/finance/balance'),
+    
+    requestPayout: (amount: number) => 
+      apiRequest<any>('POST', '/finance/payout', { amount }),
   },
 
   // User support endpoints

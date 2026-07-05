@@ -17,8 +17,8 @@ import {
   Palette,
   Briefcase,
   Leaf,
-  // Navigation,
-  // Loader,
+  Store,
+  Trophy,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import EventCard, { Event } from '../components/EventCard';
@@ -31,13 +31,15 @@ import { mockEvents, mapApiEventToFrontendEvent } from '../data/mockEvents';
 // import { calculateDistance, formatDistance } from '../lib/distance';
 
 const categories = [
-  { name: 'All',         Icon: Globe },
-  { name: 'Technology',  Icon: Monitor },
-  { name: 'Music',       Icon: Music },
-  { name: 'Food',        Icon: Wine },
-  { name: 'Arts',        Icon: Palette },
-  { name: 'Business',    Icon: Briefcase },
-  { name: 'Environment', Icon: Leaf },
+  { name: 'All', Icon: Globe },
+  { name: 'Fairs', Icon: Store },
+  { name: 'Music', Icon: Music },
+  { name: 'Food', Icon: Wine },
+  { name: 'Business', Icon: Briefcase },
+  { name: 'Technology', Icon: Monitor },
+  { name: 'Arts', Icon: Palette },
+  { name: 'Sports', Icon: Trophy },
+  { name: 'Wellness', Icon: Leaf },
 ];
 
 const EventsPage = () => {
@@ -59,11 +61,11 @@ const EventsPage = () => {
   const { data: eventsData = [], isLoading: eventsLoading } = useEvents(
     searchTerm || selectedCategory !== 'All' || locationFilter
       ? {
-          search: searchTerm || undefined,
-          category: selectedCategory !== 'All' ? selectedCategory : undefined,
-          location: locationFilter || undefined,
-          limit: 100,
-        }
+        search: searchTerm || undefined,
+        category: selectedCategory !== 'All' ? selectedCategory : undefined,
+        location: locationFilter || undefined,
+        limit: 100,
+      }
       : { limit: 100 },
     CACHE_CONFIGS.EVENTS_LIST
   );
@@ -73,21 +75,21 @@ const EventsPage = () => {
     const baseEvents = eventsData.length > 0
       ? eventsData.map(mapApiEventToFrontendEvent)
       : mockEvents.filter((e) => {
-          let match = true;
-          if (searchTerm) {
-            match = match && (
-              e.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              e.location.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-          }
-          if (selectedCategory !== 'All') {
-            match = match && e.category === selectedCategory;
-          }
-          if (locationFilter) {
-            match = match && e.location.toLowerCase().includes(locationFilter.toLowerCase());
-          }
-          return match;
-        });
+        let match = true;
+        if (searchTerm) {
+          match = match && (
+            e.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            e.location.toLowerCase().includes(searchTerm.toLowerCase())
+          );
+        }
+        if (selectedCategory !== 'All') {
+          match = match && e.category === selectedCategory;
+        }
+        if (locationFilter) {
+          match = match && e.location.toLowerCase().includes(locationFilter.toLowerCase());
+        }
+        return match;
+      });
 
     // TODO: Sort by distance if enabled and user location available
     // if (sortByDistance && userLocation && baseEvents.length > 0) {
@@ -168,11 +170,10 @@ const EventsPage = () => {
             {/* Filter button */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 border rounded-full px-5 py-3.5 text-xs font-bold transition-all shrink-0 ${
-                showFilters
+              className={`flex items-center gap-2 border rounded-full px-5 py-3.5 text-xs font-bold transition-all shrink-0 ${showFilters
                   ? 'border-neutral-900 dark:border-white bg-neutral-900 text-white dark:bg-white dark:text-neutral-900'
                   : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600 bg-white dark:bg-neutral-900'
-              }`}
+                }`}
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
               Filters
@@ -187,11 +188,10 @@ const EventsPage = () => {
                 <button
                   key={cat.name}
                   onClick={() => setSelectedCategory(isActive ? 'All' : cat.name)}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all shrink-0 border ${
-                    isActive
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all shrink-0 border ${isActive
                       ? 'bg-neutral-900 text-white border-neutral-900 dark:bg-white dark:text-neutral-900 dark:border-white shadow-md'
                       : 'bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600'
-                  }`}
+                    }`}
                 >
                   <cat.Icon className={`h-3.5 w-3.5 ${isActive ? 'text-white dark:text-neutral-900' : 'text-neutral-500 dark:text-neutral-400'}`} />
                   <span>{cat.name}</span>
@@ -322,9 +322,8 @@ const EventsPage = () => {
       <div className="flex-grow flex min-h-0 relative w-full">
         {/* Events List */}
         <div
-          className={`transition-all duration-300 overflow-y-auto px-4 sm:px-6 lg:px-8 py-8 ${
-            showMap ? 'hidden md:block md:w-[55%] xl:w-[58%]' : 'w-full'
-          }`}
+          className={`transition-all duration-300 overflow-y-auto px-4 sm:px-6 lg:px-8 py-8 ${showMap ? 'hidden md:block md:w-[55%] xl:w-[58%]' : 'w-full'
+            }`}
         >
           {/* Results header */}
           <div className="flex items-center justify-between mb-6">
@@ -333,8 +332,8 @@ const EventsPage = () => {
                 {searchTerm
                   ? `Results for "${searchTerm}"`
                   : selectedCategory !== 'All'
-                  ? `${selectedCategory} Events`
-                  : 'All Upcoming Events'}
+                    ? `${selectedCategory} Events`
+                    : 'All Upcoming Events'}
               </h1>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                 {loading ? 'Loading...' : `${events.length} event${events.length !== 1 ? 's' : ''} found`}
@@ -369,9 +368,8 @@ const EventsPage = () => {
 
           {/* Events Grid */}
           {loading ? (
-            <div className={`grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 ${
-              showMap ? 'sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3' : 'sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
-            }`}>
+            <div className={`grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 ${showMap ? 'sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3' : 'sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+              }`}>
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="animate-pulse">
                   <div className="aspect-square rounded-2xl bg-neutral-200 dark:bg-neutral-800" />
@@ -388,9 +386,8 @@ const EventsPage = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.4 }}
-              className={`grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 ${
-                showMap ? 'sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3' : 'sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
-              }`}
+              className={`grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 ${showMap ? 'sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3' : 'sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+                }`}
             >
               {events.map((event) => {
                 // TODO: Uncomment when distance sorting is enabled
@@ -403,13 +400,13 @@ const EventsPage = () => {
                 //     (event as any).longitude || 8.6753
                 //   );
                 // }
-                
+
                 return (
                   <EventCard
                     key={event.id}
                     event={event}
                     showPrice={true}
-                    showTicketsAvailable={true}
+                    // showTicketsAvailable={true}
                     // distance={eventDistance}
                     onHover={setHoveredEventId}
                   />
@@ -445,7 +442,7 @@ const EventsPage = () => {
                 <GoogleMapEvents
                   events={events}
                   hoveredEventId={hoveredEventId}
-                  onSelectEvent={() => {}}
+                  onSelectEvent={() => { }}
                 />
               </div>
             </div>
@@ -458,7 +455,7 @@ const EventsPage = () => {
             <GoogleMapEvents
               events={events}
               hoveredEventId={hoveredEventId}
-              onSelectEvent={() => {}}
+              onSelectEvent={() => { }}
             />
           </div>
         )}

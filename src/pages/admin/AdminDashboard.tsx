@@ -10,6 +10,7 @@ import {
   Shield,
   Wallet,
   MessageSquare,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useAdminStats, useHostApplications } from '../../hooks/queries/useAdmin';
@@ -163,6 +164,21 @@ const AdminDashboard = () => {
                 <div>
                   <p className="text-sm font-bold">Help & Support</p>
                   <p className="text-xs text-neutral-500">{stats?.openSupportTickets ?? 0} open tickets</p>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-neutral-400" />
+            </Link>
+            <Link
+              to="/admin/promotions"
+              className="flex items-center justify-between p-4 rounded-xl border border-neutral-100 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-purple-50 dark:bg-purple-950/30 flex items-center justify-center">
+                  <Sparkles className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Manage Promotions</p>
+                  <p className="text-xs text-neutral-500">Feature events in homepage carousel</p>
                 </div>
               </div>
               <ChevronRight className="h-4 w-4 text-neutral-400" />

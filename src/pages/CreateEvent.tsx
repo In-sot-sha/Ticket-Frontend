@@ -57,6 +57,7 @@ interface FormState {
   imageUrl: string;
   includedItems: string[];
   vendorSettings: VendorSettings;
+  category: string;
 }
 
 const STEPS: { key: Step; label: string }[] = [
@@ -76,10 +77,11 @@ const defaultTicket = (): TicketDraft => ({
   accentColor: '',
   ticketHeadline: 'COME AND JOIN',
   venueLabel: 'LIVE AT',
+  maxPerPerson: '5',
 });
 
 const defaultForm = (): FormState => ({
-  templateId: '',
+  templateId: 'custom',
   title: '',
   description: '',
   startDate: '',
@@ -100,8 +102,9 @@ const defaultForm = (): FormState => ({
     stallTypes: [],
     allowedRoles: [],
     approvalMode: 'auto',
-    applicationDeadline: 7,
+    applicationDeadline: 5,
   },
+  category: 'Other',
 });
 
 function parseJsonField<T>(value: unknown, fallback: T): T {
@@ -145,6 +148,7 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
   fd.append('locationType', form.locationType);
   fd.append('capacity', form.capacity);
   fd.append('isPublished', String(isPublished));
+  fd.append('category', form.category);
   
   // Add latitude/longitude if physical event
   if (form.locationType === 'physical' && form.latitude && form.longitude) {
@@ -164,6 +168,7 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
         accentColor: t.accentColor || null,
         ticketHeadline: t.ticketHeadline || null,
         venueLabel: t.venueLabel || null,
+        maxPerPerson: t.maxPerPerson ? parseInt(t.maxPerPerson, 10) : 5,
       }))
     )
   );
@@ -193,7 +198,13 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
 
   const firstPaid = form.tickets.find((t) => !t.isFree);
   if (firstPaid?.price) fd.append('price', firstPaid.price);
-  if (image) fd.append('image', image);
+  
+  if (image) {
+    fd.append('image', image);
+  } else if (form.imageUrl) {
+    fd.append('imageUrl', form.imageUrl);
+  }
+  
   return fd;
 }
 
@@ -209,10 +220,12 @@ function TimePicker12({
   label,
   value,
   onChange,
+  hasError,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  hasError?: boolean;
 }) {
   const { hour, minute, period } = splitTime12(value);
   const update = (h: string, m: string, p: 'AM' | 'PM') => onChange(joinTime12(h, m, p));
@@ -222,7 +235,12 @@ function TimePicker12({
   return (
     <div>
       <FieldLabel>{label}</FieldLabel>
-      <div className="inline-flex items-center rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 gap-0.5">
+      <div className={cn(
+        "inline-flex items-center rounded-lg border bg-white dark:bg-neutral-900 px-2 py-1 gap-0.5 transition-colors",
+        hasError 
+          ? "border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/50 dark:bg-rose-950/20" 
+          : "border-neutral-200 dark:border-neutral-700"
+      )}>
         <select
           value={hour}
           onChange={(e) => update(e.target.value, minute, period)}
@@ -321,7 +339,8 @@ const CreateEvent: React.FC = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(!!id);
-  const [saving, setSaving] = useState(false);
+  const [savingType, setSavingType] = useState<'draft' | 'publish' | null>(null);
+  const [isEventPublished, setIsEventPublished] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTicketIndex, setActiveTicketIndex] = useState(0);
   const [customIncluded, setCustomIncluded] = useState('');
@@ -350,6 +369,7 @@ const CreateEvent: React.FC = () => {
     (async () => {
       try {
         const { data: event } = await api.events.getByIdAuth(Number(id));
+        setIsEventPublished(event.isPublished);
         const start = new Date(event.startDate);
         const end = new Date(event.endDate);
         const amenities = parseJsonField<string[]>(event.amenities, []);
@@ -382,6 +402,7 @@ const CreateEvent: React.FC = () => {
                 accentColor?: string;
                 ticketHeadline?: string;
                 venueLabel?: string;
+                maxPerPerson?: number;
               }) => ({
                 name: t.name,
                 price: String(t.price),
@@ -392,17 +413,35 @@ const CreateEvent: React.FC = () => {
                 accentColor: t.accentColor || '',
                 ticketHeadline: t.ticketHeadline || 'COME AND JOIN',
                 venueLabel: t.venueLabel || 'LIVE AT',
+                maxPerPerson: t.maxPerPerson !== null && t.maxPerPerson !== undefined ? String(t.maxPerPerson) : '5',
               }))
             : [defaultTicket()],
           imageUrl: event.imageUrl || '',
           includedItems: included,
-          vendorSettings: event.vendorSettings || {
-            allowVendors: false,
-            stallTypes: [],
-            allowedRoles: [],
-            approvalMode: 'auto',
-            applicationDeadline: 7,
-          },
+          vendorSettings: (() => {
+            // The backend returns vendorTypes, allowVendors, vendorDeadline as separate fields.
+            // Reconstruct the vendorSettings object the form expects.
+            const hasVendorTypes = event.vendorTypes && event.vendorTypes.length > 0;
+            const deadlineDays = event.vendorDeadline && event.startDate
+              ? Math.max(1, Math.round((new Date(event.startDate).getTime() - new Date(event.vendorDeadline).getTime()) / (24 * 60 * 60 * 1000)))
+              : 7;
+            return {
+              allowVendors: event.allowVendors ?? false,
+              stallTypes: hasVendorTypes
+                ? event.vendorTypes.map((vt: any) => ({
+                    id: `stall_${vt.id}`,
+                    name: vt.name || '',
+                    price: vt.fee ?? 0,
+                    maxStalls: vt.maxVendors ?? 10,
+                    description: '',
+                  }))
+                : [],
+              allowedRoles: [],
+              approvalMode: 'auto' as const,
+              applicationDeadline: deadlineDays,
+            };
+          })(),
+          category: event.category || '',
         });
         const resolvedCover = resolveImageUrl(event.imageUrl);
         if (resolvedCover) setImagePreview(resolvedCover);
@@ -431,13 +470,16 @@ const CreateEvent: React.FC = () => {
       tickets: template.tickets.map((t) => ({ ...t })),
       imageUrl: template.image,
       includedItems: template.amenities ? [...template.amenities] : [],
-      vendorSettings: {
-        allowVendors: false,
-        stallTypes: [],
-        allowedRoles: [],
-        approvalMode: 'auto',
-        applicationDeadline: 7,
-      },
+      vendorSettings: template.vendorSettings
+        ? { ...template.vendorSettings }
+        : {
+            allowVendors: false,
+            stallTypes: [],
+            allowedRoles: [],
+            approvalMode: 'auto',
+            applicationDeadline: 5,
+          },
+      category: template.category || 'Other',
     });
     setImagePreview(template.image);
     setImageFile(null);
@@ -547,6 +589,7 @@ const CreateEvent: React.FC = () => {
   const validateDetails = (): string | null => {
     if (!isEditing && !form.templateId) return 'Choose a template to get started.';
     if (form.title.trim().length < 3) return 'Title must be at least 3 characters.';
+    if (!form.category) return 'Please select an event category.';
     if (form.description.trim().length < 10) return 'Description must be at least 10 characters.';
     if (!form.startDate) return 'Select a start date.';
     if (!form.endDate) return 'Select an end date.';
@@ -558,7 +601,7 @@ const CreateEvent: React.FC = () => {
     if (form.locationType === 'physical' && !form.location.trim()) return 'Enter a venue or address.';
     if (form.locationType === 'online' && !form.onlineUrl.trim()) return 'Enter your meeting link.';
     if (!form.capacity || capacityNum < 1) return 'Set how many people can attend.';
-    if (!coverImageSrc && !imageFile) return 'Add a cover photo.';
+    if (!coverImageSrc && !imageFile && !form.imageUrl) return 'Add a cover photo.';
     return null;
   };
 
@@ -574,13 +617,21 @@ const CreateEvent: React.FC = () => {
     return null;
   };
 
-  const validateStep = (): string | null => {
-    if (step === 'details') return validateDetails();
-    if (step === 'tickets') return validateTickets();
+  const validateVendors = (): string | null => {
+    if (form.vendorSettings.allowVendors && form.vendorSettings.stallTypes.length === 0) {
+      return 'Please add at least one stall type to allow vendors.';
+    }
     return null;
   };
 
-  const validateAll = (): string | null => validateDetails() ?? validateTickets();
+  const validateStep = (): string | null => {
+    if (step === 'details') return validateDetails();
+    if (step === 'tickets') return validateTickets();
+    if (step === 'vendors') return validateVendors();
+    return null;
+  };
+
+  const validateAll = (): string | null => validateDetails() ?? validateTickets() ?? validateVendors();
 
   const saveEvent = async (isPublished: boolean) => {
     const validationError = validateStep();
@@ -588,7 +639,7 @@ const CreateEvent: React.FC = () => {
       setError(validationError);
       return;
     }
-    setSaving(true);
+    setSavingType(isPublished ? 'publish' : 'draft');
     setError(null);
     try {
       const fd = buildFormData(form, imageFile, isPublished);
@@ -605,7 +656,29 @@ const CreateEvent: React.FC = () => {
         'Something went wrong.';
       setError(msg);
     } finally {
-      setSaving(false);
+      setSavingType(null);
+    }
+  };
+
+  const quickSave = async () => {
+    const validationError = validateAll();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setSavingType(isEventPublished ? 'publish' : 'draft');
+    setError(null);
+    try {
+      const fd = buildFormData(form, imageFile, isEventPublished);
+      await api.events.updateWithImage(eventId!, fd);
+      navigate('/organizer/events');
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Something went wrong.';
+      setError(msg);
+    } finally {
+      setSavingType(null);
     }
   };
 
@@ -634,8 +707,14 @@ const CreateEvent: React.FC = () => {
     document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const inputClass =
-    'w-full px-3 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500';
+  const hasError = (keyword: string) => !!(error && error.toLowerCase().includes(keyword.toLowerCase()));
+
+  const getInputClass = (keyword?: string) => cn(
+    'w-full px-3 py-2.5 rounded-lg border bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 transition-colors',
+    keyword && hasError(keyword)
+      ? 'border-rose-500 ring-2 ring-rose-500/20 text-rose-900 dark:text-white bg-rose-50/50 dark:bg-rose-950/20'
+      : 'border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white focus:ring-rose-500/20 focus:border-rose-500'
+  );
 
   const selectedChipClass =
     'border-rose-500 bg-rose-500 text-white dark:bg-rose-500 dark:text-white';
@@ -686,6 +765,16 @@ const CreateEvent: React.FC = () => {
               />
             ))}
           </div>
+          {isEditing && (
+            <button
+              type="button"
+              disabled={savingType !== null}
+              onClick={quickSave}
+              className="text-xs font-extrabold bg-rose-500 hover:bg-rose-600 text-white rounded-lg px-3 py-1.5 transition-colors shadow-sm disabled:opacity-50"
+            >
+              {savingType ? 'Saving...' : 'Save Changes'}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => navigate('/organizer/events')}
@@ -696,10 +785,10 @@ const CreateEvent: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 md:px-0">
+      <div className={isEditing ? 'max-w-4xl mx-auto px-4 md:px-0' : 'max-w-6xl mx-auto px-4 md:px-0'}>
         <AnimatePresence mode="wait">
           {step === 'details' && (
-            <motion.div key="details" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div key="details" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8">
                 {!isEditing && (
                   <div className="lg:col-span-2">
@@ -707,10 +796,10 @@ const CreateEvent: React.FC = () => {
                     {/* Desktop: always show the sticky sidebar grid */}
 
                     {/* Mobile collapsed state — show after a template is chosen */}
-                    {form.templateId && (
+                    {form.templateId && form.templateId !== 'custom' && (
                       <div className="lg:hidden flex items-center justify-between gap-3 p-3 rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/20 mb-4">
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0">
+                          <div className="w-6 h-6 rounded-lg overflow-hidden shrink-0">
                             <img
                               src={EVENT_TEMPLATES.find(t => t.id === form.templateId)?.image}
                               alt=""
@@ -737,45 +826,52 @@ const CreateEvent: React.FC = () => {
                     {/* Template grid — always on desktop, only before selection on mobile */}
                     <div className={cn(
                       'lg:sticky lg:top-4',
-                      form.templateId ? 'hidden lg:block' : 'block'
+                      form.templateId && form.templateId !== 'custom' ? 'hidden lg:block' : 'block'
                     )}>
                       <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Choose a template</h2>
                       <p className="text-xs text-neutral-500 mt-1 mb-3">
                         These are all the templates available right now.
                       </p>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar sm:grid sm:grid-cols-3 lg:grid lg:grid-cols-2 lg:overflow-x-visible lg:pb-0">
                         {EVENT_TEMPLATES.map((template) => (
                           <button
                             key={template.id}
                             type="button"
                             onClick={() => applyTemplate(template)}
                             className={cn(
-                              'text-left rounded-xl overflow-hidden border transition-all',
+                              'text-left rounded-xl overflow-hidden border transition-all shrink-0 w-30 sm:w-auto',
                               form.templateId === template.id
                                 ? 'border-rose-500 ring-2 ring-rose-500/30'
-                                : 'border-neutral-200 dark:border-neutral-800 hover:border-rose-300'
+                                : 'border-neutral-200 dark:border-neutral-800 hover:border-rose-300 bg-white dark:bg-neutral-900'
                             )}
                           >
-                            <div className="relative aspect-[4/3] bg-neutral-100 dark:bg-neutral-800">
-                              <img
-                                src={template.image}
-                                alt={template.name}
-                                className="w-full h-full object-cover"
-                                loading="lazy"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src =
-                                    'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80';
-                                }}
-                              />
+                            <div className="relative aspect-[4/3] bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
+                              {template.image ? (
+                                <img
+                                  src={template.image}
+                                  alt={template.name}
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src =
+                                      'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80';
+                                  }}
+                                />
+                              ) : (
+                                <div className="flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500">
+                                  <Plus className="h-5 w-5 text-rose-500 animate-pulse" />
+                                  <span className="text-[10px] font-bold mt-1 uppercase tracking-wider">Blank Canvas</span>
+                                </div>
+                              )}
                               {form.templateId === template.id && (
                                 <div className="absolute top-2 right-2 h-5 w-5 bg-rose-500 rounded-full flex items-center justify-center">
                                   <Check className="h-3 w-3 text-white" />
                                 </div>
                               )}
                             </div>
-                            <div className="p-2.5">
-                              <p className="text-sm font-medium">{template.name}</p>
-                              <p className="text-[10px] text-neutral-500 mt-0.5">{template.tagline}</p>
+                            <div className="p-2">
+                              <p className="text-xs font-semibold truncate">{template.name}</p>
+                              <p className="text-[9px] text-neutral-500 mt-0.5 truncate">{template.tagline}</p>
                             </div>
                           </button>
                         ))}
@@ -814,15 +910,28 @@ const CreateEvent: React.FC = () => {
                   </div>
                   <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleImage(e.target.files[0])} />
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <FieldLabel>Event title</FieldLabel>
                       <input
                         value={form.title}
                         onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
                         placeholder="e.g. Summer Music Festival"
-                        className={inputClass}
+                        className={getInputClass('title')}
                       />
+                    </div>
+                    <div>
+                      <FieldLabel>Category</FieldLabel>
+                      <select
+                        value={form.category}
+                        onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
+                        className={getInputClass('category')}
+                      >
+                        <option value="">Select a category</option>
+                        {['Music', 'Food', 'Business', 'Technology', 'Arts', 'Sports', 'Wellness', 'Fairs', 'Other'].map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <FieldLabel>Capacity (max attendees)</FieldLabel>
@@ -832,7 +941,7 @@ const CreateEvent: React.FC = () => {
                         value={form.capacity}
                         onChange={(e) => setForm((p) => ({ ...p, capacity: e.target.value }))}
                         placeholder="e.g. 200"
-                        className={inputClass}
+                        className={getInputClass('attend')}
                       />
                     </div>
                   </div>
@@ -844,7 +953,7 @@ const CreateEvent: React.FC = () => {
                       onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
                       placeholder="Tell guests what to expect..."
                       rows={3}
-                      className={cn(inputClass, 'resize-none')}
+                      className={cn(getInputClass('description'), 'resize-none')}
                     />
                   </div>
 
@@ -853,7 +962,7 @@ const CreateEvent: React.FC = () => {
                       <FieldLabel>Start date</FieldLabel>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button type="button" className={cn(inputClass, 'text-left')}>
+                          <button type="button" className={cn(getInputClass('start date'), 'text-left')}>
                             {formatDateLabel(form.startDate)}
                           </button>
                         </PopoverTrigger>
@@ -879,7 +988,7 @@ const CreateEvent: React.FC = () => {
                       <FieldLabel>End date</FieldLabel>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button type="button" className={cn(inputClass, 'text-left')}>
+                          <button type="button" className={cn(getInputClass('end date'), 'text-left')}>
                             {formatDateLabel(form.endDate)}
                           </button>
                         </PopoverTrigger>
@@ -903,12 +1012,13 @@ const CreateEvent: React.FC = () => {
                       label="Start time"
                       value={form.startTime12}
                       onChange={(v) => setForm((p) => ({ ...p, startTime12: v }))}
-                      
+                      hasError={hasError('time') || hasError('after the start')}
                     />
                     <TimePicker12
                       label="End time"
                       value={form.endTime12}
                       onChange={(v) => setForm((p) => ({ ...p, endTime12: v }))}
+                      hasError={hasError('time') || hasError('after the start')}
                     />
                   </div>
 
@@ -938,7 +1048,7 @@ const CreateEvent: React.FC = () => {
                     {form.locationType === 'physical' ? (
                       <div className="space-y-3">
                         <div className="flex gap-2">
-                          <input value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))} placeholder="e.g. 12 Admiralty Way, Lekki" className={cn(inputClass, 'flex-1')} />
+                          <input value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))} placeholder="e.g. 12 Admiralty Way, Lekki" className={cn(getInputClass('venue'), 'flex-1')} />
                           <button
                             type="button"
                             onClick={() => setShowMapPicker(true)}
@@ -961,7 +1071,7 @@ const CreateEvent: React.FC = () => {
                         /> */}
                       </div>
                     ) : (
-                      <input value={form.onlineUrl} onChange={(e) => setForm((p) => ({ ...p, onlineUrl: e.target.value }))} placeholder="e.g. https://zoom.us/j/..." className={inputClass} />
+                      <input value={form.onlineUrl} onChange={(e) => setForm((p) => ({ ...p, onlineUrl: e.target.value }))} placeholder="e.g. https://zoom.us/j/..." className={getInputClass('link')} />
                     )}
                   </div>
 
@@ -989,7 +1099,7 @@ const CreateEvent: React.FC = () => {
                         onChange={(e) => setCustomIncluded(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomIncluded())}
                         placeholder="Type a custom item and press Enter..."
-                        className={cn(inputClass, 'flex-1')}
+                        className={cn(getInputClass(), 'flex-1')}
                       />
                       <Button type="button" variant="outline" onClick={addCustomIncluded} className="rounded-lg shrink-0 border-rose-200 text-rose-500 hover:bg-rose-50">
                         <Plus className="h-4 w-4" />
@@ -1004,7 +1114,7 @@ const CreateEvent: React.FC = () => {
           )}
 
           {step === 'tickets' && activeTicket && (
-            <motion.div key="tickets" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div key="tickets" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="space-y-5">
                   <div className="flex items-center justify-between gap-2">
@@ -1065,7 +1175,7 @@ const CreateEvent: React.FC = () => {
                   <div className="space-y-4">
                     <div>
                       <FieldLabel>Ticket name</FieldLabel>
-                      <input value={activeTicket.name} onChange={(e) => updateTicket(activeTicketIndex, { name: e.target.value })} placeholder="e.g. VIP" className={inputClass} />
+                      <input value={activeTicket.name} onChange={(e) => updateTicket(activeTicketIndex, { name: e.target.value })} placeholder="e.g. VIP" className={getInputClass('ticket needs a name')} />
                     </div>
                     <div className="flex gap-3 items-end flex-wrap">
                       <label className="flex items-center gap-2 text-xs pb-2.5 shrink-0">
@@ -1075,7 +1185,7 @@ const CreateEvent: React.FC = () => {
                       {!activeTicket.isFree && (
                         <div className="flex-1 min-w-[120px]">
                           <FieldLabel>Price (₦)</FieldLabel>
-                          <input type="number" min={0} value={activeTicket.price} onChange={(e) => updateTicket(activeTicketIndex, { price: e.target.value })} placeholder="5000" className={inputClass} />
+                          <input type="number" min={0} value={activeTicket.price} onChange={(e) => updateTicket(activeTicketIndex, { price: e.target.value })} placeholder="5000" className={getInputClass('price')} />
                         </div>
                       )}
                       <div className="flex-1 min-w-[100px]">
@@ -1087,22 +1197,35 @@ const CreateEvent: React.FC = () => {
                           value={activeTicket.quantity}
                           onChange={(e) => updateTicketQuantity(activeTicketIndex, e.target.value)}
                           placeholder="100"
-                          className={inputClass}
+                          className={getInputClass('quantity')}
                         />
                       </div>
                     </div>
-                    <div>
-                      <FieldLabel>Stub badge label</FieldLabel>
-                      <input value={activeTicket.badgeText} onChange={(e) => updateTicket(activeTicketIndex, { badgeText: e.target.value })} placeholder="e.g. VIP ACCESS" className={inputClass} />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <FieldLabel>Max tickets per person</FieldLabel>
+                        <input
+                          type="number"
+                          min={1}
+                          value={activeTicket.maxPerPerson || '5'}
+                          onChange={(e) => updateTicket(activeTicketIndex, { maxPerPerson: e.target.value })}
+                          placeholder="5"
+                          className={getInputClass()}
+                        />
+                      </div>
+                      <div>
+                        <FieldLabel>Stub badge label</FieldLabel>
+                        <input value={activeTicket.badgeText} onChange={(e) => updateTicket(activeTicketIndex, { badgeText: e.target.value })} placeholder="e.g. VIP ACCESS" className={getInputClass()} />
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <FieldLabel>Ticket headline</FieldLabel>
-                        <input value={activeTicket.ticketHeadline} onChange={(e) => updateTicket(activeTicketIndex, { ticketHeadline: e.target.value })} placeholder="COME AND JOIN" className={inputClass} />
+                        <input value={activeTicket.ticketHeadline} onChange={(e) => updateTicket(activeTicketIndex, { ticketHeadline: e.target.value })} placeholder="COME AND JOIN" className={getInputClass()} />
                       </div>
                       <div>
                         <FieldLabel>Venue label</FieldLabel>
-                        <input value={activeTicket.venueLabel} onChange={(e) => updateTicket(activeTicketIndex, { venueLabel: e.target.value })} placeholder="LIVE AT" className={inputClass} />
+                        <input value={activeTicket.venueLabel} onChange={(e) => updateTicket(activeTicketIndex, { venueLabel: e.target.value })} placeholder="LIVE AT" className={getInputClass()} />
                       </div>
                     </div>
 
@@ -1164,7 +1287,7 @@ const CreateEvent: React.FC = () => {
           )}
 
           {step === 'vendors' && (
-            <motion.div key="vendors" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div key="vendors" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
               <div className="max-w-2xl">
                 <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-4">Vendor Settings</h2>
                 <p className="text-xs text-neutral-500 mb-6">
@@ -1206,7 +1329,7 @@ const CreateEvent: React.FC = () => {
           )}
 
           {step === 'review' && (
-            <motion.div key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div key="review" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-800">
                   {coverImageSrc && <img src={coverImageSrc} alt={form.title} className="w-full aspect-[2/1] object-cover" />}
@@ -1222,7 +1345,11 @@ const CreateEvent: React.FC = () => {
                       {form.locationType === 'online' ? <Globe className="h-3 w-3" /> : <MapPin className="h-3 w-3" />}
                       {form.locationType === 'online' ? form.onlineUrl : form.location}
                     </p>
-                    <p className="text-xs text-neutral-500">Capacity: {form.capacity} people</p>
+                    <div className="flex gap-4 text-xs text-neutral-500">
+                      <span>Capacity: {form.capacity} people</span>
+                      <span>·</span>
+                      <span className="font-bold text-rose-500">{form.category}</span>
+                    </div>
                     {form.includedItems.length > 0 && (
                       <div className="flex flex-wrap gap-1 pt-1">
                         {form.includedItems.map((a) => (
@@ -1277,11 +1404,11 @@ const CreateEvent: React.FC = () => {
 
               <StepActions onBack={goBack} backLabel="Back" error={error} onDismissError={clearError}>
                 <div className="flex gap-2">
-                  <Button variant="outline" disabled={saving} onClick={() => saveEvent(false)} className="rounded-full px-4 text-sm border-rose-200 text-rose-500 hover:bg-rose-50">
-                    Save draft
+                  <Button variant="outline" disabled={savingType !== null} onClick={() => saveEvent(false)} className="rounded-full px-4 text-sm border-rose-200 text-rose-500 hover:bg-rose-50">
+                    {savingType === 'draft' ? <Spinner className="h-4 w-4 text-rose-500" /> : (isEditing ? 'Save draft' : 'Save draft')}
                   </Button>
-                  <Button disabled={saving} onClick={() => saveEvent(true)} className="rounded-full px-5 bg-rose-500 hover:bg-rose-600 text-white border-0 text-sm">
-                    {saving ? <Spinner className="h-4 w-4" /> : 'Publish'}
+                  <Button disabled={savingType !== null} onClick={() => saveEvent(true)} className="rounded-full px-5 bg-rose-500 hover:bg-rose-600 text-white border-0 text-sm">
+                    {savingType === 'publish' ? <Spinner className="h-4 w-4" /> : (isEditing ? 'Update event' : 'Publish')}
                   </Button>
                 </div>
               </StepActions>

@@ -18,6 +18,7 @@ interface User {
   createdAt?: string;
   isOrganizer?: boolean;
   isVendor?: boolean;
+  vendorProfile?: any;
   ownedOrganizations?: Array<{
     id: number;
     name: string;

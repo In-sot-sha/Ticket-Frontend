@@ -122,6 +122,27 @@ const EventCard: React.FC<EventCardProps> = ({
 
   const formattedDate = formatRelativeDate(event.date);
 
+  const getEventBadge = () => {
+    const eventDate = new Date(event.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffTime = eventDate.getTime() - today.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays >= 0 && diffDays <= 1) {
+      return { text: 'Sales End Soon', className: 'bg-rose-500 text-white' };
+    }
+    if (event.ticketsAvailable !== undefined && event.ticketsAvailable > 0 && event.ticketsAvailable <= 15) {
+      return { text: 'Almost Full', className: 'bg-amber-500 text-white' };
+    }
+    if (event.ticketsAvailable !== undefined && event.ticketsAvailable > 0 && event.ticketsAvailable <= 50) {
+      return { text: 'Going Fast', className: 'bg-indigo-600 text-white' };
+    }
+    return null;
+  };
+
+  const badge = getEventBadge();
+
   return (
     <div
   
@@ -130,6 +151,11 @@ const EventCard: React.FC<EventCardProps> = ({
         
         {/* Card Image Wrapper */}
         <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-100/50 dark:border-neutral-900/30">
+          {badge && (
+            <div className={`absolute left-3 top-3 z-10 px-2 py-0.5 rounded text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wider shadow-sm ${badge.className}`}>
+              {badge.text}
+            </div>
+          )}
           <LazyImage
             src={event.image}
             alt={event.title}

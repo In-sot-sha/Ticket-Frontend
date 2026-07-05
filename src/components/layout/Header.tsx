@@ -276,14 +276,7 @@ const Header = () => {
                           }
                         </button>
                       )}
-                      {(isAdminContext || isOrganizerContext) && (
-                        <button
-                          onClick={() => { handleSwitchRole(); setIsUserMenuOpen(false); }}
-                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
-                        >
-                          <User className="h-4 w-4 mr-3 text-rose-500" />Switch to Guest Mode
-                        </button>
-                      )}
+                   
                     </div>
 
                     <div className="border-t border-gray-100 dark:border-gray-850 my-1" />

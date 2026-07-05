@@ -42,17 +42,20 @@ import FinanceDashboard from '../pages/FinanceDashboard';
 import BecomeOrganizer from '../pages/BecomeOrganizer';
 import GateScannerPage from '../pages/GateScannerPage';
 import OrganizerEventPage from '../pages/OrganizerEventPage';
-import ApplyAsVendor from '../pages/ApplyAsVendor';
+// import ApplyAsVendor from '../pages/ApplyAsVendor';
 import VendorApplications from '../pages/VendorApplications';
 import GuestDashboard from '../pages/GuestDashboard';
 import WishlistPage from '../pages/WishlistPage';
 import TicketScanner from '../pages/TicketScanner';
+import ManualAttendeePage from '../pages/ManualAttendeePage';
 import AdminLayout from '../components/layout/AdminLayout';
 import AdminDashboard from '../pages/admin/AdminDashboard';
-import HostApplicationsPage from '../pages/admin/HostApplicationsPage';
+import OrganizationsPage from '../pages/admin/OrganizationsPage';
+import AdminTicketsPage from '../pages/admin/AdminTicketsPage';
 import AdminUsersPage from '../pages/admin/AdminUsersPage';
 import AdminTransactionsPage from '../pages/admin/AdminTransactionsPage';
 import AdminSupportPage from '../pages/admin/AdminSupportPage';
+import AdminPromotionsPage from '../pages/admin/AdminPromotionsPage';
 import SupportPage from '../pages/SupportPage';
 
 // Admin-only route guard
@@ -227,6 +230,10 @@ const AppRoutes: React.FC = () => {
           element: <VendorApplications />,
         },
         {
+          path: "events/:id/add-attendee",
+          element: <ManualAttendeePage />,
+        },
+        {
           path: "analytics",
           element: <AnalyticsDashboard />,
         },
@@ -259,8 +266,12 @@ const AppRoutes: React.FC = () => {
           element: <AdminDashboard />,
         },
         {
-          path: "host-applications",
-          element: <HostApplicationsPage />,
+          path: "organizations",
+          element: <OrganizationsPage />,
+        },
+        {
+          path: "tickets",
+          element: <AdminTicketsPage />,
         },
         {
           path: "users",
@@ -273,6 +284,10 @@ const AppRoutes: React.FC = () => {
         {
           path: "support",
           element: <AdminSupportPage />,
+        },
+        {
+          path: "promotions",
+          element: <AdminPromotionsPage />,
         },
       ],
     },
@@ -305,14 +320,14 @@ const AppRoutes: React.FC = () => {
             </ProtectedRoute>
           ),
         },
-        {
-          path: "events/:eventId/apply-vendor",
-          element: (
-            <ProtectedRoute>
-              <ApplyAsVendor />
-            </ProtectedRoute>
-          ),
-        },
+        // {
+        //   path: "events/:eventId/apply-vendor",
+        //   element: (
+        //     <ProtectedRoute>
+        //       <ApplyAsVendor />
+        //     </ProtectedRoute>
+        //   ),
+        // },
         {
           path: "payment",
           element: (

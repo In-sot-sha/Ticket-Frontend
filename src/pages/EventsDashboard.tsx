@@ -115,20 +115,13 @@ const EventsDashboard = () => {
           {isLoading
             ? [...Array(6)].map((_, i) => (
                 <div key={i} className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
-                  <Skeleton className="aspect-[2/1] w-full" />
-                  <div className="p-3.5 sm:p-4">
-                    <Skeleton className="h-4 w-3/4 mb-3" />
-                    <div className="space-y-2 mb-3">
-                      <Skeleton className="h-3 w-full" />
-                      <Skeleton className="h-3 w-4/5" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 pt-3 border-t border-neutral-100 dark:border-neutral-800">
-                      {[1, 2, 3, 4].map((j) => (
-                        <div key={j}>
-                          <Skeleton className="h-2 w-12 mb-1" />
-                          <Skeleton className="h-4 w-16" />
-                        </div>
-                      ))}
+                  <Skeleton className="h-32 w-full shrink-0" />
+                  <div className="p-3 flex-1 flex flex-col">
+                    <Skeleton className="h-4 w-3/4 mb-2" />
+                    <Skeleton className="h-3 w-1/2 mb-4" />
+                    <div className="flex justify-between pt-3 mt-auto border-t border-neutral-100 dark:border-neutral-800">
+                      <Skeleton className="h-4 w-12" />
+                      <Skeleton className="h-4 w-16" />
                     </div>
                   </div>
                 </div>
@@ -146,82 +139,61 @@ function EventCard({ event }: { event: OrganizerEvent }) {
   const cover = resolveImageUrl(event.imageUrl);
   const stats = event.stats;
   const sold      = stats?.ticketsSold     ?? event.attendees ?? 0;
-  const checkedIn = stats?.ticketsCheckedIn ?? 0;
   const earned    = stats?.actualRevenue   ?? event.revenue   ?? 0;
-  const expected  = stats?.expectedRevenue ?? 0;
   const pct       = stats?.sellThroughPercent ?? 0;
 
   return (
     <Link
       to={`/organizer/events/${event.id}`}
-      className="group rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden hover:border-rose-300 dark:hover:border-rose-800 hover:shadow-md transition-all"
+      className="group rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden hover:border-rose-300 dark:hover:border-rose-800 hover:shadow-sm transition-all flex flex-col"
     >
       {/* Cover image */}
-      <div className="aspect-[2/1] bg-neutral-100 dark:bg-neutral-800 relative overflow-hidden">
+      <div className="h-32 bg-neutral-100 dark:bg-neutral-800 relative overflow-hidden shrink-0">
         {cover ? (
-          <img
-            src={cover}
-            alt={event.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          />
+          <img src={cover} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <Calendar className="h-8 w-8 text-neutral-300" />
+            <Calendar className="h-6 w-6 text-neutral-300" />
           </div>
         )}
-        <div className="absolute top-2.5 right-2.5">
+        <div className="absolute top-2 right-2 shadow-sm">
           <EventPhaseBadge event={event} />
         </div>
         {/* Sell-through strip at bottom of image */}
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
-          <div
-            className="h-full bg-rose-500"
-            style={{ width: `${pct}%` }}
-          />
+          <div className="h-full bg-rose-500" style={{ width: `${pct}%` }} />
         </div>
       </div>
 
-      <div className="p-3.5 sm:p-4">
+      <div className="p-3 flex-1 flex flex-col">
         {/* Title */}
-        <h3 className="font-bold text-sm leading-tight line-clamp-1 group-hover:text-rose-500 transition-colors mb-2">
+        <h3 className="font-bold text-sm leading-tight line-clamp-1 group-hover:text-rose-500 transition-colors mb-1">
           {event.title}
         </h3>
 
-        {/* Date + location */}
-        <div className="space-y-1 mb-3">
-          <p className="text-xs text-neutral-500 flex items-center gap-1.5">
-            <Calendar className="h-3 w-3 shrink-0" />
-            {new Date(event.startDate).toLocaleDateString('en-NG', {
-              month: 'short', day: 'numeric', year: 'numeric',
-            })}
+        {/* Date */}
+        <div className='space-y-1 mb-1.5'>
+
+        <p className="text-xs text-neutral-500 flex items-center gap-1.5 ">
+          <Calendar className="h-3 w-3 shrink-0" />
+          {new Date(event.startDate).toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' })}
+        </p>
+        {event.location && (
+          <p className="text-xs text-neutral-500 flex items-center gap-1.5 truncate">
+            <MapPin className="h-3 w-3 shrink-0" />
+            {event.location}
           </p>
-          {event.location && (
-            <p className="text-xs text-neutral-500 flex items-center gap-1.5 truncate">
-              <MapPin className="h-3 w-3 shrink-0" />
-              {event.location}
-            </p>
-          )}
+        )}
         </div>
 
-        {/* Stats 2×2 grid */}
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-3 border-t border-neutral-100 dark:border-neutral-800 text-xs">
+        {/* Compact Stats */}
+        <div className="mt-auto pt-3 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-xs">
           <div>
-            <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Sold</p>
-            <p className="font-bold text-neutral-900 dark:text-white">{sold}</p>
+            <span className="font-bold text-neutral-900 dark:text-white">{sold}</span>
+            <span className="text-neutral-500 ml-1">sold</span>
           </div>
-          <div>
-            <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Checked in</p>
-            <p className="font-bold flex items-center gap-1">
-              <UserCheck className="h-3 w-3 text-rose-500" />{checkedIn}
-            </p>
-          </div>
-          <div>
-            <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Earned</p>
-            <p className="font-bold text-rose-500">{formatNaira(earned)}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Potential</p>
-            <p className="font-bold text-neutral-600 dark:text-neutral-400">{formatNaira(expected)}</p>
+          <div className="text-right">
+            <span className="font-bold text-rose-500">{formatNaira(earned)}</span>
           </div>
         </div>
 

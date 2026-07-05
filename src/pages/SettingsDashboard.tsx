@@ -741,20 +741,14 @@ const TeamPanel = () => {
 // ── Main settings page ────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'profile',       label: 'Profile',         desc: 'Name, contact details, avatar',               icon: User },
   { id: 'organisation',  label: 'Organisation',     desc: 'Business name, description, public info',     icon: Building2 },
-  { id: 'payouts',       label: 'Payouts & Tax',    desc: 'Bank details, tax ID, fee summary',           icon: Receipt },
-  { id: 'notifications', label: 'Notifications',    desc: 'Email and alert preferences',                 icon: Bell },
-  { id: 'security',      label: 'Login & Security', desc: 'Password, 2FA',                              icon: Shield },
+  { id: 'payouts',       label: 'Payouts & Bank',   desc: 'Bank details, payouts, active ledger',        icon: Receipt },
   { id: 'team',          label: 'Team & Staff',     desc: 'Invite gate scanners, admins, finance users', icon: Users },
 ];
 
 const PANEL: Record<string, React.ReactNode> = {
-  profile:       <ProfilePanel />,
   organisation:  <OrganisationPanel />,
   payouts:       <PayoutsPanel />,
-  notifications: <NotificationsPanel />,
-  security:      <SecurityPanel />,
   team:          <TeamPanel />,
 };
 

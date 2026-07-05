@@ -27,11 +27,10 @@ export const useVendors = () => {
 /**
  * Fetch a single vendor
  */
-export const useVendorById = (id: number, enabled = true) => {
+export const useMyVendorProfile = () => {
   return useQuery({
-    queryKey: queryKeys.vendors.detail(id),
-    queryFn: () => api.vendors.getById(id).then(res => res.data),
-    enabled: enabled && !!id,
+    queryKey: ['myVendorProfile'],
+    queryFn: () => api.vendors.getMyProfile().then(res => res.data),
   });
 };
 
@@ -64,10 +63,16 @@ export const useRegisterVendor = () => {
   return useMutation({
     mutationFn: (data: {
       eventId: number;
-      vendorId: number;
       vendorTypeId?: number;
       vendorType?: string;
       paymentAmount?: number;
+      paymentReference?: string;
+      businessName: string;
+      businessEmail: string;
+      businessPhone?: string;
+      description?: string;
+      category?: string;
+      staffCount?: string;
     }) => api.vendors.register(data).then(res => res.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.vendors.list() });
@@ -76,22 +81,22 @@ export const useRegisterVendor = () => {
 };
 
 /**
- * Create vendor profile
+ * Save/update vendor profile card
  */
-export const useCreateVendor = () => {
+export const useSaveVendorProfile = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (data: {
       businessName: string;
-      description: string;
+      description?: string;
       contactEmail: string;
-      contactPhone: string;
+      contactPhone?: string;
       website?: string;
       category?: string;
-    }) => api.vendors.create(data).then(res => res.data),
+    }) => api.vendors.saveProfile(data).then(res => res.data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.vendors.list() });
+      queryClient.invalidateQueries({ queryKey: ['myVendorProfile'] });
     },
   });
 };
@@ -105,24 +110,11 @@ export const useUpdateVendorStatus = () => {
   return useMutation({
     mutationFn: (data: {
       id: number;
-      statusData: { isApproved: boolean; isPaid?: boolean };
-    }) => api.vendors.updateStatus(data.id, data.statusData).then(res => res.data),
+      applicationStatus: 'APPROVED' | 'REJECTED';
+      paymentStatus?: 'PENDING' | 'PAID' | 'FAILED';
+    }) => api.vendors.updateStatus(data.id, data.applicationStatus, data.paymentStatus).then(res => res.data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.vendors.detail(variables.id) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.vendors.list() });
-    },
-  });
-};
-
-/**
- * Delete vendor
- */
-export const useDeleteVendor = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (id: number) => api.vendors.delete(id).then(res => res.data),
-    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.vendors.list() });
     },
   });

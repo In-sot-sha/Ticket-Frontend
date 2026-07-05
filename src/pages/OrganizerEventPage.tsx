@@ -19,28 +19,36 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
+  BarChart3,
+  DollarSign,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { Spinner } from '../components/ui/Spinner';
+import { Skeleton } from '../components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { api } from '../services/api';
 import { resolveImageUrl } from '../lib/media';
 import EventPhaseBadge from '../components/organizer/EventPhaseBadge';
 import { formatNaira, OrganizerEvent } from '../lib/eventOrganizer';
 import { motion } from 'framer-motion';
+import { OverviewTab } from '../components/organizer/OverviewTab';
+import { AttendeesTab } from '../components/organizer/AttendeesTab';
+import { VendorsTab } from '../components/organizer/VendorsTab';
+
+type TabType = 'overview' | 'attendees' | 'vendors' | 'analytics' | 'finances';
 
 const OrganizerEventPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [event, setEvent] = useState<OrganizerEvent | null>(null);
   const [vendorApplications, setVendorApplications] = useState<any[]>([]);
+  const [attendees, setAttendees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [vendorLoading, setVendorLoading] = useState(false);
+  const [attendeeLoading, setAttendeeLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'vendors'>('overview');
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
-  const [attendees, setAttendees] = useState<any[]>([]);
-  const [attendeeLoading, setAttendeeLoading] = useState(false);
   const [selectedTicketTypeId, setSelectedTicketTypeId] = useState<number | null>(null);
   const [selectedTicketTypeName, setSelectedTicketTypeName] = useState<string>('');
 
@@ -69,8 +77,16 @@ const OrganizerEventPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
-        <Spinner />
+      <div className="pb-24 md:pb-8 max-w-6xl mx-auto p-4 space-y-6">
+        <div className="flex justify-between items-center"><Skeleton className="h-10 w-32" /><Skeleton className="h-10 w-48" /></div>
+        <div className="flex flex-col md:flex-row gap-6">
+          <Skeleton className="h-44 w-full md:w-1/3 rounded-2xl" />
+          <div className="flex-1 space-y-4 py-6">
+            <Skeleton className="h-8 w-3/4" />
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-4 w-1/4" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -109,7 +125,7 @@ const OrganizerEventPage: React.FC = () => {
     setShowAttendanceModal(true);
     setAttendeeLoading(true);
     try {
-      const res = await api.get<any[]>(`/tickets/event/${id}`);
+      const res = await api.tickets.getEventAttendance(Number(id));
       setAttendees(res.data || []);
     } catch (err) {
       console.error('Failed to load attendees:', err);
@@ -125,7 +141,7 @@ const OrganizerEventPage: React.FC = () => {
     setShowAttendanceModal(true);
     setAttendeeLoading(true);
     try {
-      const res = await api.get<any[]>(`/tickets/event/${id}`);
+      const res = await api.tickets.getEventAttendance(Number(id));
       // Filter to only tickets of this type that are checked in
       const filtered = res.data?.filter(t => t.ticketTypeId === ticketTypeId) || [];
       setAttendees(filtered);
@@ -145,16 +161,17 @@ const OrganizerEventPage: React.FC = () => {
   ];
 
   return (
-    <div className="pb-24 md:pb-8 max-w-5xl mx-auto">
+    <div className="pb-24 md:pb-8 max-w-6xl mx-auto relative">
 
       {/* ── Sticky mobile header bar ── */}
-      <div className="sticky top-0 z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-neutral-100 dark:border-neutral-800 px-4 py-3 flex items-center justify-between gap-2 -mx-4 md:static md:bg-transparent md:dark:bg-transparent md:border-0 md:px-0 md:mb-5 md:backdrop-blur-none">
-        <button
+      <div className="sticky top-0 mt-[-10px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-neutral-100 dark:border-neutral-800 px-4 py-3 flex items-center justify-between gap-2  md:static md:bg-transparent md:dark:bg-transparent md:border-0 md:px-0 md:mb-5 md:backdrop-blur-none ">
+        <Button
+          variant="ghost"
           onClick={() => navigate('/organizer/events')}
           className="flex items-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-rose-500 transition-colors shrink-0"
         >
-          <ArrowLeft className="h-4 w-4" /> Events
-        </button>
+          <ArrowLeft className="h-4 w-4" /> Events frrr
+        </Button>
         <div className="flex items-center gap-2">
           <Link to="/organizer/scan">
             <Button variant="outline" size="sm" className="rounded-full text-xs px-3 h-8">
@@ -177,315 +194,151 @@ const OrganizerEventPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Cover image ── */}
-      <div className="rounded-none sm:rounded-2xl overflow-hidden -mx-4 sm:mx-0 mb-4">
-        {cover ? (
-          <div className="aspect-[3/1] max-h-44 sm:max-h-56 relative">
-            <img src={cover} alt={event.title} className="w-full h-full object-cover" />
-            {/* Sell-through progress strip */}
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
-              <div className="h-full bg-rose-500 transition-all" style={{ width: `${pct}%` }} />
-            </div>
+      {/* ── Header Layout (Desktop Split) ── */}
+      <div className="flex flex-col md:flex-row gap-6 mb-6">
+        
+        {/* ── Cover image (Right on desktop) ── */}
+        <div className="w-full md:w-1/3 shrink-0">
+          <div className="rounded-none sm:rounded-2xl overflow-hidden sm:mx-0 h-full">
+            {cover ? (
+              <div className="aspect-[3/1] md:aspect-[4/3] w-full max-h-44 sm:max-h-56 md:max-h-none relative h-full">
+                <img src={cover} alt={event.title} className="w-full h-full object-cover" />
+                {/* Sell-through progress strip */}
+                {/* <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
+                  <div className="h-full bg-rose-500 transition-all" style={{ width: `${pct}%` }} />
+                </div> */}
+              </div>
+            ) : (
+              <div className="aspect-[3/1] md:aspect-[4/3] w-full max-h-44 bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
+                <Calendar className="h-10 w-10 text-neutral-300" />
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="aspect-[3/1] max-h-44 bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
-            <Calendar className="h-10 w-10 text-neutral-300" />
-          </div>
-        )}
-      </div>
-
-      {/* ── Title + meta ── */}
-      <div className="px-4 sm:px-0 mb-5">
-        <div className="flex items-start justify-between gap-3 mb-2">
-          <h1 className="text-xl sm:text-2xl font-extrabold text-neutral-900 dark:text-white leading-tight">
-            {event.title}
-          </h1>
-          <EventPhaseBadge event={event} />
         </div>
 
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
-          <span className="flex items-center gap-1">
-            <Calendar className="h-3.5 w-3.5 shrink-0" />
-            {start.toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' })}
-          </span>
-          <span className="flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5 shrink-0" />
-            {start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-            {' – '}
-            {end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-          </span>
-          {event.location && (
-            <span className="flex items-center gap-1 min-w-0">
-              {event.locationType === 'online'
-                ? <Globe className="h-3.5 w-3.5 shrink-0" />
-                : <MapPin className="h-3.5 w-3.5 shrink-0" />}
-              <span className="truncate">{event.location}</span>
+        {/* ── Title + meta (Left on desktop) ── */}
+        <div className="px-4 sm:px-0 flex-1 flex flex-col justify-center">
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-neutral-900 dark:text-white leading-tight">
+              {event.title}
+            </h1>
+            <EventPhaseBadge event={event} />
+          </div>
+
+          <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-neutral-500 mt-2">
+            <span className="flex items-center gap-1.5">
+              <Calendar className="h-4 w-4 shrink-0 text-neutral-400" />
+              {start.toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' })}
             </span>
-          )}
+            <span className="flex items-center gap-1.5">
+              <Clock className="h-4 w-4 shrink-0 text-neutral-400" />
+              {start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              {' – '}
+              {end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            </span>
+            {event.location && (
+              <span className="flex items-center gap-1.5 min-w-0">
+                {event.locationType === 'online'
+                  ? <Globe className="h-4 w-4 shrink-0 text-neutral-400" />
+                  : <MapPin className="h-4 w-4 shrink-0 text-neutral-400" />}
+                <span className="truncate">{event.location}</span>
+              </span>
+            )}
+          </div>
+          
+          <div className="mt-6 flex gap-3">
+             <Button variant="outline" size="sm" onClick={copyLink} className="rounded-full">
+               {copied ? <CheckCircle className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+               {copied ? 'Copied' : 'Copy Link'}
+             </Button>
+          </div>
         </div>
       </div>
 
       {/* ── Tab Navigation ── */}
-      {event.allowVendors && (
-        <div className="border-b border-neutral-100 dark:border-neutral-800 px-4 sm:px-0 mb-6 flex gap-6">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`py-3 text-xs font-bold border-b-2 transition-colors ${
-              activeTab === 'overview'
-                ? 'border-rose-500 text-rose-500'
-                : 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
-            }`}
-          >
+      <Tabs defaultValue="overview" onValueChange={(value) => setActiveTab(value as TabType)} className="w-full">
+        <TabsList className="mb-6 mx-4 sm:mx-0 flex overflow-x-auto overflow-y-hidden flex-nowrap bg-transparent border-b border-neutral-100 dark:border-neutral-800 rounded-none p-0 h-auto justify-start items-end">
+          <TabsTrigger value="overview" className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-3 px-3 data-[state=active]:shadow-none">
             Overview
-          </button>
-          <button
-            onClick={() => setActiveTab('vendors')}
-            className={`py-3 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 ${
-              activeTab === 'vendors'
-                ? 'border-rose-500 text-rose-500'
-                : 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
-            }`}
-          >
-            <Store className="h-3.5 w-3.5" />
-            Vendors
-          </button>
-        </div>
-      )}
+          </TabsTrigger>
+          <TabsTrigger value="attendees" className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-3 px-3 data-[state=active]:shadow-none">
+            <Users className="h-3.5 w-3.5 mr-1.5" /> Attendees
+          </TabsTrigger>
+          {event.allowVendors && (
+            <TabsTrigger value="vendors" className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-3 px-3 data-[state=active]:shadow-none">
+              <Store className="h-3.5 w-3.5 mr-1.5" /> Vendors
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="analytics" className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-3 px-3 data-[state=active]:shadow-none">
+            <BarChart3 className="h-3.5 w-3.5 mr-1.5" /> Analytics
+          </TabsTrigger>
+        </TabsList>
 
-      {/* ── Tab Content ── */}
-      {activeTab === 'overview' && (
-        <>
-          {/* ── Stat cards — 2 cols on mobile, 4 on lg ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 px-4 sm:px-0 mb-5">
-            {statCards.map((card) => (
-              <div
-                key={card.label}
-                onClick={card.label === 'Checked in' ? openAttendanceModal : undefined}
-                className={`rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 sm:p-4 ${
-                  card.label === 'Checked in' ? 'cursor-pointer hover:border-rose-300 hover:shadow-md transition-all' : ''
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-neutral-400 leading-tight">
-                    {card.label}
-                  </span>
-                  <span className={card.accent ? 'text-rose-500' : 'text-neutral-400'}>{card.icon}</span>
+        <div className="min-h-[500px]">
+          <TabsContent value="overview">
+            <OverviewTab event={event} vendorApplications={vendorApplications} />
+          </TabsContent>
+
+        <TabsContent value="attendees">
+          <div className="mb-4 flex justify-end px-4 sm:px-0">
+            <Link to={`/organizer/events/${event.id}/add-attendee`}>
+              <Button size="sm" className="rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0 flex items-center gap-1.5">
+                + Add Attendee
+              </Button>
+            </Link>
+          </div>
+          <AttendeesTab eventId={event.id} />
+        </TabsContent>
+
+        {event.allowVendors && (
+          <TabsContent value="vendors">
+            <VendorsTab eventId={event.id} event={event} />
+          </TabsContent>
+        )}
+
+        <TabsContent value="analytics">
+          <div className="px-4 sm:px-0">
+            <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-4">Event Analytics</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {statCards.map((stat, idx) => (
+                <div key={idx} className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 p-4">
+                  <div className="flex items-center justify-between text-neutral-500 mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider">{stat.label}</span>
+                    <div className={stat.accent ? "text-rose-500" : ""}>{stat.icon}</div>
+                  </div>
+                  <p className={`text-xl sm:text-2xl font-bold ${stat.accent ? 'text-rose-500' : 'text-neutral-900 dark:text-white'}`}>
+                    {stat.value}
+                  </p>
+                  {stat.sub && <p className="text-[10px] sm:text-xs text-neutral-500 mt-1">{stat.sub}</p>}
                 </div>
-                <p className={`text-lg sm:text-xl font-extrabold ${card.accent ? 'text-rose-500' : 'text-neutral-900 dark:text-white'}`}>
-                  {card.value}
-                </p>
-                {card.sub && (
-                  <p className="text-[10px] text-neutral-500 mt-0.5 leading-tight">{card.sub}</p>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* ── Sell-through bar ── */}
-          <div className="mx-4 sm:mx-0 mb-5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
-            <div className="flex justify-between items-center mb-2">
-              <p className="text-xs font-bold text-neutral-500">Sell-through rate</p>
-              <p className="text-xs font-extrabold text-rose-500">{pct}%</p>
+              ))}
             </div>
-            <div className="h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-rose-500 to-pink-500 rounded-full transition-all duration-700"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <p className="text-[10px] text-neutral-400 mt-1.5">{sold} sold · {(stats?.ticketInventory ?? 0) - sold} remaining</p>
-          </div>
-
-          {/* ── Ticket type breakdown ── */}
-          {stats?.ticketTypeStats && stats.ticketTypeStats.length > 0 && (
-            <div className="mx-4 sm:mx-0 mb-5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
-              <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800">
-                <h2 className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <Ticket className="h-3.5 w-3.5 text-rose-500" /> Sales by ticket type
-                </h2>
-              </div>
-              <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                {stats.ticketTypeStats.map((tt) => {
-                  const ttPct = (tt.quantity ?? 0) > 0
-                    ? Math.round((tt.sold / (tt.quantity ?? 1)) * 100)
-                    : 0;
-                  const ticketsLeft = (tt.quantity ?? 0) - tt.sold;
-                  return (
-                    <div 
-                      key={tt.id} 
-                      onClick={() => openTicketTypeAttendanceModal(tt.id, tt.name)}
-                      className="px-4 py-3.5 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
-                    >
-                      {/* Name + price row */}
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div>
-                          <p className="text-sm font-bold text-neutral-900 dark:text-white">{tt.name}</p>
-                          <p className="text-xs text-neutral-500">
-                            {tt.price === 0 ? 'Free' : formatNaira(tt.price)} · {tt.quantity ?? 0} total
-                          </p>
-                        </div>
-                        <span className="text-xs font-extrabold text-rose-500 shrink-0">{ttPct}%</span>
+            
+            {stats?.ticketTypeStats && stats.ticketTypeStats.length > 0 && (
+              <div className="mt-6 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
+                <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50">
+                  <h3 className="font-bold text-sm">Ticket Sales Breakdown</h3>
+                </div>
+                <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                  {stats.ticketTypeStats.map((tt: any, idx: number) => (
+                    <div key={idx} className="p-4 flex items-center justify-between gap-4">
+                      <div>
+                        <p className="font-semibold text-sm">{tt.name}</p>
+                        <p className="text-xs text-neutral-500 mt-0.5">{formatNaira(tt.price)} each</p>
                       </div>
-                      {/* Progress bar */}
-                      <div className="h-1.5 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden mb-2.5">
-                        <div className="h-full bg-rose-400 rounded-full" style={{ width: `${ttPct}%` }} />
-                      </div>
-                      {/* Stats grid — 4 cols, compact on mobile */}
-                      <div className="grid grid-cols-4 gap-2">
-                        {[
-                          { label: 'Sold',     value: String(tt.sold) },
-                          { label: 'Left',     value: String(ticketsLeft) },
-                          { label: 'Earned',   value: formatNaira(tt.revenue),         accent: true },
-                          { label: 'Max',      value: formatNaira(tt.expectedRevenue) },
-                        ].map(s => (
-                          <div key={s.label}>
-                            <p className="text-[9px] text-neutral-400 uppercase tracking-wide leading-none mb-0.5">{s.label}</p>
-                            <p className={`text-xs font-bold truncate ${s.accent ? 'text-rose-500' : 'text-neutral-900 dark:text-white'}`}>
-                              {s.value}
-                            </p>
-                          </div>
-                        ))}
+                      <div className="text-right">
+                        <p className="font-bold text-sm">{tt.sold} <span className="text-xs font-normal text-neutral-500">sold</span></p>
+                        <p className="text-xs font-semibold text-rose-500 mt-0.5">{formatNaira(tt.revenue)}</p>
                       </div>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-
-          {/* ── Public link ── */}
-          <div className="mx-4 sm:mx-0 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
-            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-2">Public event link</p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 text-xs bg-neutral-50 dark:bg-neutral-950 px-3 py-2 rounded-xl border border-neutral-100 dark:border-neutral-800 truncate text-neutral-500">
-                {publicUrl}
-              </code>
-              <button
-                onClick={copyLink}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-bold hover:border-rose-300 hover:text-rose-500 transition-colors shrink-0"
-              >
-                {copied
-                  ? <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Copied</>
-                  : <><Copy className="h-3.5 w-3.5" /> Copy</>
-                }
-              </button>
-            </div>
+            )}
           </div>
-        </>
-      )}
-
-      {/* Vendors Tab */}
-      {activeTab === 'vendors' && event.allowVendors && (
-        <div className="space-y-6">
-          {/* Vendor Statistics */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 px-4 sm:px-0">
-            {[
-              { 
-                label: 'Total Applications',
-                value: String(vendorApplications.length),
-                icon: <Store className="h-4 w-4" />
-              },
-              { 
-                label: 'Pending',
-                value: String(vendorApplications.filter(v => v.applicationStatus === null).length),
-                icon: <AlertCircle className="h-4 w-4" />
-              },
-              { 
-                label: 'Approved',
-                value: String(vendorApplications.filter(v => v.applicationStatus === true).length),
-                icon: <CheckCircle className="h-4 w-4" />,
-                accent: true
-              },
-              { 
-                label: 'Rejected',
-                value: String(vendorApplications.filter(v => v.applicationStatus === false).length),
-                icon: <XCircle className="h-4 w-4" />
-              },
-            ].map((card) => (
-              <div
-                key={card.label}
-                className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 sm:p-4"
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-neutral-400 leading-tight">
-                    {card.label}
-                  </span>
-                  <span className={card.accent ? 'text-green-500' : 'text-neutral-400'}>{card.icon}</span>
-                </div>
-                <p className={`text-lg sm:text-xl font-extrabold ${card.accent ? 'text-green-500' : 'text-neutral-900 dark:text-white'}`}>
-                  {card.value}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          {/* Vendor Applications List */}
-          {vendorLoading ? (
-            <div className="flex justify-center py-12">
-              <Spinner />
-            </div>
-          ) : vendorApplications.length === 0 ? (
-            <div className="text-center py-12 px-4">
-              <AlertCircle className="h-12 w-12 text-neutral-300 mx-auto mb-4" />
-              <p className="text-sm font-medium text-neutral-900 dark:text-white mb-1">No applications yet</p>
-              <p className="text-xs text-neutral-500">Vendor applications will appear here once vendors submit their requests.</p>
-            </div>
-          ) : (
-            <div className="space-y-6 px-4 sm:px-0">
-              {/* Pending Applications */}
-              {vendorApplications.filter(v => v.applicationStatus === null).length > 0 && (
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-yellow-600" />
-                    Pending Applications ({vendorApplications.filter(v => v.applicationStatus === null).length})
-                  </h3>
-                  <div className="grid gap-3">
-                    {vendorApplications
-                      .filter(v => v.applicationStatus === null)
-                      .map((app) => (
-                        <VendorApplicationCard key={app.id} app={app} eventId={Number(id)} onActionComplete={() => window.location.reload()} />
-                      ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Approved Vendors */}
-              {vendorApplications.filter(v => v.applicationStatus === true).length > 0 && (
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    Approved Vendors ({vendorApplications.filter(v => v.applicationStatus === true).length})
-                  </h3>
-                  <div className="grid gap-3">
-                    {vendorApplications
-                      .filter(v => v.applicationStatus === true)
-                      .map((app) => (
-                        <VendorApplicationCard key={app.id} app={app} eventId={Number(id)} onActionComplete={() => window.location.reload()} />
-                      ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Rejected Applications */}
-              {vendorApplications.filter(v => v.applicationStatus === false).length > 0 && (
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
-                    <XCircle className="h-4 w-4 text-red-600" />
-                    Rejected ({vendorApplications.filter(v => v.applicationStatus === false).length})
-                  </h3>
-                  <div className="grid gap-3">
-                    {vendorApplications
-                      .filter(v => v.applicationStatus === false)
-                      .map((app) => (
-                        <VendorApplicationCard key={app.id} app={app} eventId={Number(id)} onActionComplete={() => window.location.reload()} />
-                      ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+        </TabsContent>
         </div>
-      )}
+      </Tabs>
 
       {/* ── Attendance Modal ── */}
       {showAttendanceModal && (
@@ -514,8 +367,8 @@ const OrganizerEventPage: React.FC = () => {
             {/* Content */}
             <div className="overflow-y-auto flex-1">
               {attendeeLoading ? (
-                <div className="flex justify-center items-center h-48">
-                  <Spinner />
+                <div className="p-6 space-y-4">
+                  {[1,2,3,4].map(i => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
                 </div>
               ) : attendees.length === 0 ? (
                 <div className="text-center py-12 px-4">
@@ -536,14 +389,20 @@ const OrganizerEventPage: React.FC = () => {
                             <p className="text-xs text-neutral-500">{attendee.user.phone}</p>
                           )}
                         </div>
-                        <span className="text-xs font-bold px-2.5 py-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full shrink-0">
-                          ✓ Checked In
-                        </span>
+                        {attendee.status === 'USED' ? (
+                          <span className="text-[10px] font-bold px-2.5 py-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full shrink-0">
+                            ✓ Checked In
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-medium px-2.5 py-1 bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400 rounded-full shrink-0">
+                            Registered
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-neutral-500 mt-2 space-y-1">
                         <p><strong>Ticket:</strong> {attendee.ticketType?.name}</p>
                         <p><strong>QR Code:</strong> <code className="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-[10px]">{attendee.qrCode}</code></p>
-                        {attendee.updatedAt && (
+                        {attendee.status === 'USED' && attendee.updatedAt && (
                           <p><strong>Checked In:</strong> {new Date(attendee.updatedAt).toLocaleString('en-NG')}</p>
                         )}
                       </div>

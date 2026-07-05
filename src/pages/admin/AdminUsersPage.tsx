@@ -13,6 +13,31 @@ const roleBadgeClass: Record<string, string> = {
   USER: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600',
 };
 
+const MaskedText: React.FC<{ value: string }> = ({ value }) => {
+  const [hovered, setHovered] = useState(false);
+
+  const getMaskedValue = (val: string) => {
+    if (!val) return '';
+    if (val.includes('@')) {
+      const [local, domain] = val.split('@');
+      if (local.length <= 2) return `${local[0]}*@${domain}`;
+      return `${local.substring(0, 2)}***${local.substring(local.length - 1)}@${domain}`;
+    }
+    return val;
+  };
+
+  return (
+    <span
+      className="cursor-help font-medium text-neutral-500"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      title="Hover to reveal email"
+    >
+      {hovered ? value : getMaskedValue(value)}
+    </span>
+  );
+};
+
 const AdminUsersPage = () => {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
@@ -104,7 +129,9 @@ const AdminUsersPage = () => {
                       <p className="text-sm font-bold truncate">
                         {u.firstName} {u.lastName}
                       </p>
-                      <p className="text-xs text-neutral-500 truncate">{u.email}</p>
+                      <p className="text-xs text-neutral-500 truncate">
+                        <MaskedText value={u.email} />
+                      </p>
                     </div>
                   </div>
 
