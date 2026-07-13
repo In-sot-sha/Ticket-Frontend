@@ -234,13 +234,13 @@ const GateScanner: React.FC<{ staffName: string; organizationId: number | null; 
   const isVerifyingRef = useRef(false);
   const handleVerifRef = useRef<(code: string) => void>(() => {});
 
-  // Fetch organization events on mount
+  // Fetch today's upcoming events for this organization
   useEffect(() => {
     if (!organizationId) return;
     setLoadingEvents(true);
-    api.events.getAll({ organizationId: organizationId, limit: 100 })
+    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
+    api.events.getAll({ organizationId, date: today, upcoming: 'true', limit: 50 })
       .then((res: any) => {
-        // The API returns events either in res.data or res.data.events depending on paginated structure
         const list = res.data?.events || res.data || [];
         setEventsList(list);
       })
@@ -448,7 +448,7 @@ const GateScanner: React.FC<{ staffName: string; organizationId: number | null; 
           <div className="bg-white dark:bg-gray-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-sm p-6 mb-6">
             <h2 className="text-base font-extrabold text-neutral-900 dark:text-white mb-1">Select Event</h2>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-6">
-              Choose the event you are validating tickets for.
+              Today's upcoming events for your organization.
             </p>
 
             {loadingEvents ? (
@@ -459,8 +459,8 @@ const GateScanner: React.FC<{ staffName: string; organizationId: number | null; 
               </div>
             ) : eventsList.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">No events found</p>
-                <p className="text-xs text-neutral-500 mt-1">This organization has no active events.</p>
+                <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">No events today</p>
+                <p className="text-xs text-neutral-500 mt-1">There are no upcoming events scheduled for today.</p>
               </div>
             ) : (
               <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
@@ -475,7 +475,12 @@ const GateScanner: React.FC<{ staffName: string; organizationId: number | null; 
                         {e.title}
                       </h3>
                       <p className="text-xs text-neutral-500 mt-1">
-                        {new Date(e.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {new Date(e.startDate).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}
                       </p>
                     </div>
                     <ChevronRight className="h-4 w-4 text-neutral-400 group-hover:text-rose-500 group-hover:translate-x-0.5 transition-all shrink-0" />
