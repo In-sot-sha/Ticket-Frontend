@@ -275,6 +275,8 @@ export const api = {
       location?: string;
       promoted?: string;
       organizationId?: number;
+      date?: string;
+      upcoming?: string;
     }) => apiRequest<any>('GET', '/events', undefined, { params }),
     
     getById: (id: number) => apiRequest<any>('GET', `/events/get/${id}`),

@@ -17,6 +17,7 @@ import {
 import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
 import { CustomAlertDialog } from '../../components/ui/CustomAlertDialog';
+import { buildSocialUrl, hasAnySocial, parseOrgSocials } from '../../lib/orgSocials';
 import {
   Dialog,
   DialogContent,
@@ -477,9 +478,30 @@ const OrganizationsPage = () => {
                       link={selected.website.startsWith('http') ? selected.website : `https://${selected.website}`}
                     />
                   )}
-                  {selected.socials && (
-                    <DetailRow icon={ExternalLink} label="Social Channels" value={selected.socials} />
-                  )}
+                  {selected.socials && (() => {
+                    const links = parseOrgSocials(selected.socials);
+                    if (!hasAnySocial(links)) {
+                      return (
+                        <DetailRow icon={ExternalLink} label="Social Channels" value={selected.socials} />
+                      );
+                    }
+                    return (
+                      <>
+                        {links.instagram && (
+                          <DetailRow icon={ExternalLink} label="Instagram" value={links.instagram} link={buildSocialUrl('instagram', links.instagram)} />
+                        )}
+                        {links.twitter && (
+                          <DetailRow icon={ExternalLink} label="X (Twitter)" value={links.twitter} link={buildSocialUrl('twitter', links.twitter)} />
+                        )}
+                        {links.facebook && (
+                          <DetailRow icon={ExternalLink} label="Facebook" value={links.facebook} link={buildSocialUrl('facebook', links.facebook)} />
+                        )}
+                        {links.tiktok && (
+                          <DetailRow icon={ExternalLink} label="TikTok" value={links.tiktok} link={buildSocialUrl('tiktok', links.tiktok)} />
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {selectedStatus === 'pending' ? (
