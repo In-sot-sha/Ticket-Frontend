@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
@@ -22,6 +22,28 @@ import { useEvents } from '../hooks/queries/useEvents';
 import { mockEvents, mapApiEventToFrontendEvent } from '../data/mockEvents';
 import { CACHE_CONFIGS } from '../lib/queryClient';
 import { generateEventCollectionStructuredData } from '../lib/seo';
+
+function isPastEvent(e: Event) {
+  const end = new Date(e.endDate || e.date);
+  return !Number.isNaN(end.getTime()) && end.getTime() < Date.now();
+}
+
+function sortEventsUpcomingFirst(list: Event[]) {
+  return [...list].sort((a, b) => {
+    const aPast = isPastEvent(a);
+    const bPast = isPastEvent(b);
+    if (aPast !== bPast) return aPast ? 1 : -1;
+    // Among upcoming: promoted first, then soonest
+    if (!aPast) {
+      if (Boolean(a.isPromoted) !== Boolean(b.isPromoted)) {
+        return a.isPromoted ? -1 : 1;
+      }
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    }
+    // Among past: most recent first
+    return new Date(b.date).getTime() - new Date(a.date).getTime();
+  });
+}
 
 /* ── Promoted hero slides ─────────────────────────────── */
 const heroSlides = [
@@ -207,32 +229,58 @@ const HomePage = () => {
   
   // Use React Query hooks for data fetching with 5min cache (HOMEPAGE_EVENTS config)
   const { data: eventsData, isLoading, error } = useEvents(
-    selectedCategory !== 'All' ? { limit: 20, category: selectedCategory } : { limit: 20 },
+    selectedCategory !== 'All'
+      ? { limit: 24, category: selectedCategory }
+      : { limit: 24 },
     CACHE_CONFIGS.HOMEPAGE_EVENTS
   );
 
-  // Fetch promoted events for carousel
+  // Fetch promoted events for carousel — only still-valid (upcoming/live)
   const { data: promotedData } = useEvents(
-    { promoted: 'true', limit: 5 },
+    { promoted: 'true', upcoming: 'true', limit: 5 },
     CACHE_CONFIGS.HOMEPAGE_EVENTS
   );
-  
-  // Transform API events to frontend format, fallback to mock if empty
-  const filteredEvents: Event[] = (eventsData && eventsData.length > 0)
-    ? eventsData.map(mapApiEventToFrontendEvent)
-    : mockEvents;
 
-  const dynamicSlides = promotedData && promotedData.length > 0
-    ? promotedData.map(mapApiEventToFrontendEvent).map((e: any) => ({
-        id: e.id,
-        title: e.title,
-        subtitle: e.description.length > 80 ? e.description.substring(0, 80) + '...' : e.description,
-        cta: 'Get Tickets',
-        link: `/events/${e.slug || e.id}`,
-        image: e.imageUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
-        tag: e.category || 'Featured',
-      }))
-    : heroSlides;
+  const filteredEvents: Event[] = useMemo(() => {
+    const base =
+      eventsData && eventsData.length > 0
+        ? eventsData.map(mapApiEventToFrontendEvent)
+        : mockEvents;
+    return sortEventsUpcomingFirst(base);
+  }, [eventsData]);
+
+  const dynamicSlides = useMemo(() => {
+    const upcomingPromoted = (promotedData || [])
+      .map((raw: any) => {
+        const e = mapApiEventToFrontendEvent(raw);
+        if (isPastEvent(e)) return null;
+        const description =
+          typeof raw.description === 'string'
+            ? raw.description.trim()
+            : typeof e.description === 'string'
+              ? e.description.trim()
+              : '';
+        return {
+          id: e.id,
+          title: e.title || raw.title || 'Featured event',
+          subtitle: description
+            ? description.length > 80
+              ? `${description.substring(0, 80)}...`
+              : description
+            : raw.location || e.location || 'Featured on PartyStorm',
+          cta: 'Get Tickets',
+          link: `/events/${raw.slug || e.slug || e.id}`,
+          image:
+            raw.imageUrl ||
+            e.image ||
+            'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
+          tag: raw.category || e.category || 'Featured',
+        };
+      })
+      .filter(Boolean) as typeof heroSlides;
+
+    return upcomingPromoted.length > 0 ? upcomingPromoted : heroSlides;
+  }, [promotedData]);
 
   return (
     <div className="bg-white dark:bg-gray-950 min-h-[calc(100vh-80px)] flex flex-col relative">

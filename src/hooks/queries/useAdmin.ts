@@ -145,22 +145,40 @@ export function useAdminRevenue() {
   });
 }
 
-export function useAdminSupportTickets(status: string = 'all') {
+export function useAdminSupportTickets(
+  status: string = 'all',
+  source: 'admin' | 'staff' = 'admin'
+) {
   return useQuery({
-    queryKey: queryKeys.admin.supportTickets(status),
+    queryKey:
+      source === 'staff'
+        ? queryKeys.staff.supportTickets(status)
+        : queryKeys.admin.supportTickets(status),
     queryFn: async () => {
-      const res = await api.admin.getSupportTickets(status === 'all' ? undefined : status);
+      const res =
+        source === 'staff'
+          ? await api.staff.getSupportTickets(status === 'all' ? undefined : status)
+          : await api.admin.getSupportTickets(status === 'all' ? undefined : status);
       return res.data;
     },
     ...liveQueryOptions,
   });
 }
 
-export function useAdminSupportTicket(id: number | null) {
+export function useAdminSupportTicket(
+  id: number | null,
+  source: 'admin' | 'staff' = 'admin'
+) {
   return useQuery({
-    queryKey: queryKeys.admin.supportTicket(id!),
+    queryKey:
+      source === 'staff'
+        ? queryKeys.staff.supportTicket(id!)
+        : queryKeys.admin.supportTicket(id!),
     queryFn: async () => {
-      const res = await api.admin.getSupportTicket(id!);
+      const res =
+        source === 'staff'
+          ? await api.staff.getSupportTicket(id!)
+          : await api.admin.getSupportTicket(id!);
       return res.data;
     },
     enabled: !!id,
@@ -168,16 +186,36 @@ export function useAdminSupportTicket(id: number | null) {
   });
 }
 
-export function useAdminReplySupport() {
+export function useAdminReplySupport(source: 'admin' | 'staff' = 'admin') {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, body, status }: { id: number; body: string; status?: string }) =>
-      api.admin.replyToSupportTicket(id, { body, status }),
+    mutationFn: ({
+      id,
+      body,
+      status,
+      needsMoreInfo,
+    }: {
+      id: number;
+      body: string;
+      status?: string;
+      needsMoreInfo?: boolean;
+    }) =>
+      source === 'staff'
+        ? api.staff.replyToSupportTicket(id, { body, status, needsMoreInfo })
+        : api.admin.replyToSupportTicket(id, { body, status, needsMoreInfo }),
     onSuccess: async (res, vars) => {
       const reply = res.data?.reply;
       const newStatus = vars.status ?? 'IN_PROGRESS';
+      const ticketKey =
+        source === 'staff'
+          ? queryKeys.staff.supportTicket(vars.id)
+          : queryKeys.admin.supportTicket(vars.id);
+      const listKey = (status: string) =>
+        source === 'staff'
+          ? queryKeys.staff.supportTickets(status)
+          : queryKeys.admin.supportTickets(status);
 
-      queryClient.setQueryData(queryKeys.admin.supportTicket(vars.id), (old: any) => {
+      queryClient.setQueryData(ticketKey, (old: any) => {
         if (!old) return old;
         return {
           ...old,
@@ -188,22 +226,19 @@ export function useAdminReplySupport() {
       });
 
       (['all', 'OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const).forEach((status) => {
-        queryClient.setQueryData(
-          queryKeys.admin.supportTickets(status),
-          (old: any[] | undefined) => {
-            if (!Array.isArray(old)) return old;
-            return old.map((t) =>
-              t.id === vars.id
-                ? {
-                    ...t,
-                    status: newStatus,
-                    updatedAt: new Date().toISOString(),
-                    _count: { messages: (t._count?.messages ?? 0) + 1 },
-                  }
-                : t
-            );
-          }
-        );
+        queryClient.setQueryData(listKey(status), (old: any[] | undefined) => {
+          if (!Array.isArray(old)) return old;
+          return old.map((t) =>
+            t.id === vars.id
+              ? {
+                  ...t,
+                  status: newStatus,
+                  updatedAt: new Date().toISOString(),
+                  _count: { messages: (t._count?.messages ?? 0) + 1 },
+                }
+              : t
+          );
+        });
       });
 
       await refreshAdminQueries(queryClient);
@@ -211,11 +246,23 @@ export function useAdminReplySupport() {
   });
 }
 
-export function useAdminUpdateSupportTicket() {
+export function useAdminUpdateSupportTicket(source: 'admin' | 'staff' = 'admin') {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status, priority }: { id: number; status?: string; priority?: string }) =>
-      api.admin.updateSupportTicket(id, { status, priority }),
+    mutationFn: ({
+      id,
+      status,
+      priority,
+      notifyMessage,
+    }: {
+      id: number;
+      status?: string;
+      priority?: string;
+      notifyMessage?: string;
+    }) =>
+      source === 'staff'
+        ? api.staff.updateSupportTicket(id, { status, priority, notifyMessage })
+        : api.admin.updateSupportTicket(id, { status, priority, notifyMessage }),
     onSuccess: async (_res, vars) => {
       const patchTicket = (t: any) =>
         t.id === vars.id
@@ -227,15 +274,22 @@ export function useAdminUpdateSupportTicket() {
             }
           : t;
 
-      queryClient.setQueryData(queryKeys.admin.supportTicket(vars.id), (old: any) =>
+      const ticketKey =
+        source === 'staff'
+          ? queryKeys.staff.supportTicket(vars.id)
+          : queryKeys.admin.supportTicket(vars.id);
+      const listKey = (status: string) =>
+        source === 'staff'
+          ? queryKeys.staff.supportTickets(status)
+          : queryKeys.admin.supportTickets(status);
+
+      queryClient.setQueryData(ticketKey, (old: any) =>
         old ? patchTicket(old) : old
       );
 
       (['all', 'OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const).forEach((status) => {
-        queryClient.setQueryData(
-          queryKeys.admin.supportTickets(status),
-          (old: any[] | undefined) =>
-            Array.isArray(old) ? old.map(patchTicket) : old
+        queryClient.setQueryData(listKey(status), (old: any[] | undefined) =>
+          Array.isArray(old) ? old.map(patchTicket) : old
         );
       });
 

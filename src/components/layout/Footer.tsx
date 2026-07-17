@@ -17,13 +17,13 @@ const Footer = () => {
               The ultimate platform for event discovery, ticketing, and management.
             </p>
             <div className="flex space-x-4">
-              <a href="#" className="text-muted-foreground hover:text-foreground">
+              <a href="#" target="_blank" className="text-muted-foreground hover:text-foreground">
                 <Facebook className="h-5 w-5" />
               </a>
-              <a href="#" className="text-muted-foreground hover:text-foreground">
+              <a href="#" target="_blank" className="text-muted-foreground hover:text-foreground">
                 <Twitter className="h-5 w-5" />
               </a>
-              <a href="https://www.instagram.com/partyst0rm/" className="text-muted-foreground hover:text-foreground">
+              <a href="https://www.instagram.com/partyst0rm/" target="_blank" className="text-muted-foreground hover:text-foreground">
                 <Instagram className="h-5 w-5" />
               </a>
             </div>
@@ -95,7 +95,7 @@ const Footer = () => {
               </li>
               <li className="flex items-start space-x-2">
                 <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <span className="text-muted-foreground">support@partystorm.com</span>
+                <span className="text-muted-foreground">support@partystorm.ng</span>
               </li>
             </ul>
           </div>

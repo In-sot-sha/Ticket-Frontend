@@ -40,6 +40,8 @@ const TicketConfirmationPage = () => {
     eventLocation: orderData.eventLocation,
     eventImageUrl: orderData.eventImageUrl,
     ticketType:    orderData.ticketType,
+    ticketStyle:   orderData.ticketStyle ?? orderData.tickets?.[0]?.ticketType?.ticketStyle,
+    accentColor:   orderData.accentColor ?? orderData.tickets?.[0]?.ticketType?.accentColor,
     totalAmount:   orderData.totalAmount,
     quantity:      orderData.quantity,
   };

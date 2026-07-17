@@ -220,7 +220,7 @@ const FinanceDashboard = () => {
                     <p className="text-[11px] text-amber-600/90 dark:text-amber-500/80 mt-0.5">
                       Please configure your settlement bank credentials in the settings dashboard first.
                     </p>
-                    <Link to="/organizer/profile" className="inline-block mt-2 text-[11px] font-bold text-amber-700 hover:underline">
+                    <Link to="/organizer/organizer-settings?tab=payouts" className="inline-block mt-2 text-[11px] font-bold text-amber-700 hover:underline">
                       Go to Settlement Settings &rarr;
                     </Link>
                   </div>

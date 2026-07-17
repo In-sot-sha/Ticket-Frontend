@@ -243,6 +243,7 @@ const BookingPage = () => {
       });
 
       if (checkoutRes.status === 201) {
+        const firstType = checkoutRes.data.tickets?.[0]?.ticketType;
         const confirmedOrder = {
           eventId: normalizedEventData.id,
           eventName: normalizedEventData.title,
@@ -254,6 +255,9 @@ const BookingPage = () => {
           quantity: totalTicketsCount,
           totalAmount: totalAmount,
           currency: 'NGN',
+          ticketType: firstType?.name,
+          ticketStyle: firstType?.ticketStyle,
+          accentColor: firstType?.accentColor,
           tickets: checkoutRes.data.tickets
         };
         navigate('/ticket-confirmation', { state: confirmedOrder });

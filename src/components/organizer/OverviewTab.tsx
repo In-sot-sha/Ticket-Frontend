@@ -1,153 +1,216 @@
-import React, { useState } from 'react';
-import { Copy, CheckCircle2, Ticket } from 'lucide-react';
+import React from 'react';
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  Globe,
+  Ticket,
+  Store,
+} from 'lucide-react';
+import EventPhaseBadge from './EventPhaseBadge';
 import { formatNaira, OrganizerEvent } from '../../lib/eventOrganizer';
+import { resolveImageUrl } from '../../lib/media';
 
 interface OverviewTabProps {
   event: OrganizerEvent;
-  onOpenAttendees?: () => void;
   vendorApplications?: any[];
 }
 
-export const OverviewTab: React.FC<OverviewTabProps> = ({ event, onOpenAttendees, vendorApplications }) => {
-  const [copied, setCopied] = useState(false);
+/**
+ * Overview = "What is this event?"
+ * Identity, details, inventory snapshot — not performance deep-dive.
+ */
+export const OverviewTab: React.FC<OverviewTabProps> = ({ event, vendorApplications = [] }) => {
   const stats = event.stats;
-  const sold = stats?.ticketsSold ?? event.attendees ?? 0;
-  const pct = stats?.sellThroughPercent ?? 0;
-  const earned = stats?.actualRevenue ?? event.revenue ?? 0;
-  const expected = stats?.expectedRevenue ?? 0;
+  const cover = resolveImageUrl(event.imageUrl);
+  const start = new Date(event.startDate);
+  const end = new Date(event.endDate);
+
+  const pendingVendors = vendorApplications.filter(
+    (v) =>
+      v.applicationStatus === 'PENDING' ||
+      v.applicationStatus === null ||
+      v.applicationStatus === undefined
+  );
+
+  const ticketRows =
+    stats?.ticketTypeStats?.length
+      ? stats.ticketTypeStats
+      : (event.ticketTypes || []).map((tt) => ({
+          id: tt.id,
+          name: tt.name,
+          price: tt.price,
+          quantity: tt.quantity,
+          sold: 0,
+          revenue: 0,
+          checkedIn: 0,
+          expectedRevenue: 0,
+        }));
 
   return (
-    <div className="space-y-6">
-      {/* Event Details Card */}
-      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
-        <h2 className="text-sm font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider mb-4">Event Details</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Date & Time</p>
-            <p className="text-sm font-semibold text-neutral-900 dark:text-white">
-              {event.startDate ? new Date(event.startDate).toLocaleDateString() : 'TBA'}
-              {event.startTime && ` at ${event.startTime}`}
-            </p>
-            {event.endDate && event.endDate !== event.startDate && (
-              <p className="text-xs text-neutral-500 mt-1">Until {new Date(event.endDate).toLocaleDateString()}</p>
-            )}
+    <div className="space-y-4 px-4 sm:px-0">
+      {/* Hero — identity only, no action buttons */}
+      <section className="overflow-hidden rounded-none sm:rounded-xl border-0 sm:border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+        <div className="relative">
+          {cover ? (
+            <div className="aspect-[21/9] sm:aspect-[3/1] w-full max-h-40 sm:max-h-48 relative">
+              <img src={cover} alt={event.title} className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+            </div>
+          ) : (
+            <div className="aspect-[21/9] sm:aspect-[3/1] w-full max-h-36 bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
+              <Calendar className="h-8 w-8 text-neutral-300" />
+            </div>
+          )}
+
+          <div
+            className={`px-4 sm:px-4 pb-3 pt-3 ${
+              cover ? 'sm:absolute sm:inset-x-0 sm:bottom-0 sm:pt-0 sm:pb-4' : ''
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2 mb-1.5">
+              <h1
+                className={`text-lg sm:text-xl font-extrabold leading-snug text-balance text-neutral-900 dark:text-white ${
+                  cover ? 'sm:text-white sm:drop-shadow-sm' : ''
+                }`}
+              >
+                {event.title}
+              </h1>
+              <EventPhaseBadge event={event} />
+            </div>
+
+            <div
+              className={`flex flex-wrap gap-x-3 gap-y-1 text-xs sm:text-sm text-neutral-500 ${
+                cover ? 'sm:text-white/85' : ''
+              }`}
+            >
+              <span className="flex items-center gap-1">
+                <Calendar className={`h-3.5 w-3.5 shrink-0 text-neutral-400 ${cover ? 'sm:text-white/70' : ''}`} />
+                {start.toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className={`h-3.5 w-3.5 shrink-0 text-neutral-400 ${cover ? 'sm:text-white/70' : ''}`} />
+                {start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                {' – '}
+                {end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              </span>
+              {event.location && (
+                <span className="flex items-center gap-1 min-w-0">
+                  {event.locationType === 'online' ? (
+                    <Globe className={`h-3.5 w-3.5 shrink-0 text-neutral-400 ${cover ? 'sm:text-white/70' : ''}`} />
+                  ) : (
+                    <MapPin className={`h-3.5 w-3.5 shrink-0 text-neutral-400 ${cover ? 'sm:text-white/70' : ''}`} />
+                  )}
+                  <span className="truncate">{event.location}</span>
+                </span>
+              )}
+            </div>
           </div>
+        </div>
+      </section>
+
+      {/* Event details */}
+      <section className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3.5 sm:p-4">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">Event details</h2>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
           <div>
-            <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Location</p>
-            <p className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
-              {event.locationType === 'online' ? 'Online Event' : (event.location || 'TBA')}
-            </p>
+            <dt className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-0.5">When</dt>
+            <dd className="text-sm font-semibold text-neutral-900 dark:text-white">
+              {start.toLocaleDateString('en-NG', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+            </dd>
+            <dd className="text-xs text-neutral-500">
+              {start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              {' – '}
+              {end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              {event.endDate && event.endDate !== event.startDate && (
+                <> · ends {end.toLocaleDateString('en-NG', { month: 'short', day: 'numeric' })}</>
+              )}
+            </dd>
+          </div>
+
+          <div>
+            <dt className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-0.5">Where</dt>
+            <dd className="text-sm font-semibold text-neutral-900 dark:text-white">
+              {event.locationType === 'online' ? 'Online event' : event.location || 'TBA'}
+            </dd>
             {event.locationType === 'online' && event.onlineUrl && (
-              <a href={event.onlineUrl} target="_blank" rel="noreferrer" className="text-xs text-rose-500 hover:underline mt-1 block truncate">
+              <a
+                href={event.onlineUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-rose-500 hover:underline mt-0.5 inline-block truncate max-w-full"
+              >
                 {event.onlineUrl}
               </a>
             )}
           </div>
+
           {event.category && (
             <div>
-              <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Category</p>
-              <p className="text-sm font-semibold text-neutral-900 dark:text-white capitalize">{event.category}</p>
+              <dt className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-0.5">Category</dt>
+              <dd className="text-sm font-semibold text-neutral-900 dark:text-white capitalize">{event.category}</dd>
             </div>
           )}
-        </div>
-      </div>
 
-      {/* Vendor Applications Summary */}
-      {event.allowVendors && vendorApplications && (
-        <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
-          <h2 className="text-sm font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider mb-4">Vendor Summary</h2>
-          <div className="grid grid-cols-3 gap-4">
+          {typeof event.capacity === 'number' && (
             <div>
-              <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Approved Stalls</p>
-              <p className="text-base font-extrabold text-neutral-900 dark:text-white">
-                {vendorApplications.filter(v => v.applicationStatus === 'APPROVED').length}
-              </p>
+              <dt className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-0.5">Capacity</dt>
+              <dd className="text-sm font-semibold text-neutral-900 dark:text-white">{event.capacity}</dd>
             </div>
-            <div>
-              <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Pending Apps</p>
-              <p className="text-base font-extrabold text-amber-500">
-                {vendorApplications.filter(v => v.applicationStatus === 'PENDING' || !v.applicationStatus).length}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Stalls Revenue</p>
-              <p className="text-base font-extrabold text-emerald-500">
-                {formatNaira(
-                  vendorApplications
-                    .filter(v => v.applicationStatus === 'APPROVED')
-                    .reduce((acc, curr) => acc + (curr.vendorType?.fee ?? 0), 0)
-                )}
-              </p>
-            </div>
+          )}
+        </dl>
+
+        {event.description && (
+          <div className="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-800">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-1">About</p>
+            <p className="text-sm text-neutral-600 dark:text-neutral-300 leading-relaxed whitespace-pre-wrap text-pretty">
+              {event.description}
+            </p>
           </div>
-        </div>
-      )}
+        )}
+      </section>
 
-      {/* Sell-through progress */}
-      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
-        <div className="flex justify-between items-center mb-2">
-          <p className="text-sm font-bold text-neutral-700 dark:text-neutral-300">Sell-through rate</p>
-          <p className="text-lg font-extrabold text-rose-500">{pct}%</p>
-        </div>
-        <div className="h-3 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-rose-500 to-pink-500 rounded-full transition-all duration-700"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-        <p className="text-xs text-neutral-500 mt-3">{sold} sold · {(stats?.ticketInventory ?? 0) - sold} remaining</p>
-      </div>
-
-      {/* Ticket type breakdown */}
-      {stats?.ticketTypeStats && stats.ticketTypeStats.length > 0 && (
-        <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
-          <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800">
-            <h2 className="text-sm font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider flex items-center gap-1.5">
-              <Ticket className="h-4 w-4 text-rose-500" /> Sales by ticket type
-            </h2>
+      {/* Ticket inventory — plain readable list, not performance charts */}
+      {ticketRows.length > 0 && (
+        <section className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
+          <div className="px-3.5 sm:px-4 py-2.5 border-b border-neutral-100 dark:border-neutral-800 flex items-center gap-1.5">
+            <Ticket className="h-3.5 w-3.5 text-rose-500" />
+            <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Ticket inventory</h2>
           </div>
-          <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
-            {stats.ticketTypeStats.map((tt) => {
-              const ttPct = (tt.quantity ?? 0) > 0
-                ? Math.round((tt.sold / (tt.quantity ?? 1)) * 100)
-                : 0;
-              const ticketsLeft = (tt.quantity ?? 0) - tt.sold;
+          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+            {ticketRows.map((tt) => {
+              const qty = tt.quantity;
+              const left = qty != null ? Math.max(qty - tt.sold, 0) : null;
               return (
-                <div key={tt.id} className="px-4 py-4">
-                  {/* Name + price row */}
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <div>
-                      <p className="text-sm font-bold text-neutral-900 dark:text-white">{tt.name}</p>
-                      <p className="text-xs text-neutral-500">
-                        {tt.price === 0 ? 'Free' : formatNaira(tt.price)} · {tt.quantity ?? 0} total
-                      </p>
-                    </div>
-                    <span className="text-sm font-extrabold text-rose-500 shrink-0">{ttPct}%</span>
+                <li key={tt.id} className="px-3.5 sm:px-4 py-2.5 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-neutral-900 dark:text-white truncate">{tt.name}</p>
+                    <p className="text-xs text-neutral-500">{tt.price === 0 ? 'Free' : formatNaira(tt.price)}</p>
                   </div>
-                  {/* Progress bar */}
-                  <div className="h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden mb-3">
-                    <div className="h-full bg-rose-400 rounded-full" style={{ width: `${ttPct}%` }} />
+                  <div className="text-right shrink-0 text-sm">
+                    <p className="font-semibold text-neutral-900 dark:text-white tabular-nums">
+                      {tt.sold}
+                      {qty != null && <span className="text-neutral-400 font-normal"> / {qty}</span>}
+                      <span className="text-neutral-400 font-normal text-xs"> sold</span>
+                    </p>
+                    {left != null && (
+                      <p className="text-xs text-neutral-500 tabular-nums">{left} left</p>
+                    )}
                   </div>
-                  {/* Stats grid */}
-                  <div className="grid grid-cols-4 gap-2">
-                    {[
-                      { label: 'Sold',     value: String(tt.sold) },
-                      { label: 'Left',     value: String(ticketsLeft) },
-                      { label: 'Earned',   value: formatNaira(tt.revenue), accent: true },
-                      { label: 'Max',      value: formatNaira(tt.expectedRevenue) },
-                    ].map(s => (
-                      <div key={s.label}>
-                        <p className="text-[10px] text-neutral-400 uppercase tracking-wider font-semibold mb-1">{s.label}</p>
-                        <p className={`text-xs font-bold truncate ${s.accent ? 'text-rose-500' : 'text-neutral-900 dark:text-white'}`}>
-                          {s.value}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                </li>
               );
             })}
-          </div>
+          </ul>
+        </section>
+      )}
+
+      {event.allowVendors && pendingVendors.length > 0 && (
+        <div className="rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50/80 dark:bg-amber-950/20 px-3.5 py-2.5 flex items-center gap-2 text-sm">
+          <Store className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+          <p className="text-amber-800 dark:text-amber-200">
+            <span className="font-semibold">{pendingVendors.length}</span> vendor
+            {pendingVendors.length === 1 ? '' : 's'} waiting in the Vendors tab.
+          </p>
         </div>
       )}
     </div>

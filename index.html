@@ -23,6 +23,14 @@
     <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
     <link rel="canonical" href="https://partystorm.vercel.app" />
 
+    <!-- Ticket design fonts (classic / boarding / concert) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600;1,700&family=Great+Vibes&family=Oswald:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
     <!-- ── SEO / Social ──────────────────────────────── -->
     <title>PartyStorm — Discover &amp; Book Event Tickets in Nigeria</title>
     <meta name="description" content="Discover, book and manage event tickets in Nigeria. From concerts to conferences, find the best events near you on PartyStorm. Your go-to platform for live entertainment." />
@@ -62,8 +70,109 @@
         "description": "Discover and book event tickets in Nigeria."
       }
     </script>
+
+    <!-- Instant theme before JS (matches ThemeProvider storageKey) -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('vite-ui-theme');
+          var dark =
+            t === 'dark' ||
+            (t !== 'light' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
+
+    <style>
+      #app-boot {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        background: #fafafa;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        transition: opacity 0.2s ease, visibility 0.2s ease;
+      }
+      html.dark #app-boot { background: #0a0a0a; }
+      #app-boot.app-boot--hide {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      #app-boot .ab-logo {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 72px;
+        height: 72px;
+        border-radius: 20px;
+        background: #f43f5e;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 32px;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+
+      }
+      #app-boot .ab-footer {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 28px 24px calc(28px + env(safe-area-inset-bottom, 0px));
+        text-align: center;
+      }
+      #app-boot .ab-title {
+        margin: 0;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #a3a3a3;
+      }
+      #app-boot .ab-tip {
+        margin: 8px auto 0;
+        max-width: 320px;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.45;
+        color: #525252;
+      }
+      html.dark #app-boot .ab-tip { color: #d4d4d4; }
+      @keyframes ab-breathe {
+        0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        50% { transform: translate(-50%, -50%) scale(0.94); opacity: 0.85; }
+      }
+    </style>
   </head>
   <body>
+    <!-- Shows before JS/CSS bundles load; dismissed by dismissAppBoot() after auth ready -->
+    <!-- <div id="app-boot" role="status" aria-live="polite" aria-label="Loading PartyStorm">
+      <div class="ab-logo" aria-hidden="true"><img src="/icons/icon.svg" alt="PartyStorm" width="72" height="72" /></div>
+      <div class="ab-footer">
+        <p class="ab-title">Did you know</p>
+        <p class="ab-tip" id="app-boot-tip">You can scan tickets at the gate without a PIN when signed in as staff.</p>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var tips = [
+          'You can scan tickets at the gate without a PIN when signed in as staff.',
+          'Save events you love — find them later in your guest dashboard.',
+          'Need help? Open Support anytime — guests can message without an account.',
+          'Walk-in registration is available from your staff home for today’s gates.',
+        ];
+        try {
+          var el = document.getElementById('app-boot-tip');
+          if (el) el.textContent = tips[Math.floor(Math.random() * tips.length)];
+        } catch (e) {}
+      })();
+    </script> -->
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

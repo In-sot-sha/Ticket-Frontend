@@ -1,6 +1,10 @@
 import React from 'react';
 import QRCode from 'qrcode.react';
-import { resolveTicketStyle } from '../../data/ticketDesigns';
+import { Plane } from 'lucide-react';
+import {
+  resolveTicketStyle,
+  type TicketLayoutId,
+} from '../../data/ticketDesigns';
 
 export interface EventTicketCardProps {
   eventName: string;
@@ -23,6 +27,18 @@ export interface EventTicketCardProps {
   id?: string;
 }
 
+/** Pick black or white text for contrast on a hex background */
+function inkOn(hex: string): '#ffffff' | '#0a0a0a' {
+  const raw = hex.replace('#', '');
+  if (raw.length < 6) return '#ffffff';
+  const r = parseInt(raw.slice(0, 2), 16);
+  const g = parseInt(raw.slice(2, 4), 16);
+  const b = parseInt(raw.slice(4, 6), 16);
+  // Relative luminance
+  const luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return luma > 0.55 ? '#0a0a0a' : '#ffffff';
+}
+
 function formatTicketDate(dateString: string) {
   try {
     const date = new Date(dateString);
@@ -41,118 +57,737 @@ function formatTicketDate(dateString: string) {
   }
 }
 
+function formatShortDate(dateString: string) {
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).toUpperCase();
+  } catch {
+    return dateString;
+  }
+}
+
+function formatPrettyDate(dateString: string) {
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    return date.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  } catch {
+    return dateString;
+  }
+}
+
 function splitTitle(title: string) {
   const words = title.trim().split(/\s+/);
   if (words.length <= 1) return { firstWord: title, restOfTitle: '' };
   return { firstWord: words[0], restOfTitle: words.slice(1).join(' ') };
 }
 
-const EventTicketCard: React.FC<EventTicketCardProps> = ({
-  eventName,
-  eventDate,
-  eventTime = '7:00 PM',
-  eventLocation = 'Venue TBA',
-  eventImageUrl,
-  ticketType,
-  ticketSerial = 'TKT-PREVIEW',
-  qrValue = 'preview-ticket',
+function QrBlock({
   qrCodeImage,
-  compact = false,
-  id,
-}) => {
-  const style = resolveTicketStyle(ticketType);
+  qrValue,
+  size,
+}: {
+  qrCodeImage?: string | null;
+  qrValue: string;
+  size: number;
+}) {
+  if (qrCodeImage) {
+    return (
+      <img
+        src={qrCodeImage}
+        alt="QR"
+        className="object-contain"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  return <QRCode value={qrValue} size={size} renderAs="svg" />;
+}
+
+type LayoutProps = EventTicketCardProps & {
+  accent: string;
+  borderColor: string;
+  badgeLabel: string;
+};
+
+/**
+ * Classic — desktop: horizontal image pass; mobile: vertical black/accent stub.
+ */
+function ClassicLayout(props: LayoutProps) {
+  const {
+    eventName,
+    eventDate,
+    eventLocation = 'Venue TBA',
+    eventImageUrl,
+    ticketType,
+    ticketSerial = 'TKT-PREVIEW',
+    qrValue = 'preview-ticket',
+    qrCodeImage,
+    compact = false,
+    id,
+    accent,
+    borderColor,
+    badgeLabel,
+  } = props;
   const split = splitTitle(eventName);
   const formattedDate = formatTicketDate(eventDate);
+  const onAccent = inkOn(accent);
   const bannerImage =
     eventImageUrl ||
-    'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=1200&q=80';
+    'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1200&q=80';
+  const mobileQr = 148;
+  const desktopQr = compact ? 72 : 160;
+  const badgePill = {
+    backgroundColor: onAccent === '#ffffff' ? '#0a0a0a' : '#ffffff',
+    color: onAccent === '#ffffff' ? '#ffffff' : '#0a0a0a',
+  } as const;
+
+  /* Compact preview: same shell scale as Concert (max-w-xl, p-4, QR 72). */
+  if (compact) {
+    return (
+      <div
+        id={id}
+        className={`relative w-full max-w-xl mx-auto rounded-2xl overflow-hidden shadow-xl border bg-neutral-900 group ${borderColor}`}
+      >
+        <div className="flex flex-col sm:flex-row">
+          <div className="relative flex-1 min-w-0 p-4 overflow-hidden text-white">
+            <div className="absolute inset-0 z-0">
+              <img
+                src={bannerImage}
+                alt={eventName}
+                className="w-full h-full object-cover brightness-90 saturate-110"
+                crossOrigin="anonymous"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/85 to-black/35 z-10" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/40 z-10" />
+            </div>
+
+            <div className="relative z-10">
+              <p className="text-[9px] font-black tracking-[0.25em] text-neutral-400 uppercase font-mono">
+                {ticketType?.ticketHeadline?.trim() || 'COME AND JOIN'}
+              </p>
+              <h3 className="text-2xl font-extrabold tracking-tight leading-none mt-3 uppercase drop-shadow-md">
+                <span style={{ color: accent }}>{split.firstWord}</span>
+                {split.restOfTitle ? (
+                  <>
+                    {' '}
+                    <span className="text-white">{split.restOfTitle}</span>
+                  </>
+                ) : null}
+              </h3>
+
+              <div className="mt-3">
+                <p className="text-[8px] font-black tracking-widest text-neutral-400 font-mono">
+                  {ticketType?.venueLabel?.trim() || 'LIVE AT'}
+                </p>
+                <p className="text-xs font-black tracking-tight text-white uppercase mt-0.5 line-clamp-2">
+                  {eventLocation}
+                </p>
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-[11px]">
+                <div>
+                  <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/45 font-mono">Date</p>
+                  <p className="font-extrabold text-white uppercase font-mono mt-0.5">{formattedDate}</p>
+                </div>
+                <div>
+                  <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/45 font-mono">Code</p>
+                  <p className="font-extrabold text-white uppercase font-mono mt-0.5">{ticketSerial}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative h-0 sm:h-auto sm:w-0 shrink-0" aria-hidden>
+            <div className="sm:hidden absolute left-0 right-0 top-1/2 -translate-y-1/2">
+              <div className="absolute left-0 -translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950" />
+              <div className="absolute right-0 translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950" />
+              <div className="mx-4 border-t-2 border-dashed border-white/25" />
+            </div>
+            <div className="hidden sm:block absolute inset-y-0 left-0">
+              <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950 z-20" />
+              <div className="absolute inset-y-3 left-0 border-l-2 border-dashed border-white/25" />
+              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950 z-20" />
+            </div>
+          </div>
+
+          <div
+            className="sm:w-[34%] sm:min-w-[120px] sm:max-w-[168px] p-4 flex flex-row sm:flex-col items-center justify-between gap-3 text-center relative shrink-0"
+            style={{ backgroundColor: accent, color: onAccent }}
+          >
+            <div className="absolute inset-0 bg-black/5 pointer-events-none" />
+            <span
+              className="px-2.5 py-1 rounded-full text-[8px] font-black tracking-[0.18em] uppercase shrink-0 z-10"
+              style={badgePill}
+            >
+              {badgeLabel}
+            </span>
+            <div className="bg-white p-2 rounded-xl shadow-md z-10 shrink-0">
+              <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={desktopQr} />
+            </div>
+            <div className="shrink-0 z-10">
+              <p className="text-[9px] font-black tracking-[0.22em] uppercase opacity-85 font-mono">
+                Scan to entry
+              </p>
+              <p className="text-[10px] font-extrabold mt-0.5 tracking-wide font-mono">ADMIT ONE</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div id={id} className="w-full">
+      {/* ── Mobile: vertical stub ── */}
+      <div
+        className="md:hidden relative w-full max-w-[340px] mx-auto flex flex-col overflow-hidden shadow-xl"
+        style={{ borderRadius: 4 }}
+      >
+        <div className="relative bg-black text-white px-5 pt-5 pb-6">
+          <p className="text-[10px] font-bold tracking-[0.28em] uppercase text-white/70 font-mono">
+            {ticketType?.ticketHeadline?.trim() || 'COME AND JOIN'}
+          </p>
+          <h3 className="mt-3 text-[1.65rem] leading-[1.05] font-extrabold uppercase tracking-tight">
+            <span style={{ color: accent }}>{split.firstWord}</span>
+            {split.restOfTitle ? (
+              <>
+                {' '}
+                <span className="text-white">{split.restOfTitle}</span>
+              </>
+            ) : null}
+          </h3>
+
+          <div className="mt-5">
+            <p className="text-[9px] font-bold tracking-[0.28em] uppercase text-white/45 font-mono">
+              {ticketType?.venueLabel?.trim() || 'LIVE AT'}
+            </p>
+            <p className="mt-1 text-sm font-extrabold uppercase tracking-wide text-white line-clamp-2">
+              {eventLocation}
+            </p>
+          </div>
+
+          <div className="mt-5 pt-4 border-t border-white/15 grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[9px] font-bold tracking-[0.22em] uppercase text-white/45 font-mono">Date</p>
+              <p className="mt-1 text-[11px] font-extrabold uppercase tracking-wide text-white font-mono leading-snug">
+                {formattedDate}
+              </p>
+            </div>
+            <div className="border-l border-white/15 pl-3">
+              <p className="text-[9px] font-bold tracking-[0.22em] uppercase text-white/45 font-mono">Code</p>
+              <p className="mt-1 text-[11px] font-extrabold uppercase tracking-wide text-white font-mono">
+                {ticketSerial}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative h-0 z-10" aria-hidden>
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-neutral-50 dark:bg-neutral-950" />
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-5 h-5 rounded-full bg-neutral-50 dark:bg-neutral-950" />
+          <div className="absolute left-4 right-4 top-1/2 -translate-y-1/2 border-t-2 border-dashed border-white/80" />
+        </div>
+
+        <div
+          className="px-5 pt-7 pb-6 flex flex-col items-center text-center"
+          style={{ backgroundColor: accent, color: onAccent }}
+        >
+          <span
+            className="px-3.5 py-1 rounded-full text-[9px] font-black tracking-[0.18em] uppercase"
+            style={badgePill}
+          >
+            {badgeLabel}
+          </span>
+          <div className="mt-4 bg-white p-3 rounded-2xl shadow-lg">
+            <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={mobileQr} />
+          </div>
+          <p className="mt-4 text-[11px] font-black tracking-[0.28em] uppercase opacity-90 font-mono">
+            Scan to entry
+          </p>
+          <p className="mt-1 text-[9px] font-bold tracking-[0.2em] uppercase opacity-70 font-mono">
+            Admit one
+          </p>
+        </div>
+      </div>
+
+      {/* ── Desktop / tablet: full horizontal image pass ── */}
+      <div
+        className={`hidden md:flex relative w-full flex-row bg-neutral-900 ${borderColor} border rounded-[32px] overflow-hidden shadow-lg group`}
+      >
+        <div className="relative flex-1 p-6 lg:p-8 flex flex-col justify-between overflow-hidden text-white min-h-[270px]">
+          <div className="absolute inset-0 z-0">
+            <img
+              src={bannerImage}
+              alt={eventName}
+              className="w-full h-full object-cover brightness-90 saturate-110"
+              crossOrigin="anonymous"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/85 to-black/35 z-10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/40 z-10" />
+          </div>
+
+          <div className="relative z-20 flex flex-col justify-between h-full">
+            <div>
+              <p className="text-xs font-black tracking-[0.25em] text-neutral-400 uppercase font-mono">
+                {ticketType?.ticketHeadline?.trim() || 'COME AND JOIN'}
+              </p>
+              <h3 className="text-3xl lg:text-4xl font-extrabold tracking-tight leading-none mt-3 uppercase drop-shadow-md">
+                <span style={{ color: accent }}>{split.firstWord}</span>
+                {split.restOfTitle ? (
+                  <>
+                    {' '}
+                    <span className="text-white">{split.restOfTitle}</span>
+                  </>
+                ) : null}
+              </h3>
+            </div>
+
+            <div className="mt-4">
+              <p className="text-[9px] font-black tracking-widest text-neutral-400 font-mono">
+                {ticketType?.venueLabel?.trim() || 'LIVE AT'}
+              </p>
+              <h4 className="text-base lg:text-lg font-black tracking-tight text-white uppercase mt-0.5 line-clamp-2">
+                {eventLocation}
+              </h4>
+            </div>
+
+            <div className="mt-8 border-t border-white/10 pt-3 flex flex-wrap gap-y-1.5 gap-x-6 text-xs text-white/70">
+              <div>
+                <span className="text-[8px] font-bold text-neutral-400 font-mono block">DATE</span>
+                <p className="font-extrabold text-white uppercase font-mono mt-0.5">{formattedDate}</p>
+              </div>
+              <div className="pl-4 border-l border-white/10">
+                <span className="text-[8px] font-bold text-neutral-400 font-mono block">CODE</span>
+                <p className="font-extrabold text-white uppercase font-mono mt-0.5">{ticketSerial}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col justify-between items-end py-4 relative bg-neutral-900 shrink-0" aria-hidden>
+          <div className="w-8 h-8 rounded-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 -mt-8 -mr-[16px] z-30" />
+          <div className="border-l-2 border-dashed border-neutral-200 h-full my-0.5 z-30" />
+          <div className="w-8 h-8 rounded-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 -mb-8 -mr-[16px] z-30" />
+        </div>
+
+        <div
+          className="w-60 p-6 flex flex-col justify-between items-center relative shrink-0"
+          style={{ backgroundColor: accent, color: onAccent }}
+        >
+          <div className="absolute inset-0 bg-black/5 pointer-events-none" />
+          <span
+            className="px-2.5 py-0.5 rounded-full text-[8px] font-black tracking-widest uppercase mb-4 shadow-sm z-10"
+            style={badgePill}
+          >
+            {badgeLabel}
+          </span>
+          <div className="bg-white p-2 rounded-xl shadow-md transition-transform group-hover:scale-[1.02] z-10">
+            <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={desktopQr} />
+          </div>
+          <div className="text-center mt-4 z-10">
+            <p className="text-[8px] font-bold uppercase tracking-[0.2em] opacity-85 font-mono">
+              Scan to entry
+            </p>
+            <p className="text-[7px] font-mono opacity-60 mt-0.5">Admit one</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Celebration — wedding/birthday boarding pass (mustard rail + cream body + RSVP stub).
+ * Dark ink on paper for readable contrast at every accent.
+ */
+function BoardingLayout(props: LayoutProps) {
+  const {
+    eventName,
+    eventDate,
+    eventTime = '4:00 PM',
+    eventLocation = 'Venue TBA',
+    ticketType,
+    ticketSerial = 'TKT-PREVIEW',
+    qrValue = 'preview-ticket',
+    qrCodeImage,
+    compact = false,
+    id,
+    accent,
+    badgeLabel,
+  } = props;
+  const prettyDate = formatPrettyDate(eventDate);
+  const shortDate = formatShortDate(eventDate);
+  const ink = '#2c1810';
+  const muted = '#5a4032';
+  const paper = '#fffaf2';
+  const railInk = inkOn(accent);
+  const heroLine = ticketType?.ticketHeadline?.trim() || 'Save the date';
+  const qrSize = compact ? 84 : 100;
+  const seatCode = ticketSerial.replace(/^TKT-?/i, '').slice(0, 6) || '08/23';
+
+  const fields = [
+    { label: 'Date', value: prettyDate },
+    { label: ticketType?.venueLabel?.trim() || 'Destination', value: eventLocation },
+    { label: 'Time', value: eventTime },
+    { label: 'Code', value: ticketSerial },
+  ];
 
   return (
     <div
       id={id}
-      className={`relative w-full flex flex-col md:flex-row bg-neutral-900 border ${style.borderColor} rounded-2xl overflow-hidden shadow-lg group ${compact ? 'max-w-md' : ''}`}
+      className="relative w-full max-w-xl mx-auto rounded-2xl overflow-hidden shadow-xl border border-[#e6d5c3]"
+      style={{ backgroundColor: paper, color: ink }}
     >
-      <div className={`relative flex-1 ${compact ? 'p-4 min-h-[160px]' : 'p-4 sm:p-8 min-h-[190px] sm:min-h-[250px]'} flex flex-col justify-between overflow-hidden text-white`}>
-        <div className="absolute inset-0 z-0">
-          <img
-            src={bannerImage}
-            alt={eventName}
-            className="w-full h-full object-cover brightness-90 saturate-110"
-            crossOrigin="anonymous"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/85 to-black/35 z-10" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/40 z-10" />
+      <div className="flex flex-col sm:flex-row min-h-0">
+        {/* Accent rail — top strip on mobile, left spine on desktop */}
+        <div
+          className="sm:w-11 shrink-0 flex items-center justify-center px-3 py-2.5 sm:py-4 sm:px-0"
+          style={{ backgroundColor: accent, color: railInk }}
+        >
+          <p className="text-[9px] sm:text-[10px] font-bold tracking-[0.22em] uppercase text-center sm:rotate-[-90deg] sm:whitespace-nowrap sm:origin-center">
+            Love is in the air · will you be there?
+          </p>
         </div>
 
-        <div className="relative z-20 flex flex-col justify-between h-full">
-          <div>
-            <p className="text-[9px] font-black tracking-[0.25em] text-neutral-300 uppercase opacity-95">
-              {ticketType?.ticketHeadline?.trim() || 'COME AND JOIN'}
-            </p>
-            <h3 className={`${compact ? 'text-lg' : 'text-xl sm:text-3xl'} font-extrabold tracking-tight leading-none mt-2 uppercase drop-shadow-md`}>
-              <span style={{ color: style.accent }}>{split.firstWord}</span>{' '}
-              <span className="text-white">{split.restOfTitle}</span>
-            </h3>
-          </div>
-
-          <div className="mt-3">
-            <p className="text-[8px] font-black tracking-widest text-neutral-400">
-              {ticketType?.venueLabel?.trim() || 'LIVE AT'}
-            </p>
-            <h4 className={`${compact ? 'text-xs' : 'text-sm sm:text-base'} font-black tracking-tight text-white uppercase mt-0.5 line-clamp-1`}>
-              {eventLocation}
-            </h4>
-          </div>
-
-          <div className="mt-4 border-t border-white/10 pt-2 flex flex-wrap gap-x-4 text-[9px] text-white/70">
+        {/* Main boarding body */}
+        <div className={`relative flex-1 min-w-0 ${compact ? 'p-4' : 'p-5 sm:p-6'}`}>
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <span className="text-[8px] font-bold text-neutral-400 block">TIME</span>
-              <p className="font-extrabold text-white uppercase mt-0.5">{eventTime}</p>
+              <p
+                className="text-[9px] font-bold tracking-[0.32em] uppercase"
+                style={{ color: muted }}
+              >
+                Boarding Pass
+              </p>
+              <h3
+                className={`${compact ? 'text-[2rem]' : 'text-[2.35rem] sm:text-[2.75rem]'} leading-[1.05] mt-1`}
+                style={{
+                  fontFamily: '"Great Vibes", "Cormorant Garamond", cursive',
+                  color: ink,
+                }}
+              >
+                {heroLine}
+              </h3>
             </div>
-            <div className="border-l border-white/10 pl-3">
-              <span className="text-[8px] font-bold text-neutral-400 block">DATE</span>
-              <p className="font-extrabold text-white uppercase mt-0.5">{formattedDate}</p>
+            <div
+              className="hidden sm:flex flex-col items-center justify-center w-16 h-16 rounded-full border-2 shrink-0"
+              style={{ borderColor: accent, color: ink }}
+              aria-hidden
+            >
+              <span className="text-[7px] font-bold tracking-wider uppercase" style={{ color: muted }}>
+                Event
+              </span>
+              <span className="text-[9px] font-black leading-tight text-center px-1">
+                {shortDate}
+              </span>
             </div>
-            {!compact && (
-              <div className="border-l border-white/10 pl-3">
-                <span className="text-[8px] font-bold text-neutral-400 block">CODE</span>
-                <p className="font-extrabold text-white uppercase mt-0.5">{ticketSerial}</p>
+          </div>
+
+          {/* Flight path + plane */}
+          <div className="mt-1 flex items-center gap-2" aria-hidden>
+            <div
+              className="flex-1 border-t border-dashed opacity-70"
+              style={{ borderColor: accent }}
+            />
+            <Plane className="w-4 h-4 rotate-45 shrink-0" style={{ color: accent }} strokeWidth={2.25} />
+          </div>
+
+          <p
+            className="mt-3 text-[9px] font-bold tracking-[0.2em] uppercase"
+            style={{ color: muted }}
+          >
+            Together with their families
+          </p>
+          <p
+            className={`${compact ? 'text-xl' : 'text-2xl'} font-semibold mt-0.5 leading-tight`}
+            style={{
+              fontFamily: '"Cormorant Garamond", Georgia, serif',
+              color: ink,
+            }}
+          >
+            {eventName}
+          </p>
+          <p
+            className="mt-1 text-[10px] font-bold uppercase tracking-[0.18em]"
+            style={{ color: accent }}
+          >
+            {badgeLabel}
+          </p>
+
+          <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-4">
+            {fields.map((field) => (
+              <div key={field.label} className="min-w-0">
+                <p
+                  className="text-[8px] font-bold uppercase tracking-[0.18em]"
+                  style={{ color: muted }}
+                >
+                  {field.label}
+                </p>
+                <p
+                  className="mt-0.5 text-[11px] font-bold leading-snug line-clamp-2"
+                  style={{ color: ink }}
+                >
+                  {field.value}
+                </p>
               </div>
-            )}
+            ))}
+          </div>
+
+          {/* Decorative barcode */}
+          <div className="mt-4 flex items-end gap-[1.5px] h-6 opacity-60" aria-hidden>
+            {Array.from({ length: 36 }).map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  width: i % 4 === 0 ? 2.5 : 1.25,
+                  height: `${35 + ((i * 13) % 65)}%`,
+                  backgroundColor: ink,
+                }}
+              />
+            ))}
           </div>
         </div>
-      </div>
 
-      <div className="hidden md:flex flex-col justify-between items-center py-4 relative bg-neutral-900 shrink-0">
-        <div className="w-6 h-6 rounded-full bg-neutral-50 dark:bg-neutral-950 border -mt-6 -mr-3 z-30" />
-        <div className="border-l-2 border-dashed border-neutral-700 h-full my-2" />
-        <div className="w-6 h-6 rounded-full bg-neutral-50 dark:bg-neutral-950 border -mb-6 -mr-3 z-30" />
-      </div>
-
-      <div
-        className={`w-full md:w-52 ${compact ? 'p-3' : 'p-4 sm:p-6'} flex flex-row md:flex-col justify-between items-center relative shrink-0 text-black`}
-        style={{ backgroundColor: style.sideBg }}
-      >
-        <div className="absolute inset-0 bg-black/5 pointer-events-none" />
-
-        <span className="relative px-2.5 py-0.5 rounded-full text-[8px] font-black tracking-widest uppercase bg-black text-white mb-0 md:mb-3 shadow-sm">
-          {style.badgeLabel}
-        </span>
-
-        <div className="relative bg-white p-2 rounded-xl shadow-md">
-          {qrCodeImage ? (
-            <img src={qrCodeImage} alt="QR" className={`${compact ? 'w-14 h-14' : 'w-20 h-20 md:w-24 md:h-24'} object-contain`} />
-          ) : (
-            <QRCode value={qrValue} size={compact ? 56 : 80} renderAs="svg" />
-          )}
+        {/* Perforation — horizontal mobile / vertical desktop */}
+        <div className="relative h-0 sm:hidden">
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950" />
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950" />
+          <div
+            className="absolute left-3 right-3 top-1/2 -translate-y-1/2 border-t border-dashed"
+            style={{ borderColor: `${accent}99` }}
+          />
+        </div>
+        <div className="hidden sm:block w-0 relative shrink-0 self-stretch">
+          <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950 z-20" />
+          <div
+            className="absolute inset-y-3 left-0 border-l border-dashed"
+            style={{ borderColor: `${accent}99` }}
+          />
+          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950 z-20" />
         </div>
 
-        <div className="relative text-right md:text-center mt-0 md:mt-3">
-          <p className="text-[8px] font-bold uppercase tracking-[0.2em] opacity-85">SCAN TO ENTRY</p>
-          <p className="text-[7px] opacity-60 mt-0.5">ADMIT ONE</p>
+        {/* RSVP stub */}
+        <div
+          className={`sm:w-[34%] sm:min-w-[132px] sm:max-w-[168px] ${compact ? 'p-4' : 'p-5'} flex flex-col items-center justify-center text-center`}
+          style={{ backgroundColor: `${accent}18` }}
+        >
+          <p
+            className="text-sm font-black tracking-[0.28em] uppercase"
+            style={{
+              fontFamily: '"Cormorant Garamond", Georgia, serif',
+              color: ink,
+            }}
+          >
+            RSVP
+          </p>
+          <p className="mt-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: muted }}>
+            {prettyDate}
+          </p>
+          <div
+            className="mt-3 bg-white p-2 rounded-lg shadow-sm border"
+            style={{ borderColor: `${accent}44` }}
+          >
+            <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={qrSize} />
+          </div>
+          <p className="mt-2 text-[9px] font-mono font-bold tracking-wider" style={{ color: ink }}>
+            SEAT {seatCode}
+          </p>
+          <p className="mt-1 text-[8px] font-semibold uppercase tracking-[0.16em]" style={{ color: muted }}>
+            Formal invite to follow
+          </p>
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Concert stub — bold nightlife / festival pass (distinct from Classic).
+ * Horizontal stage-pass energy with neon accent strip.
+ */
+function StubLayout(props: LayoutProps) {
+  const {
+    eventName,
+    eventDate,
+    eventTime = '7:00 PM',
+    eventLocation = 'Venue TBA',
+    eventImageUrl,
+    ticketType,
+    ticketSerial = 'TKT-PREVIEW',
+    qrValue = 'preview-ticket',
+    qrCodeImage,
+    compact = false,
+    id,
+    accent,
+    badgeLabel,
+  } = props;
+  const split = splitTitle(eventName);
+  const shortDate = formatShortDate(eventDate);
+  const onAccent = inkOn(accent);
+  const bannerImage =
+    eventImageUrl ||
+    'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=1200&q=80';
+  const qrSize = compact ? 72 : 88;
+
+  return (
+    <div
+      id={id}
+      className={`relative w-full max-w-xl mx-auto rounded-2xl overflow-hidden shadow-xl border border-white/10 bg-[#0b0b12] text-white ${compact ? '' : ''}`}
+    >
+      {/* Neon top rail */}
+      <div className="h-1.5 w-full" style={{ backgroundColor: accent }} />
+
+      <div className="flex flex-col sm:flex-row">
+        <div className={`relative flex-1 min-w-0 ${compact ? 'p-4' : 'p-5 sm:p-6'} overflow-hidden`}>
+          <div className="absolute inset-0 opacity-30">
+            <img
+              src={bannerImage}
+              alt=""
+              className="w-full h-full object-cover"
+              crossOrigin="anonymous"
+            />
+            <div className="absolute inset-0 bg-gradient-to-br from-[#0b0b12] via-[#0b0b12]/92 to-[#0b0b12]/50" />
+          </div>
+
+          {/* Diagonal accent slash */}
+          <div
+            className="pointer-events-none absolute -right-8 top-0 h-full w-16 rotate-12 opacity-40"
+            style={{ background: `linear-gradient(180deg, ${accent}, transparent)` }}
+          />
+
+          <div className="relative z-10">
+            <div className="flex items-center gap-2">
+              <span
+                className="px-2 py-0.5 text-[8px] font-black tracking-[0.25em] uppercase rounded"
+                style={{ backgroundColor: accent, color: onAccent }}
+              >
+                {ticketType?.ticketHeadline?.trim() || 'LIVE SHOW'}
+              </span>
+              <span className="text-[9px] font-bold tracking-widest uppercase text-white/50">
+                Stage pass
+              </span>
+            </div>
+
+            <h3
+              className={`${compact ? 'text-2xl' : 'text-3xl sm:text-4xl'} font-black uppercase leading-[0.95] mt-3 tracking-tight`}
+              style={{ fontFamily: '"Oswald", ui-sans-serif, system-ui, sans-serif' }}
+            >
+              <span style={{ color: accent }}>{split.firstWord}</span>
+              {split.restOfTitle ? (
+                <>
+                  {' '}
+                  <span className="text-white">{split.restOfTitle}</span>
+                </>
+              ) : null}
+            </h3>
+
+            <p className="mt-3 text-xs font-bold uppercase tracking-wide text-white/85 line-clamp-2">
+              {eventLocation}
+            </p>
+
+            <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-[11px]">
+              <div>
+                <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/45">Date</p>
+                <p className="font-extrabold text-white mt-0.5">{shortDate}</p>
+              </div>
+              <div>
+                <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/45">Doors</p>
+                <p className="font-extrabold text-white mt-0.5">{eventTime}</p>
+              </div>
+              <div>
+                <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/45">Code</p>
+                <p className="font-extrabold font-mono text-white mt-0.5">{ticketSerial}</p>
+              </div>
+            </div>
+
+            {/* Fake barcode stripes */}
+            <div className="mt-5 flex items-end gap-[2px] h-7 opacity-70" aria-hidden>
+              {Array.from({ length: 28 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-white/80"
+                  style={{
+                    width: i % 5 === 0 ? 3 : 1.5,
+                    height: `${40 + ((i * 17) % 60)}%`,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Tear */}
+        <div className="relative h-0 sm:h-auto sm:w-0 shrink-0">
+          <div className="sm:hidden absolute left-0 right-0 top-1/2 -translate-y-1/2">
+            <div className="absolute left-0 -translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950" />
+            <div className="absolute right-0 translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950" />
+            <div className="mx-4 border-t-2 border-dashed border-white/25" />
+          </div>
+          <div className="hidden sm:block absolute inset-y-0 left-0">
+            <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950 z-20" />
+            <div className="absolute inset-y-3 left-0 border-l-2 border-dashed border-white/25" />
+            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950 z-20" />
+          </div>
+        </div>
+
+        {/* Stub */}
+        <div
+          className={`sm:w-[34%] sm:min-w-[120px] sm:max-w-[168px] ${compact ? 'p-4' : 'p-5'} flex flex-row sm:flex-col items-center justify-between gap-3 text-center`}
+          style={{ backgroundColor: accent, color: onAccent }}
+        >
+          <span
+            className="px-2.5 py-1 rounded-full text-[8px] font-black tracking-[0.18em] uppercase shrink-0"
+            style={{
+              backgroundColor: onAccent === '#ffffff' ? '#0a0a0a' : '#ffffff',
+              color: onAccent === '#ffffff' ? '#ffffff' : '#0a0a0a',
+            }}
+          >
+            {badgeLabel}
+          </span>
+          <div className="bg-white p-2 rounded-xl shadow-md rotate-[-1.5deg] shrink-0">
+            <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={qrSize} />
+          </div>
+          <div className="shrink-0">
+            <p className="text-[9px] font-black tracking-[0.22em] uppercase opacity-85">
+              Tear & keep
+            </p>
+            <p className="text-[10px] font-extrabold mt-0.5 tracking-wide">ADMIT ONE</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const LAYOUTS: Record<
+  TicketLayoutId,
+  React.FC<LayoutProps>
+> = {
+  classic: ClassicLayout,
+  boarding: BoardingLayout,
+  stub: StubLayout,
+};
+
+const EventTicketCard: React.FC<EventTicketCardProps> = (props) => {
+  const style = resolveTicketStyle(props.ticketType);
+  const Layout = LAYOUTS[style.layout] || ClassicLayout;
+  return (
+    <Layout
+      {...props}
+      accent={style.accent}
+      borderColor={style.borderColor}
+      badgeLabel={style.badgeLabel}
+    />
   );
 };
 

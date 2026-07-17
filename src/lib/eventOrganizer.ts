@@ -22,6 +22,7 @@ export interface EventStats {
 
 export interface OrganizerEvent {
   id: number;
+  slug?: string | null;
   title: string;
   description?: string;
   startDate: string;
@@ -40,6 +41,7 @@ export interface OrganizerEvent {
   stats?: EventStats;
   ticketTypes?: Array<{ id: number; name: string; price: number; quantity: number | null }>;
   allowVendors?: boolean;
+  organizationId?: number;
   vendorSettings?: {
     allowVendors: boolean;
     stallTypes: Array<{

@@ -19,7 +19,16 @@ import { Calendar as DateCalendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { api } from '../services/api';
 import { EVENT_TEMPLATES, EventTemplate, TicketDraft } from '../data/eventTemplates';
-import { TICKET_DESIGNS } from '../data/ticketDesigns';
+import {
+  TICKET_ACCENTS,
+  TICKET_LAYOUTS,
+  encodeTicketStyle,
+  getLayoutPreset,
+  getAccentPreset,
+  parseTicketStyle,
+  suggestTicketDesign,
+  isDefaultTicketStyle,
+} from '../data/ticketDesigns';
 import { INCLUDED_SUGGESTIONS, TICKET_TYPE_PRESETS } from '../data/eventExtras';
 import EventTicketCard from '../components/tickets/EventTicketCard';
 import VendorSettingsStep, { VendorSettings } from '../components/organizer/VendorSettingsStep';
@@ -72,7 +81,7 @@ const defaultTicket = (): TicketDraft => ({
   price: '',
   quantity: '100',
   isFree: false,
-  ticketStyle: 'rose',
+  ticketStyle: encodeTicketStyle('classic', 'rose'),
   badgeText: '',
   accentColor: '',
   ticketHeadline: 'COME AND JOIN',
@@ -136,6 +145,14 @@ function totalTicketQuantity(tickets: TicketDraft[], excludeIndex?: number) {
   );
 }
 
+/** Local YYYY-MM-DD — avoids UTC day-shift from toISOString(). */
+function toLocalDateInput(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function buildFormData(form: FormState, image: File | null, isPublished: boolean): FormData {
   const startDateTime = combineDateAndTime12(form.startDate, form.startTime12)!;
   const endDateTime = combineDateAndTime12(form.endDate || form.startDate, form.endTime12)!;
@@ -163,7 +180,7 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
         name: t.name,
         price: t.isFree ? 0 : parseFloat(t.price || '0'),
         quantity: parseInt(t.quantity || '0', 10),
-        ticketStyle: t.ticketStyle || 'rose',
+        ticketStyle: t.ticketStyle || encodeTicketStyle('classic', 'rose'),
         badgeText: t.badgeText || null,
         accentColor: t.accentColor || null,
         ticketHeadline: t.ticketHeadline || null,
@@ -173,19 +190,17 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
     )
   );
 
-  // Add vendor settings if vendors are enabled
-  if (form.vendorSettings.allowVendors) {
-    fd.append(
-      'vendorSettings',
-      JSON.stringify({
-        allowVendors: true,
-        stallTypes: form.vendorSettings.stallTypes,
-        allowedRoles: form.vendorSettings.allowedRoles,
-        approvalMode: form.vendorSettings.approvalMode,
-        applicationDeadline: form.vendorSettings.applicationDeadline,
-      })
-    );
-  }
+  // Always send vendor settings so edit can turn vendors off
+  fd.append(
+    'vendorSettings',
+    JSON.stringify({
+      allowVendors: form.vendorSettings.allowVendors,
+      stallTypes: form.vendorSettings.allowVendors ? form.vendorSettings.stallTypes : [],
+      allowedRoles: form.vendorSettings.allowedRoles,
+      approvalMode: form.vendorSettings.approvalMode,
+      applicationDeadline: form.vendorSettings.applicationDeadline,
+    })
+  );
 
   if (form.includedItems.length) fd.append('amenities', JSON.stringify(form.includedItems));
 
@@ -295,9 +310,9 @@ function StepActions({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="mt-10 pt-6 border-t border-neutral-200 dark:border-neutral-800">
+    <div className="mt-8 pt-4 border-t border-neutral-200 dark:border-neutral-800 sticky bottom-0 md:bottom-0 z-10 -mx-4 px-4 pb-3 md:mx-0 md:px-0 md:pb-0 md:static bg-white/95 dark:bg-gray-900/95 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none">
       {error && (
-        <div className="mb-4 flex items-start gap-2 text-sm text-rose-600 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 rounded-lg">
+        <div className="mb-3 flex items-start gap-2 text-sm text-rose-600 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 rounded-lg">
           <p className="flex-1">{error}</p>
           {onDismissError && (
             <button type="button" onClick={onDismissError} className="shrink-0 p-0.5 hover:text-rose-800" aria-label="Dismiss">
@@ -310,14 +325,14 @@ function StepActions({
         <button
           type="button"
           onClick={onBack}
-          className="text-sm font-medium text-neutral-500 hover:text-rose-500 transition-colors"
+          className="text-sm font-medium text-neutral-500 hover:text-rose-500 transition-colors shrink-0"
         >
           {backLabel}
         </button>
         {children ?? (
           <Button
             onClick={onNext}
-            className="rounded-full px-6 bg-rose-500 hover:bg-rose-600 text-white border-0 flex items-center gap-2"
+            className="rounded-full px-5 sm:px-6 bg-rose-500 hover:bg-rose-600 text-white border-0 flex items-center gap-2 text-sm"
           >
             {nextLabel}
             <ArrowRight className="h-4 w-4" />
@@ -335,7 +350,11 @@ const CreateEvent: React.FC = () => {
 
   const [step, setStep] = useState<Step>('details');
   const [form, setForm] = useState<FormState>(defaultForm);
-  const [eventId, setEventId] = useState<number | null>(id ? Number(id) : null);
+  const [eventId, setEventId] = useState<number | null>(() => {
+    if (!id) return null;
+    const n = Number(id);
+    return !Number.isNaN(n) && n > 0 && String(n) === id ? n : null;
+  });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(!!id);
@@ -368,7 +387,8 @@ const CreateEvent: React.FC = () => {
     if (!id) return;
     (async () => {
       try {
-        const { data: event } = await api.events.getByIdAuth(Number(id));
+        // Organizer endpoint accepts slug or id and returns full ticket/vendor fields
+        const { data: event } = await api.events.getOrganizerEventById(id);
         setIsEventPublished(event.isPublished);
         const start = new Date(event.startDate);
         const end = new Date(event.endDate);
@@ -377,70 +397,90 @@ const CreateEvent: React.FC = () => {
         const included = [...amenities, ...highlights.map((h) => h.label)].filter(
           (v, i, a) => a.indexOf(v) === i
         );
+        const capacityFallback = event.capacity ? String(event.capacity) : '100';
+        const vs = event.vendorSettings;
+        const stallSource =
+          (vs?.stallTypes?.length ? vs.stallTypes : null) ||
+          (event.vendorTypes?.length ? event.vendorTypes : null);
+        const deadlineDays =
+          event.vendorDeadline && event.startDate
+            ? Math.max(
+                1,
+                Math.round(
+                  (new Date(event.startDate).getTime() -
+                    new Date(event.vendorDeadline).getTime()) /
+                    (24 * 60 * 60 * 1000)
+                )
+              )
+            : 7;
+        const approvalRaw = vs?.approvalMode || event.vendorApprovalMode || 'auto';
+        const approvalMode =
+          approvalRaw === 'manual' || approvalRaw === 'vetted' ? approvalRaw : 'auto';
 
         setForm({
           templateId: 'custom',
           title: event.title || '',
           description: event.description || '',
-          startDate: start.toISOString().split('T')[0],
-          endDate: end.toISOString().split('T')[0],
+          startDate: toLocalDateInput(start),
+          endDate: toLocalDateInput(end),
           startTime12: formatTime12(start),
           endTime12: formatTime12(end),
           locationType: event.locationType === 'online' ? 'online' : 'physical',
-          location: event.location || '',
-          latitude: event.latitude,
-          longitude: event.longitude,
-          onlineUrl: event.onlineUrl || '',
+          location: event.locationType === 'online' ? '' : event.location || '',
+          latitude: event.latitude ?? undefined,
+          longitude: event.longitude ?? undefined,
+          onlineUrl: event.onlineUrl || (event.locationType === 'online' ? event.location || '' : ''),
           capacity: event.capacity ? String(event.capacity) : '',
           tickets: event.ticketTypes?.length
             ? event.ticketTypes.map((t: {
                 name: string;
                 price: number;
-                quantity: number;
+                quantity: number | null;
                 ticketStyle?: string;
-                badgeText?: string;
-                accentColor?: string;
-                ticketHeadline?: string;
-                venueLabel?: string;
-                maxPerPerson?: number;
+                badgeText?: string | null;
+                accentColor?: string | null;
+                ticketHeadline?: string | null;
+                venueLabel?: string | null;
+                maxPerPerson?: number | null;
               }) => ({
                 name: t.name,
-                price: String(t.price),
-                quantity: String(t.quantity),
-                isFree: t.price === 0,
-                ticketStyle: t.ticketStyle || 'rose',
+                price: String(t.price ?? 0),
+                quantity: t.quantity != null ? String(t.quantity) : capacityFallback,
+                isFree: Number(t.price) === 0,
+                ticketStyle: t.ticketStyle || encodeTicketStyle('classic', 'rose'),
                 badgeText: t.badgeText || '',
                 accentColor: t.accentColor || '',
                 ticketHeadline: t.ticketHeadline || 'COME AND JOIN',
                 venueLabel: t.venueLabel || 'LIVE AT',
-                maxPerPerson: t.maxPerPerson !== null && t.maxPerPerson !== undefined ? String(t.maxPerPerson) : '5',
+                maxPerPerson:
+                  t.maxPerPerson != null ? String(t.maxPerPerson) : '5',
               }))
             : [defaultTicket()],
           imageUrl: event.imageUrl || '',
           includedItems: included,
-          vendorSettings: (() => {
-            // The backend returns vendorTypes, allowVendors, vendorDeadline as separate fields.
-            // Reconstruct the vendorSettings object the form expects.
-            const hasVendorTypes = event.vendorTypes && event.vendorTypes.length > 0;
-            const deadlineDays = event.vendorDeadline && event.startDate
-              ? Math.max(1, Math.round((new Date(event.startDate).getTime() - new Date(event.vendorDeadline).getTime()) / (24 * 60 * 60 * 1000)))
-              : 7;
-            return {
-              allowVendors: event.allowVendors ?? false,
-              stallTypes: hasVendorTypes
-                ? event.vendorTypes.map((vt: any) => ({
-                    id: `stall_${vt.id}`,
-                    name: vt.name || '',
-                    price: vt.fee ?? 0,
-                    maxStalls: vt.maxVendors ?? 10,
-                    description: '',
-                  }))
-                : [],
-              allowedRoles: [],
-              approvalMode: 'auto' as const,
-              applicationDeadline: deadlineDays,
-            };
-          })(),
+          vendorSettings: {
+            allowVendors: Boolean(vs?.allowVendors ?? event.allowVendors),
+            stallTypes: stallSource
+              ? stallSource.map((vt: {
+                  id?: string | number;
+                  name?: string;
+                  price?: number;
+                  fee?: number;
+                  maxStalls?: number | null;
+                  maxVendors?: number | null;
+                  description?: string;
+                }) => ({
+                  id: `stall_${vt.id ?? vt.name}`,
+                  name: vt.name || '',
+                  price: Number(vt.price ?? vt.fee ?? 0),
+                  maxStalls: Number(vt.maxStalls ?? vt.maxVendors ?? 10),
+                  description: vt.description || '',
+                }))
+              : [],
+            allowedRoles: Array.isArray(vs?.allowedRoles) ? vs.allowedRoles : [],
+            approvalMode: approvalMode as VendorSettings['approvalMode'],
+            applicationDeadline: deadlineDays,
+          },
           category: event.category || '',
         });
         const resolvedCover = resolveImageUrl(event.imageUrl);
@@ -455,6 +495,8 @@ const CreateEvent: React.FC = () => {
   }, [id]);
 
   const applyTemplate = (template: EventTemplate) => {
+    const category = template.category || 'Other';
+    const suggestion = suggestTicketDesign(category);
     setForm({
       templateId: template.id,
       title: template.title,
@@ -467,7 +509,14 @@ const CreateEvent: React.FC = () => {
       location: '',
       onlineUrl: '',
       capacity: template.capacity,
-      tickets: template.tickets.map((t) => ({ ...t })),
+      tickets: template.tickets.map((t, i) => {
+        const { accent } = parseTicketStyle(t.ticketStyle);
+        const styleId =
+          i === 0 || isDefaultTicketStyle(t.ticketStyle)
+            ? suggestion.styleId
+            : encodeTicketStyle(suggestion.layout, accent);
+        return { ...t, ticketStyle: styleId, accentColor: '' };
+      }),
       imageUrl: template.image,
       includedItems: template.amenities ? [...template.amenities] : [],
       vendorSettings: template.vendorSettings
@@ -479,7 +528,7 @@ const CreateEvent: React.FC = () => {
             approvalMode: 'auto',
             applicationDeadline: 5,
           },
-      category: template.category || 'Other',
+      category,
     });
     setImagePreview(template.image);
     setImageFile(null);
@@ -631,7 +680,46 @@ const CreateEvent: React.FC = () => {
     return null;
   };
 
+  const validateStepKey = (key: Step): string | null => {
+    if (key === 'details') return validateDetails();
+    if (key === 'tickets') return validateTickets();
+    if (key === 'vendors') return validateVendors();
+    return null;
+  };
+
   const validateAll = (): string | null => validateDetails() ?? validateTickets() ?? validateVendors();
+
+  const scrollStepTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  /** Mobile step chips: back always ok; forward must pass validators for each skipped step. */
+  const goToStep = (target: Step) => {
+    const targetIndex = STEPS.findIndex((s) => s.key === target);
+    if (targetIndex < 0 || targetIndex === stepIndex) return;
+
+    if (targetIndex < stepIndex) {
+      setError(null);
+      setStep(target);
+      scrollStepTop();
+      return;
+    }
+
+    for (let i = stepIndex; i < targetIndex; i++) {
+      const err = validateStepKey(STEPS[i].key);
+      if (err) {
+        setError(err);
+        setStep(STEPS[i].key);
+        scrollStepTop();
+        return;
+      }
+    }
+
+    setError(null);
+    setStep(target);
+    scrollStepTop();
+  };
 
   const saveEvent = async (isPublished: boolean) => {
     const validationError = validateStep();
@@ -728,9 +816,9 @@ const CreateEvent: React.FC = () => {
   }
 
   return (
-    <div className="pb-6 md:pb-6 sm:px-2">
+    <div className="pb-10 md:pb-8 sm:px-2">
       {/* ── Page header — sticky on mobile, part of normal flow on desktop ── */}
-      <div className="sticky top-0 z-20 bg-white/97 dark:bg-gray-900/97 backdrop-blur-sm border-b border-neutral-100 dark:border-neutral-800 px-4 py-3 flex items-center justify-between gap-3 shrink-0 md:static md:bg-transparent md:dark:bg-transparent md:border-0 md:px-0 md:pt-0 md:pb-4 md:backdrop-blur-none mb-3">
+      <div className="sticky top-0 z-20 bg-white/97 dark:bg-gray-900/97 backdrop-blur-sm border-b border-neutral-100 dark:border-neutral-800 px-4 py-3 flex items-center justify-between gap-3 shrink-0 md:static md:bg-transparent md:dark:bg-transparent md:border-0 md:px-0 md:pt-0 md:pb-4 md:backdrop-blur-none mb-2 md:mb-3">
         {/* Left: back + title */}
         <div className="flex items-center gap-3 min-w-0">
           <button
@@ -744,7 +832,10 @@ const CreateEvent: React.FC = () => {
             <h1 className="text-sm font-extrabold text-neutral-900 dark:text-white leading-tight truncate md:text-xl md:font-bold">
               {isEditing ? 'Edit event' : 'Create event'}
             </h1>
-            <p className="text-[10px] md:text-sm text-neutral-500 dark:text-neutral-400 leading-none mt-0.5 truncate">
+            <p className="text-[10px] md:text-sm text-neutral-500 dark:text-neutral-400 leading-none mt-0.5 truncate md:hidden">
+              Step {stepIndex + 1} of {STEPS.length} · {STEPS[stepIndex]?.label}
+            </p>
+            <p className="hidden md:block text-sm text-neutral-500 dark:text-neutral-400 leading-none mt-0.5 truncate">
               {STEPS[stepIndex]?.label}
             </p>
           </div>
@@ -752,7 +843,7 @@ const CreateEvent: React.FC = () => {
 
         {/* Right: step progress dots + close */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center gap-1">
+          <div className="hidden sm:flex items-center gap-1">
             {STEPS.map((s, i) => (
               <div
                 key={s.key}
@@ -770,9 +861,9 @@ const CreateEvent: React.FC = () => {
               type="button"
               disabled={savingType !== null}
               onClick={quickSave}
-              className="text-xs font-extrabold bg-rose-500 hover:bg-rose-600 text-white rounded-lg px-3 py-1.5 transition-colors shadow-sm disabled:opacity-50"
+              className="text-xs font-extrabold bg-rose-500 hover:bg-rose-600 text-white rounded-lg px-2.5 sm:px-3 py-1.5 transition-colors shadow-sm disabled:opacity-50"
             >
-              {savingType ? 'Saving...' : 'Save Changes'}
+              {savingType ? 'Saving...' : 'Save'}
             </button>
           )}
           <button
@@ -783,6 +874,27 @@ const CreateEvent: React.FC = () => {
             <X className="h-4 w-4 md:h-5 md:w-5" />
           </button>
         </div>
+      </div>
+
+      {/* Mobile step labels — back free; forward validates each step */}
+      <div className="flex sm:hidden gap-1 px-4 mb-4 overflow-x-auto scrollbar-none">
+        {STEPS.map((s, i) => (
+          <button
+            key={s.key}
+            type="button"
+            onClick={() => goToStep(s.key)}
+            className={cn(
+              'shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors',
+              i === stepIndex
+                ? 'border-rose-500 bg-rose-500 text-white'
+                : i < stepIndex
+                  ? 'border-rose-200 text-rose-500 bg-rose-50 dark:bg-rose-950/20'
+                  : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-rose-300 hover:text-rose-500'
+            )}
+          >
+            {s.label}
+          </button>
+        ))}
       </div>
 
       <div className={isEditing ? 'max-w-4xl mx-auto px-4 md:px-0' : 'max-w-6xl mx-auto px-4 md:px-0'}>
@@ -832,25 +944,25 @@ const CreateEvent: React.FC = () => {
                       <p className="text-xs text-neutral-500 mt-1 mb-3">
                         These are all the templates available right now.
                       </p>
-                      <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar sm:grid sm:grid-cols-3 lg:grid lg:grid-cols-2 lg:overflow-x-visible lg:pb-0">
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
                         {EVENT_TEMPLATES.map((template) => (
                           <button
                             key={template.id}
                             type="button"
                             onClick={() => applyTemplate(template)}
                             className={cn(
-                              'text-left rounded-xl overflow-hidden border transition-all shrink-0 w-30 sm:w-auto',
+                              'text-left rounded-xl overflow-hidden border transition-all flex flex-col h-full min-w-0',
                               form.templateId === template.id
                                 ? 'border-rose-500 ring-2 ring-rose-500/30'
                                 : 'border-neutral-200 dark:border-neutral-800 hover:border-rose-300 bg-white dark:bg-neutral-900'
                             )}
                           >
-                            <div className="relative aspect-[4/3] bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
+                            <div className="relative aspect-[6/3] w-full shrink-0 bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center overflow-hidden">
                               {template.image ? (
                                 <img
                                   src={template.image}
                                   alt={template.name}
-                                  className="w-full h-full object-cover"
+                                  className="absolute inset-0 w-full h-full object-cover"
                                   loading="lazy"
                                   onError={(e) => {
                                     (e.target as HTMLImageElement).src =
@@ -858,20 +970,20 @@ const CreateEvent: React.FC = () => {
                                   }}
                                 />
                               ) : (
-                                <div className="flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500">
-                                  <Plus className="h-5 w-5 text-rose-500 animate-pulse" />
-                                  <span className="text-[10px] font-bold mt-1 uppercase tracking-wider">Blank Canvas</span>
+                                <div className="flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500 px-2">
+                                  <Plus className="h-5 w-5 text-rose-500" />
+                                  <span className="text-[10px] font-bold mt-1 uppercase tracking-wider text-center">Blank</span>
                                 </div>
                               )}
                               {form.templateId === template.id && (
-                                <div className="absolute top-2 right-2 h-5 w-5 bg-rose-500 rounded-full flex items-center justify-center">
+                                <div className="absolute top-2 right-2 h-5 w-5 bg-rose-500 rounded-full flex items-center justify-center z-10">
                                   <Check className="h-3 w-3 text-white" />
                                 </div>
                               )}
                             </div>
-                            <div className="p-2">
-                              <p className="text-xs font-semibold truncate">{template.name}</p>
-                              <p className="text-[9px] text-neutral-500 mt-0.5 truncate">{template.tagline}</p>
+                            <div className="p-2 min-h-[2.75rem] flex flex-col justify-center">
+                              <p className="text-xs font-semibold truncate leading-tight">{template.name}</p>
+                              <p className="text-[9px] text-neutral-500 mt-0.5 truncate leading-tight">{template.tagline}</p>
                             </div>
                           </button>
                         ))}
@@ -890,7 +1002,7 @@ const CreateEvent: React.FC = () => {
                       tabIndex={0}
                       onClick={() => fileRef.current?.click()}
                       onKeyDown={(e) => e.key === 'Enter' && fileRef.current?.click()}
-                      className="relative aspect-[2/1] rounded-xl overflow-hidden border border-dashed border-neutral-300 dark:border-neutral-700 cursor-pointer group hover:border-rose-400 transition-colors"
+                      className="relative aspect-[16/9] sm:aspect-[2/1] rounded-xl overflow-hidden border border-dashed border-neutral-300 dark:border-neutral-700 cursor-pointer group hover:border-rose-400 transition-colors"
                     >
                       {imagePreview ? (
                         <>
@@ -924,11 +1036,23 @@ const CreateEvent: React.FC = () => {
                       <FieldLabel>Category</FieldLabel>
                       <select
                         value={form.category}
-                        onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
+                        onChange={(e) => {
+                          const category = e.target.value;
+                          const suggestion = suggestTicketDesign(category);
+                          setForm((p) => ({
+                            ...p,
+                            category,
+                            tickets: p.tickets.map((t) =>
+                              isDefaultTicketStyle(t.ticketStyle)
+                                ? { ...t, ticketStyle: suggestion.styleId, accentColor: '' }
+                                : t
+                            ),
+                          }));
+                        }}
                         className={getInputClass('category')}
                       >
                         <option value="">Select a category</option>
-                        {['Music', 'Food', 'Business', 'Technology', 'Arts', 'Sports', 'Wellness', 'Fairs', 'Other'].map(c => (
+                        {['Music', 'Festival', 'Nightlife', 'Wedding', 'Food', 'Business', 'Technology', 'Conference', 'Arts', 'Sports', 'Wellness', 'Fairs', 'Other'].map(c => (
                           <option key={c} value={c}>{c}</option>
                         ))}
                       </select>
@@ -1115,8 +1239,8 @@ const CreateEvent: React.FC = () => {
 
           {step === 'tickets' && activeTicket && (
             <motion.div key="tickets" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="space-y-5">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-8">
+                <div className="space-y-5 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Ticket types</h2>
                     {capacityNum > 0 && (
@@ -1139,7 +1263,9 @@ const CreateEvent: React.FC = () => {
                         )}
                       >
                         {ticket.name || `Ticket ${i + 1}`}
-                        <span className="ml-1 opacity-70">({TICKET_DESIGNS.find((d) => d.id === ticket.ticketStyle)?.name})</span>
+                        <span className="ml-1 opacity-70">
+                          ({getLayoutPreset(ticket.ticketStyle).name} · {getAccentPreset(ticket.ticketStyle).name})
+                        </span>
                       </button>
                     ))}
                     <button
@@ -1229,25 +1355,71 @@ const CreateEvent: React.FC = () => {
                       </div>
                     </div>
 
-                    <div>
-                      <FieldLabel>Ticket design (per type)</FieldLabel>
-                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                        {TICKET_DESIGNS.map((design) => (
-                          <button
-                            key={design.id}
-                            type="button"
-                            onClick={() => updateTicket(activeTicketIndex, { ticketStyle: design.id, accentColor: '' })}
-                            className={cn(
-                              'p-2 rounded-lg border text-left transition-colors',
-                              activeTicket.ticketStyle === design.id
-                                ? 'border-rose-500 ring-1 ring-rose-500/30'
-                                : 'border-neutral-200 dark:border-neutral-700 hover:border-rose-300'
-                            )}
-                          >
-                            <div className="w-full h-4 rounded mb-1" style={{ backgroundColor: design.accent }} />
-                            <span className="text-[10px] font-medium">{design.name}</span>
-                          </button>
-                        ))}
+                    <div className="space-y-3">
+                      <div>
+                        <FieldLabel>Ticket layout</FieldLabel>
+                        {form.category && (
+                          <p className="text-[10px] text-neutral-500 mb-2">
+                            Suggested for {form.category}: {suggestTicketDesign(form.category).reason}
+                          </p>
+                        )}
+                        <div className="grid grid-cols-3 gap-2">
+                          {TICKET_LAYOUTS.map((layout) => {
+                            const current = parseTicketStyle(activeTicket.ticketStyle);
+                            const selected = current.layout === layout.id;
+                            return (
+                              <button
+                                key={layout.id}
+                                type="button"
+                                onClick={() =>
+                                  updateTicket(activeTicketIndex, {
+                                    ticketStyle: encodeTicketStyle(layout.id, current.accent),
+                                    accentColor: '',
+                                  })
+                                }
+                                className={cn(
+                                  'p-2.5 rounded-lg border text-left transition-colors',
+                                  selected
+                                    ? 'border-rose-500 ring-1 ring-rose-500/30 bg-rose-50/50 dark:bg-rose-950/20'
+                                    : 'border-neutral-200 dark:border-neutral-700 hover:border-rose-300'
+                                )}
+                              >
+                                <p className="text-[11px] font-semibold leading-tight">{layout.name}</p>
+                                <p className="text-[9px] text-neutral-500 mt-0.5 leading-tight">{layout.description}</p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <FieldLabel>Accent color</FieldLabel>
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                          {TICKET_ACCENTS.map((design) => {
+                            const current = parseTicketStyle(activeTicket.ticketStyle);
+                            const selected = current.accent === design.id;
+                            return (
+                              <button
+                                key={design.id}
+                                type="button"
+                                onClick={() =>
+                                  updateTicket(activeTicketIndex, {
+                                    ticketStyle: encodeTicketStyle(current.layout, design.id),
+                                    accentColor: '',
+                                  })
+                                }
+                                className={cn(
+                                  'p-2 rounded-lg border text-left transition-colors',
+                                  selected
+                                    ? 'border-rose-500 ring-1 ring-rose-500/30'
+                                    : 'border-neutral-200 dark:border-neutral-700 hover:border-rose-300'
+                                )}
+                              >
+                                <div className="w-full h-4 rounded mb-1" style={{ backgroundColor: design.accent }} />
+                                <span className="text-[10px] font-medium">{design.name}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
 
@@ -1259,7 +1431,7 @@ const CreateEvent: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="lg:sticky lg:top-4 lg:self-start">
+                <div className="lg:sticky lg:top-4 lg:self-start min-w-0 overflow-x-auto">
                   <p className="text-xs font-medium text-neutral-500 mb-3">Preview — {activeTicket.name || 'Ticket'}</p>
                   <EventTicketCard
                     key={`preview-${activeTicketIndex}-${activeTicket.ticketStyle}`}
@@ -1371,7 +1543,7 @@ const CreateEvent: React.FC = () => {
                         </span>
                       </div>
                       <p className="text-[10px] text-neutral-400">
-                        Design: {TICKET_DESIGNS.find((d) => d.id === t.ticketStyle)?.name} · {t.ticketHeadline} / {t.venueLabel}
+                        Design: {getLayoutPreset(t.ticketStyle).name} · {getAccentPreset(t.ticketStyle).name} · {t.ticketHeadline} / {t.venueLabel}
                       </p>
                     </div>
                   ))}
@@ -1403,11 +1575,11 @@ const CreateEvent: React.FC = () => {
               </div>
 
               <StepActions onBack={goBack} backLabel="Back" error={error} onDismissError={clearError}>
-                <div className="flex gap-2">
-                  <Button variant="outline" disabled={savingType !== null} onClick={() => saveEvent(false)} className="rounded-full px-4 text-sm border-rose-200 text-rose-500 hover:bg-rose-50">
+                <div className="flex flex-wrap gap-2 justify-end">
+                  <Button variant="outline" disabled={savingType !== null} onClick={() => saveEvent(false)} className="rounded-full px-3 sm:px-4 text-sm border-rose-200 text-rose-500 hover:bg-rose-50">
                     {savingType === 'draft' ? <Spinner className="h-4 w-4 text-rose-500" /> : (isEditing ? 'Save draft' : 'Save draft')}
                   </Button>
-                  <Button disabled={savingType !== null} onClick={() => saveEvent(true)} className="rounded-full px-5 bg-rose-500 hover:bg-rose-600 text-white border-0 text-sm">
+                  <Button disabled={savingType !== null} onClick={() => saveEvent(true)} className="rounded-full px-4 sm:px-5 bg-rose-500 hover:bg-rose-600 text-white border-0 text-sm">
                     {savingType === 'publish' ? <Spinner className="h-4 w-4" /> : (isEditing ? 'Update event' : 'Publish')}
                   </Button>
                 </div>

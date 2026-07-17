@@ -102,6 +102,18 @@ const OrganizerPage: React.FC = () => {
       a: "No special hardware required! You can scan tickets directly using your smartphone's camera. Just log into your PartyStorm dashboard on any mobile browser, access your event, and tap the built-in mobile scanner to check in guests instantly."
     },
     {
+      q: "Can PartyStorm staff my gate?",
+      a: "Yes. Request PartyStorm ops from your event dashboard. We create an ops project (even before the event exists), assign staff with standing capabilities like scan and walk-in sales, and they cover your org or that project — no re-assigning for every new event."
+    },
+    {
+      q: "Do walk-in guests need an email?",
+      a: "Yes. Gate walk-in tickets always require a guest email so the ticket is linked to a user account and can be recovered or verified later."
+    },
+    {
+      q: "Can attendees transfer tickets to someone else?",
+      a: "Attendee-to-attendee ticket transfer is coming soon. Until then, tickets stay with the purchaser account (or the email used for walk-in)."
+    },
+    {
       q: "Can I set up multiple ticket tiers?",
       a: "Absolutely. You can create VIP, Regular, Early Bird, Group, or customized promotional ticket tiers with specific quantities, pricing, and purchase limits."
     }
@@ -125,16 +137,16 @@ const OrganizerPage: React.FC = () => {
             <div className="lg:col-span-7 space-y-6">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 dark:bg-rose-950/30 text-rose-500 dark:text-rose-400 rounded-full text-xs font-bold uppercase tracking-wider">
                 <Sparkles className="h-3.5 w-3.5" />
-                PartyStorm Host Platform
+                PartyStorm Ops Platform
               </div>
               
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-neutral-900 dark:text-white leading-[1.05]">
-                Host your events <br className="hidden md:inline" />
+                Sell tickets. Run the gate. <br className="hidden md:inline" />
                 on <span className="text-rose-500">PartyStorm</span>
               </h1>
               
               <p className="text-base sm:text-lg text-neutral-500 dark:text-neutral-400 max-w-xl leading-relaxed">
-                Set your ticket tiers, manage vendors, and scan doors using your smartphone. With just a flat 5% fee on paid tickets and direct payouts in 24 hours.
+                Ticketing, walk-in sales, QR scanning, and PartyStorm staffing — one ops platform. Flat 5% on paid tickets, direct payouts in 24 hours.
               </p>
 
               {/* Stats Row */}
@@ -586,7 +598,8 @@ const OrganizerPage: React.FC = () => {
                 Ready to launch your experience?
               </h2>
               <p className="text-sm sm:text-base text-neutral-600 dark:text-neutral-400 font-medium max-w-lg mx-auto">
-                Join hundreds of creators hosting conferences, concerts, exhibitions, and parties on PartyStorm.
+                Join hundreds of creators hosting conferences, concerts, exhibitions, and parties on PartyStorm —
+                with optional PartyStorm gate staffing when you need it.
               </p>
               <div className="pt-4 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button className="h-12 px-8 rounded-full text-sm font-bold bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 active:scale-95 transition-all shadow-sm" asChild>

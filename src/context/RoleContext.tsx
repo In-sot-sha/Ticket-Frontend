@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 
-type RoleType = 'USER' | 'ORGANIZER' | 'VENDOR' | 'ADMIN';
+type RoleType = 'USER' | 'ORGANIZER' | 'VENDOR' | 'ADMIN' | 'STAFF';
 
 interface RoleContextType {
   currentRole: RoleType;
@@ -24,20 +24,23 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
   const [currentRole, setCurrentRole] = useState<RoleType>('USER');
 
   const availableRoles: RoleType[] = ['USER'];
-  
+
   if (user?.role === 'ORGANIZER' || user?.isOrganizer) {
     availableRoles.push('ORGANIZER');
   }
-  
+
   if (user?.role === 'VENDOR' || user?.isVendor) {
     availableRoles.push('VENDOR');
   }
-  
+
+  if (user?.isStaff) {
+    availableRoles.push('STAFF');
+  }
+
   if (user?.role === 'ADMIN') {
     availableRoles.push('ADMIN');
   }
 
-  // Restore preferred role and sync with current route
   useEffect(() => {
     if (!user) {
       setCurrentRole('USER');
@@ -46,6 +49,14 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
 
     if (location.pathname.startsWith('/admin')) {
       setCurrentRole('ADMIN');
+      return;
+    }
+
+    if (location.pathname.startsWith('/staff')) {
+      setCurrentRole('STAFF');
+      if (user.isStaff || user.role === 'ADMIN') {
+        localStorage.setItem('preferredRole', 'STAFF');
+      }
       return;
     }
 
@@ -72,10 +83,14 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
 
       if (role === 'ADMIN') {
         navigate('/admin');
+      } else if (role === 'STAFF') {
+        navigate('/staff');
       } else if (role === 'USER') {
         navigate('/user');
-      } else {
+      } else if (role === 'ORGANIZER') {
         navigate('/organizer');
+      } else {
+        navigate('/');
       }
     }
   };
@@ -85,12 +100,14 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
   };
 
   return (
-    <RoleContext.Provider value={{
-      currentRole,
-      setCurrentRole: handleSetCurrentRole,
-      availableRoles,
-      canSwitchToRole
-    }}>
+    <RoleContext.Provider
+      value={{
+        currentRole,
+        setCurrentRole: handleSetCurrentRole,
+        availableRoles,
+        canSwitchToRole,
+      }}
+    >
       {children}
     </RoleContext.Provider>
   );

@@ -15,7 +15,8 @@ import {
   Percent,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Skeleton } from '../../components/ui/skeleton';
 import { CustomAlertDialog } from '../../components/ui/CustomAlertDialog';
 import { buildSocialUrl, hasAnySocial, parseOrgSocials } from '../../lib/orgSocials';
 import {
@@ -26,6 +27,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui/select';
 import {
   useHostApplications,
   useVerifyHost,
@@ -230,14 +238,33 @@ const OrganizationsPage = () => {
 
   return (
     <div className="py-4 px-2 sm:px-2 max-w-7xl mx-auto text-neutral-900 dark:text-neutral-100 pb-6">
-      <div className="mb-6 border-b border-neutral-100 dark:border-neutral-900 pb-4">
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-          Organization <span className="text-rose-500">Management</span>
-        </h1>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-          Verify host organizations, manage variable ticket fees, and audit details.
-        </p>
-      </div>
+      <PageHeader
+        title="Organization"
+        accent="Management"
+        description="Verify host organizations, manage variable ticket fees, and audit details."
+        actions={
+          <Select
+            value={filter}
+            onValueChange={(v) => {
+              setFilter(v as FilterStatus);
+              setSelectedId(null);
+              setActionError('');
+              setActionSuccess('');
+            }}
+          >
+            <SelectTrigger className="w-[180px] h-10 rounded-xl">
+              <SelectValue placeholder="Filter" />
+            </SelectTrigger>
+            <SelectContent>
+              {filters.map((f) => (
+                <SelectItem key={f.key} value={f.key}>
+                  {f.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        }
+      />
 
       {actionError && (
         <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/30 text-red-600 text-sm font-medium">
@@ -250,32 +277,8 @@ const OrganizationsPage = () => {
         </div>
       )}
 
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
-        {filters.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => {
-              setFilter(f.key);
-              setSelectedId(null);
-              setActionError('');
-              setActionSuccess('');
-            }}
-            className={cn(
-              'px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer',
-              filter === f.key
-                ? 'bg-rose-500 text-white'
-                : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
       {isLoading || (isFetching && applications.length === 0) ? (
-        <div className="flex items-center justify-center min-h-[40vh]">
-          <Spinner />
-        </div>
+        <OrganizationsBodySkeleton />
       ) : applications.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl bg-neutral-50/20 dark:bg-neutral-900/5">
           <Building2 className="h-12 w-12 text-neutral-300 mx-auto mb-3" />
@@ -641,6 +644,45 @@ function DetailRow({
         ) : (
           <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 truncate">{value}</p>
         )}
+      </div>
+    </div>
+  );
+}
+
+function OrganizationsBodySkeleton() {
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6">
+      <div className="lg:col-span-2 space-y-2">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div
+            key={i}
+            className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 py-3.5 space-y-2"
+          >
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-10 rounded-xl shrink-0" />
+              <div className="flex-1 space-y-1.5 min-w-0">
+                <Skeleton className="h-4 w-2/3 rounded-md" />
+                <Skeleton className="h-3 w-1/2 rounded-md" />
+              </div>
+              <Skeleton className="h-5 w-16 rounded-full shrink-0" />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="lg:col-span-3 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 space-y-4 min-h-[50vh]">
+        <div className="flex items-start gap-3">
+          <Skeleton className="h-12 w-12 rounded-2xl shrink-0" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-6 w-1/2 rounded-lg" />
+            <Skeleton className="h-3 w-1/3 rounded-md" />
+          </div>
+        </div>
+        <Skeleton className="h-20 w-full rounded-xl" />
+        <div className="grid grid-cols-2 gap-3">
+          <Skeleton className="h-16 rounded-xl" />
+          <Skeleton className="h-16 rounded-xl" />
+        </div>
+        <Skeleton className="h-10 w-36 rounded-xl" />
       </div>
     </div>
   );

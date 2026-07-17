@@ -6,14 +6,10 @@ import {
   Mail,
   Phone,
   ArrowRight,
-  Calendar,
-  MapPin,
-  Download,
-  QrCode,
   CheckCircle2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QRCodeSVG } from 'qrcode.react';
+import TicketCard, { type TicketCardTicket } from '../components/TicketCard';
 
 type Step = 'input' | 'verify' | 'results';
 
@@ -23,8 +19,7 @@ const RecoverTicketPage = () => {
   const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
   const [step, setStep] = useState<Step>('input');
   const [isLoading, setIsLoading] = useState(false);
-  const [recoveredTickets, setRecoveredTickets] = useState<any[]>([]);
-  const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
+  const [recoveredTickets, setRecoveredTickets] = useState<TicketCardTicket[]>([]);
   const [error, setError] = useState('');
   const inputRefs = React.useRef<(HTMLInputElement | null)[]>([]);
 
@@ -93,17 +88,27 @@ const RecoverTicketPage = () => {
       });
       
       const tickets = response.data.tickets || [];
-      const mapped = tickets.map((t: any) => ({
-        id: `TKT-${t.id}`,
-        eventTitle: t.event?.title || 'Unknown Event',
-        eventDate: t.event?.startDate 
-          ? new Date(t.event.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-          : 'Date Pending',
-        location: t.event?.location || 'Location Pending',
-        ticketType: t.ticketType?.name || 'General',
-        status: t.status || 'VALID',
+      const mapped: TicketCardTicket[] = tickets.map((t: any) => ({
+        id: t.id,
         qrCode: t.qrCode || '',
-        image: t.event?.imageUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
+        eventId: t.eventId ?? t.event?.id,
+        status: t.status || 'VALID',
+        ticketType: {
+          name: t.ticketType?.name || 'General',
+          price: t.ticketType?.price,
+          ticketStyle: t.ticketType?.ticketStyle,
+          accentColor: t.ticketType?.accentColor,
+          badgeText: t.ticketType?.badgeText,
+          ticketHeadline: t.ticketType?.ticketHeadline,
+          venueLabel: t.ticketType?.venueLabel,
+        },
+        event: {
+          id: t.event?.id,
+          title: t.event?.title || 'Unknown Event',
+          startDate: t.event?.startDate,
+          location: t.event?.location || 'Location Pending',
+          imageUrl: t.event?.imageUrl,
+        },
       }));
 
       setRecoveredTickets(mapped);
@@ -117,7 +122,7 @@ const RecoverTicketPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-neutral-50 to-neutral-100 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
 
         {/* Header */}
         <div className="text-center mb-12">
@@ -374,109 +379,26 @@ const RecoverTicketPage = () => {
               </div>
 
               {/* Ticket cards */}
-              <div className="space-y-5 mb-10">
+              <div className="space-y-6 mb-10">
                 {recoveredTickets.map((ticket, idx) => (
                   <motion.div
-                    key={ticket.id}
+                    key={ticket.id ?? idx}
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.1 }}
-                    className="bg-white dark:bg-neutral-900/80 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all group"
+                    transition={{ delay: idx * 0.08 }}
                   >
-                    <div className="flex flex-col sm:flex-row">
-                      {/* Thumbnail */}
-                      <div className="w-full sm:w-36 h-40 sm:h-auto shrink-0 overflow-hidden bg-neutral-100 dark:bg-neutral-800">
-                        <img
-                          src={ticket.image}
-                          alt={ticket.eventTitle}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                      </div>
-
-                      {/* Details */}
-                      <div className="flex-1 p-4 sm:p-5 flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-start justify-between gap-3 mb-3">
-                            <h4 className="font-bold text-sm sm:text-base text-neutral-900 dark:text-white line-clamp-2">
-                              {ticket.eventTitle}
-                            </h4>
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-[9px] font-extrabold tracking-wider uppercase shrink-0 whitespace-nowrap ${
-                                ticket.status === 'VALID'
-                                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/40'
-                                  : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700'
-                              }`}
-                            >
-                              {ticket.status}
-                            </span>
-                          </div>
-                          <div className="space-y-2 text-xs text-neutral-600 dark:text-neutral-400 mb-3">
-                            <p className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-rose-500 shrink-0" />
-                              <span>{ticket.eventDate}</span>
-                            </p>
-                            <p className="flex items-center gap-2">
-                              <MapPin className="h-4 w-4 text-rose-500 shrink-0" />
-                              <span className="line-clamp-1">{ticket.location}</span>
-                            </p>
-                          </div>
-                          <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                            <span className="font-semibold">{ticket.ticketType}</span> · {ticket.id}
-                          </p>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
-                          <button
-                            onClick={() =>
-                              setSelectedTicket(
-                                selectedTicket === ticket.id ? null : ticket.id
-                              )
-                            }
-                            className="flex items-center gap-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 px-3 py-2 rounded-lg transition-colors"
-                          >
-                            <QrCode className="h-4 w-4" />
-                            {selectedTicket === ticket.id ? 'Hide QR' : 'View QR'}
-                          </button>
-                          <button className="flex items-center gap-1.5 text-xs font-bold text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 px-3 py-2 rounded-lg transition-colors">
-                            <Download className="h-4 w-4" />
-                            Download
-                          </button>
-                        </div>
-                      </div>
+                    <div className="mb-2 flex items-center justify-between gap-2 px-1">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-[9px] font-extrabold tracking-wider uppercase ${
+                          ticket.status === 'VALID'
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/40'
+                            : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700'
+                        }`}
+                      >
+                        {ticket.status}
+                      </span>
                     </div>
-
-                    {/* Expandable QR section */}
-                    <AnimatePresence>
-                      {selectedTicket === ticket.id && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="border-t border-neutral-100 dark:border-neutral-800 p-6 bg-neutral-50 dark:bg-neutral-950/50 flex flex-col items-center">
-                            <p className="text-xs font-bold text-neutral-500 dark:text-neutral-400 mb-4 uppercase tracking-wider">Scan to enter</p>
-                            <div className="bg-white dark:bg-neutral-900 p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-lg">
-                         
-                                <QRCodeSVG
-                                  value={ticket.qrCode}
-                                  size={160}
-                                  fgColor="#000000"
-                                  bgColor="#ffffff"
-                                  level="H"
-                                  includeMargin={true}
-                                />
-                         
-                            </div>
-                            <p className="text-[10px] text-neutral-400 dark:text-neutral-600 mt-3 font-mono text-center">
-                              {ticket.qrCode || ticket.id}
-                            </p>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                    <TicketCard ticket={ticket} index={idx} showDownload />
                   </motion.div>
                 ))}
               </div>

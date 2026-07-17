@@ -21,6 +21,7 @@ import {
   Calendar,
   BarChart3,
   Shield,
+  HardHat,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -46,20 +47,21 @@ const Header = () => {
 
   const isOrganizerContext = location.pathname.startsWith('/organizer');
   const isAdminContext = location.pathname.startsWith('/admin');
+  const isStaffContext = location.pathname.startsWith('/staff');
   const isAdmin = user?.role === 'ADMIN';
+  const isStaff = !!user?.isStaff;
+
+  const handleSwitchToGuest = () => {
+    setCurrentRole('USER');
+    navigate('/');
+  };
 
   const handleSwitchRole = () => {
-    if (isAdminContext) {
-      setCurrentRole('USER');
-      navigate('/');
+    if (isAdminContext || isOrganizerContext || isStaffContext) {
+      handleSwitchToGuest();
       return;
     }
-    if (isOrganizerContext) {
-      setCurrentRole('USER');
-      navigate('/');
-      return;
-    }
-    if (user?.role === 'ORGANIZER') {
+    if (user?.role === 'ORGANIZER' || user?.isOrganizer) {
       if (user.ownedOrganizations?.some(org => org.isVerified)) {
         setCurrentRole('ORGANIZER');
         navigate('/organizer');
@@ -76,6 +78,17 @@ const Header = () => {
     navigate('/admin');
   };
 
+  const handleSwitchToStaff = () => {
+    setCurrentRole('STAFF');
+    navigate('/staff');
+  };
+
+  const roleSwitchLabel = () => {
+    if (isAdminContext || isOrganizerContext || isStaffContext) return 'Switch to Guest';
+    if (isAdmin) return 'Switch to Admin Dashboard';
+    return 'Switch to Hosting';
+  };
+
   const shouldShowSearch = () => {
     const hiddenPaths = [
       '/profile', '/login', '/register', '/help', 
@@ -86,6 +99,7 @@ const Header = () => {
     // Actually, it's safer to just check if it starts with these and isn't the homepage
     if (location.pathname === '/') return true;
     if (location.pathname.startsWith('/events')) return true;
+    if (location.pathname.startsWith('/my-tickets')) return true;
     
     // Hide by default on all other utility/dashboard pages
     return false;
@@ -130,6 +144,7 @@ const Header = () => {
 
 
 
+
         {/* Right side controls */}
         <div className="flex items-center gap-3">
           
@@ -137,21 +152,15 @@ const Header = () => {
           {isAuthenticated && (
             <button
               onClick={
-                isAdminContext
-                  ? handleSwitchRole
-                  : isOrganizerContext
-                    ? handleSwitchRole
-                    : isAdmin
-                      ? handleSwitchToAdmin
-                      : handleSwitchRole
+                isAdminContext || isOrganizerContext || isStaffContext
+                  ? handleSwitchToGuest
+                  : isAdmin
+                    ? handleSwitchToAdmin
+                    : handleSwitchRole
               }
               className="hidden lg:block text-xs font-semibold px-4 py-2.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 transition-colors"
             >
-              {isAdminContext || isOrganizerContext
-                ? 'Switch to Guest'
-                : isAdmin
-                  ? 'Switch to Admin Dashboard'
-                  : 'Switch to Hosting'}
+              {roleSwitchLabel()}
             </button>
           )}
 
@@ -192,7 +201,13 @@ const Header = () => {
                   <>
                     <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-850">
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                        {isAdminContext ? 'System Admin' : isOrganizerContext ? 'Host Dashboard' : 'Welcome back'}
+                        {isAdminContext
+                          ? 'System Admin'
+                          : isStaffContext
+                            ? 'Staff Workspace'
+                            : isOrganizerContext
+                              ? 'Host Dashboard'
+                              : 'Welcome back'}
                       </p>
                       <p className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100 mt-1">
                         {user?.firstName} {user?.lastName}
@@ -205,17 +220,32 @@ const Header = () => {
                           <Link to="/admin" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
                             <LayoutDashboard className="h-4 w-4 mr-3 text-gray-400" />Overview
                           </Link>
-                          <Link to="/admin/host-applications" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
-                            <Building className="h-4 w-4 mr-3 text-gray-400" />Host Applications
+                          <Link to="/admin/ops" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Building className="h-4 w-4 mr-3 text-gray-400" />Ops projects
+                          </Link>
+                          <Link to="/admin/staff" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <HardHat className="h-4 w-4 mr-3 text-gray-400" />Staff
+                          </Link>
+                          <Link to="/admin/events" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Calendar className="h-4 w-4 mr-3 text-gray-400" />Events
+                          </Link>
+                          <Link to="/admin/organizations" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Building className="h-4 w-4 mr-3 text-gray-400" />Organizations
                           </Link>
                           <Link to="/admin/users" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
                             <User className="h-4 w-4 mr-3 text-gray-400" />Users
                           </Link>
-                          <Link to="/admin/transactions" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
-                            <BarChart3 className="h-4 w-4 mr-3 text-gray-400" />Transactions
-                          </Link>
                           <Link to="/admin/support" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
                             <HelpCircle className="h-4 w-4 mr-3 text-gray-400" />Support
+                          </Link>
+                        </>
+                      ) : isStaffContext ? (
+                        <>
+                          <Link to="/staff" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <LayoutDashboard className="h-4 w-4 mr-3 text-gray-400" />Staff home
+                          </Link>
+                          <Link to="/staff/scan" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Ticket className="h-4 w-4 mr-3 text-gray-400" />Gate scanner
                           </Link>
                         </>
                       ) : isOrganizerContext ? (
@@ -265,15 +295,28 @@ const Header = () => {
                           <Shield className="h-4 w-4 mr-3 text-rose-500" />Switch to Admin Mode
                         </button>
                       )}
-                      {!isAdminContext && !isAdmin && (
+                      {isStaff && !isStaffContext && (
+                        <button
+                          onClick={() => { handleSwitchToStaff(); setIsUserMenuOpen(false); }}
+                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
+                        >
+                          <HardHat className="h-4 w-4 mr-3 text-rose-500" />Switch to Staff Mode
+                        </button>
+                      )}
+                      {!isAdminContext && !isStaffContext && !isOrganizerContext && !isAdmin && (
                         <button
                           onClick={() => { handleSwitchRole(); setIsUserMenuOpen(false); }}
                           className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
                         >
-                          {isOrganizerContext
-                            ? <><User className="h-4 w-4 mr-3 text-rose-500" />Switch to Guest Mode</>
-                            : <><Building className="h-4 w-4 mr-3 text-rose-500" />Switch to Host Mode</>
-                          }
+                          <Building className="h-4 w-4 mr-3 text-rose-500" />Switch to Host Mode
+                        </button>
+                      )}
+                      {(isAdminContext || isStaffContext || isOrganizerContext) && (
+                        <button
+                          onClick={() => { handleSwitchToGuest(); setIsUserMenuOpen(false); }}
+                          className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-gray-100 dark:border-gray-850 mt-1"
+                        >
+                          <User className="h-4 w-4 mr-3 text-rose-500" />Switch to Guest Mode
                         </button>
                       )}
                    

@@ -55,20 +55,38 @@ import AdminTicketsPage from '../pages/admin/AdminTicketsPage';
 import AdminUsersPage from '../pages/admin/AdminUsersPage';
 import AdminTransactionsPage from '../pages/admin/AdminTransactionsPage';
 import AdminSupportPage from '../pages/admin/AdminSupportPage';
-import AdminPromotionsPage from '../pages/admin/AdminPromotionsPage';
+import AdminStaffPage from '../pages/admin/AdminStaffPage';
+import AdminOpsProjectsPage from '../pages/admin/AdminOpsProjectsPage';
+import AdminEventsPage from '../pages/admin/AdminEventsPage';
+import StaffHomePage from '../pages/StaffHomePage';
+import { StaffOrgsPage, StaffProjectsPage } from '../pages/StaffSections';
+import ForceChangePasswordPage from '../pages/ForceChangePasswordPage';
 import SupportPage from '../pages/SupportPage';
+import StaffLayout from '../components/layout/StaffLayout';
+
+const StaffRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, loading, user } = useAuth();
+
+  // HTML #app-boot covers until auth resolves
+  if (loading) return null;
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!user?.isStaff && user?.role !== 'ADMIN') {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+};
 
 // Admin-only route guard
 const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, loading, user } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  // HTML #app-boot covers until auth resolves
+  if (loading) return null;
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -88,6 +106,14 @@ const AppRoutes: React.FC = () => {
     {
       path: '/scan-gate',
       element: <GateScannerPage />,
+    },
+    {
+      path: '/change-password',
+      element: (
+        <ProtectedRoute>
+          <ForceChangePasswordPage />
+        </ProtectedRoute>
+      ),
     },
 
     // Public routes with full layout (header and footer)
@@ -287,7 +313,53 @@ const AppRoutes: React.FC = () => {
         },
         {
           path: "promotions",
-          element: <AdminPromotionsPage />,
+          element: <Navigate to="/admin/events" replace />,
+        },
+        {
+          path: "staff",
+          element: <AdminStaffPage />,
+        },
+        {
+          path: "ops",
+          element: <AdminOpsProjectsPage />,
+        },
+        {
+          path: "events",
+          element: <AdminEventsPage />,
+        },
+      ],
+    },
+    {
+      path: "/staff",
+      element: (
+        <StaffRoute>
+          <StaffLayout />
+        </StaffRoute>
+      ),
+      children: [
+        {
+          index: true,
+          element: <StaffHomePage />,
+        },
+        {
+          path: "orgs",
+          element: <StaffOrgsPage />,
+        },
+        {
+          path: "projects",
+          element: <StaffProjectsPage />,
+        },
+        {
+          path: "events/:id/walk-in",
+          element: <ManualAttendeePage />,
+        },
+        {
+          path: "scan",
+          element: <GateScannerPage />,
+        },
+        {
+          path: "support",
+          element: <AdminSupportPage />,
         },
       ],
     },
@@ -314,11 +386,7 @@ const AppRoutes: React.FC = () => {
         },
         {
           path: "support",
-          element: (
-            <ProtectedRoute>
-              <SupportPage />
-            </ProtectedRoute>
-          ),
+          element: <SupportPage />,
         },
         // {
         //   path: "events/:eventId/apply-vendor",

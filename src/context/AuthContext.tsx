@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import { queryKeys } from '../lib/queryKeys';
-import { neonAuthClient } from '../lib/neonAuth';
+import { neonAuthClient, markLoggedOut, clearLoggedOutFlag } from '../lib/neonAuth';
 import { isTokenExpired, getTokenTimeRemaining } from '../lib/tokenUtils';
+import { dismissAppBoot } from '../lib/appBoot';
 
 interface User {
   id: number;
@@ -18,6 +19,8 @@ interface User {
   createdAt?: string;
   isOrganizer?: boolean;
   isVendor?: boolean;
+  isStaff?: boolean;
+  mustChangePassword?: boolean;
   vendorProfile?: any;
   ownedOrganizations?: Array<{
     id: number;
@@ -64,7 +67,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRefreshingRef = useRef(false);
 
   const updateUser = useCallback((updatedUser: User) => {
@@ -72,30 +75,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.setItem('user', JSON.stringify(updatedUser));
   }, []);
 
-  // Define logout first so it can be referenced in other functions
-  const logout = useCallback(async () => {
-    try {
-      if (neonAuthClient) {
-        await neonAuthClient.signOut();
-      }
-    } catch (e) {
-      console.error('Error signing out of Neon Auth:', e);
-    }
-    
-    // Clear refresh timeout
+  // Instant local logout — clear Neon session so Login cannot silently re-auth
+  const logout = useCallback(() => {
     if (refreshTimeoutRef.current) {
       clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = null;
     }
-    
+
+    markLoggedOut();
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    
-    // Clear all auth-related caches
-    queryClient.removeQueries({ queryKey: queryKeys.auth.all });
-    
-    navigate('/login');
+    localStorage.removeItem('preferredRole');
+
+    queryClient.clear();
+
+    let navigated = false;
+    const goLogin = () => {
+      if (navigated) return;
+      navigated = true;
+      navigate('/login', { replace: true });
+    };
+
+    if (neonAuthClient) {
+      const timeout = window.setTimeout(goLogin, 2500);
+      void neonAuthClient
+        .signOut()
+        .catch((e) => {
+          console.error('Error signing out of Neon Auth:', e);
+        })
+        .finally(() => {
+          window.clearTimeout(timeout);
+          goLogin();
+        });
+      return;
+    }
+
+    goLogin();
   }, [navigate, queryClient]);
 
   /**
@@ -282,12 +299,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Hide the HTML boot screen (index.html) once auth has resolved
+  useEffect(() => {
+    if (!loading) dismissAppBoot();
+  }, [loading]);
+
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     try {
       const response = await api.auth.login({ email, password });
 
       if (response.data) {
         const { token: newToken, user: userData } = response.data;
+        clearLoggedOutFlag();
         setToken(newToken);
         setUser(userData);
         localStorage.setItem('token', newToken);
@@ -310,6 +333,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (response.data) {
         const { token: newToken, user: userData } = response.data;
+        clearLoggedOutFlag();
         setToken(newToken);
         setUser(userData);
         localStorage.setItem('token', newToken);
@@ -340,6 +364,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (response.data) {
         const { token: newToken, user: userData } = response.data;
+        clearLoggedOutFlag();
         setToken(newToken);
         setUser(userData);
         localStorage.setItem('token', newToken);

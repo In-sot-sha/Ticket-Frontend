@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import {
   Calendar,
@@ -6,12 +6,10 @@ import {
   MapPin,
   Plus,
   TrendingUp,
-  UserCheck,
   ChevronRight,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/skeleton';
-import { useAuth } from '../context/AuthContext';
 import { useOrganizerEvents } from '../hooks/queries/useEvents';
 import { resolveImageUrl } from '../lib/media';
 import EventPhaseBadge from '../components/organizer/EventPhaseBadge';
@@ -19,8 +17,6 @@ import { formatNaira, OrganizerEvent } from '../lib/eventOrganizer';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const EventsDashboard = () => {
-  const { user } = useAuth();
-  
   // Use React Query hook to fetch organizer's events with caching
   const { data: events = [], isLoading, error } = useOrganizerEvents();
 
@@ -75,25 +71,25 @@ const EventsDashboard = () => {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { label: 'Events', value: totalEvents, icon: <Calendar className="h-5 w-5" /> },
-          { label: 'Tickets sold', value: totalSold, icon: <Ticket className="h-5 w-5" /> },
-          { label: 'Revenue earned', value: totalRevenue, icon: <TrendingUp className="h-5 w-5" /> },
-          { label: 'Expected (max)', value: totalExpected, icon: <TrendingUp className="h-5 w-5" /> },
+          { label: 'Events', value: totalEvents, icon: <Calendar className="h-4 w-4" /> },
+          { label: 'Tickets sold', value: totalSold, icon: <Ticket className="h-4 w-4" /> },
+          { label: 'Revenue earned', value: totalRevenue, icon: <TrendingUp className="h-4 w-4" /> },
+          { label: 'Expected (max)', value: totalExpected, icon: <TrendingUp className="h-4 w-4" /> },
         ].map((stat) => (
           <div
             key={stat.label}
-            className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4"
+            className="rounded-xl border border-neutral-200 dark:border-neutral-800 border-l-2 border-l-rose-500 bg-white dark:bg-neutral-900 p-4"
           >
-            <div className="flex justify-between items-center text-rose-500 mb-2">
+            <div className="flex justify-between items-center mb-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{stat.label}</span>
-              {stat.icon}
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-50 dark:bg-rose-950/30 text-rose-500">
+                {stat.icon}
+              </span>
             </div>
             {isLoading ? (
-              <>
-                <Skeleton className="h-6 w-20 mb-1" />
-              </>
+              <Skeleton className="h-6 w-20 mb-1" />
             ) : (
-              <p className="text-xl font-bold">
+              <p className="text-xl font-bold text-neutral-900 dark:text-white">
                 {stat.label === 'Revenue earned' || stat.label === 'Expected (max)'
                   ? formatNaira(stat.value)
                   : String(stat.value)}
@@ -104,7 +100,7 @@ const EventsDashboard = () => {
       </div>
 
       {events.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 p-12 text-center">
+        <div className="rounded-xl border border-dashed border-rose-200 dark:border-rose-900/40 bg-rose-50/40 dark:bg-rose-950/10 p-12 text-center">
           <p className="text-neutral-500 mb-4">No events yet.</p>
           <Link to="/organizer/events/create" className="text-rose-500 hover:underline font-medium">
             Create your first event
@@ -141,10 +137,11 @@ function EventCard({ event }: { event: OrganizerEvent }) {
   const sold      = stats?.ticketsSold     ?? event.attendees ?? 0;
   const earned    = stats?.actualRevenue   ?? event.revenue   ?? 0;
   const pct       = stats?.sellThroughPercent ?? 0;
+  const eventPath = `/organizer/events/${event.slug || event.id}`;
 
   return (
     <Link
-      to={`/organizer/events/${event.id}`}
+      to={eventPath}
       className="group rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden hover:border-rose-300 dark:hover:border-rose-800 hover:shadow-sm transition-all flex flex-col"
     >
       {/* Cover image */}
@@ -152,8 +149,8 @@ function EventCard({ event }: { event: OrganizerEvent }) {
         {cover ? (
           <img src={cover} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Calendar className="h-6 w-6 text-neutral-300" />
+          <div className="w-full h-full flex items-center justify-center bg-rose-50 dark:bg-rose-950/20">
+            <Calendar className="h-6 w-6 text-rose-300" />
           </div>
         )}
         <div className="absolute top-2 right-2 shadow-sm">
@@ -172,22 +169,21 @@ function EventCard({ event }: { event: OrganizerEvent }) {
         </h3>
 
         {/* Date */}
-        <div className='space-y-1 mb-1.5'>
-
-        <p className="text-xs text-neutral-500 flex items-center gap-1.5 ">
-          <Calendar className="h-3 w-3 shrink-0" />
-          {new Date(event.startDate).toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' })}
-        </p>
-        {event.location && (
-          <p className="text-xs text-neutral-500 flex items-center gap-1.5 truncate">
-            <MapPin className="h-3 w-3 shrink-0" />
-            {event.location}
+        <div className="space-y-1 mb-1.5">
+          <p className="text-xs text-neutral-500 flex items-center gap-1.5 ">
+            <Calendar className="h-3 w-3 shrink-0 text-rose-400" />
+            {new Date(event.startDate).toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' })}
           </p>
-        )}
+          {event.location && (
+            <p className="text-xs text-neutral-500 flex items-center gap-1.5 truncate">
+              <MapPin className="h-3 w-3 shrink-0 text-rose-400" />
+              {event.location}
+            </p>
+          )}
         </div>
 
         {/* Compact Stats */}
-        <div className="mt-auto pt-3 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-xs">
+        <div className="mt-auto pt-3 border-t border-rose-50 dark:border-neutral-800 flex items-center justify-between text-xs">
           <div>
             <span className="font-bold text-neutral-900 dark:text-white">{sold}</span>
             <span className="text-neutral-500 ml-1">sold</span>

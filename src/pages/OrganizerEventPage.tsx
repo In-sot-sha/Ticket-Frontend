@@ -2,90 +2,94 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
-  Calendar,
-  MapPin,
-  Clock,
-  Ticket,
-  Users,
-  TrendingUp,
-  UserCheck,
   Pencil,
   ExternalLink,
   ScanLine,
-  Copy,
-  CheckCircle2,
-  Globe,
+  Users,
   Store,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
   BarChart3,
-  DollarSign,
+  Briefcase,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { api } from '../services/api';
-import { resolveImageUrl } from '../lib/media';
-import EventPhaseBadge from '../components/organizer/EventPhaseBadge';
-import { formatNaira, OrganizerEvent } from '../lib/eventOrganizer';
-import { motion } from 'framer-motion';
+import { OrganizerEvent } from '../lib/eventOrganizer';
 import { OverviewTab } from '../components/organizer/OverviewTab';
 import { AttendeesTab } from '../components/organizer/AttendeesTab';
 import { VendorsTab } from '../components/organizer/VendorsTab';
+import { AnalyticsTab } from '../components/organizer/AnalyticsTab';
 
-type TabType = 'overview' | 'attendees' | 'vendors' | 'analytics' | 'finances';
+type TabType = 'overview' | 'attendees' | 'vendors' | 'analytics';
 
 const OrganizerEventPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id: eventParam } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [event, setEvent] = useState<OrganizerEvent | null>(null);
   const [vendorApplications, setVendorApplications] = useState<any[]>([]);
-  const [attendees, setAttendees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [vendorLoading, setVendorLoading] = useState(false);
-  const [attendeeLoading, setAttendeeLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [opsRequesting, setOpsRequesting] = useState(false);
+  const [opsMsg, setOpsMsg] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
-  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
-  const [selectedTicketTypeId, setSelectedTicketTypeId] = useState<number | null>(null);
-  const [selectedTicketTypeName, setSelectedTicketTypeName] = useState<string>('');
 
   useEffect(() => {
-    if (!id) return;
+    if (!eventParam) return;
     setLoading(true);
-    
+    setError(null);
+
     api.events
-      .getOrganizerEventById(Number(id))
+      .getOrganizerEventById(eventParam)
       .then((res) => setEvent(res.data))
       .catch(() => setError('Could not load event.'))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [eventParam]);
 
-  // Fetch vendor applications when event has vendors enabled
   useEffect(() => {
     if (!event?.id || !event.allowVendors) return;
-    
-    setVendorLoading(true);
+
     api
       .get<any[]>(`/vendors/applications?eventId=${event.id}`)
-      .then((res) => setVendorApplications(res.data))
-      .catch((err) => console.error('Failed to load vendor applications:', err))
-      .finally(() => setVendorLoading(false));
-  }, [event?.id, event?.vendorSettings?.allowVendors]);
+      .then((res) => setVendorApplications(res.data || []))
+      .catch((err) => console.error('Failed to load vendor applications:', err));
+  }, [event?.id, event?.allowVendors]);
+
+  const publicPath = `/events/${event?.slug || event?.id}`;
+  const editPath = `/organizer/events/create/${event?.id}`;
+
+  const requestPartyStormOps = async () => {
+    if (!event) return;
+    setOpsRequesting(true);
+    setOpsMsg(null);
+    try {
+      await api.staff.requestOps({
+        title: `Ops — ${event.title}`,
+        organizationId: (event as any).organizationId,
+        eventId: event.id,
+        services: ['GATE', 'SCAN', 'WALK_IN'],
+        notes: 'Organizer requested PartyStorm gate ops from event dashboard.',
+      });
+      setOpsMsg('Ops request sent. PartyStorm will assign staff and follow up.');
+    } catch {
+      setOpsMsg('Could not send ops request. Try again or contact support.');
+    } finally {
+      setOpsRequesting(false);
+    }
+  };
 
   if (loading) {
     return (
       <div className="pb-24 md:pb-8 max-w-6xl mx-auto p-4 space-y-6">
-        <div className="flex justify-between items-center"><Skeleton className="h-10 w-32" /><Skeleton className="h-10 w-48" /></div>
-        <div className="flex flex-col md:flex-row gap-6">
-          <Skeleton className="h-44 w-full md:w-1/3 rounded-2xl" />
-          <div className="flex-1 space-y-4 py-6">
-            <Skeleton className="h-8 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-4 w-1/4" />
-          </div>
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-9 w-28" />
+          <Skeleton className="h-9 w-40" />
+        </div>
+        <Skeleton className="h-10 w-full max-w-md" />
+        <Skeleton className="h-48 w-full rounded-2xl" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-24 rounded-xl" />
+          ))}
         </div>
       </div>
     );
@@ -96,426 +100,150 @@ const OrganizerEventPage: React.FC = () => {
       <div className="py-12 text-center px-4">
         <p className="text-rose-500 mb-4">{error || 'Event not found'}</p>
         <Link to="/organizer/events">
-          <Button variant="outline" className="rounded-full">← Back to events</Button>
+          <Button variant="outline" className="rounded-full">
+            ← Back to events
+          </Button>
         </Link>
       </div>
     );
   }
 
-  const stats  = event.stats;
-  const cover  = resolveImageUrl(event.imageUrl);
-  const start  = new Date(event.startDate);
-  const end    = new Date(event.endDate);
-  const pct    = stats?.sellThroughPercent ?? 0;
-  const sold   = stats?.ticketsSold ?? event.attendees ?? 0;
-  const checkedIn = stats?.ticketsCheckedIn ?? 0;
-  const earned = stats?.actualRevenue ?? event.revenue ?? 0;
-  const expected = stats?.expectedRevenue ?? 0;
-
-  const publicUrl = `${window.location.origin}/events/${event.id}`;
-
-  const copyLink = () => {
-    navigator.clipboard.writeText(publicUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
-
-  const openAttendanceModal = async () => {
-    setShowAttendanceModal(true);
-    setAttendeeLoading(true);
-    try {
-      const res = await api.tickets.getEventAttendance(Number(id));
-      setAttendees(res.data || []);
-    } catch (err) {
-      console.error('Failed to load attendees:', err);
-      setAttendees([]);
-    } finally {
-      setAttendeeLoading(false);
-    }
-  };
-
-  const openTicketTypeAttendanceModal = async (ticketTypeId: number, ticketTypeName: string) => {
-    setSelectedTicketTypeId(ticketTypeId);
-    setSelectedTicketTypeName(ticketTypeName);
-    setShowAttendanceModal(true);
-    setAttendeeLoading(true);
-    try {
-      const res = await api.tickets.getEventAttendance(Number(id));
-      // Filter to only tickets of this type that are checked in
-      const filtered = res.data?.filter(t => t.ticketTypeId === ticketTypeId) || [];
-      setAttendees(filtered);
-    } catch (err) {
-      console.error('Failed to load attendees:', err);
-      setAttendees([]);
-    } finally {
-      setAttendeeLoading(false);
-    }
-  };
-
-  const statCards = [
-    { label: 'Tickets sold',     value: String(sold),          sub: stats ? `of ${stats.ticketInventory} available` : undefined, icon: <Ticket className="h-4 w-4" /> },
-    { label: 'Checked in',       value: String(checkedIn),     sub: sold > 0 ? `${Math.round((checkedIn / sold) * 100)}% of sold` : 'No sales yet', icon: <UserCheck className="h-4 w-4" /> },
-    { label: 'Revenue earned',   value: formatNaira(earned),   sub: 'From ticket sales', icon: <TrendingUp className="h-4 w-4" />, accent: true },
-    { label: 'Expected revenue', value: formatNaira(expected), sub: `${pct}% sold through`, icon: <Users className="h-4 w-4" /> },
-  ];
-
   return (
     <div className="pb-24 md:pb-8 max-w-6xl mx-auto relative">
-
-      {/* ── Sticky mobile header bar ── */}
-      <div className="sticky top-0 mt-[-10px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-neutral-100 dark:border-neutral-800 px-4 py-3 flex items-center justify-between gap-2  md:static md:bg-transparent md:dark:bg-transparent md:border-0 md:px-0 md:mb-5 md:backdrop-blur-none ">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/organizer/events')}
-          className="flex items-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-rose-500 transition-colors shrink-0"
-        >
-          <ArrowLeft className="h-4 w-4" /> Events frrr
-        </Button>
-        <div className="flex items-center gap-2">
+      {/* Slim sticky chrome — no cover image here */}
+      <div className="sticky top-0 mt-[-10px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-rose-100/80 dark:border-neutral-800 px-4 py-3 flex items-center justify-between gap-2 md:static md:bg-transparent md:dark:bg-transparent md:border-0 md:px-0 md:mb-4 md:backdrop-blur-none">
+        <div className="flex items-center gap-2 min-w-0">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/organizer/events')}
+            className="flex items-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-rose-500 transition-colors shrink-0 px-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Events</span>
+          </Button>
+          {activeTab !== 'overview' && (
+            <p className="text-sm font-bold text-neutral-900 dark:text-white truncate min-w-0">
+              {event.title}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-full text-xs px-3 h-8 border-rose-200 dark:border-neutral-700 hover:border-rose-400 hover:text-rose-500"
+            disabled={opsRequesting}
+            onClick={requestPartyStormOps}
+          >
+            <Briefcase className="h-3.5 w-3.5 sm:mr-1" />
+            <span className="hidden sm:inline">{opsRequesting ? 'Requesting…' : 'Request ops'}</span>
+          </Button>
           <Link to="/organizer/scan">
-            <Button variant="outline" size="sm" className="rounded-full text-xs px-3 h-8">
-              <ScanLine className="h-3.5 w-3.5 mr-1" />
+            <Button variant="outline" size="sm" className="rounded-full text-xs px-3 h-8 border-rose-200 dark:border-neutral-700 hover:border-rose-400 hover:text-rose-500">
+              <ScanLine className="h-3.5 w-3.5 sm:mr-1" />
               <span className="hidden sm:inline">Scan</span>
             </Button>
           </Link>
-          <Link to={`/events/${event.id}`} target="_blank">
-            <Button variant="outline" size="sm" className="rounded-full text-xs px-3 h-8">
-              <ExternalLink className="h-3.5 w-3.5 mr-1" />
+          <Link to={publicPath} target="_blank">
+            <Button variant="outline" size="sm" className="rounded-full text-xs px-3 h-8 border-rose-200 dark:border-neutral-700 hover:border-rose-400 hover:text-rose-500">
+              <ExternalLink className="h-3.5 w-3.5 sm:mr-1" />
               <span className="hidden sm:inline">Public</span>
             </Button>
           </Link>
-          <Link to={`/organizer/events/create/${event.id}`}>
-            <Button size="sm" className="rounded-full text-xs px-3 h-8 bg-rose-500 hover:bg-rose-600 text-white border-0">
-              <Pencil className="h-3.5 w-3.5 mr-1" />
-              Edit
+          <Link to={editPath}>
+            <Button
+              size="sm"
+              className="rounded-full text-xs px-3 h-8 bg-rose-500 hover:bg-rose-600 text-white border-0"
+            >
+              <Pencil className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">Edit</span>
             </Button>
           </Link>
         </div>
       </div>
 
-      {/* ── Header Layout (Desktop Split) ── */}
-      <div className="flex flex-col md:flex-row gap-6 mb-6">
-        
-        {/* ── Cover image (Right on desktop) ── */}
-        <div className="w-full md:w-1/3 shrink-0">
-          <div className="rounded-none sm:rounded-2xl overflow-hidden sm:mx-0 h-full">
-            {cover ? (
-              <div className="aspect-[3/1] md:aspect-[4/3] w-full max-h-44 sm:max-h-56 md:max-h-none relative h-full">
-                <img src={cover} alt={event.title} className="w-full h-full object-cover" />
-                {/* Sell-through progress strip */}
-                {/* <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
-                  <div className="h-full bg-rose-500 transition-all" style={{ width: `${pct}%` }} />
-                </div> */}
-              </div>
-            ) : (
-              <div className="aspect-[3/1] md:aspect-[4/3] w-full max-h-44 bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
-                <Calendar className="h-10 w-10 text-neutral-300" />
-              </div>
-            )}
-          </div>
-        </div>
+      {opsMsg && (
+        <p className="mx-4 md:mx-0 mb-3 text-xs font-medium text-rose-600 dark:text-rose-400">
+          {opsMsg}
+        </p>
+      )}
 
-        {/* ── Title + meta (Left on desktop) ── */}
-        <div className="px-4 sm:px-0 flex-1 flex flex-col justify-center">
-          <div className="flex items-start justify-between gap-3 mb-2">
-            <h1 className="text-xl sm:text-2xl font-extrabold text-neutral-900 dark:text-white leading-tight">
-              {event.title}
-            </h1>
-            <EventPhaseBadge event={event} />
-          </div>
-
-          <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-neutral-500 mt-2">
-            <span className="flex items-center gap-1.5">
-              <Calendar className="h-4 w-4 shrink-0 text-neutral-400" />
-              {start.toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' })}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Clock className="h-4 w-4 shrink-0 text-neutral-400" />
-              {start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-              {' – '}
-              {end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-            </span>
-            {event.location && (
-              <span className="flex items-center gap-1.5 min-w-0">
-                {event.locationType === 'online'
-                  ? <Globe className="h-4 w-4 shrink-0 text-neutral-400" />
-                  : <MapPin className="h-4 w-4 shrink-0 text-neutral-400" />}
-                <span className="truncate">{event.location}</span>
-              </span>
-            )}
-          </div>
-          
-          <div className="mt-6 flex gap-3">
-             <Button variant="outline" size="sm" onClick={copyLink} className="rounded-full">
-               {copied ? <CheckCircle className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
-               {copied ? 'Copied' : 'Copy Link'}
-             </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Tab Navigation ── */}
-      <Tabs defaultValue="overview" onValueChange={(value) => setActiveTab(value as TabType)} className="w-full">
-        <TabsList className="mb-6 mx-4 sm:mx-0 flex overflow-x-auto overflow-y-hidden flex-nowrap bg-transparent border-b border-neutral-100 dark:border-neutral-800 rounded-none p-0 h-auto justify-start items-end">
-          <TabsTrigger value="overview" className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-3 px-3 data-[state=active]:shadow-none">
+      <Tabs
+        defaultValue="overview"
+        onValueChange={(value) => setActiveTab(value as TabType)}
+        className="w-full"
+      >
+        <TabsList className="mb-3 mx-4 sm:mx-0 flex overflow-x-auto overflow-y-hidden flex-nowrap bg-transparent border-b border-rose-100/70 dark:border-neutral-800 rounded-none p-0 h-auto justify-start items-end">
+          <TabsTrigger
+            value="overview"
+            className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-2.5 px-3 data-[state=active]:shadow-none text-sm"
+          >
             Overview
           </TabsTrigger>
-          <TabsTrigger value="attendees" className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-3 px-3 data-[state=active]:shadow-none">
-            <Users className="h-3.5 w-3.5 mr-1.5" /> Attendees
+          <TabsTrigger
+            value="attendees"
+            className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-2.5 px-3 data-[state=active]:shadow-none text-sm"
+          >
+            <Users className="h-3.5 w-3.5 mr-1.5" />
+            Attendees
           </TabsTrigger>
           {event.allowVendors && (
-            <TabsTrigger value="vendors" className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-3 px-3 data-[state=active]:shadow-none">
-              <Store className="h-3.5 w-3.5 mr-1.5" /> Vendors
+            <TabsTrigger
+              value="vendors"
+              className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-2.5 px-3 data-[state=active]:shadow-none text-sm"
+            >
+              <Store className="h-3.5 w-3.5 mr-1.5" />
+              Vendors
+              {vendorApplications.filter(
+                (v) =>
+                  v.applicationStatus === 'PENDING' ||
+                  v.applicationStatus === null ||
+                  v.applicationStatus === undefined
+              ).length > 0 && (
+                <span className="ml-1.5 text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 rounded-full px-1.5 py-0.5">
+                  {
+                    vendorApplications.filter(
+                      (v) =>
+                        v.applicationStatus === 'PENDING' ||
+                        v.applicationStatus === null ||
+                        v.applicationStatus === undefined
+                    ).length
+                  }
+                </span>
+              )}
             </TabsTrigger>
           )}
-          <TabsTrigger value="analytics" className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-3 px-3 data-[state=active]:shadow-none">
-            <BarChart3 className="h-3.5 w-3.5 mr-1.5" /> Analytics
+          <TabsTrigger
+            value="analytics"
+            className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-2.5 px-3 data-[state=active]:shadow-none text-sm"
+          >
+            <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
+            Analytics
           </TabsTrigger>
         </TabsList>
 
-        <div className="min-h-[500px]">
-          <TabsContent value="overview">
+        <div className="min-h-[420px]">
+          <TabsContent value="overview" className="mt-0">
             <OverviewTab event={event} vendorApplications={vendorApplications} />
           </TabsContent>
 
-        <TabsContent value="attendees">
-          <div className="mb-4 flex justify-end px-4 sm:px-0">
-            <Link to={`/organizer/events/${event.id}/add-attendee`}>
-              <Button size="sm" className="rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0 flex items-center gap-1.5">
-                + Add Attendee
-              </Button>
-            </Link>
-          </div>
-          <AttendeesTab eventId={event.id} />
-        </TabsContent>
-
-        {event.allowVendors && (
-          <TabsContent value="vendors">
-            <VendorsTab eventId={event.id} event={event} />
+          <TabsContent value="attendees" className="mt-0">
+            <AttendeesTab eventId={event.id} eventSlug={event.slug} />
           </TabsContent>
-        )}
 
-        <TabsContent value="analytics">
-          <div className="px-4 sm:px-0">
-            <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-4">Event Analytics</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {statCards.map((stat, idx) => (
-                <div key={idx} className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 p-4">
-                  <div className="flex items-center justify-between text-neutral-500 mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider">{stat.label}</span>
-                    <div className={stat.accent ? "text-rose-500" : ""}>{stat.icon}</div>
-                  </div>
-                  <p className={`text-xl sm:text-2xl font-bold ${stat.accent ? 'text-rose-500' : 'text-neutral-900 dark:text-white'}`}>
-                    {stat.value}
-                  </p>
-                  {stat.sub && <p className="text-[10px] sm:text-xs text-neutral-500 mt-1">{stat.sub}</p>}
-                </div>
-              ))}
-            </div>
-            
-            {stats?.ticketTypeStats && stats.ticketTypeStats.length > 0 && (
-              <div className="mt-6 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
-                <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50">
-                  <h3 className="font-bold text-sm">Ticket Sales Breakdown</h3>
-                </div>
-                <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                  {stats.ticketTypeStats.map((tt: any, idx: number) => (
-                    <div key={idx} className="p-4 flex items-center justify-between gap-4">
-                      <div>
-                        <p className="font-semibold text-sm">{tt.name}</p>
-                        <p className="text-xs text-neutral-500 mt-0.5">{formatNaira(tt.price)} each</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-sm">{tt.sold} <span className="text-xs font-normal text-neutral-500">sold</span></p>
-                        <p className="text-xs font-semibold text-rose-500 mt-0.5">{formatNaira(tt.revenue)}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </TabsContent>
+          {event.allowVendors && (
+            <TabsContent value="vendors" className="mt-0">
+              <VendorsTab eventId={event.id} event={event} />
+            </TabsContent>
+          )}
+
+          <TabsContent value="analytics" className="mt-0">
+            <AnalyticsTab event={event} vendorApplications={vendorApplications} />
+          </TabsContent>
         </div>
       </Tabs>
-
-      {/* ── Attendance Modal ── */}
-      {showAttendanceModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-neutral-900 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="border-b border-neutral-200 dark:border-neutral-800 p-4 sm:p-6 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg sm:text-xl font-extrabold text-neutral-900 dark:text-white">
-                  {selectedTicketTypeId ? `Attendees - ${selectedTicketTypeName}` : 'Attendees'}
-                </h2>
-                <p className="text-xs text-neutral-500 mt-1">{attendees.length} checked in</p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowAttendanceModal(false);
-                  setSelectedTicketTypeId(null);
-                  setSelectedTicketTypeName('');
-                }}
-                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="overflow-y-auto flex-1">
-              {attendeeLoading ? (
-                <div className="p-6 space-y-4">
-                  {[1,2,3,4].map(i => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
-                </div>
-              ) : attendees.length === 0 ? (
-                <div className="text-center py-12 px-4">
-                  <Users className="h-12 w-12 text-neutral-300 mx-auto mb-4" />
-                  <p className="text-sm font-medium text-neutral-900 dark:text-white">No attendees checked in yet</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
-                  {attendees.map((attendee, idx) => (
-                    <div key={idx} className="p-4 sm:p-6 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-bold text-sm text-neutral-900 dark:text-white">
-                            {attendee.user?.firstName} {attendee.user?.lastName}
-                          </p>
-                          <p className="text-xs text-neutral-500 mt-0.5">{attendee.user?.email}</p>
-                          {attendee.user?.phone && (
-                            <p className="text-xs text-neutral-500">{attendee.user.phone}</p>
-                          )}
-                        </div>
-                        {attendee.status === 'USED' ? (
-                          <span className="text-[10px] font-bold px-2.5 py-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full shrink-0">
-                            ✓ Checked In
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-medium px-2.5 py-1 bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400 rounded-full shrink-0">
-                            Registered
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-neutral-500 mt-2 space-y-1">
-                        <p><strong>Ticket:</strong> {attendee.ticketType?.name}</p>
-                        <p><strong>QR Code:</strong> <code className="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-[10px]">{attendee.qrCode}</code></p>
-                        {attendee.status === 'USED' && attendee.updatedAt && (
-                          <p><strong>Checked In:</strong> {new Date(attendee.updatedAt).toLocaleString('en-NG')}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 };
 
 export default OrganizerEventPage;
-
-// Vendor Application Card Component
-const VendorApplicationCard: React.FC<{ app: any; eventId: number; onActionComplete?: () => void }> = ({ app, eventId, onActionComplete }) => {
-  const [loading, setLoading] = useState(false);
-
-  const handleApprove = async () => {
-    setLoading(true);
-    try {
-      await api.put(`/vendors/applications/${app.id}`, { applicationStatus: true });
-      onActionComplete?.();
-    } catch (error) {
-      console.error('Failed to approve application:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleReject = async () => {
-    setLoading(true);
-    try {
-      await api.put(`/vendors/applications/${app.id}`, { applicationStatus: false });
-      onActionComplete?.();
-    } catch (error) {
-      console.error('Failed to reject application:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const statusColor = 
-    app.applicationStatus === null ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-    app.applicationStatus === true ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
-
-  const statusText =
-    app.applicationStatus === null ? 'PENDING' :
-    app.applicationStatus === true ? 'APPROVED' :
-    'REJECTED';
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 space-y-3"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
-            {app.vendor?.businessName || app.user?.firstName + ' ' + app.user?.lastName}
-          </h3>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Applied: {new Date(app.createdAt).toLocaleDateString('en-NG')}
-          </p>
-        </div>
-        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${statusColor}`}>
-          {statusText}
-        </span>
-      </div>
-
-      <div className="text-xs text-neutral-600 dark:text-neutral-400 space-y-1">
-        {app.vendor?.businessName && (
-          <p><strong>Business:</strong> {app.vendor.businessName}</p>
-        )}
-        {app.vendor?.contactEmail && (
-          <p><strong>Email:</strong> {app.vendor.contactEmail}</p>
-        )}
-        {app.user?.email && app.user.email !== app.vendor?.contactEmail && (
-          <p><strong>User Email:</strong> {app.user.email}</p>
-        )}
-        {app.vendor?.description && (
-          <p className="line-clamp-2"><strong>Description:</strong> {app.vendor.description}</p>
-        )}
-        <p><strong>Event:</strong> {app.event?.title}</p>
-      </div>
-
-      {app.applicationStatus === null && (
-        <div className="flex gap-2 pt-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleReject}
-            disabled={loading}
-            className="flex-1 rounded-lg text-xs text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900/50 dark:hover:bg-red-950/20"
-          >
-            {loading ? '...' : 'Reject'}
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleApprove}
-            disabled={loading}
-            className="flex-1 rounded-lg text-xs bg-green-600 hover:bg-green-700 text-white"
-          >
-            {loading ? '...' : 'Approve'}
-          </Button>
-        </div>
-      )}
-    </motion.div>
-  );
-};

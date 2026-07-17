@@ -10,7 +10,7 @@ import AppRoutes from './routes/AppRoutes';
 import ScrollToTop from './components/ScrollToTop';
 import ErrorBoundary from './components/ErrorBoundary';
 import OfflineBadge from './components/OfflineBadge';
-// import InstallPrompt from './components/InstallPrompt';
+import ForcedPasswordGate from './components/ForcedPasswordGate';
 import './index.css';
 
 function App() {
@@ -23,17 +23,16 @@ function App() {
             <ThemeProvider>
               <AuthProvider>
                 <RoleProvider>
-                  {/* Top-level offline indicator */}
                   <OfflineBadge />
-                  <AppRoutes />
-                  {/* <InstallPrompt /> */}
+                  <ForcedPasswordGate>
+                    <AppRoutes />
+                  </ForcedPasswordGate>
                 </RoleProvider>
               </AuthProvider>
             </ThemeProvider>
           </ErrorBoundary>
         </Router>
       </HelmetProvider>
-      {/* React Query DevTools — only visible in development */}
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   );

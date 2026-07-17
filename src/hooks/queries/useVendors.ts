@@ -112,7 +112,11 @@ export const useUpdateVendorStatus = () => {
       id: number;
       applicationStatus: 'APPROVED' | 'REJECTED';
       paymentStatus?: 'PENDING' | 'PAID' | 'FAILED';
-    }) => api.vendors.updateStatus(data.id, data.applicationStatus, data.paymentStatus).then(res => res.data),
+      stallNumber?: string | null;
+    }) =>
+      api.vendors
+        .updateStatus(data.id, data.applicationStatus, data.paymentStatus, data.stallNumber)
+        .then((res) => res.data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.vendors.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.vendors.list() });

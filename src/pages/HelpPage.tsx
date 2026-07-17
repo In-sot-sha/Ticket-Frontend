@@ -2,23 +2,16 @@ import React, { useState } from 'react';
 import { Search, MessageCircle, Users, Ticket, Store, Calendar, CreditCard, User, Menu, X, ChevronRight } from 'lucide-react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
-import { useAuth } from '../context/AuthContext';
 
 const HelpPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
   const activeTab = (searchParams.get('role') as 'user' | 'organizer' | 'vendor') || 'user';
 
   const goToSupport = (newTicket = false) => {
-    const target = newTicket ? '/support?new=1' : '/support';
-    if (isAuthenticated) {
-      navigate(target);
-    } else {
-      navigate(`/login?redirect=${encodeURIComponent(target)}`);
-    }
+    navigate(newTicket ? '/support?new=1' : '/support');
   };
 
   const setActiveTab = (tab: 'user' | 'organizer' | 'vendor') => {
@@ -61,7 +54,7 @@ const HelpPage = () => {
         'How to buy tickets',
         'Group ticket purchases',
         'Using discount codes',
-        'Ticket refunds and transfers',
+        'Ticket refunds (transfers coming soon)',
         'Digital tickets and QR codes'
       ]
     },
@@ -73,7 +66,7 @@ const HelpPage = () => {
       articles: [
         'Viewing your tickets',
         'Downloading tickets',
-        'Transferring tickets',
+        'Ticket transfer (coming soon)',
         'Checking event details',
         'Getting event updates'
       ]
@@ -160,6 +153,19 @@ const HelpPage = () => {
         'Vendor communication',
         'Vendor dashboards',
         'Multiple vendor types'
+      ]
+    },
+    {
+      id: 7,
+      title: 'Gate & PartyStorm ops',
+      icon: Ticket,
+      description: 'Scanning, walk-ins, and staffing',
+      articles: [
+        'Smartphone ticket scanning',
+        'Walk-in sales (email required)',
+        'Requesting PartyStorm gate ops',
+        'How staff coverage works (org & projects)',
+        'Gate PIN for day workers'
       ]
     },
     {
@@ -903,32 +909,7 @@ const HelpPage = () => {
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="md:flex md:items-center md:justify-between">
-            <div className="flex justify-center md:justify-start">
-              <span className="text-lg font-bold text-gray-900 dark:text-white">PartyStorm Help Center</span>
-            </div>
-            <div className="mt-8 md:mt-0 flex justify-center space-x-6 md:order-2">
-              <a href="#" className="text-gray-400 hover:text-gray-500">
-                Terms of Service
-              </a>
-              <a href="#" className="text-gray-400 hover:text-gray-500">
-                Privacy Policy
-              </a>
-              <a href="#" className="text-gray-400 hover:text-gray-500">
-                Cookie Policy
-              </a>
-            </div>
-          </div>
-          <div className="mt-8 text-center md:mt-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              &copy; 2025 PartyStorm. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
+
     </div>
   );
 };

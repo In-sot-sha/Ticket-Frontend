@@ -50,7 +50,13 @@ const TermsOfService = () => {
                 <li>Complying with all applicable laws and regulations</li>
                 <li>Obtaining necessary permits and licenses</li>
                 <li>Managing ticket sales and attendee communications</li>
+                <li>Gate operations you run yourself, or PartyStorm ops you request for staffing coverage</li>
               </ul>
+              <p className="mb-4">
+                PartyStorm may provide optional staffing and gate services (ops projects) for covered organizations or
+                linked events. Standing staff capabilities and org/project coverage determine who may scan tickets,
+                sell walk-in tickets, or check in guests — not a separate account type for every event.
+              </p>
             </section>
 
             <section className="mb-8">
@@ -61,7 +67,8 @@ const TermsOfService = () => {
               <ul className="list-disc pl-8 mb-4">
                 <li>All sales are final unless otherwise specified</li>
                 <li>You are responsible for providing accurate information</li>
-                <li>Tickets are non-transferable unless explicitly allowed</li>
+                <li>Attendee-to-attendee ticket transfer is not yet available (coming soon); tickets remain with the purchaser or the walk-in guest email on file</li>
+                <li>Walk-in / gate sales require a valid guest email so the ticket is linked to a user</li>
                 <li>PartyStorm is not liable for event cancellations or changes</li>
               </ul>
             </section>

@@ -57,6 +57,7 @@ const BookingSuccessPage = () => {
           // Clean up localstorage cache
           localStorage.removeItem(`opay_order_${orderId}`);
           
+          const firstType = checkoutRes.data.tickets?.[0]?.ticketType;
           const confirmedOrder = {
             eventId: cachedOrder.eventId,
             eventName: cachedOrder.eventName,
@@ -65,7 +66,9 @@ const BookingSuccessPage = () => {
             eventTime: cachedOrder.eventTime,
             eventLocation: cachedOrder.eventLocation,
             eventImageUrl: cachedOrder.eventImageUrl,
-            ticketType: cachedOrder.items?.[0] ? undefined : 'General Admission',
+            ticketType: firstType?.name || 'General Admission',
+            ticketStyle: firstType?.ticketStyle,
+            accentColor: firstType?.accentColor,
             quantity: checkoutRes.data.tickets?.length || cachedOrder.items?.reduce((s: number, i: any) => s + i.quantity, 0) || 1,
             totalAmount: cachedOrder.totalAmount,
             currency: 'NGN',

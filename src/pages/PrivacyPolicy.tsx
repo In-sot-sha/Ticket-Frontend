@@ -32,9 +32,11 @@ const PrivacyPolicy = () => {
               <ul className="list-disc pl-8 mb-4">
                 <li>Create an account or update your profile</li>
                 <li>Purchase tickets or register for events</li>
+                <li>Provide a guest email for walk-in / gate ticket sales</li>
                 <li>Contact customer support</li>
                 <li>Participate in surveys or promotions</li>
                 <li>Communicate with other users through our Service</li>
+                <li>Request or perform PartyStorm gate ops (organizers and assigned staff)</li>
               </ul>
               <p className="mb-4">
                 This information may include your name, email address, phone number, payment information, 
@@ -89,7 +91,14 @@ const PrivacyPolicy = () => {
               <h3 className="text-xl font-medium mb-3">Event Organizers</h3>
               <p className="mb-4">
                 When you register for an event or purchase tickets, we share relevant information with the event organizer, 
-                including your name, email address, and ticket details.
+                including your name, email address, and ticket details. Walk-in guests provide an email at the gate so the
+                ticket can be linked to a user account.
+              </p>
+
+              <h3 className="text-xl font-medium mb-3">PartyStorm Staff &amp; Gate Ops</h3>
+              <p className="mb-4">
+                If an organizer requests PartyStorm ops or we cover an organization, assigned staff may access event and
+                ticket information needed to scan, check in, or sell walk-in tickets for covered events only.
               </p>
 
               <h3 className="text-xl font-medium mb-3">Service Providers</h3>

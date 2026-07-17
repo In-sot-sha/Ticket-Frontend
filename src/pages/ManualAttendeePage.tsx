@@ -1,23 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
-  UserPlus,
-  Ticket,
   CheckCircle2,
   AlertCircle,
   Phone,
   Mail,
-  User,
-  Calendar,
+  Minus,
+  Plus,
+  ScanLine,
   MapPin,
-  Clock,
-  ShieldCheck,
+  Calendar,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/skeleton';
 import { Switch } from '../components/ui/Switch';
 import { api } from '../services/api';
+import { cn } from '../lib/utils';
 
 interface TicketType {
   id: number;
@@ -30,156 +29,208 @@ interface EventInfo {
   id: number;
   title: string;
   startDate?: string;
-  startTime?: string;
   location?: string;
   ticketTypes: TicketType[];
 }
 
+type PaymentMethod = 'CASH' | 'POS' | 'TRANSFER';
+
+const PAYMENTS: { id: PaymentMethod; label: string }[] = [
+  { id: 'CASH', label: 'Cash' },
+  { id: 'POS', label: 'POS' },
+  { id: 'TRANSFER', label: 'Transfer' },
+];
+
+const isValidEmail = (email: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
 const ManualAttendeePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isStaffMode = location.pathname.startsWith('/staff/');
+  const backPath = isStaffMode ? '/staff' : `/organizer/events/${id}`;
+  const scanPath = isStaffMode ? '/staff/scan' : '/organizer/scan';
+  const nameRef = useRef<HTMLInputElement>(null);
 
   const [event, setEvent] = useState<EventInfo | null>(null);
   const [loadingEvent, setLoadingEvent] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState<{
+    count: number;
+    checkedIn: boolean;
+    ticketName: string;
+    total: number;
+    email: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [form, setForm] = useState({
-    ticketTypeId: '',
-    paymentMethod: 'CASH' as 'CASH' | 'POS' | 'TRANSFER',
-    checkInNow: true,
-    useSameDetails: true,
-  });
+  const [ticketTypeId, setTicketTypeId] = useState('');
+  const [qty, setQty] = useState(1);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
+  const [checkInNow, setCheckInNow] = useState(true);
+  const [useSameDetails, setUseSameDetails] = useState(true);
 
   const [attendees, setAttendees] = useState([{ name: '', email: '', phone: '' }]);
 
-  const handleQuantityChange = (newQty: number) => {
+  const syncQty = (newQty: number) => {
     if (newQty < 1 || newQty > 20) return;
-    setAttendees(prev => {
+    setQty(newQty);
+    setAttendees((prev) => {
       const updated = [...prev];
-      while (updated.length < newQty) {
-        updated.push({ name: '', email: '', phone: '' });
-      }
+      while (updated.length < newQty) updated.push({ name: '', email: '', phone: '' });
       return updated.slice(0, newQty);
     });
   };
 
-  const updateAttendee = (index: number, field: string, value: string) => {
-    const updated = [...attendees];
-    updated[index] = { ...updated[index], [field]: value };
-    setAttendees(updated);
+  const updateAttendee = (index: number, field: 'name' | 'email' | 'phone', value: string) => {
+    setAttendees((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
   };
 
   useEffect(() => {
     if (!id) return;
     setLoadingEvent(true);
-    api.events
-      .getOrganizerEventById(Number(id))
+    const load = isStaffMode
+      ? api.events.getByIdentifier(id)
+      : api.events.getOrganizerEventById(id);
+
+    load
       .then((res) => {
+        const data = res.data;
         setEvent({
-          id: res.data.id,
-          title: res.data.title,
-          startDate: res.data.startDate,
-          startTime: res.data.startTime,
-          location: res.data.location,
-          ticketTypes: res.data.ticketTypes || [],
+          id: data.id,
+          title: data.title,
+          startDate: data.startDate,
+          location: data.location,
+          ticketTypes: data.ticketTypes || [],
         });
-        if (res.data.ticketTypes?.length > 0) {
-          setForm((f) => ({ ...f, ticketTypeId: String(res.data.ticketTypes[0].id) }));
+        if (data.ticketTypes?.length > 0) {
+          setTicketTypeId(String(data.ticketTypes[0].id));
         }
       })
-      .catch(() => setError('Could not load event details.'))
+      .catch(() => setError('Could not load event.'))
       .finally(() => setLoadingEvent(false));
-  }, [id]);
+  }, [id, isStaffMode]);
 
-  const selectedTicketType = event?.ticketTypes.find(
-    (tt) => String(tt.id) === form.ticketTypeId
-  );
+  useEffect(() => {
+    if (!success) nameRef.current?.focus();
+  }, [success]);
 
+  const selectedTicketType = event?.ticketTypes.find((tt) => String(tt.id) === ticketTypeId);
   const total =
-    selectedTicketType && !isNaN(selectedTicketType.price)
-      ? selectedTicketType.price * attendees.length
+    selectedTicketType && !Number.isNaN(selectedTicketType.price)
+      ? selectedTicketType.price * qty
       : 0;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const guestsToValidate = useSameDetails ? [attendees[0]] : attendees;
+
+  const canSubmit =
+    !!ticketTypeId &&
+    guestsToValidate.every(
+      (a) => a.name.trim() && isValidEmail(a.email)
+    );
+
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setError(null);
 
-    if (!form.ticketTypeId) return setError('Please select a ticket type.');
-    if (form.useSameDetails) {
-      if (!attendees[0].name.trim()) return setError('Please enter a name for the attendee.');
-    } else {
-      if (attendees.some(a => !a.name.trim())) return setError('Please enter names for all attendees.');
+    if (!ticketTypeId) return setError('Select a ticket type.');
+    for (const a of guestsToValidate) {
+      if (!a.name.trim()) return setError('Enter a guest name.');
+      if (!a.email.trim()) return setError('Email is required so the ticket links to a guest account.');
+      if (!isValidEmail(a.email)) return setError('Enter a valid email address.');
     }
 
     setSaving(true);
     try {
-      const payloadAttendees = form.useSameDetails
-        ? Array.from({ length: attendees.length }).map(() => ({
+      const payloadAttendees = useSameDetails
+        ? Array.from({ length: qty }, () => ({
             name: attendees[0].name.trim(),
-            email: attendees[0].email.trim() || undefined,
+            email: attendees[0].email.trim().toLowerCase(),
             phone: attendees[0].phone.trim() || undefined,
           }))
-        : attendees.map(a => ({
+        : attendees.map((a) => ({
             name: a.name.trim(),
-            email: a.email.trim() || undefined,
+            email: a.email.trim().toLowerCase(),
             phone: a.phone.trim() || undefined,
           }));
 
       await api.post('/tickets/manual', {
-        eventId: Number(id),
-        ticketTypeId: Number(form.ticketTypeId),
-        quantity: attendees.length,
+        eventId: event!.id,
+        ticketTypeId: Number(ticketTypeId),
+        quantity: qty,
         buyerName: attendees[0].name.trim(),
-        buyerEmail: attendees[0].email.trim() || undefined,
+        buyerEmail: attendees[0].email.trim().toLowerCase(),
         buyerPhone: attendees[0].phone.trim() || undefined,
         attendees: payloadAttendees,
-        paymentMethod: form.paymentMethod,
-        checkInNow: form.checkInNow,
+        paymentMethod,
+        checkInNow,
       });
-      setSuccess(true);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to register attendee.');
+
+      setSuccess({
+        count: qty,
+        checkedIn: checkInNow,
+        ticketName: selectedTicketType?.name || 'Ticket',
+        total,
+        email: attendees[0].email.trim().toLowerCase(),
+      });
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Failed to register guest.';
+      setError(msg);
     } finally {
       setSaving(false);
     }
   };
+
   const handleReset = () => {
-    setSuccess(false);
-    setForm((f) => ({
-      ...f,
-      checkInNow: true,
-    }));
+    setSuccess(null);
+    setError(null);
+    setCheckInNow(true);
+    setQty(1);
     setAttendees([{ name: '', email: '', phone: '' }]);
+    setUseSameDetails(true);
   };
+
   const inputClass =
-    'w-full px-4 py-3 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all';
+    'w-full px-4 py-3.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-base sm:text-sm text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500/25 focus:border-rose-500 transition-colors';
 
   if (success) {
     return (
-      <div className="max-w-xl mx-auto px-4 py-12">
-        <div className="text-center py-16 px-6 border border-green-200 dark:border-green-800 rounded-3xl bg-green-50 dark:bg-green-950/20 shadow-sm">
-          <div className="w-20 h-20 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 className="h-10 w-10 text-green-500" />
+      <div className="min-h-[70vh] flex items-center justify-center px-4 py-10">
+        <div className="w-full max-w-md text-center">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/40">
+            <CheckCircle2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white mb-3">
-            Attendee Registered!
-          </h2>
-          <p className="text-neutral-500 mb-8 max-w-sm mx-auto">
-            {form.checkInNow
-              ? 'The attendee has been registered and marked as checked in.'
-              : 'The attendee has been registered successfully.'}
+          <h1 className="text-2xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
+            {success.count} guest{success.count > 1 ? 's' : ''} added
+          </h1>
+          <p className="mt-2 text-sm text-neutral-500">
+            {success.ticketName}
+            {success.total > 0 ? ` · ₦${success.total.toLocaleString()}` : ' · Free'}
+            {success.checkedIn ? ' · Checked in' : ' · Ticket issued'}
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button onClick={handleReset} variant="outline" className="rounded-xl h-12 px-6 font-bold">
-              Register Another
+          <p className="mt-3 text-xs text-neutral-500">
+            Confirmation sent to <span className="font-semibold text-neutral-700 dark:text-neutral-300">{success.email}</span>
+          </p>
+          <div className="mt-8 flex flex-col gap-3">
+            <Button
+              onClick={handleReset}
+              className="h-14 rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0 text-base font-bold"
+            >
+              Add next guest
             </Button>
             <Button
-              onClick={() => navigate(`/organizer/events/${id}`)}
-              className="rounded-xl h-12 px-6 bg-rose-500 hover:bg-rose-600 text-white border-0 font-bold"
+              variant="outline"
+              onClick={() => navigate(backPath)}
+              className="h-12 rounded-full border-neutral-200 dark:border-neutral-700 font-semibold"
             >
-              Back to Dashboard
+              {isStaffMode ? 'Back to staff home' : 'Back to event'}
             </Button>
           </div>
         </div>
@@ -187,317 +238,363 @@ const ManualAttendeePage: React.FC = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 sm:py-10 py-4">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Navigation & Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Link 
-            to={`/organizer/events/${id}`} 
-            className="flex items-center justify-center w-10 h-10 rounded-full border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4 text-neutral-800 dark:text-neutral-100" />
-          </Link>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-neutral-900 dark:text-white">
-              Gate Registration
-            </h1>
-            <p className="text-xs text-neutral-500 font-medium">Add attendees manually to your event</p>
-          </div>
+  const ticketSection = (
+    <section>
+      <h2 className="mb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-500">1 · Ticket</h2>
+      {loadingEvent ? (
+        <div className="space-y-2">
+          <Skeleton className="h-14 w-full rounded-xl" />
+          <Skeleton className="h-14 w-full rounded-xl" />
         </div>
+      ) : event?.ticketTypes.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 px-4 py-6 text-center text-sm text-neutral-500">
+          No ticket types on this event yet.
+        </p>
+      ) : (
+        <div className="grid gap-2">
+          {event?.ticketTypes.map((tt) => {
+            const selected = String(tt.id) === ticketTypeId;
+            return (
+              <button
+                key={tt.id}
+                type="button"
+                onClick={() => setTicketTypeId(String(tt.id))}
+                className={cn(
+                  'flex items-center justify-between gap-3 rounded-xl border-2 px-4 py-3.5 text-left transition-colors',
+                  selected
+                    ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/25'
+                    : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-rose-300'
+                )}
+              >
+                <div className="min-w-0">
+                  <p className="font-bold text-neutral-900 dark:text-white truncate">{tt.name}</p>
+                  <p className={cn('text-sm font-semibold mt-0.5', selected ? 'text-rose-600' : 'text-neutral-500')}>
+                    {tt.price === 0 ? 'Free' : `₦${tt.price.toLocaleString()}`}
+                  </p>
+                </div>
+                <span
+                  className={cn(
+                    'h-5 w-5 rounded-full border-2 shrink-0 flex items-center justify-center',
+                    selected ? 'border-rose-500 bg-rose-500' : 'border-neutral-300 dark:border-neutral-600'
+                  )}
+                >
+                  {selected && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-        {error && (
-          <div className="flex items-start gap-3 p-4 mb-8 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-2xl text-rose-600 dark:text-rose-400">
-            <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
-            <div>
-              <h3 className="text-sm font-bold">Registration Failed</h3>
-              <p className="text-xs mt-1">{error}</p>
+      <div className="mt-3 flex items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 py-3">
+        <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Quantity</span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => syncQty(qty - 1)}
+            disabled={qty <= 1}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-700 disabled:opacity-40"
+            aria-label="Decrease quantity"
+          >
+            <Minus className="h-4 w-4" />
+          </button>
+          <span className="min-w-[2ch] text-center text-lg font-extrabold tabular-nums">{qty}</span>
+          <button
+            type="button"
+            onClick={() => syncQty(qty + 1)}
+            disabled={qty >= 20}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-700 disabled:opacity-40"
+            aria-label="Increase quantity"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+
+  const guestSection = (
+    <section>
+      <div className="mb-2.5 flex items-center justify-between gap-2">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500">2 · Guest</h2>
+        {qty > 1 && (
+          <label className="flex items-center gap-2 text-xs font-semibold text-neutral-600 dark:text-neutral-400">
+            Same details for all
+            <Switch checked={useSameDetails} onCheckedChange={setUseSameDetails} />
+          </label>
+        )}
+      </div>
+
+      <div className="space-y-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
+        {(useSameDetails ? [attendees[0]] : attendees).map((attendee, index) => (
+          <div
+            key={index}
+            className={cn(index > 0 && 'pt-4 border-t border-neutral-100 dark:border-neutral-800')}
+          >
+            {!useSameDetails && (
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                Guest {index + 1}
+              </p>
+            )}
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-bold text-neutral-600 dark:text-neutral-400">
+                Full name <span className="text-rose-500">*</span>
+              </span>
+              <input
+                ref={index === 0 ? nameRef : undefined}
+                type="text"
+                autoComplete="name"
+                className={inputClass}
+                placeholder="Guest full name"
+                value={attendee.name}
+                onChange={(e) => updateAttendee(index, 'name', e.target.value)}
+                required
+              />
+            </label>
+            <label className="mt-3 block">
+              <span className="mb-1.5 flex items-center gap-1 text-xs font-bold text-neutral-600 dark:text-neutral-400">
+                <Mail className="h-3 w-3" /> Email <span className="text-rose-500">*</span>
+              </span>
+              <input
+                type="email"
+                autoComplete="email"
+                className={inputClass}
+                placeholder="guest@email.com"
+                value={attendee.email}
+                onChange={(e) => updateAttendee(index, 'email', e.target.value)}
+                required
+              />
+              <p className="mt-1 text-[10px] text-neutral-400">
+                Required — links the ticket to a guest account and sends the pass.
+              </p>
+            </label>
+            <label className="mt-3 block">
+              <span className="mb-1.5 flex items-center gap-1 text-xs font-bold text-neutral-600 dark:text-neutral-400">
+                <Phone className="h-3 w-3" /> Phone
+                <span className="font-normal text-neutral-400">(optional)</span>
+              </span>
+              <input
+                type="tel"
+                autoComplete="tel"
+                className={inputClass}
+                placeholder="080…"
+                value={attendee.phone}
+                onChange={(e) => updateAttendee(index, 'phone', e.target.value)}
+              />
+            </label>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+
+  const paymentControls = (
+    <>
+      <div className="grid grid-cols-3 gap-2">
+        {PAYMENTS.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => setPaymentMethod(p.id)}
+            className={cn(
+              'h-12 rounded-xl text-sm font-bold border-2 transition-colors',
+              paymentMethod === p.id
+                ? 'border-rose-500 bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400'
+                : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-600'
+            )}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <label className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 py-3.5 cursor-pointer">
+        <div>
+          <p className="text-sm font-bold text-neutral-900 dark:text-white">Check in now</p>
+          <p className="text-xs text-neutral-500 mt-0.5">Mark as entered at the gate</p>
+        </div>
+        <Switch checked={checkInNow} onCheckedChange={setCheckInNow} />
+      </label>
+    </>
+  );
+
+  const summaryBlock = (
+    <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 shadow-sm space-y-4">
+      <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Summary</h3>
+      {loadingEvent ? (
+        <Skeleton className="h-16 w-full" />
+      ) : (
+        <>
+          <div>
+            <p className="font-extrabold text-neutral-900 dark:text-white leading-snug">{event?.title}</p>
+            {event?.startDate && (
+              <p className="mt-1.5 flex items-center gap-1.5 text-xs text-neutral-500">
+                <Calendar className="h-3.5 w-3.5" />
+                {new Date(event.startDate).toLocaleDateString('en-US', {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </p>
+            )}
+            {event?.location && (
+              <p className="mt-1 flex items-center gap-1.5 text-xs text-neutral-500">
+                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                <span className="line-clamp-2">{event.location}</span>
+              </p>
+            )}
+          </div>
+          <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3 flex justify-between text-sm">
+            <span className="text-neutral-500">
+              {selectedTicketType?.name || 'Ticket'} × {qty}
+            </span>
+            <span className="font-bold tabular-nums">
+              {total === 0 ? 'Free' : `₦${total.toLocaleString()}`}
+            </span>
+          </div>
+        </>
+      )}
+
+      <div>
+        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-neutral-500">Payment</p>
+        {paymentControls}
+      </div>
+
+      <Button
+        type="button"
+        disabled={saving || !canSubmit || loadingEvent}
+        onClick={() => handleSubmit()}
+        className="hidden lg:flex w-full h-12 rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0 font-bold disabled:opacity-50"
+      >
+        {saving ? 'Saving…' : checkInNow ? 'Register & check in' : 'Register'}
+      </Button>
+    </div>
+  );
+
+  return (
+    <div
+      className={cn(
+        'relative bg-neutral-50 dark:bg-neutral-950',
+        isStaffMode
+          ? 'min-h-0 pb-28 lg:pb-6'
+          : 'min-h-screen pb-28 lg:pb-10'
+      )}
+    >
+      {!isStaffMode && (
+        <header className="sticky top-0 z-20 border-b border-neutral-200/80 dark:border-neutral-800 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-sm">
+          <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
+            <Link
+              to={backPath}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-900"
+              aria-label="Back to event"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500">
+                Walk-in · Gate
+              </p>
+              {loadingEvent ? (
+                <Skeleton className="mt-1 h-4 w-40" />
+              ) : (
+                <h1 className="truncate text-sm font-extrabold text-neutral-900 dark:text-white">
+                  {event?.title || 'Event'}
+                </h1>
+              )}
             </div>
+            <Link
+              to={scanPath}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-700"
+              aria-label="Open scanner"
+            >
+              <ScanLine className="h-4 w-4" />
+            </Link>
+          </div>
+        </header>
+      )}
+
+      {isStaffMode && (
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500">
+              Walk-in registration
+            </p>
+            {loadingEvent ? (
+              <Skeleton className="mt-1 h-5 w-48" />
+            ) : (
+              <h1 className="text-lg font-extrabold text-neutral-900 dark:text-white truncate">
+                {event?.title || 'Event'}
+              </h1>
+            )}
+          </div>
+          <Link
+            to={scanPath}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900"
+            aria-label="Open scanner"
+          >
+            <ScanLine className="h-4 w-4" />
+          </Link>
+        </div>
+      )}
+
+      <form
+        onSubmit={handleSubmit}
+        className={cn(isStaffMode ? 'pt-0' : 'mx-auto max-w-5xl px-4 pt-5')}
+      >
+        {error && (
+          <div
+            role="alert"
+            className="mb-5 flex items-start gap-2.5 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 px-3.5 py-3 text-rose-700 dark:text-rose-300"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p className="text-sm font-medium flex-1">{error}</p>
+            <button type="button" onClick={() => setError(null)} className="text-xs font-bold underline">
+              Dismiss
+            </button>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
-          
-          {/* Main Form Column */}
-          <div className="lg:col-span-8 space-y-6">
-            
-            {/* Ticket Options Section */}
-            <section className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-sm">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center">
-                  <Ticket className="h-5 w-5 text-rose-500" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Ticket Selection</h2>
-                  <p className="text-xs text-neutral-500">Choose the ticket type and quantity</p>
-                </div>
-              </div>
-
-              {loadingEvent ? (
-                <div className="space-y-4">
-                  <Skeleton className="h-12 w-full rounded-xl" />
-                  <Skeleton className="h-12 w-full rounded-xl" />
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {event?.ticketTypes.map((tt) => {
-                    const isSelected = String(tt.id) === form.ticketTypeId;
-                    return (
-                      <div
-                        key={tt.id}
-                        onClick={() => {
-                          if (!isSelected) {
-                            setForm(f => ({ ...f, ticketTypeId: String(tt.id) }));
-                            setAttendees([attendees[0]]);
-                          }
-                        }}
-                        className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between ${
-                          isSelected
-                            ? 'border-rose-500 bg-rose-50/50 dark:bg-rose-900/20'
-                            : 'border-neutral-200 dark:border-neutral-800 hover:border-rose-300'
-                        }`}
-                      >
-                        <div>
-                          <p className="font-bold text-neutral-900 dark:text-white">{tt.name}</p>
-                          <p className="text-sm font-semibold text-rose-500 mt-1">
-                            {tt.price === 0 ? 'Free' : `₦${tt.price.toLocaleString()}`}
-                          </p>
-                        </div>
-                        {isSelected && (
-                          <div className="flex items-center gap-3">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleQuantityChange(attendees.length - 1);
-                              }}
-                              disabled={attendees.length <= 1}
-                              className="w-8 h-8 rounded-full flex items-center justify-center border border-neutral-300 dark:border-neutral-700 text-neutral-600 disabled:opacity-50 hover:bg-white dark:hover:bg-neutral-800"
-                            >
-                              -
-                            </button>
-                            <span className="font-bold text-neutral-900 dark:text-white min-w-[20px] text-center">
-                              {attendees.length}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleQuantityChange(attendees.length + 1);
-                              }}
-                              disabled={attendees.length >= 20}
-                              className="w-8 h-8 rounded-full flex items-center justify-center border border-neutral-300 dark:border-neutral-700 text-neutral-600 disabled:opacity-50 hover:bg-white dark:hover:bg-neutral-800"
-                            >
-                              +
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
+          <div className="lg:col-span-7 space-y-6">
+            {ticketSection}
+            {guestSection}
+            <section className="lg:hidden">
+              <h2 className="mb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-500">
+                3 · Payment
+              </h2>
+              {paymentControls}
             </section>
-
-            {/* Attendee Info Section */}
-            <section className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-sm">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center">
-                    <User className="h-5 w-5 text-rose-500" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Guest Details</h2>
-                    <p className="text-xs text-neutral-500">Enter the attendee's information</p>
-                  </div>
-                </div>
-                {attendees.length > 1 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">Use for all tickets</span>
-                    <Switch
-                      checked={form.useSameDetails}
-                      onCheckedChange={(c) => setForm(f => ({ ...f, useSameDetails: c }))}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-8">
-                {(form.useSameDetails ? [attendees[0]] : attendees).map((attendee, index) => (
-                  <div key={index} className={index > 0 ? "pt-6 border-t border-neutral-100 dark:border-neutral-800" : ""}>
-                    {!form.useSameDetails && (
-                      <h3 className="text-sm font-bold text-neutral-900 dark:text-white mb-4">
-                        Attendee {index + 1}
-                      </h3>
-                    )}
-                    <div className="space-y-5">
-                      <div>
-                        <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 block mb-2 uppercase tracking-wider">
-                          Full Name <span className="text-rose-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          className={inputClass}
-                          placeholder="Enter guest's full name"
-                          value={attendee.name}
-                          onChange={(e) => updateAttendee(index, 'name', e.target.value)}
-                          autoFocus={index === 0}
-                          required
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        <div>
-                          <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 block mb-2 uppercase tracking-wider flex items-center gap-1.5">
-                            <Mail className="h-3.5 w-3.5" /> Email Address
-                          </label>
-                          <input
-                            type="email"
-                            className={inputClass}
-                            placeholder="Optional (to send ticket)"
-                            value={attendee.email}
-                            onChange={(e) => updateAttendee(index, 'email', e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 block mb-2 uppercase tracking-wider flex items-center gap-1.5">
-                            <Phone className="h-3.5 w-3.5" /> Phone Number
-                          </label>
-                          <input
-                            type="tel"
-                            className={inputClass}
-                            placeholder="Optional"
-                            value={attendee.phone}
-                            onChange={(e) => updateAttendee(index, 'phone', e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
           </div>
-
-          {/* Right Column - Summary & Checkout */}
-          <div className="lg:col-span-4">
-            <div className="sticky top-6 space-y-6">
-              
-              {/* Event Context Card */}
-              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 shadow-sm">
-                <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-4">Event Details</h3>
-                
-                {loadingEvent ? (
-                  <div className="space-y-3">
-                    <Skeleton className="h-6 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
-                    <Skeleton className="h-4 w-2/3" />
-                  </div>
-                ) : (
-                  <>
-                    <h4 className="font-extrabold text-neutral-900 dark:text-white mb-4 leading-tight">
-                      {event?.title}
-                    </h4>
-                    
-                    <div className="space-y-3">
-                      {(event?.startDate || event?.startTime) && (
-                        <div className="flex items-start gap-2 text-sm text-neutral-600 dark:text-neutral-400">
-                          <Calendar className="w-4 h-4 mt-0.5 text-neutral-400 shrink-0" />
-                          <span>
-                            {event?.startDate && new Date(event.startDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                            {event?.startTime && ` at ${event.startTime}`}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {event?.location && (
-                        <div className="flex items-start gap-2 text-sm text-neutral-600 dark:text-neutral-400">
-                          <MapPin className="w-4 h-4 mt-0.5 text-neutral-400 shrink-0" />
-                          <span className="line-clamp-2">{event.location}</span>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Order Summary & Payment Card */}
-              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 shadow-sm">
-                <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-4">Order Summary</h3>
-                
-                <div className="flex justify-between items-center mb-6">
-                  <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
-                    {selectedTicketType?.name || 'Ticket'} (x{attendees.length})
-                  </span>
-                  <span className="font-bold text-neutral-900 dark:text-white">
-                    ₦{total.toLocaleString()}
-                  </span>
-                </div>
-
-                <div className="h-px w-full bg-neutral-100 dark:bg-neutral-800 mb-6" />
-
-                <div className="mb-6">
-                  <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 block mb-3 uppercase tracking-wider">
-                    Payment Method
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['CASH', 'POS', 'TRANSFER'] as const).map((method) => (
-                      <button
-                        key={method}
-                        type="button"
-                        onClick={() => setForm((f) => ({ ...f, paymentMethod: method }))}
-                        className={`py-2.5 rounded-xl text-xs font-bold border transition-all ${
-                          form.paymentMethod === method
-                            ? 'bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400 shadow-sm'
-                            : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300'
-                        }`}
-                      >
-                        {method}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mb-6 p-4 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800">
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <Switch
-                      checked={form.checkInNow}
-                      onCheckedChange={(checked) => setForm((f) => ({ ...f, checkInNow: checked }))}
-                    />
-                  
-                    <div>
-                      <p className="text-sm font-bold text-neutral-900 dark:text-white">
-                        Check In Immediately
-                      </p>
-                      <p className="text-xs text-neutral-500 mt-1">
-                        Automatically mark this attendee as entered at the gate.
-                      </p>
-                    </div>
-                  </label>
-                </div>
-
-                <Button
-                  onClick={handleSubmit}
-                  disabled={saving || (form.useSameDetails ? !attendees[0].name.trim() : attendees.some(a => !a.name.trim())) || !form.ticketTypeId}
-                  className="w-full h-14 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white border-0 font-extrabold text-base shadow-md transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
-                >
-                  {saving ? (
-                    'Registering...'
-                  ) : (
-                    <>
-                      <ShieldCheck className="w-5 h-5" />
-                      Complete Registration
-                    </>
-                  )}
-                </Button>
-                
-              </div>
-              
-            </div>
+          <div className="lg:col-span-5">
+            <div className="lg:sticky lg:top-24">{summaryBlock}</div>
           </div>
+        </div>
+      </form>
 
+      {/* Mobile CTA — sit above staff tab bar when in staff shell */}
+      <div
+        className={cn(
+          'z-30 lg:hidden border-t border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-sm',
+          isStaffMode
+            ? 'fixed bottom-[calc(3.75rem+env(safe-area-inset-bottom))] inset-x-0 md:bottom-0 md:absolute'
+            : 'absolute bottom-0 inset-x-0 pb-safe'
+        )}
+      >
+        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Total</p>
+            <p className="text-lg font-extrabold tabular-nums leading-tight">
+              {total === 0 ? 'Free' : `₦${total.toLocaleString()}`}
+              <span className="ml-1.5 text-xs font-semibold text-neutral-500">· {qty}×</span>
+            </p>
+          </div>
+          <Button
+            type="button"
+            disabled={saving || !canSubmit || loadingEvent}
+            onClick={() => handleSubmit()}
+            className="h-12 shrink-0 rounded-full px-5 bg-rose-500 hover:bg-rose-600 text-white border-0 font-bold disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : checkInNow ? 'Register & check in' : 'Register'}
+          </Button>
         </div>
       </div>
     </div>

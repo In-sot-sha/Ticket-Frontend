@@ -36,7 +36,7 @@ apiClient.interceptors.request.use(
     }
     const url = config.url ?? '';
     // Cache-bust admin/support GETs (do not add Cache-Control header — triggers CORS preflight)
-    if (config.method?.toLowerCase() === 'get' && (url.includes('/admin/') || url.includes('/support/'))) {
+    if (config.method?.toLowerCase() === 'get' && (url.includes('/admin/') || url.includes('/support/') || url.includes('/staff/support'))) {
       config.params = { ...config.params, _t: Date.now() };
     }
     return config;
@@ -276,6 +276,8 @@ export const api = {
       promoted?: string;
       organizationId?: number;
       date?: string;
+      dateFrom?: string;
+      dateTo?: string;
       upcoming?: string;
     }) => apiRequest<any>('GET', '/events', undefined, { params }),
     
@@ -309,8 +311,8 @@ export const api = {
     getOrganizerEvents: (params?: { page?: number; limit?: number }) =>
       apiRequest<any>('GET', '/events/organizer', undefined, { params }),
 
-    getOrganizerEventById: (id: number) =>
-      apiRequest<any>('GET', `/events/organizer/${id}`),
+    getOrganizerEventById: (idOrSlug: string | number) =>
+      apiRequest<any>('GET', `/events/organizer/${idOrSlug}`),
 
     getOrganizerAnalytics: () =>
       apiRequest<any>('GET', '/events/organizer/analytics'),
@@ -374,8 +376,17 @@ export const api = {
     
     getAll: () => apiRequest<any[]>('GET', '/user-roles/my-vendor-applications'), // User's applications
     
-    updateStatus: (id: number, applicationStatus: 'APPROVED' | 'REJECTED', paymentStatus?: 'PENDING' | 'PAID' | 'FAILED') => 
-      apiRequest<any>('PUT', `/vendors/applications/${id}/status`, { applicationStatus, paymentStatus }),
+    updateStatus: (
+      id: number,
+      applicationStatus: 'APPROVED' | 'REJECTED',
+      paymentStatus?: 'PENDING' | 'PAID' | 'FAILED',
+      stallNumber?: string | null,
+    ) =>
+      apiRequest<any>('PUT', `/vendors/applications/${id}/status`, {
+        applicationStatus,
+        paymentStatus,
+        stallNumber,
+      }),
   },
 
   // Gate PIN endpoints
@@ -419,6 +430,7 @@ export const api = {
       processingFees?: number;
       organizerPayouts?: number;
       openSupportTickets?: number;
+      pendingOpsRequests?: number;
       platformFeePercent?: number;
     }>('GET', '/admin/stats'),
 
@@ -435,11 +447,15 @@ export const api = {
     getSupportTicket: (id: number) =>
       apiRequest<any>('GET', `/admin/support/tickets/${id}`),
 
-    replyToSupportTicket: (id: number, data: { body: string; status?: string }) =>
-      apiRequest<any>('POST', `/admin/support/tickets/${id}/replies`, data),
+    replyToSupportTicket: (
+      id: number,
+      data: { body: string; status?: string; needsMoreInfo?: boolean }
+    ) => apiRequest<any>('POST', `/admin/support/tickets/${id}/replies`, data),
 
-    updateSupportTicket: (id: number, data: { status?: string; priority?: string }) =>
-      apiRequest<any>('PUT', `/admin/support/tickets/${id}`, data),
+    updateSupportTicket: (
+      id: number,
+      data: { status?: string; priority?: string; notifyMessage?: string }
+    ) => apiRequest<any>('PUT', `/admin/support/tickets/${id}`, data),
 
     getHostApplications: (status?: 'pending' | 'verified' | 'rejected' | 'all') =>
       apiRequest<any[]>('GET', '/admin/host-applications', undefined, {
@@ -464,6 +480,77 @@ export const api = {
     promoteEvent: (id: number, data: { isPromoted: boolean; promotedUntil?: string | null }) =>
       apiRequest<any>('PUT', `/admin/events/${id}/promote`, data),
 
+    transferEvent: (id: number, organizationId: number) =>
+      apiRequest<any>('POST', `/admin/events/${id}/transfer`, { organizationId }),
+
+    getStaff: () => apiRequest<{ staff: any[] }>('GET', '/admin/staff'),
+
+    createStaff: (data: {
+      email: string;
+      firstName: string;
+      lastName: string;
+      phone?: string;
+      password?: string;
+      capabilities?: string[];
+      active?: boolean;
+      organizationIds?: number[];
+      sendInvite?: boolean;
+    }) => apiRequest<any>('POST', '/admin/staff', data),
+
+    resendStaffInvite: (userId: number, data?: { resetPassword?: boolean }) =>
+      apiRequest<any>('POST', `/admin/staff/${userId}/invite`, data || {}),
+
+    upsertStaff: (
+      userId: number,
+      data: { isStaff?: boolean; capabilities?: string[]; active?: boolean }
+    ) => apiRequest<any>('PUT', `/admin/staff/${userId}`, data),
+
+    addStaffOrgCoverage: (
+      userId: number,
+      data: { organizationId: number; capabilitiesOverride?: string[] }
+    ) => apiRequest<any>('POST', `/admin/staff/${userId}/org-coverage`, data),
+
+    removeStaffOrgCoverage: (userId: number, organizationId: number) =>
+      apiRequest<any>('DELETE', `/admin/staff/${userId}/org-coverage/${organizationId}`),
+
+    getOpsProjects: (status?: string) =>
+      apiRequest<{ projects: any[] }>('GET', '/admin/ops-projects', undefined, {
+        params: status ? { status } : undefined,
+      }),
+
+    createOpsProject: (data: {
+      title: string;
+      organizationId?: number | null;
+      eventId?: number | null;
+      services?: string[];
+      notes?: string;
+      windowStart?: string | null;
+      windowEnd?: string | null;
+      status?: string;
+    }) => apiRequest<any>('POST', '/admin/ops-projects', data),
+
+    updateOpsProject: (
+      id: number,
+      data: {
+        title?: string;
+        organizationId?: number | null;
+        eventId?: number | null;
+        services?: string[];
+        notes?: string;
+        windowStart?: string | null;
+        windowEnd?: string | null;
+        status?: string;
+      }
+    ) => apiRequest<any>('PUT', `/admin/ops-projects/${id}`, data),
+
+    assignOpsStaff: (
+      projectId: number,
+      data: { userId: number; capabilitiesOverride?: string[] }
+    ) => apiRequest<any>('POST', `/admin/ops-projects/${projectId}/staff`, data),
+
+    removeOpsStaff: (projectId: number, userId: number) =>
+      apiRequest<any>('DELETE', `/admin/ops-projects/${projectId}/staff/${userId}`),
+
     updateOrganizationFee: (id: number, data: { serviceFeePercent?: number; absorbFee?: boolean }) =>
       apiRequest<any>('PUT', `/admin/host-applications/${id}/fee`, data),
 
@@ -475,6 +562,49 @@ export const api = {
 
     rejectPayout: (id: number) =>
       apiRequest<any>('POST', `/admin/payouts/${id}/reject`),
+  },
+
+  staff: {
+    getHome: () =>
+      apiRequest<{
+        profile: { capabilities: string[]; active: boolean } | null;
+        orgCoverage: Array<{
+          organizationId: number;
+          organizationName: string;
+          gatePinCount?: number;
+        }>;
+        projects: any[];
+        events: any[];
+        todayGates?: any[];
+      }>('GET', '/staff/home'),
+
+    requestOps: (data: {
+      title?: string;
+      organizationId?: number;
+      eventId?: number;
+      services?: string[];
+      notes?: string;
+      windowStart?: string;
+      windowEnd?: string;
+    }) => apiRequest<any>('POST', '/staff/ops-request', data),
+
+    getSupportTickets: (status?: string) =>
+      apiRequest<any[]>('GET', '/staff/support/tickets', undefined, {
+        params: status ? { status } : undefined,
+      }),
+
+    getSupportTicket: (id: number) =>
+      apiRequest<any>('GET', `/staff/support/tickets/${id}`),
+
+    replyToSupportTicket: (
+      id: number,
+      data: { body: string; status?: string; needsMoreInfo?: boolean }
+    ) => apiRequest<any>('POST', `/staff/support/tickets/${id}/replies`, data),
+
+    updateSupportTicket: (
+      id: number,
+      data: { status?: string; priority?: string; notifyMessage?: string }
+    ) => apiRequest<any>('PUT', `/staff/support/tickets/${id}`, data),
   },
 
   // Finance and Payouts endpoints

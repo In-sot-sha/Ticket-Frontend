@@ -1134,69 +1134,145 @@ const EventDetailPage = () => {
                 </p>
               </div>
 
-              {/* Social & website links */}
-              {(event.organizer.website || hasAnySocial(event.organizer.socials || {})) && (
-              <div className="space-y-4">
-                <h4 className="text-sm font-extrabold text-neutral-900 dark:text-white">Connect</h4>
-                <div className="flex flex-wrap items-center gap-3">
+              {/* Contact & socials */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-extrabold text-neutral-900 dark:text-white">Contact</h4>
+                <div className="space-y-2">
                   {event.organizer.website && (
                     <a
-                      href={event.organizer.website.startsWith('http') ? event.organizer.website : `https://${event.organizer.website}`}
+                      href={
+                        event.organizer.website.startsWith('http')
+                          ? event.organizer.website
+                          : `https://${event.organizer.website}`
+                      }
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                      className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-rose-300 dark:hover:border-rose-800 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-colors group"
                     >
-                      <Globe className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
-                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Website</span>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 group-hover:bg-rose-100 dark:group-hover:bg-rose-950/40">
+                        <Globe className="h-4 w-4 text-neutral-600 dark:text-neutral-300 group-hover:text-rose-500" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-neutral-900 dark:text-white">Website</p>
+                        <p className="text-[11px] text-rose-500 truncate underline-offset-2 group-hover:underline">
+                          {event.organizer.website.replace(/^https?:\/\//, '')}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-neutral-300 group-hover:text-rose-400 shrink-0" />
                     </a>
                   )}
+
                   {event.organizer.socials?.instagram && (
                     <a
                       href={buildSocialUrl('instagram', event.organizer.socials.instagram)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                      className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-rose-300 dark:hover:border-rose-800 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-colors group"
                     >
-                      <Instagram className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
-                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Instagram</span>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 group-hover:bg-rose-100 dark:group-hover:bg-rose-950/40">
+                        <Instagram className="h-4 w-4 text-neutral-600 dark:text-neutral-300 group-hover:text-rose-500" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-neutral-900 dark:text-white">Instagram</p>
+                        <p className="text-[11px] text-rose-500 truncate underline-offset-2 group-hover:underline">
+                          {event.organizer.socials.instagram.startsWith('http')
+                            ? event.organizer.socials.instagram.replace(/^https?:\/\/(www\.)?instagram\.com\//, '@')
+                            : event.organizer.socials.instagram.startsWith('@')
+                              ? event.organizer.socials.instagram
+                              : `@${event.organizer.socials.instagram}`}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-neutral-300 group-hover:text-rose-400 shrink-0" />
                     </a>
                   )}
+
                   {event.organizer.socials?.twitter && (
                     <a
                       href={buildSocialUrl('twitter', event.organizer.socials.twitter)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                      className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-rose-300 dark:hover:border-rose-800 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-colors group"
                     >
-                      <Twitter className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
-                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">X</span>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800">
+                        <Twitter className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-neutral-900 dark:text-white">X / Twitter</p>
+                        <p className="text-[11px] text-rose-500 truncate">
+                          {event.organizer.socials.twitter}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-neutral-300 shrink-0" />
                     </a>
                   )}
+
                   {event.organizer.socials?.facebook && (
                     <a
                       href={buildSocialUrl('facebook', event.organizer.socials.facebook)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                      className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-rose-300 dark:hover:border-rose-800 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-colors group"
                     >
-                      <span className="text-xs font-bold text-neutral-600 dark:text-neutral-400">f</span>
-                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Facebook</span>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-xs font-bold text-neutral-600">
+                        f
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-neutral-900 dark:text-white">Facebook</p>
+                        <p className="text-[11px] text-rose-500 truncate">
+                          {event.organizer.socials.facebook}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-neutral-300 shrink-0" />
                     </a>
                   )}
+
                   {event.organizer.socials?.tiktok && (
                     <a
                       href={buildSocialUrl('tiktok', event.organizer.socials.tiktok)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                      className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-rose-300 dark:hover:border-rose-800 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-colors group"
                     >
-                      <span className="text-[10px] font-extrabold text-neutral-600 dark:text-neutral-400">TT</span>
-                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">TikTok</span>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-[10px] font-extrabold text-neutral-600">
+                        TT
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-neutral-900 dark:text-white">TikTok</p>
+                        <p className="text-[11px] text-rose-500 truncate">
+                          {event.organizer.socials.tiktok}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-neutral-300 shrink-0" />
                     </a>
                   )}
+
+                  {event.organizer.email && (
+                    <a
+                      href={`mailto:${event.organizer.email}`}
+                      className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-rose-300 dark:hover:border-rose-800 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-colors group"
+                    >
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800">
+                        <Mail className="h-4 w-4 text-neutral-600 dark:text-neutral-300 group-hover:text-rose-500" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-neutral-900 dark:text-white">Email</p>
+                        <p className="text-[11px] text-rose-500 truncate underline-offset-2 group-hover:underline">
+                          {event.organizer.email}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-neutral-300 group-hover:text-rose-400 shrink-0" />
+                    </a>
+                  )}
+
+                  {!event.organizer.website &&
+                    !hasAnySocial(event.organizer.socials || {}) &&
+                    !event.organizer.email && (
+                      <p className="text-xs text-neutral-500 py-2">
+                        This organizer hasn&apos;t added public contact links yet.
+                      </p>
+                    )}
                 </div>
               </div>
-              )}
 
               {/* Trust & Safety Section */}
               {/* <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 rounded-2xl space-y-3">

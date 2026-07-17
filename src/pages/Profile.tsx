@@ -235,7 +235,7 @@ const Profile = () => {
           <div className="mb-10">
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Account</h1>
             <p className="text-sm text-neutral-500 mt-2">
-              <span className="font-bold">{user.firstName} {user.lastName}</span> · {user.email} · <span className="underline">Go to profile</span>
+              <span className="font-bold">{user.firstName} {user.lastName}</span> · {user.email} 
             </p>
           </div>
         )}

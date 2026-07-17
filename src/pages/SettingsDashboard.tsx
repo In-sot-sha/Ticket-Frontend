@@ -6,8 +6,6 @@ import {
   CreditCard,
   Bell,
   Shield,
-  ChevronRight,
-  ArrowLeft,
   Save,
   Eye,
   EyeOff,
@@ -456,6 +454,7 @@ const NotificationsPanel = () => {
 };
 
 const SecurityPanel = () => {
+  const { user, updateUser } = useAuth();
   const [form, setForm]         = useState({ current: '', next: '', confirm: '' });
   const [show, setShow]         = useState({ current: false, next: false, confirm: false });
   const [saving, setSaving]     = useState(false);
@@ -468,7 +467,15 @@ const SecurityPanel = () => {
     if (form.next.length < 8)        { setError('Password must be at least 8 characters.'); return; }
     setSaving(true); setError('');
     try {
-      await api.post('/users/change-password', { currentPassword: form.current, newPassword: form.next });
+      const res = await api.post<{ user?: any }>('/users/change-password', {
+        currentPassword: form.current,
+        newPassword: form.next,
+      });
+      if (res.data?.user && user) {
+        updateUser({ ...user, ...res.data.user, mustChangePassword: false });
+      } else if (user) {
+        updateUser({ ...user, mustChangePassword: false });
+      }
       setSaved(true);
       setForm({ current: '', next: '', confirm: '' });
       setTimeout(() => setSaved(false), 4000);
@@ -741,12 +748,14 @@ const TeamPanel = () => {
 // ── Main settings page ────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'organisation',  label: 'Organisation',     desc: 'Business name, description, public info',     icon: Building2 },
-  { id: 'payouts',       label: 'Payouts & Bank',   desc: 'Bank details, payouts, active ledger',        icon: Receipt },
-  { id: 'team',          label: 'Team & Staff',     desc: 'Invite gate scanners, admins, finance users', icon: Users },
+  { id: 'profile',       label: 'Your profile',     desc: 'Name, email, and phone',                      icon: User },
+  { id: 'organisation',  label: 'Organisation',     desc: 'Public name, about, and contact link',        icon: Building2 },
+  { id: 'payouts',       label: 'Payouts & bank',   desc: 'Where ticket money gets paid out',            icon: Receipt },
+  { id: 'team',          label: 'Gate scanners',    desc: 'Create PINs for day-of gate staff phones',    icon: Users },
 ];
 
 const PANEL: Record<string, React.ReactNode> = {
+  profile:       <ProfilePanel />,
   organisation:  <OrganisationPanel />,
   payouts:       <PayoutsPanel />,
   team:          <TeamPanel />,
@@ -754,65 +763,104 @@ const PANEL: Record<string, React.ReactNode> = {
 
 const SettingsDashboard = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'menu';
-  const setTab = (t: string) => setSearchParams(t === 'menu' ? {} : { tab: t });
+  const activeTab = searchParams.get('tab') || 'organisation';
+  const setTab = (t: string) => setSearchParams({ tab: t });
+
+  const current = TABS.find((t) => t.id === activeTab) || TABS[1];
 
   return (
-    <div className="py-4 sm:py-6 max-w-4xl mx-auto px-1">
+    <div className="py-4 sm:py-6 max-w-5xl mx-auto px-1 pb-10">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
+          Settings
+        </h1>
+        <p className="text-sm text-neutral-500 mt-1.5 max-w-xl">
+          Keep your organiser profile, payouts, and gate staff ready for event day.
+        </p>
+      </div>
 
-      {/* Back breadcrumb */}
-      {activeTab !== 'menu' && (
-        <button
-          onClick={() => setTab('menu')}
-          className="flex items-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-rose-500 transition-colors mb-5"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          All settings
-        </button>
-      )}
+      {/* Mobile: horizontal pills */}
+      <div className="lg:hidden mb-5 -mx-1 px-1 overflow-x-auto no-scrollbar">
+        <div className="flex gap-2 pb-1 min-w-max">
+          {TABS.map((tile) => {
+            const Icon = tile.icon;
+            const active = activeTab === tile.id;
+            return (
+              <button
+                key={tile.id}
+                type="button"
+                onClick={() => setTab(tile.id)}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border transition-all ${
+                  active
+                    ? 'bg-neutral-900 text-white border-neutral-900 dark:bg-white dark:text-neutral-900 dark:border-white'
+                    : 'bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {tile.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-      {/* Menu grid */}
-      {activeTab === 'menu' && (
-        <>
-          <div className="mb-8">
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Organizer Settings</h1>
-            <p className="text-sm text-neutral-500 mt-1.5">Manage your account, organisation, payouts and team.</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {TABS.map(tile => {
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+        {/* Desktop side nav */}
+        <aside className="hidden lg:block w-56 shrink-0">
+          <nav className="sticky top-24 space-y-1">
+            {TABS.map((tile) => {
               const Icon = tile.icon;
+              const active = activeTab === tile.id;
               return (
                 <button
                   key={tile.id}
+                  type="button"
                   onClick={() => setTab(tile.id)}
-                  className="text-left p-5 border border-neutral-150 dark:border-neutral-900 rounded-2xl bg-white dark:bg-gray-900 shadow-sm hover:shadow-md hover:border-rose-200 dark:hover:border-rose-900/50 transition-all group"
+                  className={`w-full text-left flex items-start gap-3 px-3 py-3 rounded-xl transition-colors ${
+                    active
+                      ? 'bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400'
+                      : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-900'
+                  }`}
                 >
-                  <div className="p-2.5 bg-rose-50 dark:bg-rose-950/20 rounded-xl w-fit mb-3 group-hover:bg-rose-100 dark:group-hover:bg-rose-950/40 transition-colors">
-                    <Icon className="h-5 w-5 text-rose-500" />
-                  </div>
-                  <p className="text-sm font-extrabold text-neutral-900 dark:text-white">{tile.label}</p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">{tile.desc}</p>
-                  <div className="flex justify-end mt-3">
-                    <span className="text-xs font-bold text-rose-500 flex items-center gap-0.5">
-                      Manage <ChevronRight className="h-3.5 w-3.5" />
+                  <span
+                    className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                      active
+                        ? 'bg-rose-500 text-white'
+                        : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold">{tile.label}</span>
+                    <span className="block text-[11px] text-neutral-500 mt-0.5 leading-snug">
+                      {tile.desc}
                     </span>
-                  </div>
+                  </span>
                 </button>
               );
             })}
-          </div>
-        </>
-      )}
+          </nav>
+        </aside>
 
-      {/* Active panel */}
-      {activeTab !== 'menu' && (
-        <div className="bg-white dark:bg-gray-900 rounded-3xl p-5 sm:p-8 shadow-sm border border-neutral-100 dark:border-neutral-800">
-          {PANEL[activeTab] ?? (
-            <p className="text-sm text-neutral-500">Panel not found.</p>
-          )}
+        {/* Panel */}
+        <div className="flex-1 min-w-0">
+          <div className="lg:hidden mb-4">
+            <h2 className="text-lg font-extrabold text-neutral-900 dark:text-white">{current.label}</h2>
+            <p className="text-xs text-neutral-500 mt-0.5">{current.desc}</p>
+          </div>
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-sm border border-neutral-100 dark:border-neutral-800">
+            {PANEL[activeTab] ?? (
+              <p className="text-sm text-neutral-500">Panel not found.</p>
+            )}
+          </div>
         </div>
-      )}
+      </div>
+
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </div>
   );
 };

@@ -10,6 +10,10 @@ interface EventListParams {
   category?: string;
   location?: string;
   promoted?: string;
+  date?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  upcoming?: string;
 }
 
 interface EventMutationData {
@@ -99,7 +103,10 @@ export const useEventCategories = () => {
 export const useOrganizerEvents = (params?: { page?: number; limit?: number }, config?: QueryConfig) => {
   return useQuery({
     queryKey: queryKeys.events.organizerEvents(),
-    queryFn: () => api.events.getOrganizerEvents(params).then(res => res.data.events),
+    queryFn: () =>
+      api.events
+        .getOrganizerEvents({ limit: 100, ...params })
+        .then((res) => res.data.events),
     ...config,
   });
 };
