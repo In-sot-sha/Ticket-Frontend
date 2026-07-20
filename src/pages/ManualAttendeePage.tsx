@@ -17,12 +17,14 @@ import { Skeleton } from '../components/ui/skeleton';
 import { Switch } from '../components/ui/Switch';
 import { api } from '../services/api';
 import { cn } from '../lib/utils';
+import { isValidEmail, isValidPhone } from '../lib/phone';
 
 interface TicketType {
   id: number;
   name: string;
   price: number;
   quantity: number;
+  maxPerPerson?: number | null;
 }
 
 interface EventInfo {
@@ -41,8 +43,13 @@ const PAYMENTS: { id: PaymentMethod; label: string }[] = [
   { id: 'TRANSFER', label: 'Transfer' },
 ];
 
-const isValidEmail = (email: string) =>
-  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+const hasValidContact = (email: string, phone: string) => {
+  const e = email.trim();
+  const p = phone.trim();
+  if (e && !isValidEmail(e)) return false;
+  if (p && !isValidPhone(p)) return false;
+  return (!!e && isValidEmail(e)) || (!!p && isValidPhone(p));
+};
 
 const ManualAttendeePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -61,7 +68,7 @@ const ManualAttendeePage: React.FC = () => {
     checkedIn: boolean;
     ticketName: string;
     total: number;
-    email: string;
+    contact: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -131,7 +138,7 @@ const ManualAttendeePage: React.FC = () => {
   const canSubmit =
     !!ticketTypeId &&
     guestsToValidate.every(
-      (a) => a.name.trim() && isValidEmail(a.email)
+      (a) => a.name.trim() && hasValidContact(a.email, a.phone)
     );
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -141,8 +148,15 @@ const ManualAttendeePage: React.FC = () => {
     if (!ticketTypeId) return setError('Select a ticket type.');
     for (const a of guestsToValidate) {
       if (!a.name.trim()) return setError('Enter a guest name.');
-      if (!a.email.trim()) return setError('Email is required so the ticket links to a guest account.');
-      if (!isValidEmail(a.email)) return setError('Enter a valid email address.');
+      if (!a.email.trim() && !a.phone.trim()) {
+        return setError('Email or phone number is required.');
+      }
+      if (a.email.trim() && !isValidEmail(a.email)) {
+        return setError('Enter a valid email address.');
+      }
+      if (a.phone.trim() && !isValidPhone(a.phone)) {
+        return setError('Enter a valid Nigerian phone number (e.g. 0803… or +234…).');
+      }
     }
 
     setSaving(true);
@@ -150,12 +164,12 @@ const ManualAttendeePage: React.FC = () => {
       const payloadAttendees = useSameDetails
         ? Array.from({ length: qty }, () => ({
             name: attendees[0].name.trim(),
-            email: attendees[0].email.trim().toLowerCase(),
+            email: attendees[0].email.trim().toLowerCase() || undefined,
             phone: attendees[0].phone.trim() || undefined,
           }))
         : attendees.map((a) => ({
             name: a.name.trim(),
-            email: a.email.trim().toLowerCase(),
+            email: a.email.trim().toLowerCase() || undefined,
             phone: a.phone.trim() || undefined,
           }));
 
@@ -164,19 +178,24 @@ const ManualAttendeePage: React.FC = () => {
         ticketTypeId: Number(ticketTypeId),
         quantity: qty,
         buyerName: attendees[0].name.trim(),
-        buyerEmail: attendees[0].email.trim().toLowerCase(),
+        buyerEmail: attendees[0].email.trim().toLowerCase() || undefined,
         buyerPhone: attendees[0].phone.trim() || undefined,
         attendees: payloadAttendees,
         paymentMethod,
         checkInNow,
       });
 
+      const contactLabel =
+        attendees[0].email.trim().toLowerCase() ||
+        attendees[0].phone.trim() ||
+        'guest';
+
       setSuccess({
         count: qty,
         checkedIn: checkInNow,
         ticketName: selectedTicketType?.name || 'Ticket',
         total,
-        email: attendees[0].email.trim().toLowerCase(),
+        contact: contactLabel,
       });
     } catch (err: unknown) {
       const msg =
@@ -216,7 +235,18 @@ const ManualAttendeePage: React.FC = () => {
             {success.checkedIn ? ' · Checked in' : ' · Ticket issued'}
           </p>
           <p className="mt-3 text-xs text-neutral-500">
-            Confirmation sent to <span className="font-semibold text-neutral-700 dark:text-neutral-300">{success.email}</span>
+            {success.contact.includes('@') ? (
+              <>
+                Confirmation sent to{' '}
+                <span className="font-semibold text-neutral-700 dark:text-neutral-300">{success.contact}</span>
+              </>
+            ) : (
+              <>
+                Ticket linked to{' '}
+                <span className="font-semibold text-neutral-700 dark:text-neutral-300">{success.contact}</span>
+                {' '}(no email on file)
+              </>
+            )}
           </p>
           <div className="mt-8 flex flex-col gap-3">
             <Button
@@ -353,7 +383,7 @@ const ManualAttendeePage: React.FC = () => {
             </label>
             <label className="mt-3 block">
               <span className="mb-1.5 flex items-center gap-1 text-xs font-bold text-neutral-600 dark:text-neutral-400">
-                <Mail className="h-3 w-3" /> Email <span className="text-rose-500">*</span>
+                <Mail className="h-3 w-3" /> Email
               </span>
               <input
                 type="email"
@@ -362,25 +392,23 @@ const ManualAttendeePage: React.FC = () => {
                 placeholder="guest@email.com"
                 value={attendee.email}
                 onChange={(e) => updateAttendee(index, 'email', e.target.value)}
-                required
               />
-              <p className="mt-1 text-[10px] text-neutral-400">
-                Required — links the ticket to a guest account and sends the pass.
-              </p>
             </label>
             <label className="mt-3 block">
               <span className="mb-1.5 flex items-center gap-1 text-xs font-bold text-neutral-600 dark:text-neutral-400">
                 <Phone className="h-3 w-3" /> Phone
-                <span className="font-normal text-neutral-400">(optional)</span>
               </span>
               <input
                 type="tel"
                 autoComplete="tel"
                 className={inputClass}
-                placeholder="080…"
+                placeholder="0803 000 0000"
                 value={attendee.phone}
                 onChange={(e) => updateAttendee(index, 'phone', e.target.value)}
               />
+              <p className="mt-1 text-[10px] text-neutral-400">
+                Email or phone required — links the ticket to a guest account.
+              </p>
             </label>
           </div>
         ))}

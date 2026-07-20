@@ -11,11 +11,16 @@ import {
   wasExplicitLogout,
   clearLoggedOutFlag,
 } from '../lib/neonAuth';
+import { isValidEmail, isValidPhone } from '../lib/phone';
+
+type ContactMode = 'email' | 'phone';
 
 const Register = () => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [contactMode, setContactMode] = useState<ContactMode>('email');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -118,17 +123,36 @@ const Register = () => {
       return;
     }
 
+    const cleanEmail = contactMode === 'email' ? email.trim().toLowerCase() : '';
+    const cleanPhone = contactMode === 'phone' ? phone.trim() : '';
+
+    if (contactMode === 'email') {
+      if (!cleanEmail || !isValidEmail(cleanEmail)) {
+        setError('Enter a valid email address');
+        return;
+      }
+    } else if (!cleanPhone || !isValidPhone(cleanPhone)) {
+      setError('Enter a valid Nigerian phone number (e.g. 0803… or +234…)');
+      return;
+    }
+
     setLoading(true);
     try {
-      const success = await register(email, password, firstName, lastName);
+      const success = await register(
+        cleanEmail || null,
+        password,
+        firstName,
+        lastName,
+        cleanPhone || null
+      );
       if (success) {
         clearLoggedOutFlag();
         navigate('/', { replace: true });
         return;
       }
       setError('An error occurred during registration. Please try again.');
-    } catch (err) {
-      setError('An error occurred during registration. Please try again.');
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'An error occurred during registration. Please try again.');
     }
     setLoading(false);
   };
@@ -257,13 +281,38 @@ const Register = () => {
             </div>
             <div className="relative flex justify-center text-xs">
               <span className="px-3 bg-neutral-50 dark:bg-neutral-950 text-neutral-400 dark:text-neutral-500 font-medium">
-                or continue with email
+                or continue with email or phone
               </span>
             </div>
           </div>
 
-          {/* ---- Email / Password Form ---- */}
+          {/* ---- Email / Phone / Password Form ---- */}
           <form className="space-y-4" onSubmit={handleSubmit}>
+            <div className="flex rounded-xl border border-neutral-200 dark:border-neutral-800 p-1 bg-white dark:bg-neutral-900">
+              <button
+                type="button"
+                onClick={() => setContactMode('email')}
+                className={`flex-1 h-9 rounded-lg text-xs font-bold transition-colors ${
+                  contactMode === 'email'
+                    ? 'bg-rose-500 text-white'
+                    : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+                }`}
+              >
+                Email
+              </button>
+              <button
+                type="button"
+                onClick={() => setContactMode('phone')}
+                className={`flex-1 h-9 rounded-lg text-xs font-bold transition-colors ${
+                  contactMode === 'phone'
+                    ? 'bg-rose-500 text-white'
+                    : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+                }`}
+              >
+                Phone
+              </button>
+            </div>
+
             <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden shadow-sm bg-white dark:bg-neutral-900">
               {/* Split Names */}
               <div className="grid grid-cols-1 sm:grid-cols-2 border-b border-neutral-200 dark:border-neutral-800">
@@ -295,20 +344,35 @@ const Register = () => {
                 </div>
               </div>
 
-              {/* Email */}
-              <div className="relative border-b border-neutral-200 dark:border-neutral-800">
-                <label className="absolute top-2.5 left-4 text-[9px] font-bold text-neutral-450 dark:text-neutral-500 uppercase tracking-wide">
-                  Email address
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 pt-6 pb-2 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-800 dark:text-neutral-100"
-                  placeholder="email@example.com"
-                />
-              </div>
+              {contactMode === 'email' ? (
+                <div className="relative border-b border-neutral-200 dark:border-neutral-800">
+                  <label className="absolute top-2.5 left-4 text-[9px] font-bold text-neutral-450 dark:text-neutral-500 uppercase tracking-wide">
+                    Email address
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-4 pt-6 pb-2 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-800 dark:text-neutral-100"
+                    placeholder="email@example.com"
+                  />
+                </div>
+              ) : (
+                <div className="relative border-b border-neutral-200 dark:border-neutral-800">
+                  <label className="absolute top-2.5 left-4 text-[9px] font-bold text-neutral-450 dark:text-neutral-500 uppercase tracking-wide">
+                    Phone number
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full px-4 pt-6 pb-2 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-800 dark:text-neutral-100"
+                    placeholder="0803 000 0000"
+                  />
+                </div>
+              )}
 
               {/* Password */}
               <div className="relative border-b border-neutral-200 dark:border-neutral-800">

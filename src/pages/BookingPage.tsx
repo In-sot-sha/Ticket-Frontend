@@ -20,6 +20,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CustomAlertDialog } from '../components/ui/CustomAlertDialog';
 import { useEventById } from '../hooks/queries/useEvents';
 import { CACHE_CONFIGS } from '../lib/queryClient';
+import { isValidEmail, isValidPhone } from '../lib/phone';
 
 
 // Mock event fallback matching EventDetailPage
@@ -96,6 +97,8 @@ const BookingPage = () => {
   const [isPaying, setIsPaying] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'opay'>('paystack');
   const [alertDialog, setAlertDialog] = useState<{isOpen: boolean, title?: string, message: string}>({isOpen: false, message: ''});
+  /** Owned counts from API keyed by ticketTypeId */
+  const [ownedByType, setOwnedByType] = useState<Record<number, number>>({});
 
   // Normalize event data from API
   const normalizedEventData = eventData ? {
@@ -235,8 +238,8 @@ const BookingPage = () => {
       const checkoutRes = await api.post<any>('/tickets/checkout/guest', {
         firstName: guestFirstName,
         lastName: guestLastName,
-        email: guestEmail,
-        phone: guestPhone,
+        email: guestEmail.trim(),
+        phone: guestPhone.trim() || undefined,
         eventId: Number(normalizedEventData.id),
         ticketTypeId: Number(ticketTypeId),
         quantity: Number(quantity)
@@ -263,7 +266,12 @@ const BookingPage = () => {
         navigate('/ticket-confirmation', { state: confirmedOrder });
       }
     } catch (err: any) {
-      showAlert('Reservation succeeded but registration failed: ' + (err.response?.data?.message || err.message), 'Error');
+      const data = err.response?.data;
+      if (data?.code === 'MAX_PER_PERSON') {
+        showAlert(data.message || 'You already have the maximum tickets allowed.', 'Limit Reached');
+      } else {
+        showAlert(data?.message || err.message || 'Ticket registration failed.', 'Error');
+      }
     } finally {
       setIsPaying(false);
     }
@@ -277,9 +285,15 @@ const BookingPage = () => {
 
     const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_d3000676b7db0bc43f07a4a2fa44a8ad8d1b6ee8';
 
+    const payEmail = bookMode === 'vendor' ? businessEmail : guestEmail.trim();
+    if (!payEmail || !isValidEmail(payEmail)) {
+      showAlert('A valid email address is required for payment.', 'Missing Email');
+      return;
+    }
+
     const handler = (window as any).PaystackPop.setup({
       key: publicKey,
-      email: bookMode === 'vendor' ? businessEmail : guestEmail,
+      email: payEmail,
       amount: Math.round(totalAmount * 100), // Paystack expects amount in kobo
       currency: 'NGN',
       ref: `EVT_${Date.now()}_${normalizedEventData.id}`,
@@ -365,39 +379,67 @@ const BookingPage = () => {
 
   // Step validations
   const validateStep2 = () => {
-    if (!guestFirstName.trim() || !guestLastName.trim() || !guestEmail.trim()) {
-      showAlert('First Name, Last Name, and Email are required.', 'Missing Information');
+    if (!guestFirstName.trim() || !guestLastName.trim()) {
+      showAlert('First name and last name are required.', 'Missing Information');
       return false;
     }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(guestEmail)) {
+    const email = guestEmail.trim();
+    const phone = guestPhone.trim();
+    if (!email) {
+      showAlert('Email is required to buy tickets and complete payment.', 'Missing Information');
+      return false;
+    }
+    if (!isValidEmail(email)) {
       showAlert('Please enter a valid email address.', 'Invalid Email');
+      return false;
+    }
+    if (phone && !isValidPhone(phone)) {
+      showAlert('Please enter a valid Nigerian phone number (e.g. 0803… or +234…).', 'Invalid Phone');
       return false;
     }
     return true;
   };
 
-  // Helper: Get previous bookings for a ticket type from localStorage
-  const getPreviousBookings = (ticketTypeId: number): number => {
-    try {
-      const key = `bookings_${normalizedEventData.id}_${ticketTypeId}`;
-      const stored = localStorage.getItem(key);
-      return stored ? parseInt(stored, 10) : 0;
-    } catch {
-      return 0;
-    }
+  const refreshEligibility = async () => {
+    const email = guestEmail.trim();
+    const phone = guestPhone.trim();
+    if ((!email && !phone) || !normalizedEventData?.id) return;
+    if (email && !isValidEmail(email)) return;
+    if (phone && !isValidPhone(phone)) return;
+
+    const types = (normalizedEventData.ticketTypes || []) as Array<{ id: number }>;
+    const next: Record<number, number> = {};
+    await Promise.all(
+      types.map(async (t) => {
+        try {
+          const res = await api.tickets.checkEligibility({
+            eventId: Number(normalizedEventData.id),
+            ticketTypeId: t.id,
+            email: email || undefined,
+            phone: phone || undefined,
+          });
+          next[t.id] = res.data?.owned ?? 0;
+        } catch {
+          next[t.id] = ownedByType[t.id] ?? 0;
+        }
+      })
+    );
+    setOwnedByType(next);
   };
 
-  // Helper: Get max per person for a ticket type (default 5, or 1 for free events)
+  // Helper: Get previous bookings for a ticket type (from eligibility API)
+  const getPreviousBookings = (ticketTypeId: number): number => {
+    return ownedByType[ticketTypeId] ?? 0;
+  };
+
+  // Helper: Get max per person (free = always 1; paid uses maxPerPerson or 5)
   const getMaxPerPerson = (ticketType: any): number => {
-    if (ticketType.maxPerPerson) {
-      return ticketType.maxPerPerson;
-    }
-    // For free events, cap at 1
-    if (ticketType.price === 0) {
+    if (Number(ticketType.price) === 0) {
       return 1;
     }
-    // Default fallback
+    if (ticketType.maxPerPerson != null && ticketType.maxPerPerson > 0) {
+      return ticketType.maxPerPerson;
+    }
     return 5;
   };
 
@@ -407,6 +449,18 @@ const BookingPage = () => {
     const previousBookings = getPreviousBookings(ticketTypeId);
     return Math.max(0, maxPerPerson - previousBookings);
   };
+
+  // Load owned ticket counts once we have a contact (logged-in or guest)
+  useEffect(() => {
+    if (bookMode !== 'tickets') return;
+    const email = guestEmail.trim();
+    const phone = guestPhone.trim();
+    if (!email && !phone) return;
+    if (email && !isValidEmail(email)) return;
+    if (phone && !isValidPhone(phone)) return;
+    void refreshEligibility();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookMode, guestEmail, guestPhone, normalizedEventData?.id]);
 
   const updateTicketQty = (id: number, delta: number) => {
     setSelectedTickets(prev => {
@@ -502,7 +556,7 @@ const BookingPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 sm:py-10 py-3">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 sm:py-10 py-2">
       {/* Show loading state while fetching event */}
       {!eventData && eventId && (
         <div className="flex items-center justify-center min-h-[50vh]">
@@ -515,27 +569,27 @@ const BookingPage = () => {
 
       {/* Only show content when event data is loaded or using mock */}
       {(eventData || !eventId) && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         
         {/* Navigation & Header */}
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-8">
           <Link 
             to={eventId ? `/events/${eventId}` : '/'} 
-            className="flex items-center justify-center w-10 h-10 rounded-full border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+            className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
           >
             <ArrowLeft className="h-4 w-4 text-neutral-800 dark:text-neutral-100" />
           </Link>
           <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-neutral-900 dark:text-white">
+            <h1 className="text-lg sm:text-2xl font-extrabold text-neutral-900 dark:text-white">
               Confirm and Pay
             </h1>
-            <p className="text-xs text-neutral-500">Secure ticket reservation without login</p>
+            <p className="text-[11px] sm:text-xs text-neutral-500">Secure ticket reservation without login</p>
           </div>
         </div>
 
         {/* Stepper bar - only for ticket or vendor, not for choice */}
         {bookMode !== 'choice' && (
-          <div className="flex items-center justify-start gap-3 mb-10 overflow-x-auto py-2">
+          <div className="flex items-center justify-start gap-2 sm:gap-3 mb-5 sm:mb-10 overflow-x-auto py-1 sm:py-2">
             {bookMode === 'tickets' ? (
               <>
                 {['Review Tickets', 'Guest Details', 'Payment'].map((s, idx) => {
@@ -602,7 +656,7 @@ const BookingPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           
           {/* Left panel: Stepper Content (8 Cols) */}
-          <div className="lg:col-span-8 space-y-6">
+          <div className="lg:col-span-8 space-y-4 sm:space-y-6">
             <AnimatePresence mode="wait">
               
               {/* Step 0: Vendor vs Ticket Choice */}
@@ -612,10 +666,10 @@ const BookingPage = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-850 rounded-3xl p-6 shadow-sm"
+                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-850 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm"
                 >
                   <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">How would you like to participate?</h2>
-                  <p className="text-xs text-neutral-500 mb-6">Choose your preferred booking type for this event.</p>
+                  <p className="text-xs text-neutral-500 mb-3 sm:mb-6">Choose your preferred booking type for this event.</p>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Tickets Option */}
@@ -660,10 +714,10 @@ const BookingPage = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-850 rounded-3xl p-6 shadow-sm"
+                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-850 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm"
                 >
                   <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Select your tickets</h2>
-                  <p className="text-xs text-neutral-500 mb-6">Select the quantity for each ticket type you want to order.</p>
+                  <p className="text-xs text-neutral-500 mb-3 sm:mb-6">Select the quantity for each ticket type you want to order.</p>
                   
                   <div className="space-y-4">
                     {normalizedEventData.ticketTypes?.map((t: any) => {
@@ -760,10 +814,10 @@ const BookingPage = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-850 rounded-3xl p-6 shadow-sm"
+                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-850 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm"
                 >
                   <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Select Stall Type</h2>
-                  <p className="text-xs text-neutral-500 mb-6">Choose the vendor booth space you'd like to apply for</p>
+                  <p className="text-xs text-neutral-500 mb-3 sm:mb-6">Choose the vendor booth space you'd like to apply for</p>
                   
                   {normalizedEventData.stallTypes && normalizedEventData.stallTypes.length > 0 ? (
                     <div className="space-y-3">
@@ -797,7 +851,7 @@ const BookingPage = () => {
                     </div>
                   )}
 
-                  <div className="mt-8 flex gap-4">
+                  <div className="mt-4 sm:mt-8 flex gap-3 sm:gap-4">
                     <button
                       onClick={() => setBookMode('choice')}
                       className="border border-neutral-350 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-xl text-xs font-extrabold px-6 h-12 hover:bg-neutral-100 dark:hover:bg-neutral-850"
@@ -815,10 +869,10 @@ const BookingPage = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-850 rounded-3xl p-6 shadow-sm"
+                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-850 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm"
                 >
                   <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Business Information</h2>
-                  <p className="text-xs text-neutral-500 mb-6">Tell us about your business</p>
+                  <p className="text-xs text-neutral-500 mb-3 sm:mb-6">Tell us about your business</p>
 
                   <div className="space-y-4">
                     <div>
@@ -897,7 +951,7 @@ const BookingPage = () => {
                     </div>
                   </div>
 
-                  <div className="mt-8 flex gap-4">
+                  <div className="mt-4 sm:mt-8 flex gap-3 sm:gap-4">
                     <button
                       onClick={() => setStep(1)}
                       className="border border-neutral-350 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-xl text-xs font-extrabold px-6 h-12 hover:bg-neutral-100 dark:hover:bg-neutral-850"
@@ -928,10 +982,10 @@ const BookingPage = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-850 rounded-3xl p-6 shadow-sm"
+                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-850 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm"
                 >
                   <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Review Your Application</h2>
-                  <p className="text-xs text-neutral-500 mb-6">Please review your details before proceeding to payment</p>
+                  <p className="text-xs text-neutral-500 mb-3 sm:mb-6">Please review your details before proceeding to payment</p>
 
                   <div className="space-y-4 mb-6">
                     <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-800 space-y-2">
@@ -955,7 +1009,7 @@ const BookingPage = () => {
                     )}
                   </div>
 
-                  <div className="mt-8 flex gap-4">
+                  <div className="mt-4 sm:mt-8 flex gap-3 sm:gap-4">
                     <button
                       onClick={() => setStep(2)}
                       className="border border-neutral-350 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-xl text-xs font-extrabold px-6 h-12 hover:bg-neutral-100 dark:hover:bg-neutral-850"
@@ -980,10 +1034,10 @@ const BookingPage = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 shadow-sm"
+                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm"
                 >
                   <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Select Payment Method</h2>
-                  <p className="text-xs text-neutral-500 mb-6">Choose how you'd like to pay for your vendor booth</p>
+                  <p className="text-xs text-neutral-500 mb-3 sm:mb-6">Choose how you'd like to pay for your vendor booth</p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                     <button
@@ -1015,7 +1069,7 @@ const BookingPage = () => {
                     </div>
                   </div>
 
-                  <div className="mt-8 flex gap-4">
+                  <div className="mt-4 sm:mt-8 flex gap-3 sm:gap-4">
                     <button
                       onClick={() => setStep(3)}
                       className="border border-neutral-350 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-xl text-xs font-extrabold px-6 h-12 hover:bg-neutral-100 dark:hover:bg-neutral-850"
@@ -1051,10 +1105,12 @@ const BookingPage = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-850 rounded-3xl p-6 shadow-sm"
+                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-850 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm"
                 >
                   <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Guest Information</h2>
-                  <p className="text-xs text-neutral-500 mb-6">Enter details to receive your ticket and QR code</p>
+                  <p className="text-xs text-neutral-500 mb-3 sm:mb-6">
+                    Enter your details. Email is required for payment and your ticket confirmation.
+                  </p>
 
                   <div className="space-y-4">
                     <div className="rounded-2xl border border-neutral-200 dark:border-neutral-850 overflow-hidden shadow-sm bg-white dark:bg-gray-900">
@@ -1092,7 +1148,7 @@ const BookingPage = () => {
                       {/* Email address */}
                       <div className="relative border-b border-neutral-200 dark:border-neutral-800">
                         <label className="absolute top-2.5 left-4 text-[9px] font-bold text-neutral-450 dark:text-neutral-500 uppercase tracking-wide">
-                          Email Address
+                          Email Address *
                         </label>
                         <input
                           type="email"
@@ -1113,14 +1169,14 @@ const BookingPage = () => {
                           type="tel"
                           value={guestPhone}
                           onChange={(e) => setGuestPhone(e.target.value)}
-                          placeholder="+234 801 234 5678"
+                          placeholder="0803 000 0000"
                           className="w-full px-4 pt-6 pb-2 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-800 dark:text-neutral-100"
                         />
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-8 flex gap-4">
+                  <div className="mt-4 sm:mt-8 flex gap-3 sm:gap-4">
                     <button
                       onClick={() => setStep(1)}
                       className="border border-neutral-350 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-xl text-xs font-extrabold px-6 h-12 hover:bg-neutral-100 dark:hover:bg-neutral-850"
@@ -1128,10 +1184,10 @@ const BookingPage = () => {
                       Back
                     </button>
                     <button
-                      onClick={() => {
-                        if (validateStep2()) {
-                          setStep(3);
-                        }
+                      onClick={async () => {
+                        if (!validateStep2()) return;
+                        await refreshEligibility();
+                        setStep(3);
                       }}
                       className="flex-1 flex items-center justify-center gap-2 h-12 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-xs font-extrabold px-6 shadow-md hover:shadow-lg transition-transform active:scale-98"
                     >
@@ -1149,10 +1205,10 @@ const BookingPage = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 shadow-sm"
+                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm"
                 >
                   <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Select payment method</h2>
-                  <p className="text-xs text-neutral-500 mb-6">Choose how you'd like to pay securely</p>
+                  <p className="text-xs text-neutral-500 mb-3 sm:mb-6">Choose how you'd like to pay securely</p>
 
                   <div className="grid grid-cols-1 sm:grid-cols- gap-4">
                     {totalAmount === 0 ? (
@@ -1218,7 +1274,7 @@ const BookingPage = () => {
                     </div>
                   </div>
 
-                  <div className="mt-8 flex gap-4">
+                  <div className="mt-4 sm:mt-8 flex gap-3 sm:gap-4">
                     <button
                       onClick={() => setStep(2)}
                       className="border border-neutral-350 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-xl text-xs font-extrabold px-6 h-12 hover:bg-neutral-100 dark:hover:bg-neutral-850"
@@ -1257,10 +1313,10 @@ const BookingPage = () => {
 
           {/* Right panel: Event Info Sidebar (4 Cols) */}
           <div className="lg:col-span-4">
-            <div className="bg-white dark:bg-gray-900 border border-neutral-205 dark:border-neutral-850 rounded-3xl p-6 shadow-sm sticky top-24">
+            <div className="bg-white dark:bg-gray-900 border border-neutral-205 dark:border-neutral-850 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm sticky top-24">
               
               {/* Event card header */}
-              <div className="flex gap-4 mb-6 pb-6 border-b border-neutral-100 dark:border-neutral-850">
+              <div className="flex gap-3 sm:gap-4 mb-4 sm:mb-6 pb-4 sm:pb-6 border-b border-neutral-100 dark:border-neutral-850">
                 <img 
                   src={normalizedEventData.imageUrl} 
                   alt={normalizedEventData.title} 
@@ -1275,7 +1331,7 @@ const BookingPage = () => {
               </div>
 
               {/* Event Meta rows */}
-              <div className="space-y-4 mb-6 pb-6 border-b border-neutral-100 dark:border-neutral-850 text-xs text-neutral-600 dark:text-neutral-400">
+              <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6 pb-4 sm:pb-6 border-b border-neutral-100 dark:border-neutral-850 text-xs text-neutral-600 dark:text-neutral-400">
                 <div className="flex items-start gap-3">
                   <Calendar className="h-4 w-4 text-neutral-400 mt-0.5 shrink-0" />
                   <div>
@@ -1325,9 +1381,9 @@ const BookingPage = () => {
                     )}
 
                     <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
-                      <span className="underline">Service Fee ({feePercent}%)</span>
+                      <span>Service fee ({feePercent}%)</span>
                       <span className="font-bold text-neutral-900 dark:text-white">
-                        {absorbFee ? '₦0 (Absorbed)' : `₦${serviceFee.toLocaleString()}`}
+                        ₦{serviceFee.toLocaleString()}
                       </span>
                     </div>
 
@@ -1347,9 +1403,9 @@ const BookingPage = () => {
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
-                          <span className="underline">Service Fee ({feePercent}%)</span>
+                          <span>Service fee ({feePercent}%)</span>
                           <span className="font-bold text-neutral-900 dark:text-white">
-                            {absorbFee ? '₦0 (Absorbed)' : `₦${serviceFee.toLocaleString()}`}
+                            ₦{serviceFee.toLocaleString()}
                           </span>
                         </div>
                         <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3 flex items-center justify-between text-sm font-extrabold text-neutral-900 dark:text-white">

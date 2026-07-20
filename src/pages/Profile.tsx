@@ -358,13 +358,15 @@ const Profile = () => {
                   <div className="relative">
                     <input
                       type="email"
-                      value={user.email}
+                      value={user.email || ''}
                       disabled
                       className="w-full pl-10 pr-4 py-3 border border-neutral-200 dark:border-neutral-800 rounded-xl bg-neutral-50 dark:bg-neutral-850/50 text-neutral-450 dark:text-neutral-500 text-sm focus:outline-none"
                     />
                     <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-450" />
                   </div>
-                  <p className="text-[10px] text-neutral-400 mt-1.5">Email address cannot be changed.</p>
+                  <p className="text-[10px] text-neutral-400 mt-1.5">
+                    {user.email ? 'Email address cannot be changed.' : 'No email on this account — use phone to sign in.'}
+                  </p>
                 </div>
                 
                 <div>

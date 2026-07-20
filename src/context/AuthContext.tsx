@@ -9,11 +9,11 @@ import { dismissAppBoot } from '../lib/appBoot';
 
 interface User {
   id: number;
-  email: string;
+  email?: string | null;
   firstName: string;
   lastName: string;
   role: string;
-  phone?: string;
+  phone?: string | null;
   isVerified?: boolean;
   avatar?: string;
   createdAt?: string;
@@ -45,10 +45,16 @@ interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (identifier: string, password: string) => Promise<boolean>;
   loginWithGoogle: (credential: string) => Promise<boolean>;
   logout: () => void;
-  register: (email: string, password: string, firstName: string, lastName: string) => Promise<boolean>;
+  register: (
+    email: string | null,
+    password: string,
+    firstName: string,
+    lastName: string,
+    phone?: string | null
+  ) => Promise<boolean>;
   updateUser: (updatedUser: User) => void;
   attemptTokenRefresh: () => Promise<boolean>;
   isAuthenticated: boolean;
@@ -304,9 +310,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (!loading) dismissAppBoot();
   }, [loading]);
 
-  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (identifier: string, password: string): Promise<boolean> => {
     try {
-      const response = await api.auth.login({ email, password });
+      const response = await api.auth.login({ identifier, password });
 
       if (response.data) {
         const { token: newToken, user: userData } = response.data;
@@ -354,13 +360,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [queryClient, scheduleTokenRefresh]);
 
   const register = useCallback(async (
-    email: string,
+    email: string | null,
     password: string,
     firstName: string,
-    lastName: string
+    lastName: string,
+    phone?: string | null
   ): Promise<boolean> => {
     try {
-      const response = await api.auth.register({ email, password, firstName, lastName });
+      const response = await api.auth.register({
+        email: email || undefined,
+        phone: phone || undefined,
+        password,
+        firstName,
+        lastName,
+      });
 
       if (response.data) {
         const { token: newToken, user: userData } = response.data;
@@ -374,7 +387,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         scheduleTokenRefresh(newToken);
         
         try {
-          await api.post('/emails/send-welcome', {});
+          if (userData.email) {
+            await api.post('/emails/send-welcome', {});
+          }
         } catch (emailErr) {
           console.warn('Failed to send welcome email:', emailErr);
         }

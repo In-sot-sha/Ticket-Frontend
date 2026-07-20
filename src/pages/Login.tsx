@@ -13,7 +13,7 @@ import {
 } from '../lib/neonAuth';
 
 const Login = () => {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -126,13 +126,13 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const success = await login(email, password);
+      const success = await login(identifier.trim(), password);
       if (success) {
         redirectAfterAuth();
         // Keep button disabled until we leave /login
         return;
       }
-      setError('Invalid email or password. Please try again.');
+      setError('Invalid email/phone or password. Please try again.');
     } catch (err: any) {
       setError(err?.response?.data?.message || 'An error occurred. Please try again.');
     }
@@ -243,7 +243,7 @@ const Login = () => {
               </div>
               <div className="relative flex justify-center text-xs">
                 <span className="px-3 bg-neutral-50 dark:bg-neutral-950 text-neutral-400 dark:text-neutral-500 font-medium">
-                  or continue with email
+                  or continue with email or phone
                 </span>
               </div>
             </div>
@@ -251,8 +251,8 @@ const Login = () => {
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden shadow-sm">
                 <div className="relative border-b border-neutral-200 dark:border-neutral-800">
-                  <label htmlFor="email" className="absolute top-2.5 left-4 text-[10px] font-bold text-neutral-450 dark:text-neutral-500 uppercase tracking-wide">Email address</label>
-                  <input id="email" name="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 pt-6 pb-2 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-800 dark:text-neutral-100" placeholder="email@example.com" />
+                  <label htmlFor="identifier" className="absolute top-2.5 left-4 text-[10px] font-bold text-neutral-450 dark:text-neutral-500 uppercase tracking-wide">Email or phone</label>
+                  <input id="identifier" name="identifier" type="text" autoComplete="username" required value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="w-full px-4 pt-6 pb-2 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-800 dark:text-neutral-100" placeholder="email@example.com or 0803…" />
                 </div>
 
                 <div className="relative">

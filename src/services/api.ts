@@ -186,15 +186,16 @@ export const api = {
   // Authentication endpoints
   auth: {
     register: (userData: {
-      email: string;
+      email?: string | null;
       password: string;
       firstName: string;
       lastName: string;
-      phone?: string;
+      phone?: string | null;
     }) => apiRequest<{ token: string; user: any }> ('POST', '/users/register', userData),
     
     login: (credentials: {
-      email: string;
+      email?: string;
+      identifier?: string;
       password: string;
     }) => apiRequest<{ token: string; user: any }>('POST', '/users/login', credentials),
     
@@ -342,6 +343,18 @@ export const api = {
       ticketTypeId: number;
       quantity: number;
     }) => apiRequest<any>('POST', '/tickets/purchase', ticketData),
+
+    checkEligibility: (data: {
+      eventId: number;
+      ticketTypeId: number;
+      email?: string;
+      phone?: string;
+    }) =>
+      apiRequest<{ owned: number; maxPerPerson: number; remaining: number }>(
+        'POST',
+        '/tickets/eligibility',
+        data
+      ),
     
     validate: (qrCode: string, eventId?: number) => 
       apiRequest<any>('POST', '/tickets/validate', { qrCode, eventId }),
