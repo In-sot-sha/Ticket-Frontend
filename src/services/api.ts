@@ -3,7 +3,7 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { isTokenExpired } from '../lib/tokenUtils';
 
 let localEndpoint = import.meta.env.VITE_API_URL || "http://192.168.1.119:33333/api";
-let productionEndpoint = "https://partystormapi.vercel.app/api";
+let productionEndpoint = "https://api.partystorm.ng/api";
 
 let currentEndpoint =
   import.meta.env.MODE === "development" ? localEndpoint : productionEndpoint;
