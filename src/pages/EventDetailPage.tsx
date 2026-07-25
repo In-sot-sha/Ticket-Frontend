@@ -14,24 +14,16 @@ import {
   Heart,
   CheckCircle,
   Store,
-  User,
   Mail,
-  Building,
   ArrowLeft,
   Star,
-  Shield,
   Flag,
   ChevronRight,
   X,
-  ArrowRight,
-  Sparkles,
   AlertCircle,
-  MessageCircle,
-  CheckCircle2,
   Globe,
   Instagram,
   Twitter,
-  Linkedin,
   TicketIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -39,13 +31,7 @@ import { motion } from 'framer-motion';
 import { api } from '../services/api';
 import { LazyImage } from '../components/LazyImage';
 import { GoogleMapLocation } from '../components/GoogleMapLocation';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { ResponsiveModal } from './GuestDashboard';
+import { ResponsiveModal } from '../components/ui/ResponsiveModal';
 import EventCard from '@/components/EventCard';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
@@ -290,10 +276,17 @@ const EventDetailPage = () => {
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [showFlier, setShowFlier] = useState(false);
 
+  // Reserved path words must never resolve as event detail
+  useEffect(() => {
+    if (slug === 'create' || slug === 'new' || slug === 'edit') {
+      navigate('/organizer/events/create', { replace: true });
+    }
+  }, [slug, navigate]);
+
   // Use React Query hook to fetch event with 3min cache (EVENT_DETAIL config)
   const { data: eventData, isLoading, error, isError } = useEventBySlug(
     slug || '',
-    !!slug,
+    !!slug && slug !== 'create' && slug !== 'new' && slug !== 'edit',
     CACHE_CONFIGS.EVENT_DETAIL
   );
 
@@ -479,15 +472,19 @@ const EventDetailPage = () => {
 
       <Helmet>
         <title>{event?.title || 'Event Details'} | PartyStorm</title>
-        <meta name="description" content={event?.description?.substring(0, 160) || 'Book tickets for amazing events in Kano.'} />
+        <meta name="description" content={event?.description?.substring(0, 160) || 'Book tickets for amazing events in Nigeria.'} />
         <meta property="og:title" content={event?.title || 'Event Details'} />
         <meta property="og:description" content={event?.description?.substring(0, 160) || 'Book tickets for amazing events.'} />
-        <meta property="og:type" content="event" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={event?.slug ? `https://partystorm.ng/events/${event.slug}` : `https://partystorm.ng/events/${event?.id || ''}`} />
         {event?.images && event.images.length > 0 && <meta property="og:image" content={event.images[0]} />}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={event?.title || 'Event Details'} />
         <meta name="twitter:description" content={event?.description?.substring(0, 160) || 'Book tickets for amazing events.'} />
-        {event?.slug && <link rel="canonical" href={`https://partystorm.com/events/${event.slug}`} />}
+        {event?.slug && <link rel="canonical" href={`https://partystorm.ng/events/${event.slug}`} />}
+        {event?.id && !event?.slug && (
+          <link rel="canonical" href={`https://partystorm.ng/events/${event.id}`} />
+        )}
         {event?.id && (
           <script type="application/ld+json">
             {JSON.stringify(generateEventStructuredData(event))}

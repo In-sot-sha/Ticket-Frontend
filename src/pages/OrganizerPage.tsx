@@ -1,19 +1,25 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ArrowRight, 
-
-  ChevronDown, 
-  ChevronUp, 
-  QrCode, 
-
+import {
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  QrCode,
   Store,
   Layers,
   Sparkles,
   TrendingUp,
-
-  ChevronRight
+  Ticket,
+  Users,
+  Shield,
+  Smartphone,
+  Banknote,
+  ClipboardCheck,
+  UserCog,
+  ScanLine,
+  CheckCircle2,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import EventCard, { Event } from '../components/EventCard';
@@ -21,27 +27,25 @@ import { useEvents } from '../hooks/queries/useEvents';
 import { EventLink } from '../components/EventLink';
 import { mapApiEventToFrontendEvent } from '../data/mockEvents';
 
+const PLATFORM_FEE = 0.05;
+
 const OrganizerPage: React.FC = () => {
-  // Estimator State
   const [category, setCategory] = useState('Music');
   const [price, setPrice] = useState(10000);
   const [attendees, setAttendees] = useState(500);
   const [showMathDetails, setShowMathDetails] = useState(false);
-
-  // FAQ State
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
 
-  // Fetch events with React Query (with fallback)
-  const { data: apiEvents = [], isLoading, error } = useEvents({ limit: 10 });
+  const { data: apiEvents = [], error } = useEvents({ limit: 10 });
 
-  // Mock fallback events
   const mockEvents: Event[] = [
     {
       id: 901,
       title: 'Lagos Street Food Carnival',
       date: '2026-09-10',
       location: 'Kano Golf Club, Club Road, Kano, Nigeria',
-      image: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
+      image:
+        'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
       ticketsAvailable: 150,
       category: 'Food',
       rating: 4.8,
@@ -52,7 +56,8 @@ const OrganizerPage: React.FC = () => {
       title: 'Afrobeats Live Showcase',
       date: '2026-08-20',
       location: 'Sani Abacha Stadium, Kofar Mata, Kano, Nigeria',
-      image: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
+      image:
+        'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
       ticketsAvailable: 500,
       category: 'Music',
       rating: 4.9,
@@ -63,493 +68,551 @@ const OrganizerPage: React.FC = () => {
       title: 'Kano Innovation Summit',
       date: '2026-07-15',
       location: 'BUK Convocation Arena, Kano, Nigeria',
-      image: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
+      image:
+        'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
       ticketsAvailable: 250,
       category: 'Technology',
       rating: 4.8,
       price: 3000,
-    }
+    },
   ];
 
-  // Transform API events to EventCard format
-  const transformedApiEvents = apiEvents
-    .slice(0, 3)
-    .map(mapApiEventToFrontendEvent);
+  const showcaseEvents =
+    error || apiEvents.length === 0
+      ? mockEvents
+      : apiEvents.slice(0, 4).map(mapApiEventToFrontendEvent);
 
-  // Use API events if available, fallback to mock
-  const showcaseEvents = error || apiEvents.length === 0 ? mockEvents : transformedApiEvents;
-
-  // Estimator Calculations
   const grossEarnings = price * attendees;
-  const platformFee = price === 0 ? 0 : Math.round(grossEarnings * 0.05);
+  const platformFee = price === 0 ? 0 : Math.round(grossEarnings * PLATFORM_FEE);
   const netEarnings = grossEarnings - platformFee;
+
+  const whatWeDo = [
+    {
+      icon: Ticket,
+      title: 'Sell tickets online',
+      body: 'Publish a live event page, sell free or paid tiers, and get paid after the event, all from one dashboard.',
+    },
+    {
+      icon: ScanLine,
+      title: 'Run the gate',
+      body: 'QR scan, guest lookup, walk-in sales, and capacity checks on any phone. No extra hardware.',
+    },
+    {
+      icon: UserCog,
+      title: 'Staff with PartyStorm',
+      body: 'Need people on the door? Request ops and we assign scanners and cashiers for your org or event.',
+    },
+    {
+      icon: Store,
+      title: 'Manage vendors',
+      body: 'Sell stall packages, review applications, and keep 100% of vendor fees with zero platform cut.',
+    },
+  ];
+
+  const ticketOps = [
+    'VIP, early-bird, and free tiers with quantity limits',
+    'Guest checkout by phone or email with no forced app install',
+    'QR passes guests can download or recover later',
+    'Live sell-through and revenue in your dashboard',
+    'Optional absorb-fee so buyers see a clean ticket price',
+  ];
+
+  const gateOps = [
+    {
+      title: 'You run the gate',
+      points: [
+        'Scan with your team’s phones',
+        'Walk-in register & on-site sales',
+        'Live check-in vs capacity',
+        'Roles for org members you trust',
+      ],
+    },
+    {
+      title: 'PartyStorm staffs it',
+      points: [
+        'Request ops from your dashboard',
+        'Assigned scanners & cashiers',
+        'Coverage for your org or project',
+        'Same tools, our trained staff',
+      ],
+    },
+  ];
 
   const faqData = [
     {
-      q: "How much does it cost to use PartyStorm?",
-      a: "It is completely free to create and publish events on PartyStorm. For paid tickets, we charge a simple, transparent flat fee of 5% per ticket sold. If your event is free, PartyStorm is 100% free to use."
+      q: 'How much does PartyStorm cost?',
+      a: 'Free to create and publish. Paid tickets: 5% platform fee per ticket sold, plus standard payment processing (~1.5% + ₦100). Free events are ₦0. Vendor booth fees: you keep 100%.',
     },
     {
-      q: "When and how do I receive my payouts?",
-      a: "Payouts are automatically initiated within 24 hours after the start of your event. They are sent securely via bank transfer to the payout details linked in your Organizer Dashboard."
+      q: 'When do I get paid?',
+      a: 'Payouts start within 24 hours after your event begins, sent by bank transfer to the account in your organizer settings.',
     },
     {
-      q: "Can I sell vendor booths or vendor spaces?",
-      a: "Yes! PartyStorm offers a fully integrated vendor management system. You can create customized vendor booth tiers (e.g., Premium, Standard, Corner), set registration fees, review vendor profile submissions, and collect booth fee payments. The best part? PartyStorm charges a 0% commission on vendor payments, meaning you keep 100% of vendor sales!"
+      q: 'Can PartyStorm staff my gate?',
+      a: 'Yes. Request PartyStorm ops from your event or org dashboard. We create an ops project, assign staff with scan and walk-in capabilities, and they cover your org or that project.',
     },
     {
-      q: "Do I need special hardware to scan tickets?",
-      a: "No special hardware required! You can scan tickets directly using your smartphone's camera. Just log into your PartyStorm dashboard on any mobile browser, access your event, and tap the built-in mobile scanner to check in guests instantly."
+      q: 'Do I need special scanners?',
+      a: 'No. Use any smartphone browser: open the gate scanner, point at the QR, and check guests in. Works for your staff and PartyStorm-assigned staff.',
     },
     {
-      q: "Can PartyStorm staff my gate?",
-      a: "Yes. Request PartyStorm ops from your event dashboard. We create an ops project (even before the event exists), assign staff with standing capabilities like scan and walk-in sales, and they cover your org or that project — no re-assigning for every new event."
+      q: 'Can I sell vendor booths?',
+      a: 'Yes. Set booth tiers, collect fees, and approve applications. PartyStorm takes 0% commission on vendor payments.',
     },
     {
-      q: "Do walk-in guests need an email?",
-      a: "Yes. Gate walk-in tickets always require a guest email so the ticket is linked to a user account and can be recovered or verified later."
+      q: 'Do walk-in guests need an email?',
+      a: 'Yes. Gate walk-in tickets need a guest email so the ticket is linked and recoverable later.',
     },
-    {
-      q: "Can attendees transfer tickets to someone else?",
-      a: "Attendee-to-attendee ticket transfer is coming soon. Until then, tickets stay with the purchaser account (or the email used for walk-in)."
-    },
-    {
-      q: "Can I set up multiple ticket tiers?",
-      a: "Absolutely. You can create VIP, Regular, Early Bird, Group, or customized promotional ticket tiers with specific quantities, pricing, and purchase limits."
-    }
   ];
 
-  const toggleFaq = (index: number) => {
-    setActiveFaq(activeFaq === index ? null : index);
-  };
-
   return (
-    <div className="bg-white dark:bg-gray-950 min-h-screen text-neutral-900 dark:text-neutral-100 transition-colors duration-200">
-      
-      {/* ─── Hero & Estimator Section ─── */}
-      <section className="relative overflow-hidden sm:py-12 py-6 lg:py-24 border-b border-neutral-100 dark:border-neutral-900">
-        {/* Simple Background without blobs */}
-
-        <div className="container mx-auto px-6 max-w-7xl">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            
-            {/* Left Hero Brand Content */}
+    <div className="bg-white dark:bg-neutral-950 min-h-screen text-neutral-900 dark:text-neutral-100">
+      {/* Hero */}
+      <section className="relative overflow-hidden border-b border-neutral-100 dark:border-neutral-900 py-10 sm:py-16 lg:py-20">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(244,63,94,0.12),_transparent_50%)] dark:bg-[radial-gradient(ellipse_at_top_left,_rgba(244,63,94,0.16),_transparent_45%)]"
+        />
+        <div className="relative container mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-12">
             <div className="lg:col-span-7 space-y-6">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 dark:bg-rose-950/30 text-rose-500 dark:text-rose-400 rounded-full text-xs font-bold uppercase tracking-wider">
+              <p className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">
                 <Sparkles className="h-3.5 w-3.5" />
-                PartyStorm Ops Platform
-              </div>
-              
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-neutral-900 dark:text-white leading-[1.05]">
-                Sell tickets. Run the gate. <br className="hidden md:inline" />
-                on <span className="text-rose-500">PartyStorm</span>
-              </h1>
-              
-              <p className="text-base sm:text-lg text-neutral-500 dark:text-neutral-400 max-w-xl leading-relaxed">
-                Ticketing, walk-in sales, QR scanning, and PartyStorm staffing — one ops platform. Flat 5% on paid tickets, direct payouts in 24 hours.
+                For organizers
               </p>
-
-              {/* Stats Row */}
-              <div className="grid grid-cols-3 gap-4 pt-6 max-w-md border-t border-neutral-100 dark:border-neutral-900">
+              <h1 className="text-4xl font-extrabold tracking-tight text-neutral-900 dark:text-white sm:text-5xl lg:text-[3.25rem] leading-[1.08] text-balance">
+                Tickets, gate, and staffing: one platform for event day
+              </h1>
+              <p className="max-w-xl text-base leading-relaxed text-neutral-600 dark:text-neutral-400 sm:text-lg">
+                PartyStorm helps you sell tickets, check guests in with QR, sell walk-ins on site, and
+                when you need it, bring in PartyStorm staff to run the door. Built for concerts, conferences,
+                and nightlife in Nigeria.
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Button
+                  className="h-12 rounded-full bg-rose-500 px-7 text-sm font-bold text-white hover:bg-rose-600"
+                  asChild
+                >
+                  <Link to="/become-organizer">
+                    Become an organizer
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-12 rounded-full border-neutral-300 px-7 text-sm font-bold dark:border-neutral-600"
+                  asChild
+                >
+                  <Link to="/organizer/events/create">Create an event</Link>
+                </Button>
+              </div>
+              <div className="grid max-w-md grid-cols-3 gap-4 border-t border-neutral-100 pt-6 dark:border-neutral-800">
                 <div>
-                  <div className="text-2xl sm:text-3xl font-black text-neutral-900 dark:text-white">₦0</div>
-                  <div className="text-xs text-neutral-450 dark:text-neutral-500 mt-0.5">Setup Fee</div>
+                  <p className="text-2xl font-black text-neutral-900 dark:text-white">₦0</p>
+                  <p className="mt-0.5 text-xs text-neutral-500">Setup fee</p>
                 </div>
                 <div>
-                  <div className="text-2xl sm:text-3xl font-black text-rose-500 dark:text-rose-450">5%</div>
-                  <div className="text-xs text-neutral-450 dark:text-neutral-500 mt-0.5">Flat Ticket Fee</div>
+                  <p className="text-2xl font-black text-rose-500">5%</p>
+                  <p className="mt-0.5 text-xs text-neutral-500">Platform fee</p>
                 </div>
                 <div>
-                  <div className="text-2xl sm:text-3xl font-black text-neutral-900 dark:text-white">24h</div>
-                  <div className="text-xs text-neutral-450 dark:text-neutral-500 mt-0.5">Payout Speed</div>
+                  <p className="text-2xl font-black text-neutral-900 dark:text-white">24h</p>
+                  <p className="mt-0.5 text-xs text-neutral-500">Payout start</p>
                 </div>
               </div>
             </div>
 
-            {/* Right Estimator Card (Airbnb Style) */}
+            {/* Earnings estimator */}
             <div className="lg:col-span-5">
-              <motion.div 
-                initial={{ opacity: 0, y: 15 }}
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800 shadow-xl rounded-3xl p-6 md:p-8"
+                transition={{ duration: 0.4 }}
+                className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-xl dark:border-neutral-800 dark:bg-neutral-900 sm:p-8"
               >
-                <h3 className="text-xl font-bold text-neutral-900 dark:text-white mb-6">
-                  Estimate your ticket earnings
-                </h3>
+                <h2 className="mb-1 text-lg font-bold text-neutral-900 dark:text-white">
+                  Estimate your payout
+                </h2>
+                <p className="mb-6 text-xs text-neutral-500">
+                  Before payment processing. Category: {category}.
+                </p>
 
-                {/* Event Category Select */}
                 <div className="mb-5">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-450 dark:text-neutral-500 mb-2">
-                    Event Type
+                  <label className="mb-2 block text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Event type
                   </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full h-11 px-3 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                    className="h-11 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/30 dark:border-neutral-700 dark:bg-neutral-950"
                   >
-                    <option value="Music">🎵 Music & Festivals</option>
-                    <option value="Technology">💻 Conferences & Tech</option>
-                    <option value="Food">🍔 Food & Drink Carnivals</option>
-                    <option value="Arts">🎨 Arts & Exhibitions</option>
-                    <option value="Wellness">🧘 Wellness & Sports</option>
+                    <option value="Music">Music & festivals</option>
+                    <option value="Technology">Conferences & tech</option>
+                    <option value="Food">Food & drink</option>
+                    <option value="Arts">Arts & exhibitions</option>
+                    <option value="Wellness">Wellness & sports</option>
                   </select>
                 </div>
 
-                {/* Ticket Price Slider */}
                 <div className="mb-5">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-xs font-bold uppercase tracking-wider text-neutral-450 dark:text-neutral-500">
-                      Ticket Price
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                      Ticket price
                     </label>
-                    <span className="text-sm font-extrabold text-neutral-900 dark:text-white">
-                      {price === 0 ? 'Free Event' : `₦${price.toLocaleString()}`}
+                    <span className="text-sm font-extrabold">
+                      {price === 0 ? 'Free' : `₦${price.toLocaleString()}`}
                     </span>
                   </div>
                   <input
                     type="range"
-                    min="0"
-                    max="100000"
-                    step="1000"
+                    min={0}
+                    max={100000}
+                    step={1000}
                     value={price}
                     onChange={(e) => setPrice(Number(e.target.value))}
-                    className="h-2 w-full bg-neutral-100 dark:bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-rose-500"
+                    className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-neutral-100 accent-rose-500 dark:bg-neutral-800"
                   />
-                  <div className="flex justify-between text-[10px] text-neutral-400 mt-1.5">
-                    <span>₦0 (Free)</span>
-                    <span>₦100,000</span>
-                  </div>
                 </div>
 
-                {/* Estimated Guests Slider */}
                 <div className="mb-6">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-xs font-bold uppercase tracking-wider text-neutral-450 dark:text-neutral-500">
-                      Estimated Guests
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                      Guests
                     </label>
-                    <span className="text-sm font-extrabold text-neutral-900 dark:text-white">
-                      {attendees.toLocaleString()} attendees
-                    </span>
+                    <span className="text-sm font-extrabold">{attendees.toLocaleString()}</span>
                   </div>
                   <input
                     type="range"
-                    min="10"
-                    max="5000"
-                    step="10"
+                    min={10}
+                    max={5000}
+                    step={10}
                     value={attendees}
                     onChange={(e) => setAttendees(Number(e.target.value))}
-                    className="h-2 w-full bg-neutral-100 dark:bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-rose-500"
+                    className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-neutral-100 accent-rose-500 dark:bg-neutral-800"
                   />
-                  <div className="flex justify-between text-[10px] text-neutral-400 mt-1.5">
-                    <span>10 guests</span>
-                    <span>5,000 guests</span>
-                  </div>
                 </div>
 
-                {/* Calculated Result */}
-                <div className="p-5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 text-center mb-6">
-                  <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 block mb-1">
-                    Estimated Net Payout
-                  </span>
-                  <div className="text-3xl md:text-4xl font-extrabold text-neutral-900 dark:text-white mb-1">
+                <div className="mb-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-center dark:border-neutral-700 dark:bg-neutral-800/50">
+                  <p className="text-xs font-semibold text-neutral-500">Est. after 5% platform fee</p>
+                  <p className="mt-1 text-3xl font-extrabold text-neutral-900 dark:text-white">
                     ₦{netEarnings.toLocaleString()}
-                  </div>
-                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                    per event payout
-                  </span>
-
-                  {/* Toggle Math Details */}
-                  <button 
-                    onClick={() => setShowMathDetails(!showMathDetails)}
-                    className="flex items-center gap-1 mx-auto mt-4 text-xs font-bold text-neutral-600 dark:text-neutral-400 hover:text-rose-500 transition-colors"
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowMathDetails((v) => !v)}
+                    className="mx-auto mt-3 flex items-center gap-1 text-xs font-bold text-neutral-600 hover:text-rose-500 dark:text-neutral-400"
                   >
-                    {showMathDetails ? 'Hide details' : 'Show details'}
+                    {showMathDetails ? 'Hide' : 'Show'} breakdown
                     {showMathDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                   </button>
-
                   <AnimatePresence>
                     {showMathDetails && (
-                      <motion.div 
+                      <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="mt-4 pt-4 border-t border-rose-100/50 dark:border-rose-900/30 space-y-2 text-left text-xs text-neutral-600 dark:text-neutral-400 overflow-hidden"
+                        className="mt-3 space-y-1.5 overflow-hidden border-t border-neutral-200 pt-3 text-left text-xs text-neutral-600 dark:border-neutral-700 dark:text-neutral-400"
                       >
                         <div className="flex justify-between">
-                          <span>Gross Ticket Sales:</span>
-                          <span className="font-semibold text-neutral-800 dark:text-white">₦{grossEarnings.toLocaleString()}</span>
+                          <span>Gross sales</span>
+                          <span className="font-semibold text-neutral-900 dark:text-white">
+                            ₦{grossEarnings.toLocaleString()}
+                          </span>
                         </div>
-                        <div className="flex justify-between text-rose-600 dark:text-rose-450">
-                          <span>PartyStorm Fee (5%):</span>
+                        <div className="flex justify-between text-rose-600 dark:text-rose-400">
+                          <span>Platform fee (5%)</span>
                           <span>-₦{platformFee.toLocaleString()}</span>
                         </div>
-                        <div className="flex justify-between pt-1 border-t border-dashed border-rose-200/50 dark:border-rose-900/30 font-bold text-neutral-850 dark:text-neutral-200">
-                          <span>Net Earnings:</span>
-                          <span>₦{netEarnings.toLocaleString()}</span>
-                        </div>
+                        <p className="pt-1 text-[10px] text-neutral-400">
+                          Payment processing (~1.5% + ₦100) is charged separately by the payment provider.
+                        </p>
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
 
-                {/* CTA inside Card */}
-                <Button className="w-full h-12 rounded-xl text-sm font-bold bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 transition-opacity active:scale-[0.98]" asChild>
-                  <Link to="/events/create">
-                    Create Event Page
-                  </Link>
+                <Button
+                  className="h-12 w-full rounded-full bg-neutral-900 text-sm font-bold text-white dark:bg-white dark:text-neutral-900"
+                  asChild
+                >
+                  <Link to="/organizer/events/create">Create event page</Link>
                 </Button>
               </motion.div>
             </div>
-
           </div>
         </div>
       </section>
 
-      {/* ─── Transparent Pricing Section ─── */}
-      <section className="py-16 bg-neutral-50 dark:bg-neutral-900/40 border-b border-neutral-100 dark:border-neutral-900">
-        <div className="container mx-auto px-6 max-w-7xl">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <h2 className="text-3xl font-black tracking-tight text-neutral-900 dark:text-white mb-3">
-              Simple, Transparent Ticketing Fee
+      {/* What we do */}
+      <section className="border-b border-neutral-100 py-16 dark:border-neutral-900 sm:py-20">
+        <div className="container mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="mb-12 max-w-2xl">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-rose-500">What we do</p>
+            <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white sm:text-4xl text-balance">
+              Everything from listing to last scan
             </h2>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              No subscription fees, no platform sign-up costs, and no contract commitments.
+            <p className="mt-3 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
+              PartyStorm is an event operations platform, not only a ticket link. Sell online, manage
+              entry at the gate, and optionally hand door duty to our staff.
+            </p>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {whatWeDo.map((item) => (
+              <div key={item.title} className="space-y-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500">
+                  <item.icon className="h-5 w-5" />
+                </div>
+                <h3 className="text-base font-bold text-neutral-900 dark:text-white">{item.title}</h3>
+                <p className="text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">{item.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section className="border-b border-neutral-100 bg-neutral-50 py-16 dark:border-neutral-900 dark:bg-neutral-900/40 sm:py-20">
+        <div className="container mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="mx-auto mb-12 max-w-2xl text-center">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-rose-500">Pricing</p>
+            <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
+              Simple fees. No monthly plan.
+            </h2>
+            <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-400">
+              No signup cost, no lock-in. You pay when tickets sell.
+            </p>
+          </div>
+          <div className="mx-auto grid max-w-5xl gap-5 md:grid-cols-3">
+            <div className="rounded-3xl border border-neutral-200 bg-white p-7 dark:border-neutral-800 dark:bg-neutral-900">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-rose-500">Paid tickets</p>
+              <p className="mt-3 text-4xl font-black text-neutral-900 dark:text-white">5%</p>
+              <p className="mt-1 text-sm font-bold text-neutral-800 dark:text-neutral-200">Platform fee</p>
+              <p className="mt-3 text-xs leading-relaxed text-neutral-500">
+                Per paid ticket sold. Plus payment processing (~1.5% + ₦100). Free to create the event.
+              </p>
+            </div>
+            <div className="rounded-3xl border border-neutral-200 bg-white p-7 dark:border-neutral-800 dark:bg-neutral-900">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Free / RSVP</p>
+              <p className="mt-3 text-4xl font-black text-emerald-600">0%</p>
+              <p className="mt-1 text-sm font-bold text-neutral-800 dark:text-neutral-200">On free events</p>
+              <p className="mt-3 text-xs leading-relaxed text-neutral-500">
+                Collect RSVPs, issue QR passes, and scan at the door with zero PartyStorm fee.
+              </p>
+            </div>
+            <div className="rounded-3xl border border-neutral-200 bg-white p-7 dark:border-neutral-800 dark:bg-neutral-900">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-sky-600">Vendor booths</p>
+              <p className="mt-3 text-4xl font-black text-sky-600">₦0</p>
+              <p className="mt-1 text-sm font-bold text-neutral-800 dark:text-neutral-200">Platform cut</p>
+              <p className="mt-3 text-xs leading-relaxed text-neutral-500">
+                You keep 100% of stall registration fees. Set tiers, review applicants, get paid.
+              </p>
+            </div>
+          </div>
+          <p className="mx-auto mt-8 max-w-2xl text-center text-xs text-neutral-500">
+            <Shield className="mr-1 inline h-3.5 w-3.5 text-rose-400" />
+            PartyStorm gate staffing is requested per event or org. Ask from your dashboard or{' '}
+            <Link to="/contact" className="font-semibold text-rose-500 hover:underline">
+              contact us
+            </Link>{' '}
+            for a quote.
+          </p>
+        </div>
+      </section>
+
+      {/* Ticket management */}
+      <section className="border-b border-neutral-100 py-16 dark:border-neutral-900 sm:py-20">
+        <div className="container mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="grid items-start gap-12 lg:grid-cols-2">
+            <div>
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-rose-500">
+                Ticket management
+              </p>
+              <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white text-balance">
+                Sell, track, and control every pass
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
+                Build the ticket menu your event needs, share one link, and watch sales update live
+                before anyone reaches the gate.
+              </p>
+              <ul className="mt-8 space-y-3">
+                {ticketOps.map((line) => (
+                  <li key={line} className="flex items-start gap-2.5 text-sm text-neutral-700 dark:text-neutral-300">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[
+                { icon: Layers, title: 'Multi-tier pricing', body: 'VIP, regular, early bird, promo caps.' },
+                { icon: Smartphone, title: 'Mobile-first checkout', body: 'Buyers finish on phone in minutes.' },
+                { icon: TrendingUp, title: 'Live dashboard', body: 'Sales, views, and check-in rates.' },
+                { icon: Banknote, title: 'Bank payouts', body: 'Funds after event start (~24h).' },
+              ].map((card) => (
+                <div
+                  key={card.title}
+                  className="rounded-2xl border border-neutral-200 p-5 dark:border-neutral-800"
+                >
+                  <card.icon className="mb-3 h-5 w-5 text-rose-500" />
+                  <h3 className="text-sm font-bold text-neutral-900 dark:text-white">{card.title}</h3>
+                  <p className="mt-1 text-xs leading-relaxed text-neutral-500">{card.body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Gate & staffing */}
+      <section className="border-b border-neutral-100 bg-neutral-50 py-16 dark:border-neutral-900 dark:bg-neutral-900/40 sm:py-20">
+        <div className="container mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="mb-12 max-w-2xl">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-rose-500">
+              Gate & staffing
+            </p>
+            <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white sm:text-4xl text-balance">
+              Run entry yourself, or let PartyStorm staff the door
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
+              Same tools either way: scan, walk-in sale, and capacity. Choose who holds the phone.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            
-            {/* Paid Ticket Card */}
-            <div className="bg-white dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-850 p-8 rounded-3xl text-center shadow-sm relative">
-              <div className="absolute top-4 right-4 text-xs font-bold text-rose-500 uppercase tracking-widest">
-                Paid Tiers
+          <div className="grid gap-6 lg:grid-cols-2">
+            {gateOps.map((col) => (
+              <div
+                key={col.title}
+                className="rounded-3xl border border-neutral-200 bg-white p-7 dark:border-neutral-800 dark:bg-neutral-900 sm:p-8"
+              >
+                <div className="mb-5 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500">
+                    {col.title.startsWith('You') ? (
+                      <Users className="h-5 w-5" />
+                    ) : (
+                      <ClipboardCheck className="h-5 w-5" />
+                    )}
+                  </div>
+                  <h3 className="text-lg font-bold text-neutral-900 dark:text-white">{col.title}</h3>
+                </div>
+                <ul className="space-y-3">
+                  {col.points.map((p) => (
+                    <li
+                      key={p}
+                      className="flex items-start gap-2.5 text-sm text-neutral-600 dark:text-neutral-300"
+                    >
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                      {p}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <div className="text-4xl md:text-5xl font-black text-neutral-900 dark:text-white mb-2">
-                5%
-              </div>
-              <h3 className="font-bold text-neutral-850 dark:text-neutral-200 mb-3">Per Paid Ticket sold</h3>
-              <p className="text-xs text-neutral-550 dark:text-neutral-400 leading-relaxed">
-                Charged automatically upon ticket sale. The remaining 96.5% is sent directly to your linked bank account.
+            ))}
+          </div>
+
+          <div className="mt-10 flex flex-wrap items-center gap-4 rounded-2xl border border-neutral-200 bg-white px-5 py-4 dark:border-neutral-800 dark:bg-neutral-900 sm:px-6">
+            <QrCode className="h-8 w-8 shrink-0 text-rose-500" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-neutral-900 dark:text-white">Phone camera = scanner</p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                No dedicated hardware. Organizer staff and PartyStorm ops use the same gate tools.
               </p>
             </div>
-
-            {/* Free Ticket Card */}
-            <div className="bg-white dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-850 p-8 rounded-3xl text-center shadow-sm relative">
-              <div className="absolute top-4 right-4 text-xs font-bold text-emerald-500 uppercase tracking-widest">
-                Free Tiers
-              </div>
-              <div className="text-4xl md:text-5xl font-black text-emerald-500 dark:text-emerald-450 mb-2">
-                0%
-              </div>
-              <h3 className="font-bold text-neutral-850 dark:text-neutral-200 mb-3">For Free events</h3>
-              <p className="text-xs text-neutral-550 dark:text-neutral-400 leading-relaxed">
-                If your event has no entry cost, PartyStorm is 100% free. Create RSVPs, capture attendee data, and scan QR codes with no charges.
-              </p>
-            </div>
-
-            {/* Vendor Fee Card */}
-            <div className="bg-white dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-850 p-8 rounded-3xl text-center shadow-sm relative">
-              <div className="absolute top-4 right-4 text-xs font-bold text-blue-500 uppercase tracking-widest">
-                Vendor Booths
-              </div>
-              <div className="text-4xl md:text-5xl font-black text-blue-500 dark:text-blue-450 mb-2">
-                ₦0
-              </div>
-              <h3 className="font-bold text-neutral-850 dark:text-neutral-200 mb-3">On Vendor registration</h3>
-              <p className="text-xs text-neutral-550 dark:text-neutral-400 leading-relaxed">
-                Accept applications and payments from vendors who want to set up stalls at your event. You retain 100% of vendor registration fees!
-              </p>
-            </div>
-
+            <Button
+              className="h-10 shrink-0 rounded-full bg-rose-500 px-5 text-xs font-bold text-white hover:bg-rose-600"
+              asChild
+            >
+              <Link to="/contact">Ask about staffing</Link>
+            </Button>
           </div>
         </div>
       </section>
 
-      {/* ─── Platform Features Bento Grid ─── */}
-      <section className="py-20 border-b border-neutral-100 dark:border-neutral-900">
-        <div className="container mx-auto px-6 max-w-7xl">
-          <div className="max-w-2xl mb-16">
-            <span className="text-xs font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400 block mb-2">
-              Features
-            </span>
-            <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-neutral-900 dark:text-white leading-tight">
-              Powerful tools to curate, setup, <br />
-              and run your experiences
-            </h2>
-          </div>
-
-          {/* Bento Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-            
-            {/* Vendor Registration - Span 7 */}
-            <div className="md:col-span-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 flex flex-col justify-between group">
-              <div>
-                <div className="h-10 w-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white flex items-center justify-center mb-6">
-                  <Store className="h-5 w-5" />
-                </div>
-                <h3 className="text-xl font-bold text-neutral-900 dark:text-white mb-2">
-                  Vendor Space Application Portal
-                </h3>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-md">
-                  Rent stall space to external vendors, merchants, or food trucks. Set up booth packages (Premium, VIP, Standard), collect booth payments, and review applications directly in your organizer dashboard.
-                </p>
-              </div>
-              <div className="mt-8 flex items-center gap-2 text-xs font-extrabold text-rose-500 hover:text-rose-600 cursor-pointer">
-                Learn vendor features <ArrowRight className="h-3.5 w-3.5" />
-              </div>
-            </div>
-
-            {/* QR Scanner - Span 5 */}
-            <div className="md:col-span-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 flex flex-col justify-between group">
-              <div>
-                <div className="h-10 w-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white flex items-center justify-center mb-6">
-                  <QrCode className="h-5 w-5" />
-                </div>
-                <h3 className="text-xl font-bold text-neutral-900 dark:text-white mb-2">
-                  Mobile Entry Ticket Scanning
-                </h3>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                  Scan attendee QR tickets directly through your mobile browser. There is no need to install external apps. Simply open the mobile dashboard check-in screen, point your camera, and swipe guests in.
-                </p>
-              </div>
-              <div className="mt-8 text-xs font-bold text-neutral-450 dark:text-neutral-550">
-                Zero scanner hardware setup needed.
-              </div>
-            </div>
-
-            {/* Ticket Tiers - Span 5 */}
-            <div className="md:col-span-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 flex flex-col justify-between group">
-              <div>
-                <div className="h-10 w-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white flex items-center justify-center mb-6">
-                  <Layers className="h-5 w-5" />
-                </div>
-                <h3 className="text-xl font-bold text-neutral-900 dark:text-white mb-2">
-                  Multi-Tier Ticketing
-                </h3>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                  Configure VIP tables, early-bird passes, standard entries, or bulk promo rates. Specify sales start times, end times, and absolute purchase limits per transaction.
-                </p>
-              </div>
-              <div className="mt-8 text-xs font-bold text-neutral-450 dark:text-neutral-550">
-                Supports promo discount codes.
-              </div>
-            </div>
-
-            {/* Real-time Analytics - Span 7 */}
-            <div className="md:col-span-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 flex flex-col justify-between group">
-              <div>
-                <div className="h-10 w-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white flex items-center justify-center mb-6">
-                  <TrendingUp className="h-5 w-5" />
-                </div>
-                <h3 className="text-xl font-bold text-neutral-900 dark:text-white mb-2">
-                  Sales & Check-in Dashboard
-                </h3>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-md">
-                  Keep tabs on page views, tickets sold, and revenue generated in real-time. Once your event begins, track the real-time ratio of checked-in guests versus total tickets sold.
-                </p>
-              </div>
-              <div className="mt-8 flex items-center gap-2 text-xs font-extrabold text-rose-500 hover:text-rose-600 cursor-pointer">
-                View organizer dashboard demo <ArrowRight className="h-3.5 w-3.5" />
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-      {/* ─── How It Works Stepper ─── */}
-      <section className="py-20 bg-neutral-50 dark:bg-neutral-900/20 border-b border-neutral-100 dark:border-neutral-900">
-        <div className="container mx-auto px-6 max-w-7xl">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <h2 className="text-3xl font-black tracking-tight text-neutral-900 dark:text-white mb-3">
+      {/* How it works */}
+      <section className="border-b border-neutral-100 py-16 dark:border-neutral-900 sm:py-20">
+        <div className="container mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="mx-auto mb-12 max-w-2xl text-center">
+            <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
               How to get started
             </h2>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              Launch your ticketing and vendor portal in four quick steps.
-            </p>
+            <p className="mt-2 text-sm text-neutral-500">From blank page to gate in four steps.</p>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {/* Step 1 */}
-            <div className="relative">
-              <div className="text-4xl font-black text-rose-500/20 dark:text-rose-500/10 mb-3">01</div>
-              <h3 className="font-bold text-neutral-900 dark:text-white mb-2">Create & Customize</h3>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                Add event photos, location maps, dates, description text, and set up your organizer profile.
-              </p>
-            </div>
-            {/* Step 2 */}
-            <div className="relative">
-              <div className="text-4xl font-black text-rose-500/20 dark:text-rose-500/10 mb-3">02</div>
-              <h3 className="font-bold text-neutral-900 dark:text-white mb-2">Configure Tickets & Booths</h3>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                Specify ticket pricing tiers and configure booth packages if you are renting space to vendors.
-              </p>
-            </div>
-            {/* Step 3 */}
-            <div className="relative">
-              <div className="text-4xl font-black text-rose-500/20 dark:text-rose-500/10 mb-3">03</div>
-              <h3 className="font-bold text-neutral-900 dark:text-white mb-2">Promote & Sell</h3>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                Publish your event page, share the link across socials, and accept secure payments immediately.
-              </p>
-            </div>
-            {/* Step 4 */}
-            <div className="relative">
-              <div className="text-4xl font-black text-rose-500/20 dark:text-rose-500/10 mb-3">04</div>
-              <h3 className="font-bold text-neutral-900 dark:text-white mb-2">Scan & Receive Payouts</h3>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                Scan attendee QR tickets at check-in. Receive payouts to your bank account within 24 hours.
-              </p>
-            </div>
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                n: '01',
+                t: 'Create your org & event',
+                d: 'Photos, venue, dates, description. Publish when ready.',
+              },
+              {
+                n: '02',
+                t: 'Set tickets (and booths)',
+                d: 'Tiers, prices, limits. Optional vendor packages.',
+              },
+              {
+                n: '03',
+                t: 'Share & sell',
+                d: 'Promote the event link. Guests pay and get QR passes.',
+              },
+              {
+                n: '04',
+                t: 'Scan & get paid',
+                d: 'Check in with your team or PartyStorm staff. Payouts follow.',
+              },
+            ].map((s) => (
+              <div key={s.n}>
+                <p className="mb-2 text-3xl font-black text-rose-500/25">{s.n}</p>
+                <h3 className="font-bold text-neutral-900 dark:text-white">{s.t}</h3>
+                <p className="mt-1.5 text-xs leading-relaxed text-neutral-500">{s.d}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ─── Collapsible FAQ Accordion ─── */}
-      <section className="py-20 border-b border-neutral-100 dark:border-neutral-900">
-        <div className="container mx-auto px-6 max-w-4xl">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-black tracking-tight text-neutral-900 dark:text-white mb-3">
-              Frequently Asked Questions
+      {/* FAQ */}
+      <section className="border-b border-neutral-100 py-16 dark:border-neutral-900 sm:py-20">
+        <div className="container mx-auto max-w-3xl px-4 sm:px-6">
+          <div className="mb-10 text-center">
+            <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
+              Questions organizers ask
             </h2>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              Everything you need to know about hosting, payouts, and ticketing fees.
-            </p>
+            <p className="mt-2 text-sm text-neutral-500">Fees, payouts, scanning, and staffing.</p>
           </div>
-
-          <div className="space-y-4">
+          <div className="space-y-3">
             {faqData.map((item, index) => {
-              const isOpen = activeFaq === index;
+              const open = activeFaq === index;
               return (
-                <div 
-                  key={index}
-                  className="border border-neutral-200 dark:border-neutral-850 rounded-2xl overflow-hidden transition-colors bg-white dark:bg-neutral-900"
+                <div
+                  key={item.q}
+                  className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900"
                 >
                   <button
-                    onClick={() => toggleFaq(index)}
-                    className="w-full py-5 px-6 flex justify-between items-center text-left focus:outline-none"
+                    type="button"
+                    onClick={() => setActiveFaq(open ? null : index)}
+                    className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
                   >
-                    <span className="font-bold text-sm sm:text-base text-neutral-900 dark:text-white">
+                    <span className="text-sm font-bold text-neutral-900 dark:text-white sm:text-base">
                       {item.q}
                     </span>
-                    <span className="text-neutral-400 dark:text-neutral-500 shrink-0 ml-4">
-                      {isOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                    </span>
+                    {open ? (
+                      <ChevronUp className="h-5 w-5 shrink-0 text-neutral-400" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 shrink-0 text-neutral-400" />
+                    )}
                   </button>
-
                   <AnimatePresence initial={false}>
-                    {isOpen && (
+                    {open && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
+                        animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.25 }}
+                        transition={{ duration: 0.2 }}
                         className="overflow-hidden"
                       >
-                        <div className="pb-5 px-6 pt-0 text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed border-t border-neutral-100 dark:border-neutral-850/60 pt-4">
+                        <p className="border-t border-neutral-100 px-5 pb-4 pt-3 text-sm leading-relaxed text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
                           {item.a}
-                        </div>
+                        </p>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -560,64 +623,60 @@ const OrganizerPage: React.FC = () => {
         </div>
       </section>
 
-      {/* ─── Inspiring Events Section (Airbnb Style) ─── */}
-      <section className="py-20 border-b border-neutral-100 dark:border-neutral-900">
-        <div className="container mx-auto px-3 sm:px-6 max-w-7xl">
-          <div className="flex justify-between items-end mb-12">
+      {/* Showcase */}
+      <section className="border-b border-neutral-100 py-16 dark:border-neutral-900 sm:py-20">
+        <div className="container mx-auto max-w-7xl px-3 sm:px-6">
+          <div className="mb-10 flex items-end justify-between gap-4">
             <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400 block mb-2">
-                Showcase
-              </span>
-              <h2 className="text-3xl font-black tracking-tight text-neutral-900 dark:text-white">
-                Events hosting on PartyStorm
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-rose-500">Live on PartyStorm</p>
+              <h2 className="text-2xl font-extrabold tracking-tight text-neutral-900 dark:text-white sm:text-3xl">
+                Events hosting with us
               </h2>
             </div>
-            <Link to="/events" className="text-xs font-extrabold text-rose-500 hover:text-rose-600 flex items-center gap-1">
-              Browse all listings <ChevronRight className="h-4 w-4" />
+            <Link
+              to="/events"
+              className="flex shrink-0 items-center gap-1 text-xs font-extrabold text-rose-500 hover:text-rose-600"
+            >
+              Browse all <ChevronRight className="h-4 w-4" />
             </Link>
           </div>
-
-          <div className="grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {showcaseEvents.map((event: any) => (
-              <div key={event.id} className="relative">
-                <EventLink eventId={event.id}>
-                  <EventCard event={event} showPrice={true} showRating={true} />
-                </EventLink>
-              </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {showcaseEvents.map((event: Event) => (
+              <EventLink key={event.id} eventId={event.id}>
+                <EventCard event={event} showPrice showRating />
+              </EventLink>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ─── Bottom CTA Banner ─── */}
-      <section className="py-20">
-        <div className="container mx-auto px-6 max-w-6xl">
-          <div className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 md:p-16 text-center shadow-sm">
-            <div className="max-w-2xl mx-auto space-y-6">
-              <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-neutral-900 dark:text-white leading-tight">
-                Ready to launch your experience?
-              </h2>
-              <p className="text-sm sm:text-base text-neutral-600 dark:text-neutral-400 font-medium max-w-lg mx-auto">
-                Join hundreds of creators hosting conferences, concerts, exhibitions, and parties on PartyStorm —
-                with optional PartyStorm gate staffing when you need it.
-              </p>
-              <div className="pt-4 flex flex-col sm:flex-row gap-4 justify-center">
-                <Button className="h-12 px-8 rounded-full text-sm font-bold bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 active:scale-95 transition-all shadow-sm" asChild>
-                  <Link to="/events/create">
-                    Create Event Now
-                  </Link>
-                </Button>
-                <Button variant="outline" className="h-12 px-8 rounded-full text-sm font-bold active:scale-95 transition-all" asChild>
-                  <Link to="/organizer">
-                    Organizer Portal
-                  </Link>
-                </Button>
-              </div>
-            </div>
+      {/* CTA */}
+      <section className="py-16 sm:py-20">
+        <div className="container mx-auto max-w-4xl px-4 sm:px-6 text-center">
+          <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white sm:text-4xl text-balance">
+            Ready to run your next event on PartyStorm?
+          </h2>
+          <p className="mx-auto mt-3 max-w-lg text-sm text-neutral-600 dark:text-neutral-400">
+            Start free, sell tickets, scan at the gate, and call in PartyStorm staffing when event day
+            needs more hands.
+          </p>
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <Button
+              className="h-12 rounded-full bg-rose-500 px-8 text-sm font-bold text-white hover:bg-rose-600"
+              asChild
+            >
+              <Link to="/become-organizer">Become an organizer</Link>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-12 rounded-full border-neutral-300 px-8 text-sm font-bold dark:border-neutral-600"
+              asChild
+            >
+              <Link to="/contact">Talk to us about staffing</Link>
+            </Button>
           </div>
         </div>
       </section>
-
     </div>
   );
 };

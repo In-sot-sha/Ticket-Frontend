@@ -21,7 +21,7 @@
 
     <!-- ── Icons ─────────────────────────────────────── -->
     <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
-    <link rel="canonical" href="https://partystorm.vercel.app" />
+    <link rel="canonical" href="https://partystorm.ng" />
 
     <!-- Ticket design fonts (classic / boarding / concert) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -42,23 +42,23 @@
     <!-- Open Graph / Social Media -->
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="en_NG" />
-    <meta property="og:url" content="https://partystorm.vercel.app" />
+    <meta property="og:url" content="https://partystorm.ng" />
     <meta property="og:title" content="PartyStorm — Discover &amp; Book Event Tickets in Nigeria" />
     <meta property="og:description" content="Find and book tickets for the best live events near you. Concerts, conferences, festivals, and more." />
-    <meta property="og:image" content="https://partystorm.vercel.app/og-image.png" />
+    <meta property="og:image" content="https://partystorm.ng/og-image.jpg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:alt" content="PartyStorm - Discover and Book Event Tickets in Nigeria" />
     <meta property="og:site_name" content="PartyStorm" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@partystorm" />
-    <meta name="twitter:url" content="https://partystorm.vercel.app" />
+    <meta name="twitter:url" content="https://partystorm.ng" />
     <meta name="twitter:title" content="PartyStorm — Event Tickets" />
     <meta name="twitter:description" content="Discover and book tickets for live events in Nigeria." />
-    <meta name="twitter:image" content="https://partystorm.vercel.app/og-image.png" />
+    <meta name="twitter:image" content="https://partystorm.ng/og-image.jpg" />
 
     <!-- ── Structured Data (JSON-LD) ──────────────────── -->
     <script type="application/ld+json">
@@ -66,8 +66,24 @@
         "@context": "https://schema.org",
         "@type": "WebSite",
         "name": "PartyStorm",
-        "url": "https://partystorm.vercel.app",
-        "description": "Discover and book event tickets in Nigeria."
+        "url": "https://partystorm.ng",
+        "description": "Discover and book event tickets in Nigeria.",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://partystorm.ng/events?search={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "PartyStorm",
+        "url": "https://partystorm.ng",
+        "logo": "https://partystorm.ng/og-image.jpg",
+        "email": "support@partystorm.ng",
+        "areaServed": "NG"
       }
     </script>
 

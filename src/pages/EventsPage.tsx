@@ -318,7 +318,7 @@ const EventsPage = () => {
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Browse All Events | PartyStorm" />
         <meta name="twitter:description" content="Explore all upcoming events in Kano." />
-        <link rel="canonical" href="https://partystorm.com/events" />
+        <link rel="canonical" href="https://partystorm.ng/events" />
         <script type="application/ld+json">
           {JSON.stringify(
             generateEventCollectionStructuredData(eventsData, 'Browse All Events in Kano')

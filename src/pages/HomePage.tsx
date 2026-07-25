@@ -227,11 +227,11 @@ const HeroCarousel = ({ slides }: { slides: typeof heroSlides }) => {
 const HomePage = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   
-  // Use React Query hooks for data fetching with 5min cache (HOMEPAGE_EVENTS config)
+  // Upcoming only on homepage — past events live on Explore (/events)
   const { data: eventsData, isLoading, error } = useEvents(
     selectedCategory !== 'All'
-      ? { limit: 24, category: selectedCategory }
-      : { limit: 24 },
+      ? { limit: 24, category: selectedCategory, upcoming: 'true' }
+      : { limit: 24, upcoming: 'true' },
     CACHE_CONFIGS.HOMEPAGE_EVENTS
   );
 
@@ -246,7 +246,7 @@ const HomePage = () => {
       eventsData && eventsData.length > 0
         ? eventsData.map(mapApiEventToFrontendEvent)
         : mockEvents;
-    return sortEventsUpcomingFirst(base);
+    return sortEventsUpcomingFirst(base.filter((e: Event) => !isPastEvent(e)));
   }, [eventsData]);
 
   const dynamicSlides = useMemo(() => {
@@ -294,7 +294,7 @@ const HomePage = () => {
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Discover Events in Kano | PartyStorm" />
         <meta name="twitter:description" content="Browse and book tickets for amazing events in Kano." />
-        <link rel="canonical" href="https://partystorm.com/" />
+        <link rel="canonical" href="https://partystorm.ng/" />
         <script type="application/ld+json">
           {JSON.stringify(generateEventCollectionStructuredData(filteredEvents, "Discover Events in Kano"))}
         </script>
@@ -334,18 +334,20 @@ const HomePage = () => {
           <div>
             <h1 className="text-xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
               {selectedCategory === 'All'
-                ? 'Discover upcoming events'
+                ? 'Upcoming events'
                 : `${selectedCategory} events`}
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {isLoading ? 'Loading events...' : `Showing ${filteredEvents.length} premium event listings near you`}
+              {isLoading
+                ? 'Loading events...'
+                : `${filteredEvents.length} happening soon near you`}
             </p>
           </div>
           <Link
             to="/events"
-            className="shrink-0 flex items-center gap-1.5 text-xs font-bold text-rose-500 hover:text-rose-600 transition-colors"
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3.5 py-2 text-xs font-bold text-neutral-800 dark:text-neutral-100 hover:border-rose-300 hover:text-rose-600 transition-colors"
           >
-            See all
+            More
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
@@ -375,7 +377,7 @@ const HomePage = () => {
               </p>
             </div>
             <div className="grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {mockEvents.map((event) => (
+              {mockEvents.filter((e) => !isPastEvent(e)).map((event) => (
                 <EventLink key={event.id} eventId={event.id}>
                   <EventCard event={event} />
                 </EventLink>
@@ -383,13 +385,24 @@ const HomePage = () => {
             </div>
           </>
         ) : filteredEvents.length > 0 ? (
-          <div className="grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {filteredEvents.map((event) => (
-              <EventLink key={event.id} eventId={event.id}>
-                <EventCard event={event} />
-              </EventLink>
-            ))}
-          </div>
+          <>
+            <div className="grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {filteredEvents.map((event) => (
+                <EventLink key={event.id} eventId={event.id}>
+                  <EventCard event={event} />
+                </EventLink>
+              ))}
+            </div>
+            <div className="mt-8 flex justify-center pb-4">
+              <Link
+                to="/events"
+                className="inline-flex items-center gap-2 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-6 py-3 text-sm font-bold hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors active:scale-[0.98]"
+              >
+                Explore more events
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </>
         ) : (
           <div className="text-center py-20 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-dashed border-gray-200 dark:border-gray-800">
             <span className="text-4xl block mb-4">🔍</span>

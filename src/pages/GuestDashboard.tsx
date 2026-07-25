@@ -3,7 +3,6 @@ import {
   Ticket,
   Eye,
   CheckCircle,
-  Download,
   LogIn,
   Search,
   ArrowRight,
@@ -17,19 +16,13 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { CACHE_CONFIGS } from '../lib/queryClient';
 import TicketCard, {
-  downloadTicketCard,
+  DownloadTicketButton,
   getTicketSerial,
   type TicketCardTicket,
   type TicketCardEventMeta,
 } from '../components/TicketCard';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { ResponsiveModal } from '../components/ui/ResponsiveModal';
 import { cn } from '../lib/utils';
-
-import {
-  Drawer,
-  DrawerContent,
-} from '@/components/ui/drawer';
 
 function isTicketEventPast(ticket: TicketCardTicket) {
   const end = ticket.event?.endDate || ticket.event?.startDate;
@@ -123,29 +116,37 @@ const TicketsDashboard = () => {
               Find Your Tickets
             </h1>
             <p className="text-center text-neutral-500 dark:text-neutral-400 text-sm mb-10 leading-relaxed max-w-sm mx-auto">
-              You&apos;re not logged in yet. Access your ticket history and manage your bookings with
-              two simple options.
+              You&apos;re not logged in yet. Choose how you want to get to your tickets.
             </p>
 
-            <div className="space-y-3 mb-8">
-              <button
-                onClick={() => navigate('/login')}
-                className="w-full h-14 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2.5 group relative overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                <LogIn className="h-4.5 w-4.5 group-hover:scale-110 transition-transform" />
-                <span>Login to My Account</span>
-              </button>
+            <div className="space-y-5 mb-8">
+              <div>
+                <Button
+                  onClick={() => navigate('/login')}
+                  className="w-full h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-full text-sm font-bold shadow-lg hover:shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2.5 group relative overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <LogIn className="h-4.5 w-4.5 group-hover:scale-110 transition-transform" />
+                  <span>Login to My Account</span>
+                </Button>
+               
+              </div>
 
-              <button
-                onClick={() => navigate('/recover-ticket')}
-                className="w-full h-14 border-2 border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-xl text-sm font-bold hover:border-rose-400 dark:hover:border-rose-600 hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2.5 group"
-              >
-                <Search className="h-4.5 w-4.5 group-hover:text-rose-500 transition-colors" />
-                <span className="group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
-                  Search My Tickets
-                </span>
-              </button>
+              <div>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/recover-ticket')}
+                  className="w-full h-11 border-2 border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-full text-sm font-bold hover:border-rose-400 dark:hover:border-rose-600 hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2.5 group"
+                >
+                  <Search className="h-4.5 w-4.5 group-hover:text-rose-500 transition-colors" />
+                  <span className="group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
+                    Recover My Tickets
+                  </span>
+                </Button>
+                <p className="mt-2 text-center text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed px-2">
+                  Bought without logging in? Look up your passes with email or phone.
+                </p>
+              </div>
             </div>
 
             <div className="relative mb-8">
@@ -170,6 +171,9 @@ const TicketsDashboard = () => {
                 Create one now
                 <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
               </Link>
+              <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-xs mx-auto">
+                Sign up with email or phone so your tickets stay linked to you.
+              </p>
             </div>
           </div>
 
@@ -209,7 +213,7 @@ const TicketsDashboard = () => {
               <p className="text-[10px] sm:text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                 {isLoading
                   ? 'Loading…'
-                  : `${sortedTickets.length} pass${sortedTickets.length === 1 ? '' : 'es'} · upcoming first`}
+                  : `${sortedTickets.length} pass${sortedTickets.length === 1 ? '' : 'es'} `}
               </p>
             </div>
             <Link
@@ -222,7 +226,7 @@ const TicketsDashboard = () => {
         </div>
       </div>
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <main className="max-w-8xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {isLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -255,7 +259,7 @@ const TicketsDashboard = () => {
             </Link>
           </div>
         ) : (
-          <ul className="space-y-3">
+          <div className=" grid grid-cols-1 sm:grid-cols-2 gap-3">
             {sortedTickets.map((ticket: TicketCardTicket) => {
               const past = isTicketEventPast(ticket);
               const coverImage =
@@ -264,7 +268,7 @@ const TicketsDashboard = () => {
               const status = ticket.status || 'VALID';
 
               return (
-                <li key={ticket.id}>
+                <div key={ticket.id}>
                   <div className="flex gap-3 sm:gap-4 rounded-2xl border border-neutral-150 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 sm:p-3.5">
                     <div className="relative h-20 w-20 sm:h-24 sm:w-24 rounded-xl overflow-hidden bg-neutral-100 dark:bg-neutral-800 shrink-0">
                       <img
@@ -322,10 +326,10 @@ const TicketsDashboard = () => {
                       </div>
                     </div>
                   </div>
-                </li>
+                </div>
               );
             })}
-          </ul>
+          </div>
         )}
       </main>
 
@@ -334,8 +338,8 @@ const TicketsDashboard = () => {
         onOpenChange={() => setSelectedTicket(null)}
         size={6}
       >
-        <div className="flex items-center justify-between px-6 py-5 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
-          <div>
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-5 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+          <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-widest text-rose-500">Entry Pass</p>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
               Present at gate for scanning
@@ -343,21 +347,14 @@ const TicketsDashboard = () => {
           </div>
         </div>
 
-        <div className="">
-          <button
-            onClick={() =>
-              downloadTicketCard(`ticket-card-${serial}`, `ticket-${serial}.png`).catch(() =>
-                alert('Download failed.')
-              )
-            }
-            className="w-full h-10 flex items-center justify-center gap-2 text-sm font-bold text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors active:scale-95"
-          >
-            <Download className="h-4 w-4" />
-            Save as PNG
-          </button>
+        <div className="px-3 sm:px-6 pt-3 sm:pt-4">
+          <DownloadTicketButton
+            elementId={`ticket-card-${serial}`}
+            filename={`ticket-${serial}.png`}
+          />
         </div>
 
-        <div className="p-6">
+        <div className="p-3 sm:p-6 min-w-0">
           {selectedTicket && meta && (
             <TicketCard
               ticket={selectedTicket}
@@ -368,9 +365,9 @@ const TicketsDashboard = () => {
           )}
         </div>
 
-        <div className="px-6 pb-6">
+        <div className="px-3 sm:px-6 pb-5 sm:pb-6">
           <div
-            className={`flex items-center justify-center gap-2.5 text-xs font-bold py-3.5 rounded-xl border transition-all ${
+            className={`flex items-center justify-center gap-2 text-xs font-bold py-3 sm:py-3.5 px-3 rounded-xl border transition-all ${
               selectedTicket?.status === 'VALID'
                 ? 'bg-emerald-50/80 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/50'
                 : selectedTicket?.status === 'USED'
@@ -378,8 +375,8 @@ const TicketsDashboard = () => {
                   : 'bg-red-50/80 dark:bg-red-950/30 text-red-700 dark:text-red-400 border-red-100 dark:border-red-900/50'
             }`}
           >
-            <CheckCircle className="h-5 w-5" />
-            <span>
+            <CheckCircle className="h-5 w-5 shrink-0" />
+            <span className="text-center leading-snug">
               {selectedTicket?.status === 'VALID'
                 ? 'Valid Entry Pass — Ready to Scan'
                 : selectedTicket?.status === 'USED'
@@ -395,33 +392,5 @@ const TicketsDashboard = () => {
 
 export default TicketsDashboard;
 
-type Props = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  children: React.ReactNode;
-  title?: string;
-  description?: string;
-  size?: number;
-};
-
-export function ResponsiveModal({ open, onOpenChange, children, size = 5 }: Props) {
-  const isMobile = useIsMobile();
-
-  if (isMobile) {
-    return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="p-0">{children}</DrawerContent>
-      </Drawer>
-    );
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className={`${size == 5 ? 'lg:max-w-5xl' : size == 6 ? 'lg:max-w-6xl' : 'lg:max-w-3xl'} p-1`}
-      >
-        {children}
-      </DialogContent>
-    </Dialog>
-  );
-}
+// Re-export for pages that historically imported this from GuestDashboard
+export { ResponsiveModal } from '../components/ui/ResponsiveModal';

@@ -130,10 +130,10 @@ const ContactPage = () => {
                   <div>
                     <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Email</p>
                     <a
-                      href="mailto:support@partystorm.com"
+                      href="mailto:support@partystorm.ng"
                       className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 hover:text-rose-500 transition-colors"
                     >
-                      support@partystorm.com
+                      support@partystorm.ng
                     </a>
                   </div>
                 </li>

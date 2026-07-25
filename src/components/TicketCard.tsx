@@ -1,5 +1,5 @@
-import React from 'react';
-import { Download } from 'lucide-react';
+import React, { useState } from 'react';
+import { Download, Loader2 } from 'lucide-react';
 import EventTicketCard from './tickets/EventTicketCard';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -104,31 +104,71 @@ export function getTicketSerial(ticket: TicketCardTicket, index: number, eventId
   return `TKT-MOCK-${index + 1}`;
 }
 
-// ─── Download helper (loads html2canvas lazily) ───────────────────────────────
+// ─── Download helper ──────────────────────────────────────────────────────────
 
 export async function downloadTicketCard(elementId: string, filename: string): Promise<void> {
   const element = document.getElementById(elementId);
-  if (!element) return;
-  if (!(window as any).html2canvas) {
-    await new Promise<void>((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-      s.async = true;
-      s.onload = () => resolve();
-      s.onerror = () => reject(new Error('html2canvas failed to load'));
-      document.body.appendChild(s);
-    });
-  }
-  const canvas = await (window as any).html2canvas(element, {
-    scale: 3,
+  if (!element) throw new Error('Ticket element not found');
+
+  const html2canvas = (await import('html2canvas')).default;
+  const canvas = await html2canvas(element, {
+    scale: 2,
     useCORS: true,
     logging: false,
-    backgroundColor: null,
+    backgroundColor: '#ffffff',
   });
+
   const link = document.createElement('a');
   link.href = canvas.toDataURL('image/png');
   link.download = filename;
   link.click();
+}
+
+/** Shared Save-as-PNG button with loading state */
+export function DownloadTicketButton({
+  elementId,
+  filename,
+  label = 'Save as PNG',
+  className = '',
+}: {
+  elementId: string;
+  filename: string;
+  label?: string;
+  className?: string;
+}) {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleClick = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await downloadTicketCard(elementId, filename);
+    } catch {
+      alert('Download failed. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={downloading}
+      aria-busy={downloading}
+      className={
+        className ||
+        'w-full h-10 flex items-center justify-center gap-2 text-sm font-bold text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-full hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors active:scale-[0.98] disabled:opacity-70 disabled:pointer-events-none'
+      }
+    >
+      {downloading ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Download className="h-4 w-4" />
+      )}
+      {downloading ? 'Preparing PNG…' : label}
+    </button>
+  );
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -151,41 +191,37 @@ const TicketCard: React.FC<TicketCardProps> = ({
   const qrValue = ticket.qrCode || serial;
   const cardId = `${idPrefix}-${serial}`;
 
-  const handleDownload = () =>
-    downloadTicketCard(cardId, `ticket-${serial}.png`).catch(() =>
-      alert('Failed to download ticket PNG. Please save/print the page instead.')
-    );
-
   return (
-    <div className="flex flex-col gap-2.5 sm:gap-3">
-      <EventTicketCard
-        id={cardId}
-        eventName={eventName}
-        eventDate={eventDate}
-        eventTime={eventTime || undefined}
-        eventLocation={eventLoc}
-        eventImageUrl={bannerImg || undefined}
-        ticketSerial={serial}
-        qrValue={qrValue}
-        ticketType={{
-          name: typeName,
-          ticketStyle: ticket.ticketType?.ticketStyle ?? eventMeta.ticketStyle,
-          accentColor: ticket.ticketType?.accentColor ?? eventMeta.accentColor,
-          badgeText: ticket.ticketType?.badgeText || typeName,
-          ticketHeadline: ticket.ticketType?.ticketHeadline,
-          venueLabel: ticket.ticketType?.venueLabel,
-        }}
-      />
+    <div className="flex w-full min-w-0 flex-col gap-2.5 sm:gap-3">
+      <div className="mx-auto w-full min-w-0 max-w-xl md:max-w-none">
+        <EventTicketCard
+          id={cardId}
+          eventName={eventName}
+          eventDate={eventDate}
+          eventTime={eventTime || undefined}
+          eventLocation={eventLoc}
+          eventImageUrl={bannerImg || undefined}
+          ticketSerial={serial}
+          qrValue={qrValue}
+          ticketType={{
+            name: typeName,
+            ticketStyle: ticket.ticketType?.ticketStyle ?? eventMeta.ticketStyle,
+            accentColor: ticket.ticketType?.accentColor ?? eventMeta.accentColor,
+            badgeText: ticket.ticketType?.badgeText || typeName,
+            ticketHeadline: ticket.ticketType?.ticketHeadline,
+            venueLabel: ticket.ticketType?.venueLabel,
+          }}
+        />
+      </div>
 
       {showDownload && (
-        <div className="flex justify-end gap-2 px-4 sm:px-2">
-          <button
-            onClick={handleDownload}
-            className="flex items-center gap-1.5 text-xs font-bold text-neutral-500 dark:text-neutral-400 hover:text-rose-500 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-900 px-4 py-2 rounded-full transition-all border border-neutral-200 dark:border-neutral-800 shadow-sm"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Download Pass PNG
-          </button>
+        <div className="flex justify-center sm:justify-end gap-2 px-1 sm:px-2">
+          <DownloadTicketButton
+            elementId={cardId}
+            filename={`ticket-${serial}.png`}
+            label="Download Pass PNG"
+            className="flex items-center gap-1.5 text-xs font-bold text-neutral-500 dark:text-neutral-400 hover:text-rose-500 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-900 px-4 py-2.5 rounded-full transition-all border border-neutral-200 dark:border-neutral-800 shadow-sm active:scale-[0.98] disabled:opacity-70 disabled:pointer-events-none"
+          />
         </div>
       )}
     </div>

@@ -119,7 +119,7 @@ const OrganizerDashboard = () => {
             ) : events.length === 0 ? (
               <div className="p-8 text-center">
                 <p className="text-neutral-500 mb-4">No events yet. Create your first listing!</p>
-                <Link to="events/create">
+                <Link to="/organizer/events/create">
                   <Button className="rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0">
                     <Plus className="h-4 w-4 mr-2" />
                     Create event
@@ -185,7 +185,7 @@ const OrganizerDashboard = () => {
 
           <div className="grid grid-cols-1 gap-4">
             <Link
-              to="events/create"
+              to="/organizer/events/create"
               className="border border-neutral-150 dark:border-neutral-900 rounded-2xl p-5 hover:border-rose-500/50 hover:shadow-sm transition-all group relative bg-white dark:bg-neutral-900"
             >
               <div className="h-10 w-10 bg-rose-50 dark:bg-rose-950/20 text-rose-500 rounded-full flex items-center justify-center mb-3">

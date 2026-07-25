@@ -1,11 +1,13 @@
 import React from 'react';
 import { 
   useRoutes,
-  Navigate
+  Navigate,
+  useParams,
 } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import PublicRoute from '../components/PublicRoute';
+import OrganizerCreateRoute from '../components/OrganizerCreateRoute';
 
 // Layouts
 import AppIndex from './AppIndex';
@@ -63,6 +65,12 @@ import { StaffOrgsPage, StaffProjectsPage } from '../pages/StaffSections';
 import ForceChangePasswordPage from '../pages/ForceChangePasswordPage';
 import SupportPage from '../pages/SupportPage';
 import StaffLayout from '../components/layout/StaffLayout';
+
+/** Old /events/create/:id bookmarks → organizer edit URL */
+const LegacyCreateEventRedirect: React.FC = () => {
+  const { id } = useParams();
+  return <Navigate to={`/organizer/events/create/${id}`} replace />;
+};
 
 const StaffRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, loading, user } = useAuth();
@@ -128,25 +136,18 @@ const AppRoutes: React.FC = () => {
           path: "events",
           element: <EventsPage />,
         },
-        {
-          path: "events/:slug",
-          element: <EventDetailPage />,
-        },
+        // Legacy create URLs → organizer dashboard (keeps /events/:slug detail-only)
         {
           path: "events/create",
-          element: (
-            <ProtectedRoute>
-              <CreateEvent />
-            </ProtectedRoute>
-          ),
+          element: <Navigate to="/organizer/events/create" replace />,
         },
         {
           path: "events/create/:id",
-          element: (
-            <ProtectedRoute>
-              <CreateEvent />
-            </ProtectedRoute>
-          ),
+          element: <LegacyCreateEventRedirect />,
+        },
+        {
+          path: "events/:slug",
+          element: <EventDetailPage />,
         },
         {
           path: "terms",
@@ -239,17 +240,24 @@ const AppRoutes: React.FC = () => {
           element: <EventsDashboard />,
         },
         {
-          path: "events/:id",
-          element: <OrganizerEventPage />,
-        },
-        {
           path: "events/create",
-
-          element: <CreateEvent />,
+          element: (
+            <OrganizerCreateRoute>
+              <CreateEvent />
+            </OrganizerCreateRoute>
+          ),
         },
         {
           path: "events/create/:id",
-          element: <CreateEvent />,
+          element: (
+            <OrganizerCreateRoute>
+              <CreateEvent />
+            </OrganizerCreateRoute>
+          ),
+        },
+        {
+          path: "events/:id",
+          element: <OrganizerEventPage />,
         },
         {
           path: "vendors-applications",
@@ -370,11 +378,7 @@ const AppRoutes: React.FC = () => {
       children: [
         {
           path: "profile",
-          element: (
-            <ProtectedRoute>
-              <Profile />
-            </ProtectedRoute>
-          ),
+          element: <Profile />,
         },
         {
           path: "become-organizer",

@@ -47,7 +47,8 @@ const MobileTabBar: React.FC = () => {
     {
       label: 'Profile',
       icon: UserCircle,
-      path: isAuthenticated ? '/profile' : '/login',
+      path: '/profile',
+      profile: true as const,
     },
   ];
 

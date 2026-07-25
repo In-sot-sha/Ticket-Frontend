@@ -138,7 +138,7 @@ const TermsOfService = () => {
               </p>
               <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
                 <p className="font-medium">PartyStorm Support</p>
-                <p>Email: support@partystorm.com</p>
+                <p>Email: support@partystorm.ng</p>
                 <p>Phone: +234 801 234 5678</p>
                 <p className="mt-2">Floor 1, 2G6V+C4F, Sani Abacha Way, Fagge, Kano 700211, Kano</p>
               </div>

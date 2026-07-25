@@ -1,6 +1,7 @@
 import React from 'react';
 import QRCode from 'qrcode.react';
 import { Plane } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   resolveTicketStyle,
   type TicketLayoutId,
@@ -107,10 +108,37 @@ function QrBlock({
         alt="QR"
         className="object-contain"
         style={{ width: size, height: size }}
+        crossOrigin="anonymous"
       />
     );
   }
-  return <QRCode value={qrValue} size={size} renderAs="svg" />;
+  // Canvas rasterizes cleanly with html2canvas (SVG often mis-sizes / clips).
+  return <QRCode value={qrValue} size={size} renderAs="canvas" includeMargin={false} level="M" />;
+}
+
+/** Pill badge — flex + line-height 1 keeps label vertically centered (no top gap). */
+function TicketBadge({
+  label,
+  style,
+  className = '',
+}: {
+  label: string;
+  style?: React.CSSProperties;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider shrink-0 z-10 max-w-full ${className}`}
+      style={{
+        lineHeight: 1,
+        ...style,
+      }}
+    >
+      <span className="leading-none" style={{ lineHeight: 1 }}>
+        {label}
+      </span>
+    </span>
+  );
 }
 
 type LayoutProps = EventTicketCardProps & {
@@ -138,6 +166,7 @@ function ClassicLayout(props: LayoutProps) {
     borderColor,
     badgeLabel,
   } = props;
+  const isMobile = useIsMobile();
   const split = splitTitle(eventName);
   const formattedDate = formatTicketDate(eventDate);
   const onAccent = inkOn(accent);
@@ -225,12 +254,7 @@ function ClassicLayout(props: LayoutProps) {
             style={{ backgroundColor: accent, color: onAccent }}
           >
             <div className="absolute inset-0 bg-black/5 pointer-events-none" />
-            <span
-              className="px-2.5 py-1 rounded-full text-[8px] font-black tracking-[0.18em] uppercase shrink-0 z-10"
-              style={badgePill}
-            >
-              {badgeLabel}
-            </span>
+            <TicketBadge label={badgeLabel} style={badgePill} />
             <div className="bg-white p-2 rounded-xl shadow-md z-10 shrink-0">
               <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={desktopQr} />
             </div>
@@ -246,18 +270,19 @@ function ClassicLayout(props: LayoutProps) {
     );
   }
 
-  return (
-    <div id={id} className="w-full">
-      {/* ── Mobile: vertical stub ── */}
+  // Only ONE layout in the DOM — prevents double-ticket PNG downloads.
+  if (isMobile) {
+    return (
       <div
-        className="md:hidden relative w-full max-w-[340px] mx-auto flex flex-col overflow-hidden shadow-xl"
+        id={id}
+        className="relative w-full max-w-[340px] mx-auto flex flex-col overflow-hidden shadow-xl"
         style={{ borderRadius: 4 }}
       >
         <div className="relative bg-black text-white px-5 pt-5 pb-6">
-          <p className="text-[10px] font-bold tracking-[0.28em] uppercase text-white/70 font-mono">
+          <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-white/75 font-mono">
             {ticketType?.ticketHeadline?.trim() || 'COME AND JOIN'}
           </p>
-          <h3 className="mt-3 text-[1.65rem] leading-[1.05] font-extrabold uppercase tracking-tight">
+          <h3 className="mt-3 text-[1.55rem] leading-[1.1] font-extrabold uppercase tracking-tight break-words">
             <span style={{ color: accent }}>{split.firstWord}</span>
             {split.restOfTitle ? (
               <>
@@ -267,25 +292,25 @@ function ClassicLayout(props: LayoutProps) {
             ) : null}
           </h3>
 
-          <div className="mt-5">
-            <p className="text-[9px] font-bold tracking-[0.28em] uppercase text-white/45 font-mono">
+          <div className="mt-5 min-w-0">
+            <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-white/50 font-mono">
               {ticketType?.venueLabel?.trim() || 'LIVE AT'}
             </p>
-            <p className="mt-1 text-sm font-extrabold uppercase tracking-wide text-white line-clamp-2">
+            <p className="mt-1 text-sm font-extrabold uppercase tracking-wide text-white break-words">
               {eventLocation}
             </p>
           </div>
 
           <div className="mt-5 pt-4 border-t border-white/15 grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-[9px] font-bold tracking-[0.22em] uppercase text-white/45 font-mono">Date</p>
-              <p className="mt-1 text-[11px] font-extrabold uppercase tracking-wide text-white font-mono leading-snug">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-white/50 font-mono">Date</p>
+              <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-white font-mono leading-snug break-words">
                 {formattedDate}
               </p>
             </div>
-            <div className="border-l border-white/15 pl-3">
-              <p className="text-[9px] font-bold tracking-[0.22em] uppercase text-white/45 font-mono">Code</p>
-              <p className="mt-1 text-[11px] font-extrabold uppercase tracking-wide text-white font-mono">
+            <div className="border-l border-white/15 pl-3 min-w-0">
+              <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-white/50 font-mono">Code</p>
+              <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-white font-mono break-all">
                 {ticketSerial}
               </p>
             </div>
@@ -302,104 +327,100 @@ function ClassicLayout(props: LayoutProps) {
           className="px-5 pt-7 pb-6 flex flex-col items-center text-center"
           style={{ backgroundColor: accent, color: onAccent }}
         >
-          <span
-            className="px-3.5 py-1 rounded-full text-[9px] font-black tracking-[0.18em] uppercase"
-            style={badgePill}
-          >
-            {badgeLabel}
-          </span>
+          <TicketBadge label={badgeLabel} style={badgePill} className="px-3.5" />
           <div className="mt-4 bg-white p-3 rounded-2xl shadow-lg">
             <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={mobileQr} />
           </div>
-          <p className="mt-4 text-[11px] font-black tracking-[0.28em] uppercase opacity-90 font-mono">
+          <p className="mt-4 text-xs font-black tracking-[0.22em] uppercase opacity-90 font-mono">
             Scan to entry
           </p>
-          <p className="mt-1 text-[9px] font-bold tracking-[0.2em] uppercase opacity-70 font-mono">
+          <p className="mt-1 text-[10px] font-bold tracking-[0.18em] uppercase opacity-75 font-mono">
             Admit one
           </p>
         </div>
       </div>
+    );
+  }
 
-      {/* ── Desktop / tablet: full horizontal image pass ── */}
-      <div
-        className={`hidden md:flex relative w-full flex-row bg-neutral-900 ${borderColor} border rounded-[32px] overflow-hidden shadow-lg group`}
-      >
-        <div className="relative flex-1 p-6 lg:p-8 flex flex-col justify-between overflow-hidden text-white min-h-[270px]">
-          <div className="absolute inset-0 z-0">
-            <img
-              src={bannerImage}
-              alt={eventName}
-              className="w-full h-full object-cover brightness-90 saturate-110"
-              crossOrigin="anonymous"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/85 to-black/35 z-10" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/40 z-10" />
-          </div>
-
-          <div className="relative z-20 flex flex-col justify-between h-full">
-            <div>
-              <p className="text-xs font-black tracking-[0.25em] text-neutral-400 uppercase font-mono">
-                {ticketType?.ticketHeadline?.trim() || 'COME AND JOIN'}
-              </p>
-              <h3 className="text-3xl lg:text-4xl font-extrabold tracking-tight leading-none mt-3 uppercase drop-shadow-md">
-                <span style={{ color: accent }}>{split.firstWord}</span>
-                {split.restOfTitle ? (
-                  <>
-                    {' '}
-                    <span className="text-white">{split.restOfTitle}</span>
-                  </>
-                ) : null}
-              </h3>
-            </div>
-
-            <div className="mt-4">
-              <p className="text-[9px] font-black tracking-widest text-neutral-400 font-mono">
-                {ticketType?.venueLabel?.trim() || 'LIVE AT'}
-              </p>
-              <h4 className="text-base lg:text-lg font-black tracking-tight text-white uppercase mt-0.5 line-clamp-2">
-                {eventLocation}
-              </h4>
-            </div>
-
-            <div className="mt-8 border-t border-white/10 pt-3 flex flex-wrap gap-y-1.5 gap-x-6 text-xs text-white/70">
-              <div>
-                <span className="text-[8px] font-bold text-neutral-400 font-mono block">DATE</span>
-                <p className="font-extrabold text-white uppercase font-mono mt-0.5">{formattedDate}</p>
-              </div>
-              <div className="pl-4 border-l border-white/10">
-                <span className="text-[8px] font-bold text-neutral-400 font-mono block">CODE</span>
-                <p className="font-extrabold text-white uppercase font-mono mt-0.5">{ticketSerial}</p>
-              </div>
-            </div>
-          </div>
+  return (
+    <div
+      id={id}
+      className={`relative w-full flex flex-row bg-neutral-900 ${borderColor} border rounded-[32px] overflow-hidden shadow-lg group`}
+    >
+      <div className="relative flex-1 min-w-0 p-6 lg:p-8 flex flex-col justify-between overflow-hidden text-white min-h-[270px]">
+        <div className="absolute inset-0 z-0">
+          <img
+            src={bannerImage}
+            alt={eventName}
+            className="w-full h-full object-cover brightness-90 saturate-110"
+            crossOrigin="anonymous"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/85 to-black/35 z-10" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/40 z-10" />
         </div>
 
-        <div className="flex flex-col justify-between items-end py-4 relative bg-neutral-900 shrink-0" aria-hidden>
-          <div className="w-8 h-8 rounded-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 -mt-8 -mr-[16px] z-30" />
-          <div className="border-l-2 border-dashed border-neutral-200 h-full my-0.5 z-30" />
-          <div className="w-8 h-8 rounded-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 -mb-8 -mr-[16px] z-30" />
-        </div>
-
-        <div
-          className="w-60 p-6 flex flex-col justify-between items-center relative shrink-0"
-          style={{ backgroundColor: accent, color: onAccent }}
-        >
-          <div className="absolute inset-0 bg-black/5 pointer-events-none" />
-          <span
-            className="px-2.5 py-0.5 rounded-full text-[8px] font-black tracking-widest uppercase mb-4 shadow-sm z-10"
-            style={badgePill}
-          >
-            {badgeLabel}
-          </span>
-          <div className="bg-white p-2 rounded-xl shadow-md transition-transform group-hover:scale-[1.02] z-10">
-            <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={desktopQr} />
-          </div>
-          <div className="text-center mt-4 z-10">
-            <p className="text-[8px] font-bold uppercase tracking-[0.2em] opacity-85 font-mono">
-              Scan to entry
+        <div className="relative z-20 flex flex-col justify-between h-full min-w-0 gap-4">
+          <div className="min-w-0">
+            <p className="text-xs font-black tracking-[0.22em] text-neutral-300 uppercase font-mono">
+              {ticketType?.ticketHeadline?.trim() || 'COME AND JOIN'}
             </p>
-            <p className="text-[7px] font-mono opacity-60 mt-0.5">Admit one</p>
+            <h3 className="text-2xl lg:text-4xl font-extrabold tracking-tight leading-[1.08] mt-3 uppercase drop-shadow-md break-words">
+              <span style={{ color: accent }}>{split.firstWord}</span>
+              {split.restOfTitle ? (
+                <>
+                  {' '}
+                  <span className="text-white">{split.restOfTitle}</span>
+                </>
+              ) : null}
+            </h3>
           </div>
+
+          <div className="min-w-0">
+            <p className="text-[10px] font-black tracking-widest text-neutral-300 font-mono">
+              {ticketType?.venueLabel?.trim() || 'LIVE AT'}
+            </p>
+            <h4 className="text-base lg:text-lg font-black tracking-tight text-white uppercase mt-0.5 break-words">
+              {eventLocation}
+            </h4>
+          </div>
+
+          <div className="border-t border-white/10 pt-3 flex flex-wrap gap-y-2 gap-x-6 text-xs text-white/80">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-neutral-300 font-mono block">DATE</span>
+              <p className="font-extrabold text-white uppercase font-mono mt-0.5 text-[11px] lg:text-xs break-words">
+                {formattedDate}
+              </p>
+            </div>
+            <div className="pl-4 border-l border-white/10 min-w-0">
+              <span className="text-[10px] font-bold text-neutral-300 font-mono block">CODE</span>
+              <p className="font-extrabold text-white uppercase font-mono mt-0.5 text-[11px] lg:text-xs break-all">
+                {ticketSerial}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col justify-between items-end py-4 relative bg-neutral-900 shrink-0" aria-hidden>
+        <div className="w-8 h-8 rounded-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 -mt-8 -mr-[16px] z-30" />
+        <div className="border-l-2 border-dashed border-neutral-200 h-full my-0.5 z-30" />
+        <div className="w-8 h-8 rounded-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 -mb-8 -mr-[16px] z-30" />
+      </div>
+
+      <div
+        className="w-52 lg:w-60 p-5 lg:p-6 flex flex-col justify-between items-center relative shrink-0"
+        style={{ backgroundColor: accent, color: onAccent }}
+      >
+        <div className="absolute inset-0 bg-black/5 pointer-events-none" />
+        <TicketBadge label={badgeLabel} style={badgePill} className="mb-4 shadow-sm" />
+        <div className="bg-white p-2 rounded-xl shadow-md z-10">
+          <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={desktopQr} />
+        </div>
+        <div className="text-center mt-4 z-10">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-90 font-mono">
+            Scan to entry
+          </p>
+          <p className="text-[10px] font-mono opacity-75 mt-1">Admit one</p>
         </div>
       </div>
     </div>
@@ -445,32 +466,33 @@ function BoardingLayout(props: LayoutProps) {
   return (
     <div
       id={id}
-      className="relative w-full max-w-xl mx-auto rounded-2xl overflow-hidden shadow-xl border border-[#e6d5c3]"
+      className="relative w-full max-w-xl mx-auto rounded-2xl overflow-hidden shadow-xl border border-[#e6d5c3] min-w-0"
       style={{ backgroundColor: paper, color: ink }}
     >
-      <div className="flex flex-col sm:flex-row min-h-0">
+      <div data-ticket-body className="flex flex-col sm:flex-row min-h-0">
         {/* Accent rail — top strip on mobile, left spine on desktop */}
         <div
-          className="sm:w-11 shrink-0 flex items-center justify-center px-3 py-2.5 sm:py-4 sm:px-0"
+          className="sm:w-12 shrink-0 flex items-center justify-center px-3 py-2.5 sm:py-5 sm:px-1.5 overflow-hidden"
           style={{ backgroundColor: accent, color: railInk }}
         >
-          <p className="text-[9px] sm:text-[10px] font-bold tracking-[0.22em] uppercase text-center sm:rotate-[-90deg] sm:whitespace-nowrap sm:origin-center">
-            Love is in the air · will you be there?
+          <p className="text-[10px] sm:text-[11px] font-bold tracking-[0.16em] uppercase text-center sm:rotate-[-90deg] sm:whitespace-nowrap sm:origin-center leading-tight">
+            Love is in the air
           </p>
         </div>
 
         {/* Main boarding body */}
         <div className={`relative flex-1 min-w-0 ${compact ? 'p-4' : 'p-5 sm:p-6'}`}>
           <div className="flex items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <p
-                className="text-[9px] font-bold tracking-[0.32em] uppercase"
+                className="text-[10px] font-bold tracking-[0.28em] uppercase"
                 style={{ color: muted }}
               >
                 Boarding Pass
               </p>
               <h3
-                className={`${compact ? 'text-[2rem]' : 'text-[2.35rem] sm:text-[2.75rem]'} leading-[1.05] mt-1`}
+                data-ticket-text
+                className={`${compact ? 'text-[1.75rem]' : 'text-[2rem] sm:text-[2.5rem]'} leading-[1.12] mt-1 break-words`}
                 style={{
                   fontFamily: '"Great Vibes", "Cormorant Garamond", cursive',
                   color: ink,
@@ -484,10 +506,10 @@ function BoardingLayout(props: LayoutProps) {
               style={{ borderColor: accent, color: ink }}
               aria-hidden
             >
-              <span className="text-[7px] font-bold tracking-wider uppercase" style={{ color: muted }}>
+              <span className="text-[8px] font-bold tracking-wider uppercase" style={{ color: muted }}>
                 Event
               </span>
-              <span className="text-[9px] font-black leading-tight text-center px-1">
+              <span className="text-[10px] font-black leading-tight text-center px-1">
                 {shortDate}
               </span>
             </div>
@@ -503,13 +525,14 @@ function BoardingLayout(props: LayoutProps) {
           </div>
 
           <p
-            className="mt-3 text-[9px] font-bold tracking-[0.2em] uppercase"
+            className="mt-3 text-[10px] font-bold tracking-[0.18em] uppercase"
             style={{ color: muted }}
           >
             Together with their families
           </p>
           <p
-            className={`${compact ? 'text-xl' : 'text-2xl'} font-semibold mt-0.5 leading-tight`}
+            data-ticket-text
+            className={`${compact ? 'text-xl' : 'text-2xl'} font-semibold mt-0.5 leading-snug break-words`}
             style={{
               fontFamily: '"Cormorant Garamond", Georgia, serif',
               color: ink,
@@ -518,7 +541,7 @@ function BoardingLayout(props: LayoutProps) {
             {eventName}
           </p>
           <p
-            className="mt-1 text-[10px] font-bold uppercase tracking-[0.18em]"
+            className="mt-1 text-[11px] font-bold uppercase tracking-[0.16em]"
             style={{ color: accent }}
           >
             {badgeLabel}
@@ -528,13 +551,14 @@ function BoardingLayout(props: LayoutProps) {
             {fields.map((field) => (
               <div key={field.label} className="min-w-0">
                 <p
-                  className="text-[8px] font-bold uppercase tracking-[0.18em]"
+                  className="text-[9px] font-bold uppercase tracking-[0.16em]"
                   style={{ color: muted }}
                 >
                   {field.label}
                 </p>
                 <p
-                  className="mt-0.5 text-[11px] font-bold leading-snug line-clamp-2"
+                  data-ticket-text
+                  className="mt-0.5 text-xs font-bold leading-snug break-words"
                   style={{ color: ink }}
                 >
                   {field.value}
@@ -578,11 +602,11 @@ function BoardingLayout(props: LayoutProps) {
 
         {/* RSVP stub */}
         <div
-          className={`sm:w-[34%] sm:min-w-[132px] sm:max-w-[168px] ${compact ? 'p-4' : 'p-5'} flex flex-col items-center justify-center text-center`}
+          className={`sm:w-[34%] sm:min-w-[132px] sm:max-w-[168px] ${compact ? 'p-4' : 'p-5'} flex flex-col items-center justify-center text-center shrink-0`}
           style={{ backgroundColor: `${accent}18` }}
         >
           <p
-            className="text-sm font-black tracking-[0.28em] uppercase"
+            className="text-sm font-black tracking-[0.24em] uppercase"
             style={{
               fontFamily: '"Cormorant Garamond", Georgia, serif',
               color: ink,
@@ -590,7 +614,7 @@ function BoardingLayout(props: LayoutProps) {
           >
             RSVP
           </p>
-          <p className="mt-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: muted }}>
+          <p className="mt-1 text-[11px] font-bold uppercase tracking-wide" style={{ color: muted }}>
             {prettyDate}
           </p>
           <div
@@ -599,10 +623,14 @@ function BoardingLayout(props: LayoutProps) {
           >
             <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={qrSize} />
           </div>
-          <p className="mt-2 text-[9px] font-mono font-bold tracking-wider" style={{ color: ink }}>
+          <p
+            data-ticket-text
+            className="mt-2 text-[10px] font-mono font-bold tracking-wider break-all"
+            style={{ color: ink }}
+          >
             SEAT {seatCode}
           </p>
-          <p className="mt-1 text-[8px] font-semibold uppercase tracking-[0.16em]" style={{ color: muted }}>
+          <p className="mt-1 text-[9px] font-semibold uppercase tracking-[0.14em]" style={{ color: muted }}>
             Formal invite to follow
           </p>
         </div>
@@ -642,12 +670,12 @@ function StubLayout(props: LayoutProps) {
   return (
     <div
       id={id}
-      className={`relative w-full max-w-xl mx-auto rounded-2xl overflow-hidden shadow-xl border border-white/10 bg-[#0b0b12] text-white ${compact ? '' : ''}`}
+      className={`relative w-full max-w-xl mx-auto rounded-2xl overflow-hidden shadow-xl border border-white/10 bg-[#0b0b12] text-white min-w-0`}
     >
       {/* Neon top rail */}
       <div className="h-1.5 w-full" style={{ backgroundColor: accent }} />
 
-      <div className="flex flex-col sm:flex-row">
+      <div data-ticket-body className="flex flex-col sm:flex-row">
         <div className={`relative flex-1 min-w-0 ${compact ? 'p-4' : 'p-5 sm:p-6'} overflow-hidden`}>
           <div className="absolute inset-0 opacity-30">
             <img
@@ -665,21 +693,22 @@ function StubLayout(props: LayoutProps) {
             style={{ background: `linear-gradient(180deg, ${accent}, transparent)` }}
           />
 
-          <div className="relative z-10">
-            <div className="flex items-center gap-2">
+          <div className="relative z-10 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
               <span
-                className="px-2 py-0.5 text-[8px] font-black tracking-[0.25em] uppercase rounded"
+                className="px-2 py-0.5 text-[10px] font-black tracking-[0.2em] uppercase rounded max-w-full truncate"
                 style={{ backgroundColor: accent, color: onAccent }}
               >
                 {ticketType?.ticketHeadline?.trim() || 'LIVE SHOW'}
               </span>
-              <span className="text-[9px] font-bold tracking-widest uppercase text-white/50">
+              <span className="text-[10px] font-bold tracking-widest uppercase text-white/55">
                 Stage pass
               </span>
             </div>
 
             <h3
-              className={`${compact ? 'text-2xl' : 'text-3xl sm:text-4xl'} font-black uppercase leading-[0.95] mt-3 tracking-tight`}
+              data-ticket-text
+              className={`${compact ? 'text-2xl' : 'text-3xl sm:text-4xl'} font-black uppercase leading-[1.05] mt-3 tracking-tight break-words`}
               style={{ fontFamily: '"Oswald", ui-sans-serif, system-ui, sans-serif' }}
             >
               <span style={{ color: accent }}>{split.firstWord}</span>
@@ -691,22 +720,32 @@ function StubLayout(props: LayoutProps) {
               ) : null}
             </h3>
 
-            <p className="mt-3 text-xs font-bold uppercase tracking-wide text-white/85 line-clamp-2">
+            <p
+              data-ticket-text
+              className="mt-3 text-sm font-bold uppercase tracking-wide text-white/90 break-words"
+            >
               {eventLocation}
             </p>
 
-            <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-[11px]">
-              <div>
-                <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/45">Date</p>
-                <p className="font-extrabold text-white mt-0.5">{shortDate}</p>
+            <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50">Date</p>
+                <p data-ticket-text className="font-extrabold text-white mt-0.5 break-words">
+                  {shortDate}
+                </p>
               </div>
-              <div>
-                <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/45">Doors</p>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50">Doors</p>
                 <p className="font-extrabold text-white mt-0.5">{eventTime}</p>
               </div>
-              <div>
-                <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/45">Code</p>
-                <p className="font-extrabold font-mono text-white mt-0.5">{ticketSerial}</p>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50">Code</p>
+                <p
+                  data-ticket-text
+                  className="font-extrabold font-mono text-white mt-0.5 break-all"
+                >
+                  {ticketSerial}
+                </p>
               </div>
             </div>
 
@@ -742,26 +781,24 @@ function StubLayout(props: LayoutProps) {
 
         {/* Stub */}
         <div
-          className={`sm:w-[34%] sm:min-w-[120px] sm:max-w-[168px] ${compact ? 'p-4' : 'p-5'} flex flex-row sm:flex-col items-center justify-between gap-3 text-center`}
+          className={`sm:w-[34%] sm:min-w-[120px] sm:max-w-[168px] ${compact ? 'p-4' : 'p-5'} flex flex-row sm:flex-col items-center justify-between gap-3 text-center shrink-0`}
           style={{ backgroundColor: accent, color: onAccent }}
         >
-          <span
-            className="px-2.5 py-1 rounded-full text-[8px] font-black tracking-[0.18em] uppercase shrink-0"
+          <TicketBadge
+            label={badgeLabel}
             style={{
               backgroundColor: onAccent === '#ffffff' ? '#0a0a0a' : '#ffffff',
               color: onAccent === '#ffffff' ? '#ffffff' : '#0a0a0a',
             }}
-          >
-            {badgeLabel}
-          </span>
-          <div className="bg-white p-2 rounded-xl shadow-md rotate-[-1.5deg] shrink-0">
+          />
+          <div className="bg-white p-2 rounded-xl shadow-md shrink-0" data-ticket-qr>
             <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={qrSize} />
           </div>
           <div className="shrink-0">
-            <p className="text-[9px] font-black tracking-[0.22em] uppercase opacity-85">
+            <p className="text-[10px] font-black tracking-[0.18em] uppercase opacity-90">
               Tear & keep
             </p>
-            <p className="text-[10px] font-extrabold mt-0.5 tracking-wide">ADMIT ONE</p>
+            <p className="text-xs font-extrabold mt-0.5 tracking-wide">ADMIT ONE</p>
           </div>
         </div>
       </div>

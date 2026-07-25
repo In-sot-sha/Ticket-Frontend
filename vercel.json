@@ -1,5 +1,30 @@
 {
   "rewrites": [
-    { "source": "/((?!assets|sw\\.js|workbox-.*\\.js|manifest\\.webmanifest|registerSW\\.js|api/.*).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!api/|assets/|icons/|og-image\\.jpg|sitemap\\.xml|robots\\.txt|favicon\\.ico|sw\\.js|workbox-.*\\.js|manifest\\.webmanifest|registerSW\\.js).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/robots.txt",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" },
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/sitemap.xml",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" },
+        { "key": "Content-Type", "value": "application/xml; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/og-image.jpg",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
+    }
   ]
 }
