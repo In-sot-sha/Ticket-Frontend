@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { Button } from '../components/ui/Button';
@@ -8,6 +8,7 @@ import {
   CheckCircle,
   Loader2,
   ArrowLeft,
+  ArrowRight,
   ImageIcon,
   AlertCircle,
   RefreshCw,
@@ -354,6 +355,16 @@ const BecomeOrganizer = () => {
                   ? 'Update your details based on feedback, then resubmit.'
                   : 'Apply to host events on PartyStorm. Complete the form and our team will verify your brand.'}
               </p>
+              <Button
+                variant="outline"
+                className="mt-4 w-full rounded-xl h-10 text-xs font-bold"
+                asChild
+              >
+                <Link to="/for-organizers">
+                  See what organizers get
+                  <ArrowRight className="ml-2 h-3.5 w-3.5" />
+                </Link>
+              </Button>
             </div>
 
             <div className={`${cardClass} p-5`}>

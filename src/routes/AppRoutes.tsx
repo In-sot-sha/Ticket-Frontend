@@ -65,6 +65,7 @@ import { StaffOrgsPage, StaffProjectsPage } from '../pages/StaffSections';
 import ForceChangePasswordPage from '../pages/ForceChangePasswordPage';
 import SupportPage from '../pages/SupportPage';
 import StaffLayout from '../components/layout/StaffLayout';
+import DevEmailsPage from '../pages/DevEmailsPage';
 
 /** Old /events/create/:id bookmarks → organizer edit URL */
 const LegacyCreateEventRedirect: React.FC = () => {
@@ -114,6 +115,11 @@ const AppRoutes: React.FC = () => {
     {
       path: '/scan-gate',
       element: <GateScannerPage />,
+    },
+    // Email template preview (Vite dev, or ADMIN in production)
+    {
+      path: '/dev/emails',
+      element: <DevEmailsPage />,
     },
     {
       path: '/change-password',

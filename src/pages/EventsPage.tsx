@@ -553,28 +553,23 @@ const EventsPage = () => {
               <h1 className="text-xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
                 {searchTerm
                   ? `Results for "${searchTerm}"`
-                  : selectedCategory !== 'All'
-                    ? `${selectedCategory} Events`
-                    : whenFilter === 'past'
+                  : whenFilter === 'past'
                       ? 'Past Events'
-                      : 'Upcoming Events'}
-              </h1>
+                      : ''}
+              </h1> 
+              
+              
               <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                {loading
-                  ? 'Loading...'
-                  : `${events.length} event${events.length !== 1 ? 's' : ''} found`}
+              {searchTerm
+                  ? `Showing ${events.length} results for "${searchTerm}"`
+                  : whenFilter === 'past'
+                      ? `Showing ${events.length} past events`
+                      : ""}
               </p>
             </div>
 
             <div className="flex items-center gap-3">
-              {hasActiveFilters && (
-                <button
-                  onClick={clearFilters}
-                  className="text-xs font-bold text-rose-500 hover:underline"
-                >
-                  Clear all
-                </button>
-              )}
+          
               {/* <button
                 onClick={() => setShowMap(!showMap)}
                 className="hidden lg:flex items-center gap-2 text-xs font-semibold px-4 py-2 border border-neutral-200 dark:border-neutral-800 rounded-full hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all"

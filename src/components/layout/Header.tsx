@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useRole } from '../../context/RoleContext';
 import { 
   Menu, 
-  Search, 
+  // Search, 
   Ticket, 
   UserCircle,
   Settings,
@@ -89,28 +89,29 @@ const Header = () => {
     return 'Switch to Hosting';
   };
 
-  const shouldShowSearch = () => {
-    const hiddenPaths = [
-      '/profile', '/login', '/register', '/help', 
-      '/recover-ticket', '/wishlist', '/user', '/organizer', '/events'
-    ];
-    // If the path exactly matches or starts with one of the hidden paths
-    // But we might want to show it on specific organizer pages? 
-    // Actually, it's safer to just check if it starts with these and isn't the homepage
-    if (location.pathname === '/') return true;
-    if (location.pathname.startsWith('/events')) return true;
-    if (location.pathname.startsWith('/my-tickets')) return true;
-    
-    // Hide by default on all other utility/dashboard pages
-    return false;
-  };
+  // Browse events search pill — same destination as Find events nav link
+  // const shouldShowSearch = () => {
+  //   if (location.pathname === '/') return true;
+  //   if (location.pathname.startsWith('/events')) return true;
+  //   if (location.pathname.startsWith('/my-tickets')) return true;
+  //   return false;
+  // };
+
+  const showGuestNav = !isAdminContext && !isOrganizerContext && !isStaffContext;
+
+  const desktopNavLinks = [
+    { label: 'Find events', to: '/events', match: (path: string) => path === '/events' || path.startsWith('/events/') },
+    { label: 'For organizers', to: '/for-organizers', match: (path: string) => path.startsWith('/for-organizers') },
+    { label: 'Help', to: '/help', match: (path: string) => path.startsWith('/help') },
+    { label: 'Contact', to: '/contact', match: (path: string) => path.startsWith('/contact') },
+  ];
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-100 dark:border-gray-800 bg-white/90 dark:bg-gray-950/90 backdrop-blur-md transition-all duration-300 pt-safe">
-      <div className="container mx-auto px-4 md:px-8 h-20 flex items-center justify-between">
+      <div className="container mx-auto px-4 md:px-8 h-20 relative flex items-center justify-between gap-4">
         
-        {/* Logo (Left) */}
-        <div className="flex items-center">
+        {/* Logo */}
+        <div className="flex items-center min-w-0 shrink-0">
           <Link to="/" className="flex items-center gap-1.5 group">
             <Ticket className="h-8 w-8 text-rose-500 transform transition-transform group-hover:rotate-12 duration-200" />
             <span className="text-rose-500 font-extrabold text-xl tracking-tight hidden sm:block">
@@ -119,19 +120,39 @@ const Header = () => {
           </Link>
         </div>
 
-        {/* Center Search Pill (Desktop/Tablet) */}
-        {shouldShowSearch() && (
-          <div className="hidden md:block animate-in fade-in zoom-in-95 duration-200 ">
+        {/* Centered desktop quick links */}
+        {showGuestNav && (
+          <nav
+            className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-0.5"
+            aria-label="Primary"
+          >
+            {desktopNavLinks.map((link) => {
+              const isActive = link.match(location.pathname);
+              return (
+                <Link
+                  key={link.to}
+                  to={link.to}
+                  className={cn(
+                    'px-3.5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors',
+                    isActive
+                      ? 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40'
+                      : 'text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                  )}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
+
+        {/* Center Search Pill — commented out; Find events covers this */}
+        {/* {shouldShowSearch() && (
+          <div className="hidden xl:block animate-in fade-in zoom-in-95 duration-200 shrink-0">
             <div 
               onClick={() => navigate('/events')}
-              className="flex w-[350px] justify-between items-center border border-gray-200 dark:border-gray-800 rounded-full py-2 pr-2 shadow-sm hover:shadow-md transition-all cursor-pointer bg-white dark:bg-gray-900 duration-200"
+              className="flex w-[280px] justify-between items-center border border-gray-200 dark:border-gray-800 rounded-full py-2 pr-2 shadow-sm hover:shadow-md transition-all cursor-pointer bg-white dark:bg-gray-900 duration-200"
             >
-              {/* <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 border-r border-gray-200 dark:border-gray-800 pr-4">
-                Anywhere
-              </span>
-              <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 border-r border-gray-200 dark:border-gray-800 px-4">
-                Any Date
-              </span> */}
               <div className="text-xs text-neutral-500 dark:text-neutral-400 pl-4 pr-2 flex w-full items-center justify-between gap-3">
                Browse events
                 <div className="bg-rose-500 p-2  rounded-full text-white hover:bg-rose-600 transition-colors">
@@ -140,13 +161,10 @@ const Header = () => {
               </div>
             </div>
           </div>
-        )}
-
-
-
+        )} */}
 
         {/* Right side controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           
           {/* Role switch — one button, same style throughout */}
           {isAuthenticated && (
@@ -158,7 +176,7 @@ const Header = () => {
                     ? handleSwitchToAdmin
                     : handleSwitchRole
               }
-              className="hidden lg:block text-xs font-semibold px-4 py-2.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 transition-colors"
+              className="hidden xl:block text-xs font-semibold px-4 py-2.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 transition-colors"
             >
               {roleSwitchLabel()}
             </button>
