@@ -259,11 +259,14 @@ export const api = {
       taxId?: string;
       vatNumber?: string;
       businessAddress?: string;
+      absorbFee?: boolean;
     }) => apiRequest<any>('PUT', '/user-roles/organizer-profile', data),
     
     getVendorApplications: () => apiRequest<any[]>('GET', '/user-roles/vendor-applications'),
     
     getMyVendorApplications: () => apiRequest<any[]>('GET', '/user-roles/my-vendor-applications'),
+
+    getBanks: () => apiRequest<{ banks: Array<{ name: string; code: string }> }>('GET', '/user-roles/banks'),
   },
 
   // Event endpoints
@@ -317,6 +320,59 @@ export const api = {
 
     getOrganizerAnalytics: () =>
       apiRequest<any>('GET', '/events/organizer/analytics'),
+
+    getAttendeeBlastPreview: (
+      eventId: number,
+      params?: { filterStatus?: string; ticketTypeId?: number }
+    ) =>
+      apiRequest<{
+        totalTickets: number;
+        matchingTickets: number;
+        matchingRecipients: number;
+        autoReminderEnabled: boolean;
+        autoPostEventEnabled: boolean;
+        autoReminder24hSent: string | null;
+        autoPostEventSent: string | null;
+      }>('GET', `/events/${eventId}/attendee-blast-preview`, undefined, { params }),
+
+    sendAttendeeBlast: (
+      eventId: number,
+      data: {
+        subject: string;
+        message: string;
+        filterStatus?: string;
+        ticketTypeId?: number;
+        templateType?: string;
+      }
+    ) =>
+      apiRequest<{ message: string; sent: number; failed: number; recipientCount: number }>(
+        'POST',
+        `/events/${eventId}/attendee-blast`,
+        data
+      ),
+
+    triggerLifecycleEmail: (
+      eventId: number,
+      data: {
+        triggerType?: 'REMINDER_24H' | 'POST_EVENT';
+        enableReminder?: boolean;
+        enablePostEvent?: boolean;
+      }
+    ) =>
+      apiRequest<{
+        message: string;
+        sent?: number;
+        autoReminderEnabled?: boolean;
+        autoPostEventEnabled?: boolean;
+      }>('POST', `/events/${eventId}/trigger-lifecycle-email`, data),
+
+    requestPromotion: (eventId: number) =>
+      apiRequest<{
+        message: string;
+        event?: any;
+        alreadyPromoted?: boolean;
+        alreadyRequested?: boolean;
+      }>('POST', `/events/${eventId}/request-promotion`),
     
     getCategories: () => apiRequest<any[]>('GET', '/events/categories'),
   },
@@ -575,6 +631,9 @@ export const api = {
 
     rejectPayout: (id: number) =>
       apiRequest<any>('POST', `/admin/payouts/${id}/reject`),
+
+    resolvePayment: (reference: string) =>
+      apiRequest<any>('POST', '/admin/payments/resolve', { reference }),
   },
 
   staff: {
@@ -624,15 +683,21 @@ export const api = {
   finance: {
     getBalance: () => apiRequest<{
       totalEarnings: number;
+      grossSales?: number;
+      platformFees?: number;
+      processingFees?: number;
       totalPaidOut: number;
       totalPending: number;
       availableBalance: number;
+      settlementMode?: string;
       payouts: any[];
       bankSettings: {
         payoutBankName: string | null;
         payoutAccountNumber: string | null;
         payoutAccountName: string | null;
         payoutSchedule: string | null;
+        absorbFee?: boolean;
+        paystackConnected?: boolean;
       };
     }>('GET', '/finance/balance'),
     

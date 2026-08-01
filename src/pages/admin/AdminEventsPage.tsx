@@ -20,6 +20,7 @@ interface EventAdminInfo {
   startDate: string;
   isPromoted: boolean;
   promotedUntil: string | null;
+  promotionRequestedAt?: string | null;
   organization?: { id: number; name: string };
   opsProjects?: Array<{ id: number; title: string; status: string }>;
 }
@@ -58,7 +59,8 @@ const AdminEventsPage: React.FC = () => {
   const filtered = useMemo(() => {
     return events.filter((ev) => {
       if (promoFilter === 'promoted') return ev.isPromoted;
-      if (promoFilter === 'standard') return !ev.isPromoted;
+      if (promoFilter === 'requested') return Boolean(ev.promotionRequestedAt) && !ev.isPromoted;
+      if (promoFilter === 'standard') return !ev.isPromoted && !ev.promotionRequestedAt;
       return true;
     });
   }, [events, promoFilter]);
@@ -122,6 +124,11 @@ const AdminEventsPage: React.FC = () => {
             {ev.isPromoted && (
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
                 Promoted
+              </span>
+            )}
+            {!ev.isPromoted && ev.promotionRequestedAt && (
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                Requested
               </span>
             )}
           </div>
@@ -217,6 +224,7 @@ const AdminEventsPage: React.FC = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All events</SelectItem>
+                <SelectItem value="requested">Promotion requested</SelectItem>
                 <SelectItem value="promoted">Promoted</SelectItem>
                 <SelectItem value="standard">Not promoted</SelectItem>
               </SelectContent>

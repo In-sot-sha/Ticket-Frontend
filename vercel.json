@@ -1,7 +1,7 @@
 {
   "rewrites": [
     {
-      "source": "/((?!api/|assets/|icons/|og-image\\.jpg|email-logo\\.svg|sitemap\\.xml|robots\\.txt|favicon\\.ico|sw\\.js|workbox-.*\\.js|manifest\\.webmanifest|registerSW\\.js).*)",
+      "source": "/((?!api/|assets/|icons/|og-image\\.jpg|email-logo\\.svg|email-icon\\.png|sitemap\\.xml|robots\\.txt|favicon\\.ico|sw\\.js|workbox-.*\\.js|manifest\\.webmanifest|registerSW\\.js).*)",
       "destination": "/index.html"
     }
   ],

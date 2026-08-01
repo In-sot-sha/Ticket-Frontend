@@ -103,9 +103,18 @@ export const mockEvents: Event[] = [
  * Transform API event to frontend Event format
  */
 export const mapApiEventToFrontendEvent = (apiEvent: any): Event => {
-  const ticketsAvailable = apiEvent.ticketTypes
+  const inventory = apiEvent.ticketTypes
     ? apiEvent.ticketTypes.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0)
-    : 100;
+    : 0;
+  const sold = typeof apiEvent.ticketsSold === 'number'
+    ? apiEvent.ticketsSold
+    : typeof apiEvent.attendees === 'number'
+      ? apiEvent.attendees
+      : 0;
+  const ticketsAvailable =
+    typeof apiEvent.ticketsAvailable === 'number'
+      ? apiEvent.ticketsAvailable
+      : Math.max(0, inventory - sold);
   const promotedUntil = apiEvent.promotedUntil ? new Date(apiEvent.promotedUntil) : null;
   const isPromoted =
     Boolean(apiEvent.isPromoted) &&

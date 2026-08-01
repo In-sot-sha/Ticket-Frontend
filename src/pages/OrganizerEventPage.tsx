@@ -19,8 +19,9 @@ import { OverviewTab } from '../components/organizer/OverviewTab';
 import { AttendeesTab } from '../components/organizer/AttendeesTab';
 import { VendorsTab } from '../components/organizer/VendorsTab';
 import { AnalyticsTab } from '../components/organizer/AnalyticsTab';
+import { EventToolsPanel } from '../components/organizer/EventToolsPanel';
 
-type TabType = 'overview' | 'attendees' | 'vendors' | 'analytics';
+type TabType = 'overview' | 'promote' | 'attendees' | 'vendors' | 'analytics';
 
 const OrganizerEventPage: React.FC = () => {
   const { id: eventParam } = useParams<{ id: string }>();
@@ -181,6 +182,12 @@ const OrganizerEventPage: React.FC = () => {
             Overview
           </TabsTrigger>
           <TabsTrigger
+            value="promote"
+            className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-2.5 px-3 data-[state=active]:shadow-none text-sm"
+          >
+            Promote
+          </TabsTrigger>
+          <TabsTrigger
             value="attendees"
             className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-2.5 px-3 data-[state=active]:shadow-none text-sm"
           >
@@ -225,6 +232,13 @@ const OrganizerEventPage: React.FC = () => {
         <div className="min-h-[420px]">
           <TabsContent value="overview" className="mt-0">
             <OverviewTab event={event} vendorApplications={vendorApplications} />
+          </TabsContent>
+
+          <TabsContent value="promote" className="mt-0">
+            <EventToolsPanel
+              event={event as any}
+              onEventUpdate={(patch) => setEvent((prev) => (prev ? { ...prev, ...patch } : prev))}
+            />
           </TabsContent>
 
           <TabsContent value="attendees" className="mt-0">

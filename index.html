@@ -87,16 +87,16 @@
       }
     </script>
 
-    <!-- Instant theme before JS (matches ThemeProvider storageKey) -->
+    <!-- Instant theme before JS (matches ThemeProvider storageKey, defaults to light mode) -->
     <script>
       (function () {
         try {
           var t = localStorage.getItem('vite-ui-theme');
-          var dark =
-            t === 'dark' ||
-            (t !== 'light' &&
-              window.matchMedia('(prefers-color-scheme: dark)').matches);
-          if (dark) document.documentElement.classList.add('dark');
+          if (t === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
         } catch (e) {}
       })();
     </script>

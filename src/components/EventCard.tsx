@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart } from 'lucide-react';
 import { LazyImage } from './LazyImage';
+import { getEventUrgencyBadges, isEventPast } from '../lib/eventBadges';
+import { cn } from '../lib/utils';
 
 // Define the event type
 interface Event {
@@ -19,7 +21,7 @@ interface Event {
   attendees?: number;
   latitude?: number;
   longitude?: number;
-  ticketTypes?: Array<{ price: number }>;
+  ticketTypes?: Array<{ price: number; quantity?: number }>;
   isPromoted?: boolean;
   description?: string;
 }
@@ -88,14 +90,11 @@ const EventCard: React.FC<EventCardProps> = ({
     const eventDate = new Date(dateString);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
 
     const eventDay = new Date(eventDate);
     eventDay.setHours(0, 0, 0, 0);
 
-    const diffTime = eventDay.getTime() - today.getTime();
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    const diffDays = Math.round((eventDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Tomorrow';
@@ -110,13 +109,15 @@ const EventCard: React.FC<EventCardProps> = ({
   };
 
   const formattedDate = formatRelativeDate(event.date);
-
-  const isPast = (() => {
-    const end = new Date(event.endDate || event.date);
-    return !Number.isNaN(end.getTime()) && end.getTime() < Date.now();
-  })();
-
+  const isPast = isEventPast(event.date, event.endDate);
   const isPromotedActive = Boolean(event.isPromoted) && !isPast;
+  const urgencyBadges = getEventUrgencyBadges({
+    date: event.date,
+    endDate: event.endDate,
+    ticketsAvailable: event.ticketsAvailable,
+    hasTicketTypes: (event.ticketTypes?.length ?? 0) > 0,
+    maxBadges: isPromotedActive ? 1 : 2,
+  });
 
   return (
     <div
@@ -126,17 +127,32 @@ const EventCard: React.FC<EventCardProps> = ({
     >
       <Link to={`/events/${event.slug || event.id}`} className="block w-full">
         <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-100/50 dark:border-neutral-900/30">
-          {/* Promoted — top */}
-          {isPromotedActive && (
-            <div className="absolute left-3 top-3 z-10 px-2 py-0.5 rounded text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wider shadow-sm bg-rose-500 text-white">
-              Promoted
-            </div>
-          )}
+          <div className="absolute left-3 top-3 z-10 flex flex-col gap-1 items-start max-w-[70%]">
+            {isPromotedActive && (
+              <span className="px-2 py-0.5 rounded text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wider shadow-sm bg-rose-500 text-white">
+                Promoted
+              </span>
+            )}
+            {urgencyBadges.map((badge) => (
+              <span
+                key={badge.text}
+                className={cn(
+                  'px-2 py-0.5 rounded text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wider shadow-sm',
+                  badge.className
+                )}
+              >
+                {badge.text}
+              </span>
+            ))}
+          </div>
 
           <LazyImage
             src={event.image}
             alt={event.title}
-            className="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+            className={cn(
+              'h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105',
+              isPast && 'opacity-80 grayscale-[0.35]'
+            )}
             containerClassName="relative w-full h-full"
           />
 
@@ -157,7 +173,8 @@ const EventCard: React.FC<EventCardProps> = ({
           {showTicketsAvailable &&
             !isPast &&
             event.ticketsAvailable !== undefined &&
-            event.ticketsAvailable > 0 && (
+            event.ticketsAvailable > 0 &&
+            event.ticketsAvailable <= 50 && (
               <div className="hidden sm:block absolute bottom-3 left-3 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-extrabold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
                 {event.ticketsAvailable} left
               </div>
@@ -166,7 +183,12 @@ const EventCard: React.FC<EventCardProps> = ({
 
         <div className="mt-2 flex flex-col">
           <div className="flex justify-between items-start gap-2">
-            <h3 className="font-bold text-xs sm:text-sm text-neutral-900 dark:text-neutral-100 line-clamp-2 leading-tight flex-1">
+            <h3
+              className={cn(
+                'font-bold text-xs sm:text-sm text-neutral-900 dark:text-neutral-100 line-clamp-2 leading-tight flex-1',
+                isPast && 'text-neutral-500 dark:text-neutral-400'
+              )}
+            >
               {event.title}
             </h3>
           </div>

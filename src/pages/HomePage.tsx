@@ -230,8 +230,8 @@ const HomePage = () => {
   // Upcoming only on homepage — past events live on Explore (/events)
   const { data: eventsData, isLoading, error } = useEvents(
     selectedCategory !== 'All'
-      ? { limit: 24, category: selectedCategory, upcoming: 'true' }
-      : { limit: 24, upcoming: 'true' },
+      ? { limit: 25, category: selectedCategory, upcoming: 'true' }
+      : { limit: 25, upcoming: 'true' },
     CACHE_CONFIGS.HOMEPAGE_EVENTS
   );
 

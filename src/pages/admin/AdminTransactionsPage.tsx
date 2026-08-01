@@ -36,6 +36,10 @@ const AdminTransactionsPage = () => {
   const [status, setStatus] = useState<string>('all');
   const [page, setPage] = useState(1);
   const [payoutStatus, setPayoutStatus] = useState<string>('all');
+  const [resolveRef, setResolveRef] = useState('');
+  const [resolveBusy, setResolveBusy] = useState(false);
+  const [resolveResult, setResolveResult] = useState<any>(null);
+  const [resolveError, setResolveError] = useState('');
 
   const { data: revenue, isLoading: revenueLoading } = useAdminRevenue();
   const { data, isLoading: transactionsLoading } = useAdminTransactions({
@@ -49,6 +53,23 @@ const AdminTransactionsPage = () => {
 
   const approvePayoutMutation = useApprovePayout();
   const rejectPayoutMutation = useRejectPayout();
+
+  const handleResolvePayment = async () => {
+    const reference = resolveRef.trim();
+    if (!reference) return;
+    setResolveBusy(true);
+    setResolveError('');
+    setResolveResult(null);
+    try {
+      const { api } = await import('../../services/api');
+      const res = await api.admin.resolvePayment(reference);
+      setResolveResult(res.data);
+    } catch (err: any) {
+      setResolveError(err.response?.data?.message || err.message || 'Resolve failed');
+    } finally {
+      setResolveBusy(false);
+    }
+  };
 
   const handleApprove = async (id: number) => {
     if (!window.confirm('Are you sure you want to approve this payout? This will trigger the Paystack Transfer API to send funds directly to the organizer\'s bank account.')) {
@@ -113,6 +134,39 @@ const AdminTransactionsPage = () => {
           </Select>
         }
       />
+
+      <div className="mb-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
+        <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">
+          Resolve payment
+        </p>
+        <p className="text-[11px] text-neutral-500 mb-3">
+          Enter a Paystack reference to verify with Paystack and fulfill missing tickets / vendor apps.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            value={resolveRef}
+            onChange={(e) => setResolveRef(e.target.value)}
+            placeholder="EVT_… or VND_…"
+            className="flex-1 h-10 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950 px-3 text-sm"
+          />
+          <button
+            type="button"
+            disabled={resolveBusy || !resolveRef.trim()}
+            onClick={handleResolvePayment}
+            className="h-10 rounded-xl bg-rose-500 px-4 text-xs font-bold text-white hover:bg-rose-600 disabled:opacity-40"
+          >
+            {resolveBusy ? 'Checking…' : 'Verify & fulfill'}
+          </button>
+        </div>
+        {resolveError && (
+          <p className="mt-2 text-xs text-red-600">{resolveError}</p>
+        )}
+        {resolveResult && (
+          <pre className="mt-3 max-h-48 overflow-auto rounded-lg bg-neutral-50 dark:bg-neutral-950 p-3 text-[10px] text-neutral-700 dark:text-neutral-300">
+            {JSON.stringify(resolveResult, null, 2)}
+          </pre>
+        )}
+      </div>
 
       {activeTab === 'transactions' ? (
         <>

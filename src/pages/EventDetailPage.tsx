@@ -35,6 +35,7 @@ import { ResponsiveModal } from '../components/ui/ResponsiveModal';
 import EventCard from '@/components/EventCard';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
+import { getEventUrgencyBadges } from '@/lib/eventBadges';
 
 const formatDeadlineFriendly = (dateStr: string) => {
   try {
@@ -215,9 +216,12 @@ const mapApiEventToDetail = (apiEvent: any): EventDetail => {
     longitude: apiEvent.longitude,
     category: apiEvent.category || 'Other',
     price: apiEvent.price ?? 0,
-    ticketsAvailable: apiEvent.ticketTypes
-      ? apiEvent.ticketTypes.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0)
-      : 0,
+    ticketsAvailable:
+      typeof apiEvent.ticketsAvailable === 'number'
+        ? apiEvent.ticketsAvailable
+        : apiEvent.ticketTypes
+          ? apiEvent.ticketTypes.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0)
+          : 0,
     rating: 0,
     reviewCount: 0,
     images,
@@ -310,27 +314,36 @@ const EventDetailPage = () => {
   const ticketingBlocked = isEventDraft || isEventEnded;
   const isVendorDeadlinePassed = event.vendorDeadline ? new Date() > new Date(event.vendorDeadline) : false;
 
-  const getEventBadge = () => {
-    if (!event.date) return null;
-    const eventDate = new Date(event.date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const diffTime = eventDate.getTime() - today.getTime();
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  const urgencyBadges = isEventDraft && !isEventEnded
+    ? []
+    : getEventUrgencyBadges({
+        date: event.date,
+        endDate: event.endDateRaw,
+        ticketsAvailable: event.ticketsAvailable,
+        hasTicketTypes: (event.ticketTypes?.length ?? 0) > 0,
+        maxBadges: 2,
+      });
 
-    if (diffDays >= 0 && diffDays <= 1) {
-      return { text: 'Sales End Soon', className: 'bg-rose-500 text-white' };
-    }
-    if (event.ticketsAvailable !== undefined && event.ticketsAvailable > 0 && event.ticketsAvailable <= 15) {
-      return { text: 'Almost Full', className: 'bg-amber-500 text-white' };
-    }
-    if (event.ticketsAvailable !== undefined && event.ticketsAvailable > 0 && event.ticketsAvailable <= 50) {
-      return { text: 'Going Fast', className: 'bg-indigo-600 text-white' };
-    }
-    return null;
+  const renderUrgencyBadges = (opts?: { className?: string; size?: 'sm' | 'md' }) => {
+    if (!urgencyBadges.length) return null;
+    const size = opts?.size ?? 'md';
+    return (
+      <div className={cn('flex flex-wrap items-center gap-1.5', opts?.className)}>
+        {urgencyBadges.map((b) => (
+          <span
+            key={b.text}
+            className={cn(
+              'inline-flex items-center rounded-md font-extrabold uppercase tracking-wider shadow-sm',
+              size === 'sm' ? 'px-2 py-0.5 text-[9px]' : 'px-2.5 py-1 text-[10px] sm:text-[11px]',
+              b.className
+            )}
+          >
+            {b.text}
+          </span>
+        ))}
+      </div>
+    );
   };
-
-  const badge = getEventBadge();
 
   // Filter out current event and format similar events
   const similarEvents = similarEventsData
@@ -382,6 +395,16 @@ const EventDetailPage = () => {
 
   const handlePurchaseTicket = () => {
     navigate(`/book/${event.id}`);
+  };
+
+  const handleVendorApply = () => {
+    if (isVendorDeadlinePassed) return;
+    if (isAuthenticated) {
+      navigate(`/book/${event.id}?type=vendor`);
+    } else {
+      alert('Please login to apply for vendor slots');
+      navigate(`/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor`)}`);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -674,11 +697,7 @@ const EventDetailPage = () => {
             {/* Title Row */}
             <div className="flex items-start justify-between gap-4 mb-2">
               <div className="flex-1">
-                {badge && (
-                  <span className={`inline-block px-2 py-0.5 rounded text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wider mb-2 ${badge.className}`}>
-                    {badge.text}
-                  </span>
-                )}
+                {renderUrgencyBadges({ className: 'mb-2.5' })}
                 <h1 className="text-xl sm:text-3xl font-extrabold text-neutral-900 dark:text-white leading-tight">
                   {event.title}
                 </h1>
@@ -973,16 +992,7 @@ const EventDetailPage = () => {
                         <button
                           type="button"
                           disabled={isVendorDeadlinePassed}
-                          onClick={() => {
-                            if (isVendorDeadlinePassed) return;
-                            if (isAuthenticated) {
-                              navigate(`/book/${event.id}?type=vendor`);
-                            } else {
-                              navigate(
-                                `/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor`)}`
-                              );
-                            }
-                          }}
+                          onClick={handleVendorApply}
                           className={cn(
                             'mt-2.5 w-full h-11 rounded-xl border text-sm font-ticket font-semibold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors active:scale-[0.99]',
                             isVendorDeadlinePassed
@@ -1006,23 +1016,11 @@ const EventDetailPage = () => {
                         </p>
                       )}
 
-                      {(() => {
-                        if (!event.date) return null;
-                        const eventDate = new Date(event.date);
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        const diffDays = Math.round(
-                          (eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-                        );
-                        if (diffDays >= 0 && diffDays <= 1) {
-                          return (
-                            <p className="text-[10px] font-ticket font-semibold text-center mt-2 text-rose-500 uppercase tracking-wide">
-                              Closes {diffDays === 0 ? 'today' : 'tomorrow'}
-                            </p>
-                          );
-                        }
-                        return null;
-                      })()}
+                      {event.ticketsAvailable > 0 && event.ticketsAvailable <= 50 && (
+                        <p className="text-[10px] font-ticket font-semibold text-center mt-2 text-neutral-500 uppercase tracking-wide">
+                          {event.ticketsAvailable} tickets left
+                        </p>
+                      )}
 
                       <p className="text-[11px] text-neutral-500 text-center mt-3">
                         You won’t be charged yet
@@ -1464,59 +1462,90 @@ const EventDetailPage = () => {
 
       {/* ─── Sticky Bottom Bar (Mobile only, when not loading) ─── */}
       {!isLoading && !notFound && (
-        <div className="lg:hidden fixed bottom-16 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-t border-neutral-200 dark:border-neutral-800 px-4 py-3 flex items-center justify-between shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
-          <div>
-            <p className="text-[9px] font-ticket font-semibold uppercase tracking-[0.16em] text-neutral-400">
-              From
-            </p>
-            <span className="font-ticket text-lg font-bold tracking-tight text-neutral-900 dark:text-white">
-              {displayPrice}
-            </span>
-            {event.vendorApplicationsAllowed && event.vendorDeadline && (
-              <p
-                className={cn(
-                  'text-[9px] font-ticket font-semibold uppercase tracking-wider mt-0.5',
-                  isVendorDeadlinePassed ? 'text-rose-500' : 'text-neutral-500'
-                )}
-              >
-                Vendor: {formatDeadlineFriendly(event.vendorDeadline)}
-              </p>
-            )}
-          </div>
+        <div className="lg:hidden fixed bottom-[3.6rem] left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-t border-neutral-200 dark:border-neutral-800 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
           {ticketingBlocked ? (
-            <span className="text-xs font-ticket font-semibold uppercase tracking-wide text-neutral-400 px-4 py-2.5 rounded-lg bg-neutral-100 dark:bg-neutral-800">
-              {isEventDraft ? 'Coming Soon' : 'Event Ended'}
-            </span>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[9px] font-ticket font-semibold uppercase tracking-[0.16em] text-neutral-400">
+                  From
+                </p>
+                <span className="font-ticket text-lg font-bold tracking-tight text-neutral-900 dark:text-white">
+                  {displayPrice}
+                </span>
+              </div>
+              <span className="text-xs font-ticket font-semibold uppercase tracking-wide text-neutral-400 px-4 py-2.5 rounded-lg bg-neutral-100 dark:bg-neutral-800">
+                {isEventDraft ? 'Coming Soon' : 'Event Ended'}
+              </span>
+            </div>
           ) : event.vendorApplicationsAllowed ? (
-            <div className="flex items-center gap-2">
+            <div className="space-y-2.5">
+              <div className="flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-ticket font-semibold uppercase tracking-[0.16em] text-neutral-400">
+                    From
+                  </p>
+                  <span className="font-ticket text-lg font-bold tracking-tight text-neutral-900 dark:text-white">
+                    {displayPrice}
+                  </span>
+                </div>
+                {event.vendorDeadline && (
+                  <p
+                    className={cn(
+                      'text-[9px] font-ticket font-semibold uppercase tracking-wider shrink-0',
+                      isVendorDeadlinePassed ? 'text-rose-500' : 'text-neutral-500'
+                    )}
+                  >
+                    Vendor: {formatDeadlineFriendly(event.vendorDeadline)}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-stretch gap-2">
+                <button
+                  type="button"
+                  onClick={handlePurchaseTicket}
+                  className="flex-[1.2] min-w-0 rounded-xl bg-rose-500 px-3 py-3 text-white shadow-[0_6px_16px_-8px_rgba(244,63,94,0.7)] transition-[background-color,box-shadow,transform] duration-200 active:scale-[0.99]"
+                >
+                  <span className="flex items-center justify-center gap-1.5 font-ticket text-xs font-semibold uppercase tracking-wider">
+                    <Ticket className="h-3.5 w-3.5 shrink-0" />
+                    Get tickets
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isVendorDeadlinePassed}
+                  onClick={handleVendorApply}
+                  className={cn(
+                    'flex-1 min-w-0 rounded-xl border px-3 py-3 font-ticket text-xs font-semibold uppercase tracking-wider transition-colors active:scale-[0.99]',
+                    isVendorDeadlinePassed
+                      ? 'border-neutral-200 dark:border-neutral-800 text-neutral-400 cursor-not-allowed'
+                      : 'border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-white'
+                  )}
+                >
+                  <span className="flex items-center justify-center gap-1.5">
+                    <Store className="h-3.5 w-3.5 shrink-0" />
+                    {isVendorDeadlinePassed ? 'Closed' : 'Vendor'}
+                  </span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[9px] font-ticket font-semibold uppercase tracking-[0.16em] text-neutral-400">
+                  From
+                </p>
+                <span className="font-ticket text-lg font-bold tracking-tight text-neutral-900 dark:text-white">
+                  {displayPrice}
+                </span>
+              </div>
               <button
+                type="button"
                 onClick={handlePurchaseTicket}
-                className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-ticket font-semibold uppercase tracking-wider px-4 py-2.5 shadow-[0_6px_16px_-8px_rgba(244,63,94,0.7)] transition-[background-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
+                className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-ticket font-semibold uppercase tracking-wider px-6 py-3 shadow-[0_6px_16px_-8px_rgba(244,63,94,0.7)] transition-[background-color,box-shadow,transform] duration-200 active:scale-[0.99]"
               >
                 Get tickets
               </button>
-              {!isVendorDeadlinePassed && (
-                <button
-                  onClick={() => {
-                    if (isAuthenticated && user?.role === 'VENDOR') {
-                      navigate(`/book/${event.id}?type=vendor`);
-                    } else {
-                      navigate(`/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor`)}`);
-                    }
-                  }}
-                  className="border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-xl text-xs font-ticket font-semibold uppercase tracking-wider px-4 py-2.5 transition-colors active:scale-[0.99]"
-                >
-                  Vendor
-                </button>
-              )}
             </div>
-          ) : (
-            <button
-              onClick={handlePurchaseTicket}
-              className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-ticket font-semibold uppercase tracking-wider px-6 py-3 shadow-[0_6px_16px_-8px_rgba(244,63,94,0.7)] transition-[background-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
-            >
-              Get tickets
-            </button>
           )}
         </div>
       )}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   User,
@@ -20,6 +20,11 @@ import {
   Loader2,
   Copy,
   X,
+  Search,
+  Zap,
+  ShieldCheck,
+  RefreshCw,
+  Banknote,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -270,7 +275,7 @@ const OrganisationPanel = () => {
 const PayoutsPanel = () => {
   const { user, updateUser } = useAuth();
   const org = user?.ownedOrganizations?.[0];
-  
+
   const [form, setForm] = useState({
     payoutBankName: org?.payoutBankName ?? '',
     payoutAccountNumber: org?.payoutAccountNumber ?? '',
@@ -278,12 +283,46 @@ const PayoutsPanel = () => {
     payoutSchedule: org?.payoutSchedule ?? 'After each event',
     taxId: org?.taxId ?? '',
     vatNumber: org?.vatNumber ?? '',
-    businessAddress: org?.businessAddress ?? ''
+    businessAddress: org?.businessAddress ?? '',
+    absorbFee: org?.absorbFee ?? false,
   });
+
+  const [banksList, setBanksList] = useState<Array<{ name: string; code: string }>>([]);
+  const [bankQuery, setBankQuery] = useState(org?.payoutBankName ?? '');
+  const [showBankDropdown, setShowBankDropdown] = useState(false);
+  const [loadingBanks, setLoadingBanks] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+    setLoadingBanks(true);
+    api.userRoles.getBanks()
+      .then((res) => {
+        if (isMounted && res.data?.banks) {
+          setBanksList(res.data.banks);
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to fetch Paystack banks:', err);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingBanks(false);
+      });
+    return () => { isMounted = false; };
+  }, []);
+
+  const filteredBanks = banksList.filter(
+    (b) => b.name.toLowerCase().includes(bankQuery.toLowerCase()) || b.code.includes(bankQuery)
+  );
+
+  const handleSelectBank = (bankName: string) => {
+    setForm((p) => ({ ...p, payoutBankName: bankName }));
+    setBankQuery(bankName);
+    setShowBankDropdown(false);
+  };
 
   const handleSave = async () => {
     if (!org) return;
@@ -297,13 +336,14 @@ const PayoutsPanel = () => {
         description: org.description ?? '',
         contactInfo: org.website ?? '',
         phone: user?.phone ?? '',
-        payoutBankName: form.payoutBankName,
+        payoutBankName: form.payoutBankName || bankQuery,
         payoutAccountNumber: form.payoutAccountNumber,
         payoutAccountName: form.payoutAccountName,
         payoutSchedule: form.payoutSchedule,
         taxId: form.taxId,
         vatNumber: form.vatNumber,
-        businessAddress: form.businessAddress
+        businessAddress: form.businessAddress,
+        absorbFee: form.absorbFee,
       });
       const profileRes = await api.auth.verify();
       if (profileRes.data) {
@@ -318,90 +358,284 @@ const PayoutsPanel = () => {
     }
   };
 
+  const hasSubaccount = Boolean(org?.paystackSubaccountCode);
+
+  // Live example calculation (₦10,000 ticket)
+  const examplePrice = 10000;
+  const platformFee = Math.min(Math.max(100, examplePrice * 0.06), 2000); // ₦600
+  const paystackFee = examplePrice * 0.015 + 100; // ₦250
+  const totalFees = platformFee + paystackFee;
+  const hostReceives = form.absorbFee ? examplePrice - totalFees : examplePrice;
+  const buyerPays = form.absorbFee ? examplePrice : examplePrice + totalFees;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-extrabold text-neutral-900 dark:text-white">Payouts & Tax</h2>
-        <p className="text-xs text-neutral-500 mt-1">Where your ticket revenue goes, and your tax details for receipts.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-extrabold text-neutral-900 dark:text-white flex items-center gap-2">
+            Payouts & Payment Split
+          </h2>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            Configure settlement bank details, automatic Paystack splits, and checkout fee settings.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+              hasSubaccount
+                ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 border border-emerald-200 dark:border-emerald-800'
+                : 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 border border-amber-200 dark:border-amber-800'
+            }`}
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            {hasSubaccount ? 'Paystack Split Active' : 'Platform Ledger Mode'}
+          </span>
+        </div>
       </div>
 
-      {/* Payout account */}
-      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-100 dark:divide-neutral-800">
-        <div className="p-4">
-          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">Payout account</p>
+      {/* Paystack Split Account Info Card */}
+      <div className="p-4 sm:p-5 rounded-2xl border border-rose-200 dark:border-rose-900/40 bg-gradient-to-r from-rose-50/50 via-white to-pink-50/30 dark:from-rose-950/20 dark:via-neutral-900 dark:to-neutral-900">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 rounded-xl bg-rose-500 text-white shrink-0 shadow-sm mt-0.5">
+              <Zap className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
+                Paystack Direct Split Settlement
+              </h3>
+              <p className="text-xs text-neutral-600 dark:text-neutral-300 mt-1 leading-relaxed max-w-xl">
+                When your Nigerian settlement bank account is verified, ticket revenue is automatically split by Paystack directly to your bank account after every online transaction.
+              </p>
+              {org?.paystackSubaccountCode && (
+                <div className="mt-2.5 inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-xs font-mono">
+                  <span className="text-neutral-400 font-sans">Subaccount Code:</span>
+                  <span className="font-bold text-rose-500">{org.paystackSubaccountCode}</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-800 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors shrink-0"
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Sync Split Setup
+          </button>
+        </div>
+      </div>
+
+      {/* Payout Bank Account Details */}
+      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-100 dark:divide-neutral-800 bg-white dark:bg-neutral-900">
+        <div className="p-4 sm:p-5">
+          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-4">
+            Settlement Bank Account
+          </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className={labelCls}>Bank name</label>
-              <input className={inputCls} value={form.payoutBankName} onChange={e => setForm(p => ({ ...p, payoutBankName: e.target.value }))} placeholder="e.g. First Bank" />
+            {/* Searchable Bank Selector */}
+            <div className="relative">
+              <label className={labelCls}>Settlement Bank</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  className={inputCls}
+                  value={bankQuery}
+                  onChange={(e) => {
+                    setBankQuery(e.target.value);
+                    setForm((p) => ({ ...p, payoutBankName: e.target.value }));
+                    setShowBankDropdown(true);
+                  }}
+                  onFocus={() => setShowBankDropdown(true)}
+                  placeholder="Type or select bank (e.g. GTBank, Zenith, Kuda)"
+                />
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 pointer-events-none" />
+              </div>
+
+              {/* Bank Autocomplete Dropdown */}
+              {showBankDropdown && (
+                <div className="absolute left-0 right-0 top-full mt-1 max-h-56 overflow-y-auto rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl z-50 divide-y divide-neutral-100 dark:divide-neutral-800">
+                  {loadingBanks ? (
+                    <div className="p-3 text-center text-xs text-neutral-400 flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-rose-500" /> Fetching banks from Paystack…
+                    </div>
+                  ) : filteredBanks.length === 0 ? (
+                    <div className="p-3 text-xs text-neutral-500">
+                      No matching bank found. You can type your bank name manually above.
+                    </div>
+                  ) : (
+                    filteredBanks.map((b) => (
+                      <button
+                        key={b.code}
+                        type="button"
+                        onClick={() => handleSelectBank(b.name)}
+                        className="w-full text-left px-3.5 py-2.5 text-xs hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors flex items-center justify-between group"
+                      >
+                        <span className="font-semibold text-neutral-800 dark:text-neutral-200 group-hover:text-rose-500">
+                          {b.name}
+                        </span>
+                        <span className="font-mono text-[10px] font-bold text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">
+                          {b.code}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
+
             <div>
-              <label className={labelCls}>Account number</label>
-              <input className={inputCls} value={form.payoutAccountNumber} onChange={e => setForm(p => ({ ...p, payoutAccountNumber: e.target.value }))} placeholder="0123456789" maxLength={10} />
+              <label className={labelCls}>NUBAN Account Number</label>
+              <input
+                className={inputCls}
+                value={form.payoutAccountNumber}
+                onChange={(e) => setForm((p) => ({ ...p, payoutAccountNumber: e.target.value.replace(/\D/g, '') }))}
+                placeholder="10-digit NUBAN number"
+                maxLength={10}
+              />
             </div>
+
             <div>
-              <label className={labelCls}>Account name</label>
-              <input className={inputCls} value={form.payoutAccountName} onChange={e => setForm(p => ({ ...p, payoutAccountName: e.target.value }))} placeholder="As it appears on the account" />
+              <label className={labelCls}>Account Name</label>
+              <input
+                className={inputCls}
+                value={form.payoutAccountName}
+                onChange={(e) => setForm((p) => ({ ...p, payoutAccountName: e.target.value }))}
+                placeholder="Account name exactly as registered with bank"
+              />
             </div>
+
             <div>
-              <label className={labelCls}>Payout schedule</label>
-              <select className={inputCls} value={form.payoutSchedule} onChange={e => setForm(p => ({ ...p, payoutSchedule: e.target.value }))}>
-                <option value="After each event">After each event</option>
-                <option value="Weekly">Weekly</option>
-                <option value="Monthly">Monthly</option>
+              <label className={labelCls}>Payout Schedule</label>
+              <select
+                className={inputCls}
+                value={form.payoutSchedule}
+                onChange={(e) => setForm((p) => ({ ...p, payoutSchedule: e.target.value }))}
+              >
+                <option value="After each event">After each event (Paystack Direct Split)</option>
+                <option value="Weekly">Weekly Digest Settlement</option>
+                <option value="Monthly">Monthly Settlement</option>
               </select>
             </div>
           </div>
         </div>
 
-        {/* Tax */}
-        <div className="p-4">
-          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">Tax information</p>
+        {/* Tax Details */}
+        <div className="p-4 sm:p-5">
+          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">Tax Information</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Tax ID / TIN</label>
-              <input className={inputCls} value={form.taxId} onChange={e => setForm(p => ({ ...p, taxId: e.target.value }))} placeholder="Nigeria Tax ID or RC number" />
+              <input
+                className={inputCls}
+                value={form.taxId}
+                onChange={(e) => setForm((p) => ({ ...p, taxId: e.target.value }))}
+                placeholder="Nigeria Tax ID or CAC RC number"
+              />
             </div>
             <div>
-              <label className={labelCls}>VAT number (if registered)</label>
-              <input className={inputCls} value={form.vatNumber} onChange={e => setForm(p => ({ ...p, vatNumber: e.target.value }))} placeholder="Optional" />
+              <label className={labelCls}>VAT Number (if registered)</label>
+              <input
+                className={inputCls}
+                value={form.vatNumber}
+                onChange={(e) => setForm((p) => ({ ...p, vatNumber: e.target.value }))}
+                placeholder="Optional VAT registration"
+              />
             </div>
             <div className="sm:col-span-2">
-              <label className={labelCls}>Business address (for receipts)</label>
-              <textarea className={`${inputCls} resize-none`} rows={2} value={form.businessAddress} onChange={e => setForm(p => ({ ...p, businessAddress: e.target.value }))} placeholder="Full address shown on tax receipts" />
+              <label className={labelCls}>Business Address (for receipts)</label>
+              <textarea
+                className={`${inputCls} resize-none`}
+                rows={2}
+                value={form.businessAddress}
+                onChange={(e) => setForm((p) => ({ ...p, businessAddress: e.target.value }))}
+                placeholder="Full address printed on attendee tax receipts"
+              />
             </div>
           </div>
         </div>
 
-        {/* Service fee */}
-        <div className="p-4">
-          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">Ticketing fees</p>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-neutral-600 dark:text-neutral-400">Platform service fee</span>
-              <span className="font-bold">5% per ticket</span>
+        {/* Fee Split Settings & Live Simulator */}
+        <div className="p-4 sm:p-5 space-y-4">
+          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
+            Checkout Fee Allocation & Breakdown
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-800">
+              <span className="text-[10px] font-bold uppercase text-neutral-400">PartyStorm Fee</span>
+              <p className="text-sm font-bold mt-0.5">6% per sale</p>
+              <p className="text-[10px] text-neutral-500">Min ₦100 · Max ₦2,000</p>
             </div>
-            <div className="flex justify-between">
-              <span className="text-neutral-600 dark:text-neutral-400">Payment processing</span>
-              <span className="font-bold">1.5% + ₦100</span>
+            <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-800">
+              <span className="text-[10px] font-bold uppercase text-neutral-400">Paystack Processing</span>
+              <p className="text-sm font-bold mt-0.5">1.5% + ₦100</p>
+              <p className="text-[10px] text-neutral-500">Standard gateway rate</p>
             </div>
-            <div className="flex justify-between border-t border-neutral-100 dark:border-neutral-800 pt-2 mt-2">
-              <span className="font-semibold text-neutral-900 dark:text-white">You receive</span>
-              <span className="font-extrabold text-rose-500">~93.5% of ticket price</span>
+            <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-800">
+              <span className="text-[10px] font-bold uppercase text-neutral-400">Selected Mode</span>
+              <p className="text-sm font-extrabold text-rose-500 mt-0.5">
+                {form.absorbFee ? 'Host Absorbs Fees' : 'Buyer Pays Fees'}
+              </p>
+              <p className="text-[10px] text-neutral-500">
+                {form.absorbFee ? 'Buyer pays face value' : 'Fee added at checkout'}
+              </p>
             </div>
           </div>
-          <p className="text-[10px] text-neutral-400 mt-2">
-            Fees are deducted automatically before payout. Free-ticket events have no fees.
-          </p>
+
+          {/* Interactive Toggle */}
+          <label className="flex items-start gap-3 p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 cursor-pointer hover:bg-neutral-100/50 transition-colors">
+            <input
+              type="checkbox"
+              checked={form.absorbFee}
+              onChange={(e) => setForm((p) => ({ ...p, absorbFee: e.target.checked }))}
+              className="mt-1 rounded text-rose-500 focus:ring-rose-500 h-4 w-4 shrink-0"
+            />
+            <div>
+              <span className="text-xs font-bold text-neutral-900 dark:text-white">
+                Absorb Platform & Processing Fees
+              </span>
+              <p className="text-xs text-neutral-500 mt-0.5 leading-relaxed">
+                When enabled, buyers pay only the ticket face price. Platform (6%) and processing fees are deducted from your payout. PartyStorm fees are non-refundable.
+              </p>
+            </div>
+          </label>
+
+          {/* Example Calculator */}
+          <div className="p-3.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/40 text-xs space-y-2">
+            <div className="flex items-center justify-between font-semibold text-rose-900 dark:text-rose-200">
+              <span>Example ₦10,000 Ticket Sale</span>
+              <span className="text-[10px] uppercase tracking-wide font-bold bg-rose-200/60 dark:bg-rose-900/60 px-2 py-0.5 rounded">
+                Live Simulation
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-4 text-neutral-600 dark:text-neutral-400 pt-1 border-t border-rose-100 dark:border-rose-900/40">
+              <div>
+                <span className="block text-[10px] uppercase font-bold text-neutral-400">Buyer Pays at Checkout</span>
+                <span className="text-sm font-extrabold text-neutral-900 dark:text-white">
+                  ₦{buyerPays.toLocaleString()}
+                </span>
+              </div>
+              <div>
+                <span className="block text-[10px] uppercase font-bold text-neutral-400">Host Receives to Bank</span>
+                <span className="text-sm font-extrabold text-rose-500">
+                  ₦{hostReceives.toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 dark:bg-red-950/20 px-3 py-2 rounded-lg">
+        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 dark:bg-red-950/20 px-3 py-2 rounded-xl border border-red-200 dark:border-red-900/50">
           <AlertCircle className="h-4 w-4 shrink-0" /> {error}
         </div>
       )}
+
       <div className="flex justify-end">
-        <SaveButton saving={saving} saved={saved} onClick={handleSave} label="Save payout details" />
+        <SaveButton saving={saving} saved={saved} onClick={handleSave} label="Save Payout & Split Settings" />
       </div>
     </div>
   );

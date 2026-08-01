@@ -1,6 +1,14 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Facebook, Twitter, Instagram, Mail, MapPin, Calendar } from 'lucide-react';
+import { WhatsAppIcon } from '../icons/WhatsAppIcon';
+import {
+  SUPPORT_ADDRESS,
+  SUPPORT_EMAIL,
+  SUPPORT_INSTAGRAM_URL,
+  mailtoHref,
+  whatsappHref,
+} from '../../lib/contact';
 
 const Footer = () => {
   return (
@@ -17,14 +25,28 @@ const Footer = () => {
               The ultimate platform for event discovery, ticketing, and management.
             </p>
             <div className="flex space-x-4">
-              <a href="#" target="_blank" className="text-muted-foreground hover:text-foreground">
+              <a href="#" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
                 <Facebook className="h-5 w-5" />
               </a>
-              <a href="#" target="_blank" className="text-muted-foreground hover:text-foreground">
+              <a href="#" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
                 <Twitter className="h-5 w-5" />
               </a>
-              <a href="https://www.instagram.com/partyst0rm/" target="_blank" className="text-muted-foreground hover:text-foreground">
+              <a
+                href={SUPPORT_INSTAGRAM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-foreground"
+              >
                 <Instagram className="h-5 w-5" />
+              </a>
+              <a
+                href={whatsappHref('Hi PartyStorm, I need help with…')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#25D366] hover:opacity-80"
+                aria-label="WhatsApp"
+              >
+                <WhatsAppIcon className="h-5 w-5" />
               </a>
             </div>
           </div>
@@ -91,11 +113,24 @@ const Footer = () => {
             <ul className="space-y-3">
               <li className="flex items-start space-x-2">
                 <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <span className="text-muted-foreground">Floor 1, 2G6V+C4F, Sani Abacha Way, Fagge, Kano 700211, Kano</span>
+                <span className="text-muted-foreground">{SUPPORT_ADDRESS}</span>
               </li>
               <li className="flex items-start space-x-2">
                 <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <span className="text-muted-foreground">support@partystorm.ng</span>
+                <a href={mailtoHref()} className="text-muted-foreground hover:text-foreground">
+                  {SUPPORT_EMAIL}
+                </a>
+              </li>
+              <li className="flex items-start space-x-2">
+                <WhatsAppIcon className="h-5 w-5 text-[#25D366] mt-0.5 shrink-0" />
+                <a
+                  href={whatsappHref('Hi PartyStorm, I need help with…')}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Chat on WhatsApp
+                </a>
               </li>
             </ul>
           </div>

@@ -42,6 +42,8 @@ export interface OrganizerEvent {
   ticketTypes?: Array<{ id: number; name: string; price: number; quantity: number | null }>;
   allowVendors?: boolean;
   organizationId?: number;
+  isPromoted?: boolean;
+  promotionRequestedAt?: string | null;
   vendorSettings?: {
     allowVendors: boolean;
     stallTypes: Array<{

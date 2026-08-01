@@ -151,11 +151,11 @@ const AnalyticsDashboard = () => {
 
   return (
     <div className="pb-8 px-1">
-      <div className="mb-5">
-        <h1 className="text-xl sm:text-text-3xl sm:text-2xl font-bold">
-          <span className="text-rose-500">Analytics</span>
+      <div className="mb-6">
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
+          <span className="text-rose-500">Analytics</span> & Insights
         </h1>
-        <p className="text-sm text-neutral-500 mt-1">Real insights from your ticket sales</p>
+        <p className="text-xs sm:text-sm text-neutral-500 mt-1">Real-time attendance, revenue sell-through, and customer growth dataset</p>
       </div>
 
       {/* Stats — 2 cols on mobile, 4 on lg */}
@@ -163,11 +163,13 @@ const AnalyticsDashboard = () => {
         {stats.map((stat) => (
           <div
             key={stat.title}
-            className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 sm:p-5"
+            className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 sm:p-5 hover:border-rose-300/50 dark:hover:border-rose-900/40 transition-colors shadow-xs"
           >
             <div className="flex justify-between items-center text-rose-500 mb-2 sm:mb-3">
-              <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-neutral-400 leading-tight">{stat.title}</span>
-              {stat.icon}
+              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 leading-tight">{stat.title}</span>
+              <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 text-rose-500">
+                {stat.icon}
+              </div>
             </div>
             {loading ? (
               <>
@@ -176,7 +178,7 @@ const AnalyticsDashboard = () => {
               </>
             ) : (
               <>
-                <p className="text-xl sm:text-2xl font-bold">
+                <p className="text-xl sm:text-2xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
                   {stat.title === 'Revenue earned' ? formatNaira(stat.value) : String(stat.value).padStart(2, '0')}
                 </p>
                 <p className="text-[10px] sm:text-xs text-neutral-500 mt-1 leading-tight">{stat.sub}</p>

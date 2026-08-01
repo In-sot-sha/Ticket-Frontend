@@ -11,10 +11,23 @@ import {
   Instagram,
   HelpCircle,
   ArrowRight,
+  Phone,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { Button } from '../components/ui/Button';
+import { WhatsAppIcon } from '../components/icons/WhatsAppIcon';
+import {
+  SUPPORT_ADDRESS,
+  SUPPORT_EMAIL,
+  SUPPORT_HOURS,
+  SUPPORT_INSTAGRAM_HANDLE,
+  SUPPORT_INSTAGRAM_URL,
+  SUPPORT_PHONE_DISPLAY,
+  mailtoHref,
+  telHref,
+  whatsappHref,
+} from '../lib/contact';
 
 const CATEGORIES = [
   { value: 'GENERAL', label: 'General inquiry' },
@@ -124,16 +137,47 @@ const ContactPage = () => {
               </h2>
               <ul className="space-y-5">
                 <li className="flex items-start gap-4">
+                  <div className="h-10 w-10 rounded-xl bg-[#25D366]/15 dark:bg-[#25D366]/10 flex items-center justify-center shrink-0">
+                    <WhatsAppIcon className="h-5 w-5 text-[#25D366]" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">WhatsApp</p>
+                    <a
+                      href={whatsappHref('Hi PartyStorm, I need help with…')}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 hover:text-[#25D366] transition-colors inline-flex items-center gap-1.5"
+                    >
+                      Chat on WhatsApp
+                    </a>
+                    <p className="text-xs text-neutral-500 mt-0.5">{SUPPORT_PHONE_DISPLAY}</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-4">
+                  <div className="h-10 w-10 rounded-xl bg-rose-50 dark:bg-rose-950/30 flex items-center justify-center shrink-0">
+                    <Phone className="h-4 w-4 text-rose-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Phone</p>
+                    <a
+                      href={telHref()}
+                      className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 hover:text-rose-500 transition-colors"
+                    >
+                      {SUPPORT_PHONE_DISPLAY}
+                    </a>
+                  </div>
+                </li>
+                <li className="flex items-start gap-4">
                   <div className="h-10 w-10 rounded-xl bg-rose-50 dark:bg-rose-950/30 flex items-center justify-center shrink-0">
                     <Mail className="h-4 w-4 text-rose-500" />
                   </div>
                   <div>
                     <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Email</p>
                     <a
-                      href="mailto:support@partystorm.ng"
+                      href={mailtoHref()}
                       className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 hover:text-rose-500 transition-colors"
                     >
-                      support@partystorm.ng
+                      {SUPPORT_EMAIL}
                     </a>
                   </div>
                 </li>
@@ -144,7 +188,7 @@ const ContactPage = () => {
                   <div>
                     <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Office</p>
                     <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                      Floor 1, 2G6V+C4F, Sani Abacha Way, Fagge, Kano 700211, Nigeria
+                      {SUPPORT_ADDRESS}
                     </p>
                   </div>
                 </li>
@@ -155,7 +199,7 @@ const ContactPage = () => {
                   <div>
                     <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Hours</p>
                     <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                      Mon – Fri, 9:00 AM – 6:00 PM WAT
+                      {SUPPORT_HOURS}
                     </p>
                   </div>
                 </li>
@@ -166,12 +210,12 @@ const ContactPage = () => {
                   <div>
                     <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Social</p>
                     <a
-                      href="https://www.instagram.com/partyst0rm/"
+                      href={SUPPORT_INSTAGRAM_URL}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 hover:text-rose-500 transition-colors"
                     >
-                      @partyst0rm
+                      {SUPPORT_INSTAGRAM_HANDLE}
                     </a>
                   </div>
                 </li>

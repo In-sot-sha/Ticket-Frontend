@@ -37,6 +37,8 @@ interface User {
     taxId?: string;
     vatNumber?: string;
     businessAddress?: string;
+    absorbFee?: boolean;
+    paystackSubaccountCode?: string;
     rejectionReason?: string;
     rejectedAt?: string;
   }>;

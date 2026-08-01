@@ -12,7 +12,8 @@ import {
   CreditCard,
   Shield,
   ArrowRight,
-  Store
+  Store,
+  Info,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -20,6 +21,7 @@ import { CustomAlertDialog } from '../components/ui/CustomAlertDialog';
 import { useEventById } from '../hooks/queries/useEvents';
 import { CACHE_CONFIGS } from '../lib/queryClient';
 import { isValidEmail, isValidPhone } from '../lib/phone';
+import { calculateBuyerCheckout, platformFeeForUnit } from '../lib/fees';
 
 
 // Mock event fallback matching EventDetailPage
@@ -183,13 +185,22 @@ const BookingPage = () => {
         return acc + (t.price || 0) * qty;
       }, 0) || 0);
 
-  const feePercent = normalizedEventData.organization?.serviceFeePercent !== undefined
-    ? Number(normalizedEventData.organization.serviceFeePercent)
-    : 5.0;
   const absorbFee = !!normalizedEventData.organization?.absorbFee;
 
-  const serviceFee = absorbFee ? 0 : Math.round(subtotal * (feePercent / 100));
-  const totalAmount = subtotal + serviceFee;
+  const platformFee =
+    bookMode === 'vendor'
+      ? platformFeeForUnit(subtotal)
+      : (normalizedEventData.ticketTypes?.reduce((acc: number, t: any) => {
+          const qty = selectedTickets[t.id] || 0;
+          if (qty <= 0 || !(t.price > 0)) return acc;
+          return acc + platformFeeForUnit(t.price) * qty;
+        }, 0) || 0);
+
+  const { fee: serviceFee, total: totalAmount } = calculateBuyerCheckout(
+    subtotal,
+    platformFee,
+    absorbFee,
+  );
 
   const formatDate = (dateString: string) => {
     try {
@@ -208,32 +219,56 @@ const BookingPage = () => {
     setIsPaying(true);
     try {
       if (bookMode === 'vendor') {
-        await api.vendors.register({
-          eventId: Number(normalizedEventData.id),
-          vendorTypeId: selectedStallType ? Number(selectedStallType) : undefined,
-          businessName,
-          businessEmail,
-          businessPhone,
-          description,
-          category: vendorRole,
-          staffCount: staffCount || undefined,
-          paymentAmount: totalAmount,
-          paymentReference: paymentRef || `VND_${Date.now()}_${normalizedEventData.id}`
-        });
-
-        showAlert('Your vendor application has been submitted successfully!', 'Application Received');
-        navigate(`/events/${normalizedEventData.slug || normalizedEventData.id}`);
+        // Paid vendor path confirms via Paystack confirm; free already fulfilled at initialize
+        if (paymentRef) {
+          const confirmRes = await api.post<any>('/payments/paystack/confirm', {
+            reference: paymentRef,
+          });
+          if (confirmRes.status === 201 || confirmRes.status === 200) {
+            showAlert('Your vendor application has been submitted successfully!', 'Application Received');
+            navigate(`/events/${normalizedEventData.slug || normalizedEventData.id}`);
+            return;
+          }
+        }
+        showAlert('Payment could not be confirmed. Contact support with your reference.', 'Payment Error');
         return;
       }
 
-      // Get first ticket type (backend expects single ticketTypeId/quantity)
+      if (paymentRef) {
+        const confirmRes = await api.post<any>('/payments/paystack/confirm', {
+          reference: paymentRef,
+        });
+        const data = confirmRes.data;
+        if (confirmRes.status === 201 || confirmRes.status === 200) {
+          const firstType = data.tickets?.[0]?.ticketType;
+          const confirmedOrder = {
+            eventId: normalizedEventData.id,
+            eventName: normalizedEventData.title,
+            eventSlug: normalizedEventData.slug || null,
+            eventDate: normalizedEventData.date,
+            eventTime: `${normalizedEventData.startTime || '09:00 AM'} - ${normalizedEventData.endTime || '06:00 PM'}`,
+            eventLocation: normalizedEventData.location,
+            eventImageUrl: normalizedEventData.imageUrl,
+            quantity: totalTicketsCount,
+            totalAmount: totalAmount,
+            currency: 'NGN',
+            ticketType: firstType?.name,
+            ticketStyle: firstType?.ticketStyle,
+            accentColor: firstType?.accentColor,
+            tickets: data.tickets,
+            paymentReference: paymentRef,
+          };
+          navigate('/ticket-confirmation', { state: confirmedOrder });
+          return;
+        }
+      }
+
+      // Free path (no payment ref): use guest checkout
       const firstTicketEntry = Object.entries(selectedTickets).find(([_, qty]) => qty > 0);
       if (!firstTicketEntry) {
         throw new Error('No tickets selected');
       }
-
       const [ticketTypeId, quantity] = firstTicketEntry;
-
       const checkoutRes = await api.post<any>('/tickets/checkout/guest', {
         firstName: guestFirstName,
         lastName: guestLastName,
@@ -241,7 +276,7 @@ const BookingPage = () => {
         phone: guestPhone.trim() || undefined,
         eventId: Number(normalizedEventData.id),
         ticketTypeId: Number(ticketTypeId),
-        quantity: Number(quantity)
+        quantity: Number(quantity),
       });
 
       if (checkoutRes.status === 201) {
@@ -260,7 +295,7 @@ const BookingPage = () => {
           ticketType: firstType?.name,
           ticketStyle: firstType?.ticketStyle,
           accentColor: firstType?.accentColor,
-          tickets: checkoutRes.data.tickets
+          tickets: checkoutRes.data.tickets,
         };
         navigate('/ticket-confirmation', { state: confirmedOrder });
       }
@@ -276,47 +311,132 @@ const BookingPage = () => {
     }
   };
 
-  const handlePaystackPayment = () => {
+  const openPaystackPopup = (init: {
+    publicKey?: string | null;
+    email: string;
+    amountKobo: number;
+    reference: string;
+    accessCode?: string;
+  }) => {
     if (!(window as any).PaystackPop) {
       showAlert('Paystack loading failed. Please refresh and try again.', 'Payment Error');
       return;
     }
 
-    const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_d3000676b7db0bc43f07a4a2fa44a8ad8d1b6ee8';
+    const publicKey =
+      init.publicKey ||
+      import.meta.env.VITE_PAYSTACK_PUBLIC_KEY ||
+      'pk_test_d3000676b7db0bc43f07a4a2fa44a8ad8d1b6ee8';
 
-    const payEmail = bookMode === 'vendor' ? businessEmail : guestEmail.trim();
-    if (!payEmail || !isValidEmail(payEmail)) {
-      showAlert('A valid email address is required for payment.', 'Missing Email');
-      return;
+    const setup: Record<string, unknown> = {
+      key: publicKey,
+      email: init.email,
+      amount: init.amountKobo,
+      currency: 'NGN',
+      ref: init.reference,
+      callback: function (response: any) {
+        handlePaymentSuccess(response.reference || init.reference);
+      },
+      onClose: function () {
+        console.log('[Paystack] Checkout popup closed by user.');
+      },
+    };
+    if (init.accessCode) {
+      setup.access_code = init.accessCode;
     }
 
-    const handler = (window as any).PaystackPop.setup({
-      key: publicKey,
-      email: payEmail,
-      amount: Math.round(totalAmount * 100), // Paystack expects amount in kobo
-      currency: 'NGN',
-      ref: `EVT_${Date.now()}_${normalizedEventData.id}`,
-      metadata: {
-        custom_fields: [
-          {
-            display_name: 'Customer Name',
-            variable_name: 'customer_name',
-            value: bookMode === 'vendor' ? businessName : `${guestFirstName} ${guestLastName}`
-          }
-        ]
-      },
-      // callback MUST be a plain (non-async) function — Paystack validates the type
-      callback: function(response: any) {
-        console.log('[Paystack] Payment successful. Reference:', response.reference);
-        // Fire the async checkout without awaiting here
-        handlePaymentSuccess(response.reference);
-      },
-      onClose: function() {
-        console.log('[Paystack] Checkout popup closed by user.');
-      }
-    });
-
+    const handler = (window as any).PaystackPop.setup(setup);
     handler.openIframe();
+  };
+
+  const handlePaystackPayment = async () => {
+    setIsPaying(true);
+    try {
+      if (bookMode === 'vendor') {
+        const initRes = await api.post<any>('/payments/paystack/initialize', {
+          kind: 'VENDOR',
+          eventId: Number(normalizedEventData.id),
+          vendorTypeId: selectedStallType ? Number(selectedStallType) : undefined,
+          businessName,
+          businessEmail,
+          businessPhone,
+          description,
+          category: vendorRole,
+          staffCount: staffCount || undefined,
+        });
+        const init = initRes.data;
+        if (init.free) {
+          showAlert('Your vendor application has been submitted successfully!', 'Application Received');
+          navigate(`/events/${normalizedEventData.slug || normalizedEventData.id}`);
+          return;
+        }
+        setIsPaying(false);
+        openPaystackPopup({
+          publicKey: init.publicKey,
+          email: init.email,
+          amountKobo: init.amountKobo,
+          reference: init.reference,
+          accessCode: init.accessCode,
+        });
+        return;
+      }
+
+      const firstTicketEntry = Object.entries(selectedTickets).find(([_, qty]) => qty > 0);
+      if (!firstTicketEntry) {
+        showAlert('No tickets selected', 'Error');
+        return;
+      }
+      const [ticketTypeId, quantity] = firstTicketEntry;
+
+      const initRes = await api.post<any>('/payments/paystack/initialize', {
+        kind: 'TICKET',
+        firstName: guestFirstName,
+        lastName: guestLastName,
+        email: guestEmail.trim(),
+        phone: guestPhone.trim() || undefined,
+        eventId: Number(normalizedEventData.id),
+        ticketTypeId: Number(ticketTypeId),
+        quantity: Number(quantity),
+      });
+      const init = initRes.data;
+
+      if (init.free) {
+        const firstType = init.tickets?.[0]?.ticketType;
+        navigate('/ticket-confirmation', {
+          state: {
+            eventId: normalizedEventData.id,
+            eventName: normalizedEventData.title,
+            eventSlug: normalizedEventData.slug || null,
+            eventDate: normalizedEventData.date,
+            eventTime: `${normalizedEventData.startTime || '09:00 AM'} - ${normalizedEventData.endTime || '06:00 PM'}`,
+            eventLocation: normalizedEventData.location,
+            eventImageUrl: normalizedEventData.imageUrl,
+            quantity: totalTicketsCount,
+            totalAmount: 0,
+            currency: 'NGN',
+            ticketType: firstType?.name,
+            ticketStyle: firstType?.ticketStyle,
+            accentColor: firstType?.accentColor,
+            tickets: init.tickets,
+          },
+        });
+        return;
+      }
+
+      setIsPaying(false);
+      openPaystackPopup({
+        publicKey: init.publicKey,
+        email: init.email,
+        amountKobo: init.amountKobo,
+        reference: init.reference,
+        accessCode: init.accessCode,
+      });
+    } catch (err: any) {
+      const data = err.response?.data;
+      showAlert(data?.message || err.message || 'Could not start payment.', 'Payment Error');
+    } finally {
+      setIsPaying(false);
+    }
   };
 
   const handleOpayPayment = async () => {
@@ -365,13 +485,12 @@ const BookingPage = () => {
   };
 
   const executePayment = async () => {
-    if (totalAmount === 0) {
-      await handlePaymentSuccess();
+    // Free and Paystack both go through server initialize (free fulfills immediately)
+    if (totalAmount === 0 || paymentMethod === 'paystack') {
+      await handlePaystackPayment();
       return;
     }
-    if (paymentMethod === 'paystack') {
-      handlePaystackPayment();
-    } else if (paymentMethod === 'opay') {
+    if (paymentMethod === 'opay') {
       await handleOpayPayment();
     }
   };
@@ -1390,7 +1509,24 @@ const BookingPage = () => {
                     )}
 
                     <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
-                      <span>Service fee ({feePercent}%)</span>
+                      <span className="inline-flex items-center gap-1">
+                        Fee
+                        <span className="group relative inline-flex">
+                          <button
+                            type="button"
+                            className="inline-flex text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 rounded-full"
+                            aria-label="PartyStorm fees are non-refundable"
+                          >
+                            <Info className="h-3.5 w-3.5" strokeWidth={2.25} />
+                          </button>
+                          <span
+                            role="tooltip"
+                            className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 w-44 -translate-x-1/2 rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[10px] font-medium leading-snug text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:bg-neutral-100 dark:text-neutral-900"
+                          >
+                            PartyStorm fees are non-refundable.
+                          </span>
+                        </span>
+                      </span>
                       <span className="font-bold text-neutral-900 dark:text-white">
                         ₦{serviceFee.toLocaleString()}
                       </span>
@@ -1412,7 +1548,24 @@ const BookingPage = () => {
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
-                          <span>Service fee ({feePercent}%)</span>
+                          <span className="inline-flex items-center gap-1">
+                            Fee
+                            <span className="group relative inline-flex">
+                              <button
+                                type="button"
+                                className="inline-flex text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 rounded-full"
+                                aria-label="PartyStorm fees are non-refundable"
+                              >
+                                <Info className="h-3.5 w-3.5" strokeWidth={2.25} />
+                              </button>
+                              <span
+                                role="tooltip"
+                                className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 w-44 -translate-x-1/2 rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[10px] font-medium leading-snug text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:bg-neutral-100 dark:text-neutral-900"
+                              >
+                                PartyStorm fees are non-refundable.
+                              </span>
+                            </span>
+                          </span>
                           <span className="font-bold text-neutral-900 dark:text-white">
                             ₦{serviceFee.toLocaleString()}
                           </span>
