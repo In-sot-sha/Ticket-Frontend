@@ -11,6 +11,11 @@ import {
   ScanLine,
   MapPin,
   Calendar,
+  UserCheck,
+  CreditCard,
+  User,
+  Ticket,
+  X,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/skeleton';
@@ -35,12 +40,13 @@ interface EventInfo {
   ticketTypes: TicketType[];
 }
 
-type PaymentMethod = 'CASH' | 'POS' | 'TRANSFER';
+type PaymentMethod = 'CASH' | 'POS' | 'TRANSFER' | 'COMPLIMENTARY';
 
 const PAYMENTS: { id: PaymentMethod; label: string }[] = [
   { id: 'CASH', label: 'Cash' },
   { id: 'POS', label: 'POS' },
   { id: 'TRANSFER', label: 'Transfer' },
+  { id: 'COMPLIMENTARY', label: 'Complimentary' },
 ];
 
 const hasValidContact = (email: string, phone: string) => {
@@ -63,13 +69,7 @@ const ManualAttendeePage: React.FC = () => {
   const [event, setEvent] = useState<EventInfo | null>(null);
   const [loadingEvent, setLoadingEvent] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState<{
-    count: number;
-    checkedIn: boolean;
-    ticketName: string;
-    total: number;
-    contact: string;
-  } | null>(null);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [ticketTypeId, setTicketTypeId] = useState('');
@@ -124,12 +124,21 @@ const ManualAttendeePage: React.FC = () => {
   }, [id, isStaffMode]);
 
   useEffect(() => {
-    if (!success) nameRef.current?.focus();
-  }, [success]);
+    nameRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (toastMsg) {
+      const timer = setTimeout(() => setToastMsg(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMsg]);
 
   const selectedTicketType = event?.ticketTypes.find((tt) => String(tt.id) === ticketTypeId);
   const total =
-    selectedTicketType && !Number.isNaN(selectedTicketType.price)
+    paymentMethod === 'COMPLIMENTARY'
+      ? 0
+      : selectedTicketType && !Number.isNaN(selectedTicketType.price)
       ? selectedTicketType.price * qty
       : 0;
 
@@ -181,22 +190,16 @@ const ManualAttendeePage: React.FC = () => {
         buyerEmail: attendees[0].email.trim().toLowerCase() || undefined,
         buyerPhone: attendees[0].phone.trim() || undefined,
         attendees: payloadAttendees,
-        paymentMethod,
+        paymentMethod: paymentMethod === 'COMPLIMENTARY' ? 'CASH' : paymentMethod,
         checkInNow,
       });
 
-      const contactLabel =
-        attendees[0].email.trim().toLowerCase() ||
-        attendees[0].phone.trim() ||
-        'guest';
-
-      setSuccess({
-        count: qty,
-        checkedIn: checkInNow,
-        ticketName: selectedTicketType?.name || 'Ticket',
-        total,
-        contact: contactLabel,
-      });
+      const guestName = attendees[0].name.trim() || 'Guest';
+      setToastMsg(`✓ ${qty} ${selectedTicketType?.name || 'Ticket'} issued for ${guestName}${checkInNow ? ' (Checked in ✓)' : ''}`);
+      // Rapid reset: keep ticket type, clear guest fields & refocus for continuous rapid creation
+      setAttendees([{ name: '', email: '', phone: '' }]);
+      setQty(1);
+      setTimeout(() => nameRef.current?.focus(), 60);
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
@@ -208,423 +211,313 @@ const ManualAttendeePage: React.FC = () => {
   };
 
   const handleReset = () => {
-    setSuccess(null);
     setError(null);
     setCheckInNow(true);
     setQty(1);
     setAttendees([{ name: '', email: '', phone: '' }]);
     setUseSameDetails(true);
+    setTimeout(() => nameRef.current?.focus(), 60);
   };
 
   const inputClass =
-    'w-full px-4 py-3.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-base sm:text-sm text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500/25 focus:border-rose-500 transition-colors';
-
-  if (success) {
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center px-4 py-10">
-        <div className="w-full max-w-md text-center">
-          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/40">
-            <CheckCircle2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <h1 className="text-2xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
-            {success.count} guest{success.count > 1 ? 's' : ''} added
-          </h1>
-          <p className="mt-2 text-sm text-neutral-500">
-            {success.ticketName}
-            {success.total > 0 ? ` · ₦${success.total.toLocaleString()}` : ' · Free'}
-            {success.checkedIn ? ' · Checked in' : ' · Ticket issued'}
-          </p>
-          <p className="mt-3 text-xs text-neutral-500">
-            {success.contact.includes('@') ? (
-              <>
-                Confirmation sent to{' '}
-                <span className="font-semibold text-neutral-700 dark:text-neutral-300">{success.contact}</span>
-              </>
-            ) : (
-              <>
-                Ticket linked to{' '}
-                <span className="font-semibold text-neutral-700 dark:text-neutral-300">{success.contact}</span>
-                {' '}(no email on file)
-              </>
-            )}
-          </p>
-          <div className="mt-8 flex flex-col gap-3">
-            <Button
-              onClick={handleReset}
-              className="h-14 rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0 text-base font-bold"
-            >
-              Add next guest
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => navigate(backPath)}
-              className="h-12 rounded-full border-neutral-200 dark:border-neutral-700 font-semibold"
-            >
-              {isStaffMode ? 'Back to staff home' : 'Back to event'}
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const ticketSection = (
-    <section>
-      <h2 className="mb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-500">1 · Ticket</h2>
-      {loadingEvent ? (
-        <div className="space-y-2">
-          <Skeleton className="h-14 w-full rounded-xl" />
-          <Skeleton className="h-14 w-full rounded-xl" />
-        </div>
-      ) : event?.ticketTypes.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 px-4 py-6 text-center text-sm text-neutral-500">
-          No ticket types on this event yet.
-        </p>
-      ) : (
-        <div className="grid gap-2">
-          {event?.ticketTypes.map((tt) => {
-            const selected = String(tt.id) === ticketTypeId;
-            return (
-              <button
-                key={tt.id}
-                type="button"
-                onClick={() => setTicketTypeId(String(tt.id))}
-                className={cn(
-                  'flex items-center justify-between gap-3 rounded-xl border-2 px-4 py-3.5 text-left transition-colors',
-                  selected
-                    ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/25'
-                    : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-rose-300'
-                )}
-              >
-                <div className="min-w-0">
-                  <p className="font-bold text-neutral-900 dark:text-white truncate">{tt.name}</p>
-                  <p className={cn('text-sm font-semibold mt-0.5', selected ? 'text-rose-600' : 'text-neutral-500')}>
-                    {tt.price === 0 ? 'Free' : `₦${tt.price.toLocaleString()}`}
-                  </p>
-                </div>
-                <span
-                  className={cn(
-                    'h-5 w-5 rounded-full border-2 shrink-0 flex items-center justify-center',
-                    selected ? 'border-rose-500 bg-rose-500' : 'border-neutral-300 dark:border-neutral-600'
-                  )}
-                >
-                  {selected && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="mt-3 flex items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 py-3">
-        <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Quantity</span>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => syncQty(qty - 1)}
-            disabled={qty <= 1}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-700 disabled:opacity-40"
-            aria-label="Decrease quantity"
-          >
-            <Minus className="h-4 w-4" />
-          </button>
-          <span className="min-w-[2ch] text-center text-lg font-extrabold tabular-nums">{qty}</span>
-          <button
-            type="button"
-            onClick={() => syncQty(qty + 1)}
-            disabled={qty >= 20}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-700 disabled:opacity-40"
-            aria-label="Increase quantity"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    </section>
-  );
-
-  const guestSection = (
-    <section>
-      <div className="mb-2.5 flex items-center justify-between gap-2">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500">2 · Guest</h2>
-        {qty > 1 && (
-          <label className="flex items-center gap-2 text-xs font-semibold text-neutral-600 dark:text-neutral-400">
-            Same details for all
-            <Switch checked={useSameDetails} onCheckedChange={setUseSameDetails} />
-          </label>
-        )}
-      </div>
-
-      <div className="space-y-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
-        {(useSameDetails ? [attendees[0]] : attendees).map((attendee, index) => (
-          <div
-            key={index}
-            className={cn(index > 0 && 'pt-4 border-t border-neutral-100 dark:border-neutral-800')}
-          >
-            {!useSameDetails && (
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-neutral-400">
-                Guest {index + 1}
-              </p>
-            )}
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-bold text-neutral-600 dark:text-neutral-400">
-                Full name <span className="text-rose-500">*</span>
-              </span>
-              <input
-                ref={index === 0 ? nameRef : undefined}
-                type="text"
-                autoComplete="name"
-                className={inputClass}
-                placeholder="Guest full name"
-                value={attendee.name}
-                onChange={(e) => updateAttendee(index, 'name', e.target.value)}
-                required
-              />
-            </label>
-            <label className="mt-3 block">
-              <span className="mb-1.5 flex items-center gap-1 text-xs font-bold text-neutral-600 dark:text-neutral-400">
-                <Mail className="h-3 w-3" /> Email
-              </span>
-              <input
-                type="email"
-                autoComplete="email"
-                className={inputClass}
-                placeholder="guest@email.com"
-                value={attendee.email}
-                onChange={(e) => updateAttendee(index, 'email', e.target.value)}
-              />
-            </label>
-            <label className="mt-3 block">
-              <span className="mb-1.5 flex items-center gap-1 text-xs font-bold text-neutral-600 dark:text-neutral-400">
-                <Phone className="h-3 w-3" /> Phone
-              </span>
-              <input
-                type="tel"
-                autoComplete="tel"
-                className={inputClass}
-                placeholder="0803 000 0000"
-                value={attendee.phone}
-                onChange={(e) => updateAttendee(index, 'phone', e.target.value)}
-              />
-              <p className="mt-1 text-[10px] text-neutral-400">
-                Email or phone required — links the ticket to a guest account.
-              </p>
-            </label>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-
-  const paymentControls = (
-    <>
-      <div className="grid grid-cols-3 gap-2">
-        {PAYMENTS.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => setPaymentMethod(p.id)}
-            className={cn(
-              'h-12 rounded-xl text-sm font-bold border-2 transition-colors',
-              paymentMethod === p.id
-                ? 'border-rose-500 bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400'
-                : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-600'
-            )}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-      <label className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 py-3.5 cursor-pointer">
-        <div>
-          <p className="text-sm font-bold text-neutral-900 dark:text-white">Check in now</p>
-          <p className="text-xs text-neutral-500 mt-0.5">Mark as entered at the gate</p>
-        </div>
-        <Switch checked={checkInNow} onCheckedChange={setCheckInNow} />
-      </label>
-    </>
-  );
-
-  const summaryBlock = (
-    <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 shadow-sm space-y-4">
-      <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Summary</h3>
-      {loadingEvent ? (
-        <Skeleton className="h-16 w-full" />
-      ) : (
-        <>
-          <div>
-            <p className="font-extrabold text-neutral-900 dark:text-white leading-snug">{event?.title}</p>
-            {event?.startDate && (
-              <p className="mt-1.5 flex items-center gap-1.5 text-xs text-neutral-500">
-                <Calendar className="h-3.5 w-3.5" />
-                {new Date(event.startDate).toLocaleDateString('en-US', {
-                  weekday: 'short',
-                  month: 'short',
-                  day: 'numeric',
-                })}
-              </p>
-            )}
-            {event?.location && (
-              <p className="mt-1 flex items-center gap-1.5 text-xs text-neutral-500">
-                <MapPin className="h-3.5 w-3.5 shrink-0" />
-                <span className="line-clamp-2">{event.location}</span>
-              </p>
-            )}
-          </div>
-          <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3 flex justify-between text-sm">
-            <span className="text-neutral-500">
-              {selectedTicketType?.name || 'Ticket'} × {qty}
-            </span>
-            <span className="font-bold tabular-nums">
-              {total === 0 ? 'Free' : `₦${total.toLocaleString()}`}
-            </span>
-          </div>
-        </>
-      )}
-
-      <div>
-        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-neutral-500">Payment</p>
-        {paymentControls}
-      </div>
-
-      <Button
-        type="button"
-        disabled={saving || !canSubmit || loadingEvent}
-        onClick={() => handleSubmit()}
-        className="hidden lg:flex w-full h-12 rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0 font-bold disabled:opacity-50"
-      >
-        {saving ? 'Saving…' : checkInNow ? 'Register & check in' : 'Register'}
-      </Button>
-    </div>
-  );
+    'w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-colors';
 
   return (
-    <div
-      className={cn(
-        'relative bg-neutral-50 dark:bg-neutral-950',
-        isStaffMode
-          ? 'min-h-0 pb-28 lg:pb-6'
-          : 'min-h-screen pb-28 lg:pb-10'
-      )}
-    >
-      {!isStaffMode && (
-        <header className="sticky top-0 z-20 border-b border-neutral-200/80 dark:border-neutral-800 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-sm">
-          <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
-            <Link
-              to={backPath}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-900"
-              aria-label="Back to event"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500">
-                Walk-in · Gate
-              </p>
-              {loadingEvent ? (
-                <Skeleton className="mt-1 h-4 w-40" />
-              ) : (
-                <h1 className="truncate text-sm font-extrabold text-neutral-900 dark:text-white">
-                  {event?.title || 'Event'}
-                </h1>
-              )}
-            </div>
-            <Link
-              to={scanPath}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-700"
-              aria-label="Open scanner"
-            >
-              <ScanLine className="h-4 w-4" />
-            </Link>
+    <div className={cn('relative max-w-5xl mx-auto px-3 sm:px-6 pb-20 sm:pb-8 pt-2')}>
+      {/* Rapid Creation Success Toast */}
+      {toastMsg && (
+        <div className="mb-4 p-3.5 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-between shadow-md animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-white" />
+            <span>{toastMsg}</span>
           </div>
-        </header>
-      )}
-
-      {isStaffMode && (
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500">
-              Walk-in registration
-            </p>
-            {loadingEvent ? (
-              <Skeleton className="mt-1 h-5 w-48" />
-            ) : (
-              <h1 className="text-lg font-extrabold text-neutral-900 dark:text-white truncate">
-                {event?.title || 'Event'}
-              </h1>
-            )}
-          </div>
-          <Link
-            to={scanPath}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900"
-            aria-label="Open scanner"
+          <button
+            type="button"
+            onClick={() => setToastMsg(null)}
+            className="p-1 hover:bg-emerald-700 rounded-md cursor-pointer transition-colors text-white"
           >
-            <ScanLine className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+      {/* Ultra-compact top bar */}
+      <div className="border-b border-neutral-200/80 dark:border-neutral-800 pb-2.5 mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <Link
+            to={backPath}
+            className="p-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 text-neutral-700 dark:text-neutral-300 shrink-0 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
           </Link>
+          <div className="min-w-0">
+            <h1 className="text-sm sm:text-base font-extrabold text-neutral-900 dark:text-white truncate leading-tight">
+              Add Attendee
+            </h1>
+            <p className="text-[11px] text-neutral-500 truncate leading-none mt-0.5">
+              {event?.title || 'Walk-in Registration'}
+            </p>
+          </div>
+        </div>
+
+        <Link to={scanPath}>
+          <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs gap-1 border-neutral-200 dark:border-neutral-700 hover:border-rose-400 hover:text-rose-500">
+            <ScanLine className="h-3.5 w-3.5 text-rose-500" />
+            <span className="hidden sm:inline">Scan Gate</span>
+          </Button>
+        </Link>
+      </div>
+
+      {error && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 px-3.5 py-2.5 text-xs text-rose-700 dark:text-rose-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span className="flex-1 font-medium">{error}</span>
+          <button type="button" onClick={() => setError(null)} className="font-bold underline">
+            Dismiss
+          </button>
         </div>
       )}
 
-      <form
-        onSubmit={handleSubmit}
-        className={cn(isStaffMode ? 'pt-0' : 'mx-auto max-w-5xl px-4 pt-5')}
-      >
-        {error && (
-          <div
-            role="alert"
-            className="mb-5 flex items-start gap-2.5 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 px-3.5 py-3 text-rose-700 dark:text-rose-300"
-          >
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <p className="text-sm font-medium flex-1">{error}</p>
-            <button type="button" onClick={() => setError(null)} className="text-xs font-bold underline">
-              Dismiss
-            </button>
-          </div>
-        )}
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        {/* Left Column: Compact Attendee Inputs */}
+        <div className="lg:col-span-7 space-y-4">
+          {/* 1. Ticket Type Selection */}
+          <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 shadow-2xs space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                <Ticket className="h-3.5 w-3.5 text-rose-500" /> 1. Select Ticket
+              </span>
+              <span className="text-[11px] text-neutral-400">
+                {qty} ticket{qty > 1 ? 's' : ''} selected
+              </span>
+            </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
-          <div className="lg:col-span-7 space-y-6">
-            {ticketSection}
-            {guestSection}
-            <section className="lg:hidden">
-              <h2 className="mb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-500">
-                3 · Payment
-              </h2>
-              {paymentControls}
-            </section>
+            {loadingEvent ? (
+              <Skeleton className="h-10 w-full rounded-xl" />
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {event?.ticketTypes.map((tt) => {
+                  const selected = String(tt.id) === ticketTypeId;
+                  return (
+                    <button
+                      key={tt.id}
+                      type="button"
+                      onClick={() => setTicketTypeId(String(tt.id))}
+                      className={cn(
+                        'p-2.5 rounded-xl border text-left transition-all cursor-pointer min-w-0',
+                        selected
+                          ? 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/40 dark:bg-rose-950/20'
+                          : 'border-neutral-200 dark:border-neutral-800 hover:border-rose-300 bg-neutral-50/50 dark:bg-neutral-850/40'
+                      )}
+                    >
+                      <p className="text-xs font-bold text-neutral-900 dark:text-white truncate">
+                        {tt.name}
+                      </p>
+                      <p className={cn('text-[11px] font-semibold mt-0.5', selected ? 'text-rose-600 dark:text-rose-400' : 'text-neutral-500')}>
+                        {tt.price === 0 ? 'Free' : `₦${tt.price.toLocaleString()}`}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Compact Quantity Control */}
+            <div className="flex items-center justify-between pt-2 border-t border-neutral-100 dark:border-neutral-800">
+              <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Quantity</span>
+              <div className="flex items-center gap-1.5">
+                {[1, 2, 5].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => syncQty(preset)}
+                    className={cn(
+                      'px-2 py-0.5 rounded-md text-[11px] font-semibold border transition-colors',
+                      qty === preset
+                        ? 'border-rose-500 bg-rose-500 text-white'
+                        : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-rose-300'
+                    )}
+                  >
+                    {preset}
+                  </button>
+                ))}
+                <div className="flex items-center gap-1 ml-1.5">
+                  <button
+                    type="button"
+                    onClick={() => syncQty(qty - 1)}
+                    disabled={qty <= 1}
+                    className="h-7 w-7 rounded-lg border border-neutral-200 dark:border-neutral-700 flex items-center justify-center text-xs disabled:opacity-30"
+                  >
+                    <Minus className="h-3 w-3" />
+                  </button>
+                  <span className="w-5 text-center text-xs font-bold tabular-nums">{qty}</span>
+                  <button
+                    type="button"
+                    onClick={() => syncQty(qty + 1)}
+                    disabled={qty >= 20}
+                    className="h-7 w-7 rounded-lg border border-neutral-200 dark:border-neutral-700 flex items-center justify-center text-xs disabled:opacity-30"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="lg:col-span-5">
-            <div className="lg:sticky lg:top-24">{summaryBlock}</div>
+
+          {/* 2. Attendee Guest Details */}
+          <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 shadow-2xs space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5 text-rose-500" /> 2. Guest Information
+              </span>
+              {qty > 1 && (
+                <label className="flex items-center gap-1.5 text-xs text-neutral-500 cursor-pointer">
+                  Same details for all
+                  <Switch checked={useSameDetails} onCheckedChange={setUseSameDetails} />
+                </label>
+              )}
+            </div>
+
+            {(useSameDetails ? [attendees[0]] : attendees).map((attendee, index) => (
+              <div key={index} className={cn(index > 0 && 'pt-3 border-t border-neutral-100 dark:border-neutral-800 space-y-2.5', 'space-y-2.5')}>
+                {qty > 1 && !useSameDetails && (
+                  <p className="text-[10px] font-bold text-rose-500 uppercase">Attendee {index + 1}</p>
+                )}
+                <div>
+                  <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Full Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    ref={index === 0 ? nameRef : undefined}
+                    type="text"
+                    className={inputClass}
+                    placeholder="e.g. Tunde Adeleke"
+                    value={attendee.name}
+                    onChange={(e) => updateAttendee(index, 'name', e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      className={inputClass}
+                      placeholder="tunde@gmail.com"
+                      value={attendee.email}
+                      onChange={(e) => updateAttendee(index, 'email', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      className={inputClass}
+                      placeholder="0803 000 0000"
+                      value={attendee.phone}
+                      onChange={(e) => updateAttendee(index, 'phone', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 3. Payment & Check-In */}
+          <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 shadow-2xs space-y-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+              <CreditCard className="h-3.5 w-3.5 text-rose-500" /> 3. Payment & Gate Check-in
+            </span>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {PAYMENTS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPaymentMethod(p.id)}
+                  className={cn(
+                    'py-2 px-2.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer text-center',
+                    paymentMethod === p.id
+                      ? 'border-rose-500 bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 ring-1 ring-rose-500/20'
+                      : 'border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-850/40 text-neutral-600 dark:text-neutral-300 hover:border-rose-300'
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            <label className="flex items-center justify-between gap-3 pt-2 border-t border-neutral-100 dark:border-neutral-800 cursor-pointer">
+              <div className="flex items-center gap-2">
+                <UserCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <div>
+                  <p className="text-xs font-bold text-neutral-900 dark:text-white">Check-in immediately</p>
+                  <p className="text-[10px] text-neutral-400">Mark attendee as entered at the gate</p>
+                </div>
+              </div>
+              <Switch checked={checkInNow} onCheckedChange={setCheckInNow} />
+            </label>
+          </div>
+        </div>
+
+        {/* Right Column: Live Summary & Action */}
+        <div className="lg:col-span-5">
+          <div className="lg:sticky lg:top-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 sm:p-5 shadow-2xs space-y-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Order Summary</h3>
+
+            <div className="space-y-2">
+              <p className="font-bold text-sm text-neutral-900 dark:text-white line-clamp-1">{event?.title}</p>
+              {event?.startDate && (
+                <p className="flex items-center gap-1.5 text-xs text-neutral-500">
+                  <Calendar className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                  {new Date(event.startDate).toLocaleDateString('en-NG', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </p>
+              )}
+            </div>
+
+            <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3 space-y-2">
+              <div className="flex justify-between text-xs text-neutral-600 dark:text-neutral-300">
+                <span>{selectedTicketType?.name || 'Ticket'} × {qty}</span>
+                <span className="font-bold">{total === 0 ? 'Free' : `₦${total.toLocaleString()}`}</span>
+              </div>
+              <div className="flex justify-between text-xs text-neutral-500">
+                <span>Payment</span>
+                <span className="font-medium">{PAYMENTS.find((p) => p.id === paymentMethod)?.label}</span>
+              </div>
+              <div className="flex justify-between text-xs text-neutral-500">
+                <span>Gate status</span>
+                <span className={cn('font-medium', checkInNow ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500')}>
+                  {checkInNow ? 'Check-in on issue' : 'Unchecked'}
+                </span>
+              </div>
+            </div>
+
+            <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3 flex justify-between items-center">
+              <span className="text-xs font-bold text-neutral-900 dark:text-white">Total</span>
+              <span className="text-base sm:text-lg font-extrabold text-neutral-900 dark:text-white tabular-nums">
+                {total === 0 ? 'Free' : `₦${total.toLocaleString()}`}
+              </span>
+            </div>
+
+            <Button
+              type="button"
+              disabled={saving || !canSubmit || loadingEvent}
+              onClick={() => handleSubmit()}
+              className="w-full h-11 rounded-xl bg-rose-500 hover:bg-rose-600 text-white border-0 text-xs sm:text-sm font-bold shadow-2xs cursor-pointer disabled:opacity-50"
+            >
+              {saving ? 'Processing…' : checkInNow ? 'Issue Ticket & Check In' : 'Issue Ticket'}
+            </Button>
           </div>
         </div>
       </form>
-
-      {/* Mobile CTA — sit above staff tab bar when in staff shell */}
-      <div
-        className={cn(
-          'z-30 lg:hidden border-t border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-sm',
-          isStaffMode
-            ? 'fixed bottom-[calc(3.75rem+env(safe-area-inset-bottom))] inset-x-0 md:bottom-0 md:absolute'
-            : 'absolute bottom-0 inset-x-0 pb-safe'
-        )}
-      >
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Total</p>
-            <p className="text-lg font-extrabold tabular-nums leading-tight">
-              {total === 0 ? 'Free' : `₦${total.toLocaleString()}`}
-              <span className="ml-1.5 text-xs font-semibold text-neutral-500">· {qty}×</span>
-            </p>
-          </div>
-          <Button
-            type="button"
-            disabled={saving || !canSubmit || loadingEvent}
-            onClick={() => handleSubmit()}
-            className="h-12 shrink-0 rounded-full px-5 bg-rose-500 hover:bg-rose-600 text-white border-0 font-bold disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : checkInNow ? 'Register & check in' : 'Register'}
-          </Button>
-        </div>
-      </div>
     </div>
   );
 };

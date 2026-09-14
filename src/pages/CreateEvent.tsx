@@ -12,6 +12,7 @@ import {
   ImageIcon,
   X,
   Plus,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
@@ -32,8 +33,9 @@ import {
 import { INCLUDED_SUGGESTIONS, TICKET_TYPE_PRESETS } from '../data/eventExtras';
 import EventTicketCard from '../components/tickets/EventTicketCard';
 import VendorSettingsStep, { VendorSettings } from '../components/organizer/VendorSettingsStep';
-import { LocationMap } from '../components/organizer/LocationMap';
 import GoogleMapLocationPicker from '../components/organizer/GoogleMapLocationPicker';
+import VenueAutocomplete from '../components/organizer/VenueAutocomplete';
+import { GoogleMapLocation } from '../components/GoogleMapLocation';
 import { cn } from '../lib/utils';
 import { resolveImageUrl } from '../lib/media';
 import {
@@ -69,11 +71,11 @@ interface FormState {
   category: string;
 }
 
-const STEPS: { key: Step; label: string }[] = [
-  { key: 'details', label: 'Details' },
-  { key: 'tickets', label: 'Tickets' },
-  { key: 'vendors', label: 'Vendors' },
-  { key: 'review', label: 'Publish' },
+const STEPS: { key: Step; label: string; description: string }[] = [
+  { key: 'details', label: 'Details', description: 'Basic info & venue' },
+  { key: 'tickets', label: 'Tickets', description: 'Pricing & tiers' },
+  { key: 'vendors', label: 'Vendors', description: 'Stalls & applications' },
+  { key: 'review', label: 'Publish', description: 'Review & go live' },
 ];
 
 const defaultTicket = (): TicketDraft => ({
@@ -140,7 +142,7 @@ function formatDateLabel(dateStr: string) {
 
 function totalTicketQuantity(tickets: TicketDraft[], excludeIndex?: number) {
   return tickets.reduce(
-    (sum, t, i) => (i === excludeIndex ? sum : sum + parseInt(t.quantity || '0', 10)),
+    (sum, t, i) => (i === excludeIndex || t.isUnlimited ? sum : sum + parseInt(t.quantity || '0', 10)),
     0
   );
 }
@@ -163,12 +165,21 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
   fd.append('startDate', startDateTime.toISOString());
   fd.append('endDate', endDateTime.toISOString());
   fd.append('locationType', form.locationType);
-  fd.append('capacity', form.capacity);
+
+  const isAnyUnlimited = form.tickets.some((t) => t.isUnlimited);
+  const totalCalculatedCapacity = form.tickets.reduce(
+    (sum, t) => sum + (t.isUnlimited ? 0 : parseInt(t.quantity || '0', 10)),
+    0
+  );
+  if (!isAnyUnlimited && totalCalculatedCapacity > 0) {
+    fd.append('capacity', String(totalCalculatedCapacity));
+  }
+
   fd.append('isPublished', String(isPublished));
   fd.append('category', form.category);
   
   // Add latitude/longitude if physical event
-  if (form.locationType === 'physical' && form.latitude && form.longitude) {
+  if (form.locationType === 'physical' && form.latitude != null && form.longitude != null) {
     fd.append('latitude', String(form.latitude));
     fd.append('longitude', String(form.longitude));
   }
@@ -179,7 +190,8 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
       form.tickets.map((t) => ({
         name: t.name,
         price: t.isFree ? 0 : parseFloat(t.price || '0'),
-        quantity: parseInt(t.quantity || '0', 10),
+        quantity: t.isUnlimited ? 0 : parseInt(t.quantity || '0', 10),
+        isUnlimited: !!t.isUnlimited,
         ticketStyle: t.ticketStyle || encodeTicketStyle('classic', 'rose'),
         badgeText: t.badgeText || null,
         accentColor: t.accentColor || null,
@@ -365,10 +377,12 @@ const CreateEvent: React.FC = () => {
   const [customIncluded, setCustomIncluded] = useState('');
   const [showTicketPresets, setShowTicketPresets] = useState(false);
   const [showMapPicker, setShowMapPicker] = useState(false);
+  const [showTemplateGrid, setShowTemplateGrid] = useState(false);
 
   const stepIndex = STEPS.findIndex((s) => s.key === step);
   const isEditing = !!id;
-  const capacityNum = parseInt(form.capacity || '0', 10);
+  const hasUnlimitedTickets = form.tickets.some((t) => t.isUnlimited);
+  const ticketQtyTotal = totalTicketQuantity(form.tickets);
 
   const includedChipOptions = [
     ...INCLUDED_SUGGESTIONS,
@@ -427,8 +441,8 @@ const CreateEvent: React.FC = () => {
           endTime12: formatTime12(end),
           locationType: event.locationType === 'online' ? 'online' : 'physical',
           location: event.locationType === 'online' ? '' : event.location || '',
-          latitude: event.latitude ?? undefined,
-          longitude: event.longitude ?? undefined,
+          latitude: event.latitude != null ? Number(event.latitude) : undefined,
+          longitude: event.longitude != null ? Number(event.longitude) : undefined,
           onlineUrl: event.onlineUrl || (event.locationType === 'online' ? event.location || '' : ''),
           capacity: event.capacity ? String(event.capacity) : '',
           tickets: event.ticketTypes?.length
@@ -568,15 +582,7 @@ const CreateEvent: React.FC = () => {
   };
 
   const updateTicketQuantity = (index: number, raw: string) => {
-    const qty = parseInt(raw || '0', 10);
-    if (!raw) {
-      updateTicket(index, { quantity: raw });
-      return;
-    }
-    const otherTotal = totalTicketQuantity(form.tickets, index);
-    const maxAllowed = Math.max(1, capacityNum - otherTotal);
-    const capped = capacityNum > 0 ? Math.min(qty, maxAllowed) : qty;
-    updateTicket(index, { quantity: String(capped) });
+    updateTicket(index, { quantity: raw });
   };
 
   const addTicketFromPreset = (preset: (typeof TICKET_TYPE_PRESETS)[number]) => {
@@ -586,8 +592,6 @@ const CreateEvent: React.FC = () => {
       setShowTicketPresets(false);
       return;
     }
-    const otherTotal = totalTicketQuantity(form.tickets);
-    const remaining = capacityNum > 0 ? Math.max(1, capacityNum - otherTotal) : 50;
     setForm((prev) => ({
       ...prev,
       tickets: [
@@ -595,7 +599,7 @@ const CreateEvent: React.FC = () => {
         {
           name: preset.name,
           price: preset.suggestedPrice || '',
-          quantity: String(Math.min(50, remaining)),
+          quantity: '100',
           isFree: preset.isFree ?? false,
           ticketStyle: preset.ticketStyle,
           badgeText: preset.badgeText,
@@ -610,13 +614,11 @@ const CreateEvent: React.FC = () => {
   };
 
   const addBlankTicket = () => {
-    const otherTotal = totalTicketQuantity(form.tickets);
-    const remaining = capacityNum > 0 ? Math.max(1, capacityNum - otherTotal) : 50;
     setForm((prev) => ({
       ...prev,
       tickets: [
         ...prev.tickets,
-        { ...defaultTicket(), quantity: String(Math.min(50, remaining)) },
+        { ...defaultTicket(), quantity: '100' },
       ],
     }));
     setActiveTicketIndex(form.tickets.length);
@@ -632,8 +634,6 @@ const CreateEvent: React.FC = () => {
   const previewDate = form.startDate ? `${form.startDate}T12:00:00` : new Date().toISOString();
   const previewLocation = form.locationType === 'online' ? 'Online Event' : form.location || 'Venue TBA';
   const activeTicket = form.tickets[activeTicketIndex] ?? form.tickets[0];
-  const ticketQtyTotal = totalTicketQuantity(form.tickets);
-  const remainingCapacity = capacityNum > 0 ? capacityNum - ticketQtyTotal : null;
 
   const validateDetails = (): string | null => {
     if (!isEditing && !form.templateId) return 'Choose a template to get started.';
@@ -649,7 +649,6 @@ const CreateEvent: React.FC = () => {
     if (end <= start) return 'End date and time must be after the start.';
     if (form.locationType === 'physical' && !form.location.trim()) return 'Enter a venue or address.';
     if (form.locationType === 'online' && !form.onlineUrl.trim()) return 'Enter your meeting link.';
-    if (!form.capacity || capacityNum < 1) return 'Set how many people can attend.';
     if (!coverImageSrc && !imageFile && !form.imageUrl) return 'Add a cover photo.';
     return null;
   };
@@ -658,10 +657,7 @@ const CreateEvent: React.FC = () => {
     for (const t of form.tickets) {
       if (!t.name.trim()) return 'Each ticket needs a name.';
       if (!t.isFree && (!t.price || Number(t.price) < 0)) return 'Enter a valid price.';
-      if (!t.quantity || Number(t.quantity) < 1) return 'Each ticket needs a quantity.';
-    }
-    if (capacityNum > 0 && ticketQtyTotal > capacityNum) {
-      return `Total tickets (${ticketQtyTotal}) cannot exceed capacity (${capacityNum}).`;
+      if (!t.isUnlimited && (!t.quantity || Number(t.quantity) < 1)) return 'Enter quantity or select Unlimited.';
     }
     return null;
   };
@@ -816,9 +812,9 @@ const CreateEvent: React.FC = () => {
   }
 
   return (
-    <div className="pb-10 md:pb-8 sm:px-2">
-      {/* ── Page header — sticky on mobile, part of normal flow on desktop ── */}
-      <div className="sticky top-0 z-20 bg-white/97 dark:bg-gray-900/97 backdrop-blur-sm border-b border-neutral-100 dark:border-neutral-800 px-4 py-3 flex items-center justify-between gap-3 shrink-0 md:static md:bg-transparent md:dark:bg-transparent md:border-0 md:px-0 md:pt-0 md:pb-4 md:backdrop-blur-none mb-2 md:mb-3">
+    <div className="pb-10 md:pb-8 w-full max-w-7xl mx-auto px-3 sm:px-6 overflow-x-hidden">
+      {/* ── Page header ── */}
+      <div className="border-b border-neutral-100 dark:border-neutral-800 pb-3 mb-4 flex items-center justify-between gap-3 shrink-0">
         {/* Left: back + title */}
         <div className="flex items-center gap-3 min-w-0">
           <button
@@ -829,39 +825,23 @@ const CreateEvent: React.FC = () => {
             <ArrowLeft className="h-4 w-4" />
           </button>
           <div className="min-w-0">
-            <h1 className="text-sm font-extrabold text-neutral-900 dark:text-white leading-tight truncate md:text-xl md:font-bold">
+            <h1 className="text-base sm:text-xl font-extrabold text-neutral-900 dark:text-white leading-tight truncate">
               {isEditing ? 'Edit event' : 'Create event'}
             </h1>
-            <p className="text-[10px] md:text-sm text-neutral-500 dark:text-neutral-400 leading-none mt-0.5 truncate md:hidden">
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-none mt-0.5 truncate">
               Step {stepIndex + 1} of {STEPS.length} · {STEPS[stepIndex]?.label}
-            </p>
-            <p className="hidden md:block text-sm text-neutral-500 dark:text-neutral-400 leading-none mt-0.5 truncate">
-              {STEPS[stepIndex]?.label}
             </p>
           </div>
         </div>
 
-        {/* Right: step progress dots + close */}
+        {/* Right: save (if editing) + close */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="hidden sm:flex items-center gap-1">
-            {STEPS.map((s, i) => (
-              <div
-                key={s.key}
-                className={cn(
-                  'h-1.5 rounded-full transition-all',
-                  i <= stepIndex
-                    ? 'w-6 md:w-8 bg-rose-500'
-                    : 'w-3 md:w-4 bg-neutral-200 dark:bg-neutral-700'
-                )}
-              />
-            ))}
-          </div>
           {isEditing && (
             <button
               type="button"
               disabled={savingType !== null}
               onClick={quickSave}
-              className="text-xs font-extrabold bg-rose-500 hover:bg-rose-600 text-white rounded-lg px-2.5 sm:px-3 py-1.5 transition-colors shadow-sm disabled:opacity-50"
+              className="text-xs font-bold bg-rose-500 hover:bg-rose-600 text-white rounded-full px-3.5 py-1.5 transition-colors shadow-2xs disabled:opacity-50"
             >
               {savingType ? 'Saving...' : 'Save'}
             </button>
@@ -869,366 +849,453 @@ const CreateEvent: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/organizer/events')}
-            className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors"
+            className="p-1.5 rounded-full text-neutral-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors"
           >
-            <X className="h-4 w-4 md:h-5 md:w-5" />
+            <X className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
       </div>
 
-      {/* Mobile step labels — back free; forward validates each step */}
-      <div className="flex sm:hidden gap-1 px-4 mb-4 overflow-x-auto scrollbar-none">
+      {/* ── Connected Step Navigation for Desktop & Tablet ── */}
+      <div className="hidden sm:flex items-center justify-between w-full mb-6 px-1">
+        {STEPS.map((s, i) => {
+          const isCompleted = i < stepIndex;
+          const isCurrent = i === stepIndex;
+          return (
+            <React.Fragment key={s.key}>
+              <button
+                type="button"
+                onClick={() => goToStep(s.key)}
+                className="flex items-center gap-2.5 group focus:outline-none transition-all cursor-pointer"
+              >
+                <div
+                  className={cn(
+                    'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shrink-0',
+                    isCurrent
+                      ? 'bg-rose-500 text-white ring-4 ring-rose-500/20 shadow-xs'
+                      : isCompleted
+                      ? 'bg-rose-500 text-white'
+                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-200'
+                  )}
+                >
+                  {isCompleted ? <Check className="w-4 h-4" /> : i + 1}
+                </div>
+                <div className="text-left min-w-0">
+                  <p
+                    className={cn(
+                      'text-xs font-bold leading-tight transition-colors',
+                      isCurrent
+                        ? 'text-rose-500'
+                        : isCompleted
+                        ? 'text-neutral-900 dark:text-white'
+                        : 'text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300'
+                    )}
+                  >
+                    {s.label}
+                  </p>
+                  <p className="text-[10px] text-neutral-400 dark:text-neutral-500 leading-none mt-0.5">
+                    {s.description}
+                  </p>
+                </div>
+              </button>
+
+              {i < STEPS.length - 1 && (
+                <div className="flex-1 mx-3 h-[2px] bg-neutral-200 dark:bg-neutral-800 relative overflow-hidden rounded-full">
+                  <div
+                    className={cn(
+                      'h-full transition-all duration-300',
+                      i < stepIndex ? 'w-full bg-rose-500' : 'w-0'
+                    )}
+                  />
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      {/* ── Mobile Step Pills ── */}
+      <div className="flex sm:hidden gap-1.5 mb-4 overflow-x-auto scrollbar-none pb-1">
         {STEPS.map((s, i) => (
           <button
             key={s.key}
             type="button"
             onClick={() => goToStep(s.key)}
             className={cn(
-              'shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors',
+              'shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-colors',
               i === stepIndex
-                ? 'border-rose-500 bg-rose-500 text-white'
+                ? 'border-rose-500 bg-rose-500 text-white shadow-2xs font-bold'
                 : i < stepIndex
-                  ? 'border-rose-200 text-rose-500 bg-rose-50 dark:bg-rose-950/20'
-                  : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-rose-300 hover:text-rose-500'
+                ? 'border-rose-200 text-rose-500 bg-rose-50 dark:bg-rose-950/20'
+                : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-rose-300 hover:text-rose-500'
             )}
           >
-            {s.label}
+            {i + 1}. {s.label}
           </button>
         ))}
       </div>
 
-      <div className={isEditing ? 'max-w-4xl mx-auto px-4 md:px-0' : 'max-w-6xl mx-auto px-4 md:px-0'}>
+      <div className="w-full max-w-full">
         <AnimatePresence mode="wait">
           {step === 'details' && (
-            <motion.div key="details" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8">
+            <motion.div key="details" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3, ease: 'easeOut' }} className="space-y-6">
+              <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 sm:p-6 shadow-2xs space-y-6">
+                {/* ── Top-Positioned Template Selector ── */}
                 {!isEditing && (
-                  <div className="lg:col-span-2">
-                    {/* ── Mobile: collapsed pill after selection, expanded grid before ── */}
-                    {/* Desktop: always show the sticky sidebar grid */}
-
-                    {/* Mobile collapsed state — show after a template is chosen */}
-                    {form.templateId && form.templateId !== 'custom' && (
-                      <div className="lg:hidden flex items-center justify-between gap-3 p-3 rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/20 mb-4">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-6 h-6 rounded-lg overflow-hidden shrink-0">
-                            <img
-                              src={EVENT_TEMPLATES.find(t => t.id === form.templateId)?.image}
-                              alt=""
-                              className="w-full h-full object-cover"
-                            />
+                  <div className="pb-5 border-b border-neutral-100 dark:border-neutral-800">
+                    {form.templateId && form.templateId !== 'custom' && !showTemplateGrid ? (
+                      /* Collapsed State when Template Chosen */
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-neutral-200 dark:border-neutral-700">
+                            {EVENT_TEMPLATES.find((t) => t.id === form.templateId)?.image ? (
+                              <img
+                                src={EVENT_TEMPLATES.find((t) => t.id === form.templateId)?.image}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-rose-50 dark:bg-rose-950/20 flex items-center justify-center">
+                                <Sparkles className="h-5 w-5 text-rose-500" />
+                              </div>
+                            )}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-rose-600 dark:text-rose-400 truncate">
-                              {EVENT_TEMPLATES.find(t => t.id === form.templateId)?.name}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white truncate">
+                                {EVENT_TEMPLATES.find((t) => t.id === form.templateId)?.name}
+                              </p>
+                              <span className="text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 rounded-full px-2 py-0.5">
+                                Template applied
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-neutral-400 truncate mt-0.5">
+                              {EVENT_TEMPLATES.find((t) => t.id === form.templateId)?.tagline}
                             </p>
-                            <p className="text-[10px] text-neutral-500">Template selected</p>
                           </div>
                         </div>
+
                         <button
                           type="button"
-                          onClick={() => setForm(p => ({ ...p, templateId: '' }))}
-                          className="text-[11px] font-bold text-rose-500 hover:text-rose-700 shrink-0 underline"
+                          onClick={() => setShowTemplateGrid(true)}
+                          className="text-xs font-bold text-rose-500 hover:text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-950/50 px-3 py-1.5 rounded-full transition-colors shrink-0 cursor-pointer"
                         >
                           Change
                         </button>
                       </div>
-                    )}
+                    ) : (
+                      /* Expanded Horizontal Scrollable Carousel */
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2.5">
+                          <div>
+                            <h2 className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white">Choose a template</h2>
+                            <p className="text-[11px] text-neutral-500">Swipe or scroll horizontally to pick a pre-designed template or start blank.</p>
+                          </div>
+                          {form.templateId && form.templateId !== 'custom' && (
+                            <button
+                              type="button"
+                              onClick={() => setShowTemplateGrid(false)}
+                              className="text-xs font-bold text-neutral-500 hover:text-rose-500 cursor-pointer"
+                            >
+                              Collapse
+                            </button>
+                          )}
+                        </div>
 
-                    {/* Template grid — always on desktop, only before selection on mobile */}
-                    <div className={cn(
-                      'lg:sticky lg:top-4',
-                      form.templateId && form.templateId !== 'custom' ? 'hidden lg:block' : 'block'
-                    )}>
-                      <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Choose a template</h2>
-                      <p className="text-xs text-neutral-500 mt-1 mb-3">
-                        These are all the templates available right now.
-                      </p>
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
-                        {EVENT_TEMPLATES.map((template) => (
-                          <button
-                            key={template.id}
-                            type="button"
-                            onClick={() => applyTemplate(template)}
-                            className={cn(
-                              'text-left rounded-xl overflow-hidden border transition-all flex flex-col h-full min-w-0',
-                              form.templateId === template.id
-                                ? 'border-rose-500 ring-2 ring-rose-500/30'
-                                : 'border-neutral-200 dark:border-neutral-800 hover:border-rose-300 bg-white dark:bg-neutral-900'
-                            )}
-                          >
-                            <div className="relative aspect-[6/3] w-full shrink-0 bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center overflow-hidden">
-                              {template.image ? (
-                                <img
-                                  src={template.image}
-                                  alt={template.name}
-                                  className="absolute inset-0 w-full h-full object-cover"
-                                  loading="lazy"
-                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).src =
-                                      'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80';
-                                  }}
-                                />
-                              ) : (
-                                <div className="flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500 px-2">
-                                  <Plus className="h-5 w-5 text-rose-500" />
-                                  <span className="text-[10px] font-bold mt-1 uppercase tracking-wider text-center">Blank</span>
+                        <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-thin snap-x max-w-full">
+                          {EVENT_TEMPLATES.map((template) => {
+                            const isSelected = form.templateId === template.id;
+                            return (
+                              <button
+                                key={template.id}
+                                type="button"
+                                onClick={() => {
+                                  applyTemplate(template);
+                                  setShowTemplateGrid(false);
+                                }}
+                                className={cn(
+                                  'text-left rounded-xl overflow-hidden border transition-all flex flex-col w-32 sm:w-40 shrink-0 snap-start group hover:shadow-2xs cursor-pointer',
+                                  isSelected
+                                    ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20 dark:bg-rose-950/10'
+                                    : 'border-neutral-200 dark:border-neutral-800 hover:border-rose-300 bg-neutral-50/50 dark:bg-neutral-850/50'
+                                )}
+                              >
+                                <div className="relative aspect-[16/9] w-full shrink-0 bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center overflow-hidden">
+                                  {template.image ? (
+                                    <img
+                                      src={template.image}
+                                      alt={template.name}
+                                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                      loading="lazy"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).src =
+                                          'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80';
+                                      }}
+                                    />
+                                  ) : (
+                                    <div className="flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500 px-2">
+                                      <Plus className="h-4 w-4 text-rose-500" />
+                                      <span className="text-[9px] font-bold mt-0.5 uppercase tracking-wider text-center">Blank</span>
+                                    </div>
+                                  )}
+                                  {isSelected && (
+                                    <div className="absolute top-1.5 right-1.5 h-4 w-4 bg-rose-500 rounded-full flex items-center justify-center z-10 shadow-xs">
+                                      <Check className="h-2.5 w-2.5 text-white" />
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                              {form.templateId === template.id && (
-                                <div className="absolute top-2 right-2 h-5 w-5 bg-rose-500 rounded-full flex items-center justify-center z-10">
-                                  <Check className="h-3 w-3 text-white" />
+                                <div className="p-2 min-w-0">
+                                  <p className={cn('text-xs font-bold truncate leading-tight', isSelected ? 'text-rose-600 dark:text-rose-400' : 'text-neutral-900 dark:text-white')}>
+                                    {template.name}
+                                  </p>
+                                  <p className="text-[9px] text-neutral-400 truncate mt-0.5">{template.tagline}</p>
                                 </div>
-                              )}
-                            </div>
-                            <div className="p-2 min-h-[2.75rem] flex flex-col justify-center">
-                              <p className="text-xs font-semibold truncate leading-tight">{template.name}</p>
-                              <p className="text-[9px] text-neutral-500 mt-0.5 truncate leading-tight">{template.tagline}</p>
-                            </div>
-                          </button>
-                        ))}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
 
-                <div className={cn('space-y-5', !isEditing ? 'lg:col-span-3' : 'lg:col-span-5')}>
-                  <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Event details</h2>
-
-                  <div>
-                    <FieldLabel>Cover photo</FieldLabel>
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => fileRef.current?.click()}
-                      onKeyDown={(e) => e.key === 'Enter' && fileRef.current?.click()}
-                      className="relative aspect-[16/9] sm:aspect-[2/1] rounded-xl overflow-hidden border border-dashed border-neutral-300 dark:border-neutral-700 cursor-pointer group hover:border-rose-400 transition-colors"
-                    >
-                      {imagePreview ? (
-                        <>
-                          <img src={imagePreview} alt="Cover" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                            <Upload className="h-5 w-5 text-white" />
-                            <span className="text-sm font-medium text-white">Change cover</span>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-full gap-1 text-neutral-400">
-                          <ImageIcon className="h-8 w-8" />
-                          <span className="text-xs">Upload cover photo</span>
+                {/* Event Basic Details */}
+                <div>
+                  <FieldLabel>Cover photo</FieldLabel>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => fileRef.current?.click()}
+                    onKeyDown={(e) => e.key === 'Enter' && fileRef.current?.click()}
+                    className="relative aspect-[16/9] sm:aspect-[2.5/1] rounded-xl overflow-hidden border border-dashed border-neutral-300 dark:border-neutral-700 cursor-pointer group hover:border-rose-400 transition-colors"
+                  >
+                    {imagePreview ? (
+                      <>
+                        <img src={imagePreview} alt="Cover" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <Upload className="h-5 w-5 text-white" />
+                          <span className="text-sm font-medium text-white">Change cover</span>
                         </div>
-                      )}
-                    </div>
-                  </div>
-                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleImage(e.target.files[0])} />
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <FieldLabel>Event title</FieldLabel>
-                      <input
-                        value={form.title}
-                        onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                        placeholder="e.g. Summer Music Festival"
-                        className={getInputClass('title')}
-                      />
-                    </div>
-                    <div>
-                      <FieldLabel>Category</FieldLabel>
-                      <select
-                        value={form.category}
-                        onChange={(e) => {
-                          const category = e.target.value;
-                          const suggestion = suggestTicketDesign(category);
-                          setForm((p) => ({
-                            ...p,
-                            category,
-                            tickets: p.tickets.map((t) =>
-                              isDefaultTicketStyle(t.ticketStyle)
-                                ? { ...t, ticketStyle: suggestion.styleId, accentColor: '' }
-                                : t
-                            ),
-                          }));
-                        }}
-                        className={getInputClass('category')}
-                      >
-                        <option value="">Select a category</option>
-                        {['Music', 'Festival', 'Nightlife', 'Wedding', 'Food', 'Business', 'Technology', 'Conference', 'Arts', 'Sports', 'Wellness', 'Fairs', 'Other'].map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <FieldLabel>Capacity (max attendees)</FieldLabel>
-                      <input
-                        type="number"
-                        min={1}
-                        value={form.capacity}
-                        onChange={(e) => setForm((p) => ({ ...p, capacity: e.target.value }))}
-                        placeholder="e.g. 200"
-                        className={getInputClass('attend')}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <FieldLabel>Description</FieldLabel>
-                    <textarea
-                      value={form.description}
-                      onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                      placeholder="Tell guests what to expect..."
-                      rows={3}
-                      className={cn(getInputClass('description'), 'resize-none')}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <FieldLabel>Start date</FieldLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button type="button" className={cn(getInputClass('start date'), 'text-left')}>
-                            {formatDateLabel(form.startDate)}
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <DateCalendar
-                            mode="single"
-                            selected={form.startDate ? new Date(form.startDate + 'T12:00:00') : undefined}
-                            onSelect={(d) => {
-                              if (!d) return;
-                              const dateStr = d.toISOString().split('T')[0];
-                              setForm((p) => ({
-                                ...p,
-                                startDate: dateStr,
-                                endDate: !p.endDate || p.endDate < dateStr ? dateStr : p.endDate,
-                              }));
-                            }}
-                            disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div>
-                      <FieldLabel>End date</FieldLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button type="button" className={cn(getInputClass('end date'), 'text-left')}>
-                            {formatDateLabel(form.endDate)}
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <DateCalendar
-                            mode="single"
-                            selected={form.endDate ? new Date(form.endDate + 'T12:00:00') : undefined}
-                            onSelect={(d) => d && setForm((p) => ({ ...p, endDate: d.toISOString().split('T')[0] }))}
-                            disabled={(d) => {
-                              const min = form.startDate ? new Date(form.startDate + 'T00:00:00') : new Date(new Date().setHours(0, 0, 0, 0));
-                              return d < min;
-                            }}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-2 gap-4">
-                    <TimePicker12
-                      label="Start time"
-                      value={form.startTime12}
-                      onChange={(v) => setForm((p) => ({ ...p, startTime12: v }))}
-                      hasError={hasError('time') || hasError('after the start')}
-                    />
-                    <TimePicker12
-                      label="End time"
-                      value={form.endTime12}
-                      onChange={(v) => setForm((p) => ({ ...p, endTime12: v }))}
-                      hasError={hasError('time') || hasError('after the start')}
-                    />
-                  </div>
-
-                  <div>
-                    <FieldLabel>Event type</FieldLabel>
-                    <div className="flex gap-2">
-                      {(['physical', 'online'] as const).map((type) => (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => setForm((p) => ({ ...p, locationType: type }))}
-                          className={cn(
-                            'flex-1 py-2 px-3 rounded-lg border text-xs font-medium transition-all',
-                            form.locationType === type
-                              ? 'border-rose-500 bg-rose-500 text-white'
-                              : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-rose-300'
-                          )}
-                        >
-                          {type === 'physical' ? <><MapPin className="h-3 w-3 inline mr-1" />In person</> : <><Globe className="h-3 w-3 inline mr-1" />Online</>}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <FieldLabel>{form.locationType === 'physical' ? 'Venue or address' : 'Meeting link'}</FieldLabel>
-                    {form.locationType === 'physical' ? (
-                      <div className="space-y-3">
-                        <div className="flex gap-2">
-                          <input value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))} placeholder="e.g. 12 Admiralty Way, Lekki" className={cn(getInputClass('venue'), 'flex-1')} />
-                          <button
-                            type="button"
-                            onClick={() => setShowMapPicker(true)}
-                            className="px-4 py-2.5 bg-rose-500 text-white rounded-lg font-semibold text-sm hover:bg-rose-600 transition-colors flex items-center gap-2 shrink-0"
-                          >
-                            <MapPin className="h-4 w-4" />
-                            Pick Location
-                          </button>
-                        </div>
-                        {/* {form.latitude && form.longitude && (
-                          <div className="p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/30 rounded-lg">
-                            <p className="text-xs font-semibold text-rose-900 dark:text-rose-100">
-                              ✓ Coordinates saved: {form.latitude.toFixed(4)}, {form.longitude.toFixed(4)}
-                            </p>
-                          </div>
-                        )}
-                        <LocationMap 
-                          location={form.location} 
-                          onLocationChange={(location) => setForm((p) => ({ ...p, location }))}
-                        /> */}
-                      </div>
+                      </>
                     ) : (
-                      <input value={form.onlineUrl} onChange={(e) => setForm((p) => ({ ...p, onlineUrl: e.target.value }))} placeholder="e.g. https://zoom.us/j/..." className={getInputClass('link')} />
+                      <div className="flex flex-col items-center justify-center h-full gap-1 text-neutral-400">
+                        <ImageIcon className="h-8 w-8" />
+                        <span className="text-xs">Upload cover photo</span>
+                      </div>
                     )}
                   </div>
+                </div>
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleImage(e.target.files[0])} />
 
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
-                    <FieldLabel>What&apos;s included</FieldLabel>
-                    <p className="text-xs text-neutral-500 -mt-1">Pick suggestions or type your own below</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {includedChipOptions.map((item) => (
-                        <button
-                          key={item}
-                          type="button"
-                          onClick={() => toggleIncluded(item)}
-                          className={cn(
-                            'px-2.5 py-1 rounded-full text-xs border transition-colors',
-                            form.includedItems.includes(item) ? selectedChipClass : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-rose-300'
-                          )}
-                        >
-                          {item}
-                        </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <FieldLabel>Event title</FieldLabel>
+                    <input
+                      value={form.title}
+                      onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+                      placeholder="e.g. Summer Music Festival"
+                      className={getInputClass('title')}
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel>Category</FieldLabel>
+                    <select
+                      value={form.category}
+                      onChange={(e) => {
+                        const category = e.target.value;
+                        const suggestion = suggestTicketDesign(category);
+                        setForm((p) => ({
+                          ...p,
+                          category,
+                          tickets: p.tickets.map((t) =>
+                            isDefaultTicketStyle(t.ticketStyle)
+                              ? { ...t, ticketStyle: suggestion.styleId, accentColor: '' }
+                              : t
+                          ),
+                        }));
+                      }}
+                      className={getInputClass('category')}
+                    >
+                      <option value="">Select a category</option>
+                      {['Music', 'Festival', 'Nightlife', 'Wedding', 'Food', 'Business', 'Technology', 'Conference', 'Arts', 'Sports', 'Wellness', 'Fairs', 'Other'].map(c => (
+                        <option key={c} value={c}>{c}</option>
                       ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        value={customIncluded}
-                        onChange={(e) => setCustomIncluded(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomIncluded())}
-                        placeholder="Type a custom item and press Enter..."
-                        className={cn(getInputClass(), 'flex-1')}
-                      />
-                      <Button type="button" variant="outline" onClick={addCustomIncluded} className="rounded-lg shrink-0 border-rose-200 text-rose-500 hover:bg-rose-50">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <FieldLabel>Description</FieldLabel>
+                  <textarea
+                    value={form.description}
+                    onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+                    placeholder="Tell guests what to expect..."
+                    rows={3}
+                    className={cn(getInputClass('description'), 'resize-none')}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <FieldLabel>Start date</FieldLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button type="button" className={cn(getInputClass('start date'), 'text-left')}>
+                          {formatDateLabel(form.startDate)}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <DateCalendar
+                          mode="single"
+                          selected={form.startDate ? new Date(form.startDate + 'T12:00:00') : undefined}
+                          onSelect={(d) => {
+                            if (!d) return;
+                            const dateStr = d.toISOString().split('T')[0];
+                            setForm((p) => ({
+                              ...p,
+                              startDate: dateStr,
+                              endDate: !p.endDate || p.endDate < dateStr ? dateStr : p.endDate,
+                            }));
+                          }}
+                          disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div>
+                    <FieldLabel>End date</FieldLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button type="button" className={cn(getInputClass('end date'), 'text-left')}>
+                          {formatDateLabel(form.endDate)}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <DateCalendar
+                          mode="single"
+                          selected={form.endDate ? new Date(form.endDate + 'T12:00:00') : undefined}
+                          onSelect={(d) => d && setForm((p) => ({ ...p, endDate: d.toISOString().split('T')[0] }))}
+                          disabled={(d) => {
+                            const min = form.startDate ? new Date(form.startDate + 'T00:00:00') : new Date(new Date().setHours(0, 0, 0, 0));
+                            return d < min;
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-2 gap-4">
+                  <TimePicker12
+                    label="Start time"
+                    value={form.startTime12}
+                    onChange={(v) => setForm((p) => ({ ...p, startTime12: v }))}
+                    hasError={hasError('time') || hasError('after the start')}
+                  />
+                  <TimePicker12
+                    label="End time"
+                    value={form.endTime12}
+                    onChange={(v) => setForm((p) => ({ ...p, endTime12: v }))}
+                    hasError={hasError('time') || hasError('after the start')}
+                  />
+                </div>
+
+                <div>
+                  <FieldLabel>Event type</FieldLabel>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, locationType: 'physical' }))}
+                      className={cn(
+                        'flex-1 py-2.5 rounded-lg border text-sm font-medium transition-colors flex items-center justify-center gap-2',
+                        form.locationType === 'physical' ? selectedChipClass : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300'
+                      )}
+                    >
+                      <MapPin className="h-4 w-4" /> Physical venue
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, locationType: 'online' }))}
+                      className={cn(
+                        'flex-1 py-2.5 rounded-lg border text-sm font-medium transition-colors flex items-center justify-center gap-2',
+                        form.locationType === 'online' ? selectedChipClass : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300'
+                      )}
+                    >
+                      <Globe className="h-4 w-4" /> Online event
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <FieldLabel>{form.locationType === 'physical' ? 'Venue or address' : 'Meeting link'}</FieldLabel>
+                  {form.locationType === 'physical' ? (
+                    <>
+                    <VenueAutocomplete
+                      value={form.location}
+                      onChange={(location) => setForm((p) => ({ ...p, location }))}
+                      onSelect={(loc) =>
+                        setForm((p) => ({
+                          ...p,
+                          location: loc.address,
+                          ...(loc.latitude != null ? { latitude: loc.latitude } : {}),
+                          ...(loc.longitude != null ? { longitude: loc.longitude } : {}),
+                        }))
+                      }
+                      onOpenMapPicker={() => setShowMapPicker(true)}
+                      latitude={form.latitude}
+                      longitude={form.longitude}
+                      className={getInputClass('location')}
+                    />
+                    {form.latitude != null && form.longitude != null && (
+                      <div className="mt-3 rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800">
+                        <GoogleMapLocation
+                          location={form.location || 'Pinned venue'}
+                          latitude={form.latitude}
+                          longitude={form.longitude}
+                          eventTitle={form.title || 'Event location'}
+                        />
+                      </div>
+                    )}
+                    </>
+                  ) : (
+                    <input
+                      value={form.onlineUrl}
+                      onChange={(e) => setForm((p) => ({ ...p, onlineUrl: e.target.value }))}
+                      placeholder="e.g. https://zoom.us/j/... or https://youtube.com/live/..."
+                      className={getInputClass('link')}
+                    />
+                  )}
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  <FieldLabel>What&apos;s included</FieldLabel>
+                  <p className="text-xs text-neutral-500 -mt-2">Pick suggestions or add custom features</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {includedChipOptions.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => toggleIncluded(item)}
+                        className={cn(
+                          'px-2.5 py-1 rounded-full text-xs border transition-colors cursor-pointer',
+                          form.includedItems.includes(item) ? selectedChipClass : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-rose-300'
+                        )}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={customIncluded}
+                      onChange={(e) => setCustomIncluded(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomIncluded())}
+                      placeholder="Type a custom item and press Enter..."
+                      className={cn(getInputClass(), 'flex-1')}
+                    />
+                    <Button type="button" variant="outline" onClick={addCustomIncluded} className="rounded-lg shrink-0 border-rose-200 text-rose-500 hover:bg-rose-50">
+                      <Plus className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -1243,12 +1310,9 @@ const CreateEvent: React.FC = () => {
                 <div className="space-y-5 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Ticket types</h2>
-                    {capacityNum > 0 && (
-                      <span className="text-xs text-neutral-500">
-                        {ticketQtyTotal} / {capacityNum} seats used
-                        {remainingCapacity !== null && remainingCapacity > 0 && ` · ${remainingCapacity} left`}
-                      </span>
-                    )}
+                    <span className="text-xs text-neutral-500 font-medium">
+                      {hasUnlimitedTickets ? 'Unlimited capacity' : `${ticketQtyTotal} total tickets`}
+                    </span>
                   </div>
 
                   <div className="flex flex-wrap gap-1.5">
@@ -1258,7 +1322,7 @@ const CreateEvent: React.FC = () => {
                         type="button"
                         onClick={() => setActiveTicketIndex(i)}
                         className={cn(
-                          'px-3 py-1.5 rounded-full text-xs font-medium border transition-colors',
+                          'px-3 py-1.5 rounded-full text-xs font-medium border transition-colors cursor-pointer',
                           activeTicketIndex === i ? selectedChipClass : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-rose-300'
                         )}
                       >
@@ -1271,7 +1335,7 @@ const CreateEvent: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setShowTicketPresets(!showTicketPresets)}
-                      className="px-3 py-1.5 rounded-full text-xs text-rose-500 border border-dashed border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/20 flex items-center gap-1"
+                      className="px-3 py-1.5 rounded-full text-xs text-rose-500 border border-dashed border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/20 flex items-center gap-1 cursor-pointer"
                     >
                       <Plus className="h-3 w-3" /> Add ticket
                     </button>
@@ -1286,12 +1350,12 @@ const CreateEvent: React.FC = () => {
                             key={preset.name}
                             type="button"
                             onClick={() => addTicketFromPreset(preset)}
-                            className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-xs font-medium hover:border-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors text-left"
+                            className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-xs font-medium hover:border-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors text-left cursor-pointer"
                           >
                             {preset.name}
                           </button>
                         ))}
-                        <button type="button" onClick={addBlankTicket} className="px-3 py-2 rounded-lg border border-dashed border-neutral-300 text-xs text-neutral-500 hover:border-rose-300">
+                        <button type="button" onClick={addBlankTicket} className="px-3 py-2 rounded-lg border border-dashed border-neutral-300 text-xs text-neutral-500 hover:border-rose-300 cursor-pointer">
                           Custom
                         </button>
                       </div>
@@ -1303,28 +1367,56 @@ const CreateEvent: React.FC = () => {
                       <FieldLabel>Ticket name</FieldLabel>
                       <input value={activeTicket.name} onChange={(e) => updateTicket(activeTicketIndex, { name: e.target.value })} placeholder="e.g. VIP" className={getInputClass('ticket needs a name')} />
                     </div>
-                    <div className="flex gap-3 items-end flex-wrap">
-                      <label className="flex items-center gap-2 text-xs pb-2.5 shrink-0">
-                        <input type="checkbox" checked={activeTicket.isFree} onChange={(e) => updateTicket(activeTicketIndex, { isFree: e.target.checked })} className="rounded accent-rose-500" />
-                        Free ticket
-                      </label>
-                      {!activeTicket.isFree && (
-                        <div className="flex-1 min-w-[120px]">
-                          <FieldLabel>Price (₦)</FieldLabel>
-                          <input type="number" min={0} value={activeTicket.price} onChange={(e) => updateTicket(activeTicketIndex, { price: e.target.value })} placeholder="5000" className={getInputClass('price')} />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-[100px]">
-                        <FieldLabel>Quantity available</FieldLabel>
-                        <input
-                          type="number"
-                          min={1}
-                          max={capacityNum > 0 ? capacityNum - totalTicketQuantity(form.tickets, activeTicketIndex) + parseInt(activeTicket.quantity || '0', 10) : undefined}
-                          value={activeTicket.quantity}
-                          onChange={(e) => updateTicketQuantity(activeTicketIndex, e.target.value)}
-                          placeholder="100"
-                          className={getInputClass('quantity')}
-                        />
+
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <label className="flex items-center gap-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={activeTicket.isFree}
+                            onChange={(e) => updateTicket(activeTicketIndex, { isFree: e.target.checked })}
+                            className="rounded accent-rose-500 w-4 h-4"
+                          />
+                          Free ticket
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={activeTicket.isUnlimited ?? false}
+                            onChange={(e) => updateTicket(activeTicketIndex, { isUnlimited: e.target.checked, quantity: e.target.checked ? '' : (activeTicket.quantity || '100') })}
+                            className="rounded accent-rose-500 w-4 h-4"
+                          />
+                          Unlimited quantity
+                        </label>
+                      </div>
+
+                      <div className="flex gap-3 items-end flex-wrap">
+                        {!activeTicket.isFree && (
+                          <div className="flex-1 min-w-[130px]">
+                            <FieldLabel>Price (₦)</FieldLabel>
+                            <input
+                              type="number"
+                              min={0}
+                              value={activeTicket.price}
+                              onChange={(e) => updateTicket(activeTicketIndex, { price: e.target.value })}
+                              placeholder="5000"
+                              className={getInputClass('price')}
+                            />
+                          </div>
+                        )}
+                        {!activeTicket.isUnlimited && (
+                          <div className="flex-1 min-w-[130px]">
+                            <FieldLabel>Quantity available</FieldLabel>
+                            <input
+                              type="number"
+                              min={1}
+                              value={activeTicket.quantity}
+                              onChange={(e) => updateTicket(activeTicketIndex, { quantity: e.target.value })}
+                              placeholder="100"
+                              className={getInputClass('quantity')}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1518,7 +1610,7 @@ const CreateEvent: React.FC = () => {
                       {form.locationType === 'online' ? form.onlineUrl : form.location}
                     </p>
                     <div className="flex gap-4 text-xs text-neutral-500">
-                      <span>Capacity: {form.capacity} people</span>
+                      <span>Capacity: {hasUnlimitedTickets ? 'Unlimited' : `${ticketQtyTotal} people`}</span>
                       <span>·</span>
                       <span className="font-bold text-rose-500">{form.category}</span>
                     </div>
@@ -1539,7 +1631,7 @@ const CreateEvent: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">{t.name}</span>
                         <span className="text-sm text-neutral-500">
-                          {t.isFree ? 'Free' : `₦${Number(t.price).toLocaleString()}`} · {t.quantity} qty
+                          {t.isFree ? 'Free' : `₦${Number(t.price).toLocaleString()}`} · {t.isUnlimited ? 'Unlimited qty' : `${t.quantity} qty`}
                         </span>
                       </div>
                       <p className="text-[10px] text-neutral-400">
@@ -1619,6 +1711,11 @@ const CreateEvent: React.FC = () => {
                   setShowMapPicker(false);
                 }}
                 initialAddress={form.location || 'Kano, Nigeria'}
+                initialLocation={
+                  form.latitude != null && form.longitude != null
+                    ? { lat: form.latitude, lng: form.longitude }
+                    : undefined
+                }
               />
             </motion.div>
           </div>

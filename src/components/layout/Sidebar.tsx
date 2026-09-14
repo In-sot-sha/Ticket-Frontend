@@ -25,7 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { title: 'Manage Events', icon: Calendar,         href: '/organizer/events',             exact: true  },
   { title: 'Create Event',  icon: Plus,             href: '/organizer/events/create',      exact: false },
   { title: 'Analytics',     icon: BarChart3,        href: '/organizer/analytics',          exact: false },
-  { title: 'Finance',       icon: DollarSign,       href: '/organizer/finance',            exact: false },
+  // { title: 'Finance',       icon: DollarSign,       href: '/organizer/finance',            exact: false },
   { title: 'Settings',      icon: Settings,         href: '/organizer/organizer-settings', exact: false },
 ];
 

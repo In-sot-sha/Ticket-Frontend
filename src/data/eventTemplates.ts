@@ -3,6 +3,7 @@ export interface TicketDraft {
   price: string;
   quantity: string;
   isFree: boolean;
+  isUnlimited?: boolean;
   ticketStyle: string;
   badgeText: string;
   accentColor: string;

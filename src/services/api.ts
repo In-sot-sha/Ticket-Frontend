@@ -23,10 +23,10 @@ apiClient.interceptors.request.use(
     if (token) {
       // Check if token is expired before sending request
       if (isTokenExpired(token)) {
-        // Token expired — remove it and redirect
+        // Token expired — remove it and notify auth state
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        window.location.href = '/login?expired=true';
+        window.dispatchEvent(new Event('auth:unauthorized'));
         return Promise.reject(new Error('Token expired'));
       }
       config.headers.Authorization = `Bearer ${token}`;
@@ -124,7 +124,7 @@ apiClient.interceptors.response.use(
           // Logout on refresh failure
           localStorage.removeItem('token');
           localStorage.removeItem('user');
-          window.location.href = '/login';
+          window.dispatchEvent(new Event('auth:unauthorized'));
           return Promise.reject(refreshError);
         }
       } else {
@@ -141,7 +141,7 @@ apiClient.interceptors.response.use(
     } else if (error.response?.status === 401 && !isAuthEndpoint) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      window.dispatchEvent(new Event('auth:unauthorized'));
     }
     
     return Promise.reject(error);
@@ -343,6 +343,7 @@ export const api = {
         filterStatus?: string;
         ticketTypeId?: number;
         templateType?: string;
+        testEmail?: string;
       }
     ) =>
       apiRequest<{ message: string; sent: number; failed: number; recipientCount: number }>(

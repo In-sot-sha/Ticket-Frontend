@@ -34,6 +34,7 @@ export interface OrganizerEvent {
   category?: string;
   imageUrl?: string;
   isPublished?: boolean;
+  status?: string;
   capacity?: number;
   phase?: EventPhase;
   revenue?: number;
@@ -41,6 +42,7 @@ export interface OrganizerEvent {
   stats?: EventStats;
   ticketTypes?: Array<{ id: number; name: string; price: number; quantity: number | null }>;
   allowVendors?: boolean;
+  amenities?: string[] | string;
   organizationId?: number;
   isPromoted?: boolean;
   promotionRequestedAt?: string | null;

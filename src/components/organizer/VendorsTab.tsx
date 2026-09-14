@@ -10,7 +10,10 @@ import {
   Mail,
   Phone,
   AlertCircle,
+  Plus,
+  Trash2,
 } from 'lucide-react';
+import { cn } from '../../lib/utils';
 import { api } from '../../services/api';
 import { Skeleton } from '../ui/skeleton';
 import { Button } from '../ui/Button';
@@ -96,13 +99,131 @@ export const VendorsTab: React.FC<VendorsTabProps> = ({ eventId, event }) => {
   const isMobile = useIsMobile();
   const updateStatusMutation = useUpdateVendorStatus();
 
-  const stallTypes: any[] =
+  const [customStalls, setCustomStalls] = useState<any[]>(
     event?.vendorTypes?.length > 0
       ? event.vendorTypes
-      : event?.vendorSettings?.stallTypes || [];
+      : event?.vendorSettings?.stallTypes || []
+  );
+
+  // Add Stall modal state
+  const [showAddStallModal, setShowAddStallModal] = useState(false);
+  const [newStallName, setNewStallName] = useState('');
+  const [newStallPrice, setNewStallPrice] = useState('0');
+  const [newStallCapacity, setNewStallCapacity] = useState('10');
+  const [savingStall, setSavingStall] = useState(false);
+  const [stallError, setStallError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Fetch live vendor types for this event
+    api
+      .get<any[]>(`/vendor-types/event/${eventId}`)
+      .then((res) => {
+        if (res.data && res.data.length > 0) {
+          setCustomStalls(res.data);
+        }
+      })
+      .catch((err) => console.warn('Could not load vendor types:', err));
+  }, [eventId]);
+
+  const [pausedStallIds, setPausedStallIds] = useState<Record<string | number, number>>(() => {
+    const map = event?.vendorSettings?.pausedStallMap;
+    if (map && typeof map === 'object') return { ...map };
+    return {};
+  });
+  const [togglingStallId, setTogglingStallId] = useState<number | string | null>(null);
+
+  const handleCreateStall = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStallName.trim()) {
+      setStallError('Stall package name is required.');
+      return;
+    }
+    setSavingStall(true);
+    setStallError(null);
+    try {
+      const res = await api.post(`/vendor-types/event/${eventId}`, {
+        name: newStallName.trim(),
+        fee: parseFloat(newStallPrice) || 0,
+        maxVendors: parseInt(newStallCapacity, 10) || 10,
+      });
+
+      const created = res.data;
+      setCustomStalls((prev) => [...prev, created]);
+      setShowAddStallModal(false);
+      setNewStallName('');
+      setNewStallPrice('0');
+      setNewStallCapacity('10');
+    } catch (err: any) {
+      setStallError(err?.response?.data?.message || 'Failed to create stall package.');
+    } finally {
+      setSavingStall(false);
+    }
+  };
+
+  const handleDeleteStall = async (stallId: any) => {
+    if (!window.confirm('Are you sure you want to remove this stall package?')) return;
+    try {
+      await api.delete(`/vendor-types/${stallId}`);
+      setCustomStalls((prev) => prev.filter((s) => s.id !== stallId));
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Could not delete stall package.');
+    }
+  };
+
+  const handleToggleStall = async (stall: any) => {
+    setTogglingStallId(stall.id);
+    try {
+      if (!stall.isPaused) {
+        // Turning OFF: record original capacity, cap maxVendors to approved count so no more can buy
+        const originalCap = stall.max || (stall.approved + 5);
+        const newMap = { ...pausedStallIds, [stall.id]: originalCap };
+        setPausedStallIds(newMap);
+
+        await api.put(`/vendor-types/${stall.id}`, {
+          maxVendors: stall.approved,
+        });
+
+        await api.put(`/events/${eventId}`, {
+          vendorSettings: {
+            ...(event.vendorSettings || {}),
+            pausedStallMap: newMap,
+          },
+        });
+
+        setCustomStalls((prev) =>
+          prev.map((s) => (s.id === stall.id ? { ...s, maxVendors: stall.approved } : s))
+        );
+      } else {
+        // Turning ON: restore previous capacity so vendors can buy again
+        const restoredCap = pausedStallIds[stall.id] || Math.max(stall.approved + 5, 10);
+        const newMap = { ...pausedStallIds };
+        delete newMap[stall.id];
+        setPausedStallIds(newMap);
+
+        await api.put(`/vendor-types/${stall.id}`, {
+          maxVendors: restoredCap,
+        });
+
+        await api.put(`/events/${eventId}`, {
+          vendorSettings: {
+            ...(event.vendorSettings || {}),
+            pausedStallMap: newMap,
+          },
+        });
+
+        setCustomStalls((prev) =>
+          prev.map((s) => (s.id === stall.id ? { ...s, maxVendors: restoredCap } : s))
+        );
+      }
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Could not update stall status.');
+    } finally {
+      setTogglingStallId(null);
+    }
+  };
 
   const stallChips = useMemo(() => {
-    return stallTypes.map((vt) => {
+    return customStalls.map((vt) => {
       const related = applications.filter((a) => {
         const typeId = a.vendorTypeId ?? a.vendorType?.id;
         return typeId === vt.id || a.vendorType?.name === vt.name;
@@ -110,16 +231,22 @@ export const VendorsTab: React.FC<VendorsTabProps> = ({ eventId, event }) => {
       const approved = related.filter((a) => normalizeStatus(a.applicationStatus) === 'APPROVED').length;
       const max = vt.maxVendors ?? vt.maxStalls ?? null;
       const fee = typeof vt.fee === 'number' ? vt.fee : typeof vt.price === 'number' ? vt.price : null;
+      const hasBuyers = related.length > 0;
+      const isPaused = Boolean(pausedStallIds[vt.id]) || (hasBuyers && max != null && max <= approved);
+
       return {
         id: vt.id,
         name: vt.name,
         fee,
         approved,
+        totalApplications: related.length,
+        hasBuyers,
+        isPaused,
         max,
-        available: max != null ? Math.max(max - approved, 0) : null,
+        available: isPaused ? 0 : max != null ? Math.max(max - approved, 0) : null,
       };
     });
-  }, [stallTypes, applications]);
+  }, [customStalls, applications, pausedStallIds]);
 
   const usedStallNumbers = useMemo(() => {
     return new Set(
@@ -380,51 +507,128 @@ export const VendorsTab: React.FC<VendorsTabProps> = ({ eventId, event }) => {
         )}
       </div>
 
-      {/* Stalls — designed but compact */}
-      {stallChips.length > 0 && (
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-2">
-          <div className="flex items-center gap-2 mb-1.5">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Stalls</p>
-            <span className="text-[10px] text-neutral-400">{stallChips.length} types</span>
+      {/* ── Ultra-Compact Stalls & Booth Packages Bar ── */}
+      <div className="rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 shadow-2xs space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Store className="h-3.5 w-3.5 text-rose-500" />
+            <h3 className="text-xs font-bold text-neutral-900 dark:text-white">
+              Stall Packages
+            </h3>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+              {stallChips.length}
+            </span>
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
+
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => setShowAddStallModal(true)}
+            className="rounded-lg text-[11px] font-bold px-2.5 h-7 bg-rose-500 hover:bg-rose-600 text-white border-0 shadow-2xs gap-1 cursor-pointer shrink-0"
+          >
+            <Plus className="h-3 w-3" />
+            Add Stall
+          </Button>
+        </div>
+
+        {stallChips.length === 0 ? (
+          <p className="text-xs text-neutral-400 py-1">
+            No stall packages configured yet. Click &quot;+ Add Stall&quot; to offer booth spaces to vendors.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
             {stallChips.map((stall) => {
               const isFull = stall.available != null && stall.available === 0;
+
               return (
                 <div
                   key={stall.id}
-                  className="shrink-0 min-w-[118px] rounded-lg border border-neutral-100 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-800/40 px-2.5 py-1.5"
+                  className={cn(
+                    'rounded-lg border px-3 py-2 flex items-center justify-between gap-2 transition-all',
+                    stall.isPaused
+                      ? 'border-neutral-200/50 dark:border-neutral-800/60 bg-neutral-100/70 dark:bg-neutral-900/60'
+                      : 'border-neutral-200/70 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-850/40'
+                  )}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-neutral-900 dark:text-white truncate max-w-[90px]">
-                      {stall.name}
-                    </p>
-                    {isFull && (
-                      <span className="text-[9px] font-bold uppercase tracking-wide text-neutral-400">
-                        Full
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <p className="text-xs font-bold text-neutral-900 dark:text-white truncate">
+                          {stall.name}
+                        </p>
+                        {stall.isPaused && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 shrink-0">
+                            Off
+                          </span>
+                        )}
+                      </div>
+
+                      {/* If NOT bought: Delete button. If BOUGHT: Turn Off / Turn On toggle */}
+                      {!stall.hasBuyers ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteStall(stall.id)}
+                          className="text-neutral-400 hover:text-rose-500 transition-colors cursor-pointer shrink-0 p-0.5"
+                          title="Delete stall (no buyers yet)"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStall(stall)}
+                          disabled={togglingStallId === stall.id}
+                          className={cn(
+                            'text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors shrink-0',
+                            stall.isPaused
+                              ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200'
+                              : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-300'
+                          )}
+                          title={stall.isPaused ? 'Turn ON so vendors can buy again' : 'Turn OFF to stop new buyers'}
+                        >
+                          {togglingStallId === stall.id
+                            ? '...'
+                            : stall.isPaused
+                            ? 'Turn On'
+                            : 'Turn Off'}
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-[11px] mt-0.5">
+                      <span className="font-extrabold text-rose-600 dark:text-rose-400">
+                        {stall.fee == null || stall.fee === 0 ? 'Free' : formatNaira(stall.fee)}
                       </span>
-                    )}
+                      <span className="text-neutral-300 dark:text-neutral-600">·</span>
+                      <span
+                        className={cn(
+                          'font-medium truncate',
+                          stall.isPaused
+                            ? 'text-neutral-400 font-semibold'
+                            : isFull
+                            ? 'text-neutral-400 font-bold'
+                            : stall.available != null && stall.available <= 2
+                            ? 'text-amber-600 dark:text-amber-400 font-semibold'
+                            : 'text-neutral-500'
+                        )}
+                      >
+                        {stall.isPaused
+                          ? 'Sales Paused'
+                          : isFull
+                          ? 'Full'
+                          : stall.available != null
+                          ? `${stall.available} left`
+                          : 'Open'}
+                        {stall.max != null && ` (${stall.approved}/${stall.max})`}
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-neutral-500 mt-0.5 tabular-nums">
-                    {stall.fee == null || stall.fee === 0 ? 'Free' : formatNaira(stall.fee)}
-                    <span className="text-neutral-300 dark:text-neutral-600 mx-1">·</span>
-                    <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                      {stall.approved}
-                      {stall.max != null ? `/${stall.max}` : ''}
-                    </span>
-                    {stall.available != null && !isFull && (
-                      <span className="text-emerald-600 dark:text-emerald-400">
-                        {' '}
-                        · {stall.available} left
-                      </span>
-                    )}
-                  </p>
                 </div>
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {pending.length > 0 && filter !== 'PENDING' && (
         <button
@@ -732,6 +936,93 @@ export const VendorsTab: React.FC<VendorsTabProps> = ({ eventId, event }) => {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Add Stall Package Modal ── */}
+      <Dialog open={showAddStallModal} onOpenChange={setShowAddStallModal}>
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={handleCreateStall}>
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold">Add Stall Package</DialogTitle>
+              <DialogDescription className="text-xs">
+                Create a booth tier that vendors can apply for at your event.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3.5 py-4">
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                  Stall Package Name
+                </label>
+                <input
+                  type="text"
+                  value={newStallName}
+                  onChange={(e) => setNewStallName(e.target.value)}
+                  placeholder="e.g. Food & Beverage Space"
+                  className="w-full h-10 px-3 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Stall Fee (₦)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={newStallPrice}
+                    onChange={(e) => setNewStallPrice(e.target.value)}
+                    placeholder="0"
+                    className="w-full h-10 px-3 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Max Available Booths
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={newStallCapacity}
+                    onChange={(e) => setNewStallCapacity(e.target.value)}
+                    placeholder="10"
+                    className="w-full h-10 px-3 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500 font-bold text-center"
+                  />
+                </div>
+              </div>
+
+              {stallError && (
+                <p className="text-xs font-semibold text-rose-600 dark:text-rose-400">
+                  {stallError}
+                </p>
+              )}
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAddStallModal(false)}
+                className="rounded-xl text-xs cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={savingStall}
+                className="rounded-xl text-xs font-bold px-4 bg-rose-500 hover:bg-rose-600 text-white border-0 cursor-pointer"
+              >
+                {savingStall ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
+                {savingStall ? 'Creating...' : 'Create Stall Package'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

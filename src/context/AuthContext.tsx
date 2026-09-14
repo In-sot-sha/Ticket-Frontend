@@ -312,6 +312,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (!loading) dismissAppBoot();
   }, [loading]);
 
+  // Listen for unauthorized 401/expired token events from API interceptor
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setToken(null);
+      setUser(null);
+      queryClient.clear();
+    };
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => {
+      window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    };
+  }, [queryClient]);
+
   const login = useCallback(async (identifier: string, password: string): Promise<boolean> => {
     try {
       const response = await api.auth.login({ identifier, password });

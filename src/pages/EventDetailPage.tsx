@@ -212,8 +212,8 @@ const mapApiEventToDetail = (apiEvent: any): EventDetail => {
     startTime: formatTime(startDate),
     endTime: formatTime(endDate),
     location: apiEvent.location || 'Online',
-    latitude: apiEvent.latitude,
-    longitude: apiEvent.longitude,
+    latitude: Number.isFinite(Number(apiEvent.latitude)) ? Number(apiEvent.latitude) : undefined,
+    longitude: Number.isFinite(Number(apiEvent.longitude)) ? Number(apiEvent.longitude) : undefined,
     category: apiEvent.category || 'Other',
     price: apiEvent.price ?? 0,
     ticketsAvailable:
