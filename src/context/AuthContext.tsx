@@ -417,7 +417,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     } catch (error: any) {
       console.error('Registration error:', error.response?.data?.message || error.message);
-      return false;
+      throw error;
     }
   }, [navigate, queryClient, scheduleTokenRefresh]);
 

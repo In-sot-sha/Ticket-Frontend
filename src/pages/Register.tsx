@@ -12,6 +12,7 @@ import {
   clearLoggedOutFlag,
 } from '../lib/neonAuth';
 import { isValidEmail, isValidPhone } from '../lib/phone';
+import { getApiErrorMessage } from '../lib/apiError';
 
 type ContactMode = 'email' | 'phone';
 
@@ -151,8 +152,8 @@ const Register = () => {
         return;
       }
       setError('An error occurred during registration. Please try again.');
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'An error occurred during registration. Please try again.');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'An error occurred during registration. Please try again.'));
     }
     setLoading(false);
   };

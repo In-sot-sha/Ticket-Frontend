@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Eye, EyeOff, Ticket, Loader2, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { getApiErrorMessage } from '../lib/apiError';
 import {
   neonAuthClient,
   markNeonOAuthPending,
@@ -133,8 +134,8 @@ const Login = () => {
         return;
       }
       setError('Invalid email/phone or password. Please try again.');
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'An error occurred. Please try again.');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Invalid email/phone or password. Please try again.'));
     }
     setLoading(false);
   };
