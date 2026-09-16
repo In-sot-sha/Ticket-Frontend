@@ -190,6 +190,52 @@
     </script> -->
 
     <div id="root"></div>
+    <script>
+      (function () {
+        if (!('serviceWorker' in navigator)) return
+
+        var hadController = !!navigator.serviceWorker.controller
+        var reloading = false
+        function reloadOnce(key) {
+          if (reloading) return
+          try {
+            if (sessionStorage.getItem(key)) return
+            sessionStorage.setItem(key, '1')
+          } catch (e) {}
+          reloading = true
+          window.location.reload()
+        }
+
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+          if (!hadController) return
+          reloadOnce('pwa-sw-reload')
+        })
+
+        window.addEventListener('vite:preloadError', function (event) {
+          event.preventDefault()
+          reloadOnce('pwa-preload-reload')
+        })
+
+        function checkForUpdate() {
+          navigator.serviceWorker.getRegistration().then(function (reg) {
+            if (!reg) return
+            if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+            reg.update().catch(function () {})
+          }).catch(function () {})
+        }
+
+        window.addEventListener('load', function () {
+          try {
+            sessionStorage.removeItem('pwa-preload-reload')
+            sessionStorage.removeItem('pwa-sw-reload')
+          } catch (e) {}
+          checkForUpdate()
+        })
+        document.addEventListener('visibilitychange', function () {
+          if (document.visibilityState === 'visible') checkForUpdate()
+        })
+      })()
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

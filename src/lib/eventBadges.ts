@@ -35,6 +35,7 @@ export function getEventUrgencyBadges({
   date,
   endDate,
   ticketsAvailable,
+  ticketsUnlimited = false,
   hasTicketTypes = false,
   maxBadges = 2,
 }: EventBadgeInput): EventUrgencyBadge[] {
@@ -61,12 +62,12 @@ export function getEventUrgencyBadges({
     badges.push({ text: 'Closes today', className: 'bg-rose-500 text-white' });
   } else if (diffDays === 1) {
     badges.push({ text: 'Closes tomorrow', className: 'bg-rose-500 text-white' });
-  } else if (diffDays > 1 && diffDays <= 7) {
+  } else if (diffDays > 1 && diffDays <= 7 && !ticketsUnlimited) {
     badges.push({ text: 'Sales end soon', className: 'bg-rose-500 text-white' });
   }
 
   const left = ticketsAvailable;
-  if (typeof left === 'number') {
+  if (!ticketsUnlimited && typeof left === 'number') {
     if (left === 0 && hasTicketTypes) {
       badges.push({
         text: 'Sold out',

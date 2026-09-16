@@ -111,6 +111,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
 
   // Modal Deletion State
   const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
+  const [unpublishModalOpen, setUnpublishModalOpen] = useState(false);
   const [confirmTitle, setConfirmTitle] = useState<string>('');
   const [deleting, setDeleting] = useState<boolean>(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -152,10 +153,19 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
     }
   };
 
+  const confirmUnpublish = () => {
+    setUnpublishModalOpen(false);
+    setIsPublished(false);
+    handleSaveToggles({ isPublished: false });
+  };
+
   const handleTogglePublish = () => {
-    const nextVal = !isPublished;
-    setIsPublished(nextVal);
-    handleSaveToggles({ isPublished: nextVal });
+    if (isPublished) {
+      setUnpublishModalOpen(true);
+      return;
+    }
+    setIsPublished(true);
+    handleSaveToggles({ isPublished: true });
   };
 
   const handleToggleVendors = () => {
@@ -730,6 +740,37 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
           </Button>
         </div>
       </div>
+
+      {unpublishModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl max-w-md w-full p-6 space-y-4">
+            <div>
+              <h4 className="text-base font-bold text-neutral-900 dark:text-white">Unpublish this event?</h4>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1.5 leading-relaxed">
+                It will leave the public list. People with the link can still open it. You can publish it again later.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setUnpublishModalOpen(false)}
+                className="rounded-full text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={updating}
+                onClick={confirmUnpublish}
+                className="rounded-full text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                {updating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Unpublish'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteModalOpen && (

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { LazyImage } from './LazyImage';
-import { getEventUrgencyBadges, isEventPast } from '../lib/eventBadges';
+import { eventHasUnlimitedTickets, getEventUrgencyBadges, isEventPast } from '../lib/eventBadges';
 import { cn } from '../lib/utils';
 
 // Define the event type
@@ -19,7 +19,7 @@ interface Event {
   attendees?: number;
   latitude?: number;
   longitude?: number;
-  ticketTypes?: Array<{ price: number; quantity?: number }>;
+  ticketTypes?: Array<{ price: number; quantity?: number | null; isPaused?: boolean }>;
   isPromoted?: boolean;
   description?: string;
 }
@@ -30,6 +30,7 @@ interface EventCardProps {
   showRating?: boolean;
   showTicketsAvailable?: boolean;
   showPrice?: boolean;
+  compact?: boolean;
   distance?: number;
   onHover?: (id: number | null) => void;
 }
@@ -53,6 +54,7 @@ const EventCard: React.FC<EventCardProps> = ({
   event,
   showTicketsAvailable = false,
   showPrice = true,
+  compact = false,
   onHover,
 }) => {
   let displayPrice = '';
@@ -113,10 +115,12 @@ const EventCard: React.FC<EventCardProps> = ({
         : '');
   const isPast = isEventPast(event.date, event.endDate);
   const isPromotedActive = Boolean(event.isPromoted) && !isPast;
+  const ticketsUnlimited = eventHasUnlimitedTickets(event.ticketTypes);
   const urgencyBadges = getEventUrgencyBadges({
     date: event.date,
     endDate: event.endDate,
     ticketsAvailable: event.ticketsAvailable,
+    ticketsUnlimited,
     hasTicketTypes: (event.ticketTypes?.length ?? 0) > 0,
     maxBadges: isPromotedActive ? 1 : 2,
   });
@@ -163,7 +167,9 @@ const EventCard: React.FC<EventCardProps> = ({
 
           {showTicketsAvailable &&
             !isPast &&
+            !ticketsUnlimited &&
             event.ticketsAvailable !== undefined &&
+            event.ticketsAvailable != null &&
             event.ticketsAvailable > 0 &&
             event.ticketsAvailable <= 50 && (
               <div className="absolute bottom-3 left-3 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-extrabold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
@@ -172,23 +178,24 @@ const EventCard: React.FC<EventCardProps> = ({
             )}
         </div>
 
-        <div className="mt-3 sm:mt-2.5">
-          <p className="text-sm font-semibold text-rose-600 dark:text-rose-400 sm:text-xs">
+        <div className={cn(compact ? 'mt-1.5 sm:mt-2.5' : 'mt-3 sm:mt-2.5')}>
+          <p className={cn('font-semibold text-rose-600 dark:text-rose-400', compact ? 'text-[11px] sm:text-xs' : 'text-sm sm:text-xs')}>
             {formattedDate}
           </p>
           <h3
             className={cn(
-              'mt-1 line-clamp-2 text-lg font-bold leading-snug text-neutral-900 dark:text-white sm:text-[15px]',
+              'line-clamp-2 font-bold text-neutral-900 dark:text-white',
+              compact ? 'mt-0.5 text-sm leading-tight sm:mt-1 sm:text-[15px] sm:leading-snug' : 'mt-1 text-lg leading-snug sm:text-[15px]',
               isPast && 'text-neutral-500 dark:text-neutral-400'
             )}
           >
             {event.title}
           </h3>
-          <p className="mt-1 line-clamp-1 text-sm text-neutral-500 dark:text-neutral-400 sm:mt-0.5 sm:text-xs">
+          <p className={cn('line-clamp-1 text-neutral-500 dark:text-neutral-400', compact ? 'mt-0.5 text-xs sm:text-xs' : 'mt-1 text-sm sm:mt-0.5 sm:text-xs')}>
             {event.location}
           </p>
           {shouldShowPrice && (
-            <p className="mt-2 text-base font-bold tabular-nums text-neutral-900 dark:text-white sm:text-sm">
+            <p className={cn('font-bold tabular-nums text-neutral-900 dark:text-white', compact ? 'mt-1 text-sm sm:mt-2 sm:text-sm' : 'mt-2 text-base sm:text-sm')}>
               {displayPrice === 'Free' || displayPrice.startsWith('From') || displayPrice.includes('-')
                 ? displayPrice
                 : `From ${displayPrice}`}

@@ -59,6 +59,8 @@ export default defineConfig({
 
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        importScripts: ['/sw-update.js'],
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
             // API requests: Do NOT cache (always network first with no fallback)
