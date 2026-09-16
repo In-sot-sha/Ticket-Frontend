@@ -16,7 +16,7 @@ import {
   Leaf,
   Store,
 } from 'lucide-react';
-import EventCard, { Event } from '../components/EventCard';
+import EventCard, { Event, EventCardSkeleton } from '../components/EventCard';
 import { EventLink } from '../components/EventLink';
 import { useEvents } from '../hooks/queries/useEvents';
 import { mockEvents, mapApiEventToFrontendEvent } from '../data/mockEvents';
@@ -111,7 +111,7 @@ const HeroCarousel = ({ slides }: { slides: typeof heroSlides }) => {
 
   // Auto-advance
   useEffect(() => {
-    if (total === 0) return;
+    if (total < 2) return;
     const id = setInterval(next, 6000);
     return () => clearInterval(id);
   }, [next, total]);
@@ -119,21 +119,21 @@ const HeroCarousel = ({ slides }: { slides: typeof heroSlides }) => {
   if (total === 0) return null;
 
   return (
-    <div className="relative w-full h-[340px] sm:h-[420px] md:h-[480px] overflow-hidden rounded-none md:rounded-3xl group">
+    <div className="relative w-full aspect-[5/3] sm:aspect-[16/7] lg:aspect-[2/1] lg:max-h-[360px] overflow-hidden rounded-none md:rounded-3xl group bg-neutral-900">
       {/* Slides */}
       <AnimatePresence initial={false}>
         <motion.div
           key={current}
-          initial={{ opacity: 0, scale: 1.05 }}
-          animate={{ opacity: 1, scale: 1 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.7, ease: 'easeInOut' }}
+          transition={{ duration: 0.45, ease: 'easeInOut' }}
           className="absolute inset-0"
         >
           <img
             src={slides[current].image}
             alt={slides[current].title}
-            className="w-full h-full object-cover"
+            className="h-full w-full object-fill object-center"
           />
           {/* Gradient overlays */}
           <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
@@ -188,23 +188,27 @@ const HeroCarousel = ({ slides }: { slides: typeof heroSlides }) => {
         </div>
       </div>
 
-      {/* Navigation arrows */}
+      {total > 1 && (
+        <>
       <button
         onClick={prev}
-        className="absolute left-3 top-1/2 -translate-y-1/2 z-20 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 active:scale-95"
+        className="absolute left-3 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm rounded-full p-2 shadow-lg sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
         aria-label="Previous slide"
       >
         <ChevronLeft className="h-5 w-5 text-neutral-800 dark:text-white" />
       </button>
       <button
         onClick={next}
-        className="absolute right-3 top-1/2 -translate-y-1/2 z-20 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 active:scale-95"
+        className="absolute right-3 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm rounded-full p-2 shadow-lg sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
         aria-label="Next slide"
       >
         <ChevronRight className="h-5 w-5 text-neutral-800 dark:text-white" />
       </button>
+        </>
+      )}
 
       {/* Dots */}
+      {total > 1 && (
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
         {slides.map((_, i) => (
           <button
@@ -219,6 +223,7 @@ const HeroCarousel = ({ slides }: { slides: typeof heroSlides }) => {
           />
         ))}
       </div>
+      )}
     </div>
   );
 };
@@ -246,8 +251,13 @@ const HomePage = () => {
       eventsData && eventsData.length > 0
         ? eventsData.map(mapApiEventToFrontendEvent)
         : mockEvents;
-    return sortEventsUpcomingFirst(base.filter((e: Event) => !isPastEvent(e)));
-  }, [eventsData]);
+    const promoted: Event[] = (promotedData || [])
+      .map(mapApiEventToFrontendEvent)
+      .filter((e: Event) => e.isPromoted && !isPastEvent(e));
+    const seen = new Set(promoted.map((e) => e.id));
+    const rest = base.filter((e: Event) => !isPastEvent(e) && !seen.has(e.id));
+    return sortEventsUpcomingFirst([...promoted, ...rest]);
+  }, [eventsData, promotedData]);
 
   const dynamicSlides = useMemo(() => {
     const upcomingPromoted = (promotedData || [])
@@ -301,35 +311,14 @@ const HomePage = () => {
       </Helmet>
 
       {/* ─── Hero Carousel Section ─── */}
-      <section className="w-full px-0 md:px-6 lg:px-8 pt-0 md:pt-4">
+      <section className="w-full px-0 md:px-6 lg:px-8 pt-0 md:pt-2">
         <HeroCarousel slides={dynamicSlides} />
       </section>
 
-      {/* ─── Sticky Category Bar ─── */}
-      <div className="sticky top-20 z-30 bg-white/95 dark:bg-gray-950/95 backdrop-blur border-b border-gray-150 dark:border-gray-900 shadow-sm flex items-center justify-center  sm:px-6 px-2 py-2 gap-4">
-        {/* Categories carousel */}
-        <div className="flex items-center sm:justify-center gap-3 sm:mt-4 mt-1 overflow-x-auto no-scrollbar pb-1">
-          {categories.map((cat) => {
-            const isActive = selectedCategory === cat.name;
-            return (
-              <button
-                key={cat.name}
-                onClick={() => setSelectedCategory(isActive ? 'All' : cat.name)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all shrink-0 border ${isActive
-                    ? 'bg-neutral-900 text-white border-neutral-900 dark:bg-white dark:text-neutral-900 dark:border-white shadow-md'
-                    : 'bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600'
-                  }`}
-              >
-                <cat.icon className={`h-3.5 w-3.5 ${isActive ? 'text-white dark:text-neutral-900' : 'text-neutral-500 dark:text-neutral-400'}`} />
-                <span>{cat.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+  
 
       {/* ─── Main Content: Events Grid ─── */}
-      <div className="flex-grow w-full px-3 sm:px-6 py-6 md:px-8">
+      <div className="flex-grow w-full px-3 sm:px-6 py-1 md:px-8">
         <div className="mb-6 flex items-end justify-between gap-4">
           <div>
             <h1 className="text-xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
@@ -353,16 +342,9 @@ const HomePage = () => {
         </div>
 
         {isLoading ? (
-          <div className="grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i} className="animate-pulse">
-                <div className="aspect-square rounded-2xl bg-neutral-200 dark:bg-neutral-800" />
-                <div className="mt-3 space-y-2">
-                  <div className="h-4 bg-neutral-200 dark:bg-neutral-800 rounded w-3/4" />
-                  <div className="h-3 bg-neutral-200 dark:bg-neutral-800 rounded w-1/2" />
-                  <div className="h-3 bg-neutral-200 dark:bg-neutral-800 rounded w-1/3" />
-                </div>
-              </div>
+          <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-6 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <EventCardSkeleton key={i} />
             ))}
           </div>
         ) : error ? (
@@ -376,7 +358,7 @@ const HomePage = () => {
                 Showing offline events for now. Check your connection and refresh to see live listings.
               </p>
             </div>
-            <div className="grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-6 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
               {mockEvents.filter((e) => !isPastEvent(e)).map((event) => (
                 <EventLink key={event.id} eventId={event.id}>
                   <EventCard event={event} />
@@ -386,7 +368,7 @@ const HomePage = () => {
           </>
         ) : filteredEvents.length > 0 ? (
           <>
-            <div className="grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-6 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
               {filteredEvents.map((event) => (
                 <EventLink key={event.id} eventId={event.id}>
                   <EventCard event={event} />

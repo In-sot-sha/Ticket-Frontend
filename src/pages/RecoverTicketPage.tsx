@@ -117,7 +117,7 @@ const RecoverTicketPage = () => {
     setTimeout(() => inputRefs.current[focusIdx]?.focus(), 10);
   };
 
-  // Send verification code via email/SMS
+  // Send verification code via email or WhatsApp
   const handleSendCode = async () => {
     if (!inputValue) return;
     setIsLoading(true);
@@ -330,7 +330,9 @@ const RecoverTicketPage = () => {
               </button>
 
               <p className="text-xs text-neutral-500 dark:text-neutral-400 text-center mt-4 sm:mt-5 px-1">
-                We&apos;ll send a secure 6-digit code to verify your identity
+                {method === 'phone'
+                  ? "We'll send a 6-digit code on WhatsApp."
+                  : "We'll send a secure 6-digit code to verify your identity"}
               </p>
             </motion.div>
           )}

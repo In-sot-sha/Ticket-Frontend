@@ -17,11 +17,13 @@ import TicketCard, {
 } from '../components/TicketCard';
 import TicketFlierGenerator from '../components/checkout/TicketFlierGenerator';
 import { ResponsiveModal } from '../components/ui/ResponsiveModal';
+import { useIsMobile } from '../hooks/use-mobile';
 
 const TicketConfirmationPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isAuthenticated } = useAuth();
+  const isMobile = useIsMobile();
   const [showFlier, setShowFlier] = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
 
@@ -84,59 +86,50 @@ const TicketConfirmationPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white pb-24">
-      <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 pt-6 sm:pt-10">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white pb-16 sm:pb-20">
+      <div className="mx-auto w-full max-w-lg px-4 pt-5 sm:px-6 sm:pt-8">
         <button
           type="button"
           onClick={() => navigate('/')}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-neutral-500 dark:text-neutral-400 hover:text-rose-500 transition-colors mb-8"
+          className="mb-5 inline-flex items-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-rose-500"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           Home
         </button>
 
-        {/* Success hero — one job */}
-        <div className="text-center mb-8 sm:mb-10">
-          <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-emerald-500/15 flex items-center justify-center">
+        <div className="mb-5 flex items-center gap-3 sm:mb-6">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 sm:h-12 sm:w-12">
             <CheckCircle2 className="h-6 w-6 text-emerald-500" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
-            You&apos;re in
-          </h1>
-          <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400 max-w-md mx-auto leading-relaxed">
-            {ticketsList.length} pass{ticketsList.length === 1 ? '' : 'es'} for{' '}
-            <span className="font-semibold text-neutral-800 dark:text-neutral-200">
-              {eventMeta.eventName}
-            </span>
-            . Show at the gate or save a PNG.
-          </p>
-
-          <div className="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2.5">
-            <button
-              type="button"
-              onClick={downloadAll}
-              disabled={downloadingAll}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-rose-500 hover:bg-rose-600 text-white text-sm font-bold px-5 shadow-md transition-colors disabled:opacity-70"
-            >
-              {downloadingAll ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4" />
-              )}
-              {downloadingAll ? 'Saving…' : 'Download passes'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowFlier(true)}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm font-bold px-5 transition-colors"
-            >
-              <Share2 className="h-4 w-4" />
-              Make a flier
-            </button>
+          <div className="min-w-0">
+            <h1 className="text-xl font-extrabold leading-tight tracking-tight sm:text-2xl">You&apos;re in</h1>
+            <p className="mt-0.5 text-sm text-neutral-500">
+              {ticketsList.length} pass{ticketsList.length === 1 ? '' : 'es'} for{' '}
+              <span className="font-semibold text-neutral-800 dark:text-neutral-200">{eventMeta.eventName}</span>
+            </p>
           </div>
         </div>
 
-        {/* Passes */}
+        <div className="mb-6 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={downloadAll}
+            disabled={downloadingAll}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-rose-500 px-4 text-sm font-bold text-white shadow-md shadow-rose-500/30 hover:bg-rose-600 disabled:opacity-70"
+          >
+            {downloadingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {downloadingAll ? 'Saving…' : 'Download passes'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowFlier(true)}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-neutral-200 bg-white px-4 text-sm font-bold text-neutral-900 shadow-sm hover:border-rose-200 hover:text-rose-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
+          >
+            <Share2 className="h-4 w-4" />
+            Make a flier
+          </button>
+        </div>
+
         <div className="space-y-5">
           {ticketsList.map((ticket, index) => (
             <TicketCard
@@ -144,28 +137,29 @@ const TicketConfirmationPage = () => {
               ticket={ticket}
               index={index}
               eventMeta={eventMeta}
+              compact={!isMobile}
               showDownload
             />
           ))}
         </div>
 
-        <p className="mt-8 flex items-start gap-2 text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
-          <Shield className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
-          Keep your QR private. Once scanned at entry it cannot be reused.
+        <p className="mt-6 flex items-start gap-2 text-xs leading-relaxed text-neutral-500">
+          <Shield className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-400" />
+          Keep the QR private. A scanned pass cannot be reused.
         </p>
 
-        <div className="mt-6 flex flex-col sm:flex-row gap-2.5">
+        <div className="mt-5 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => navigate(isAuthenticated ? '/user/tickets' : '/recover-ticket')}
-            className="flex-1 h-11 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 text-sm font-bold"
+            className="inline-flex h-10 items-center rounded-full bg-neutral-900 px-4 text-sm font-bold text-white shadow-sm dark:bg-white dark:text-neutral-950"
           >
             {isAuthenticated ? 'My tickets' : 'Recover tickets later'}
           </button>
           <button
             type="button"
             onClick={() => navigate('/events')}
-            className="flex-1 h-11 rounded-full border border-neutral-300 dark:border-neutral-600 text-sm font-bold text-neutral-800 dark:text-neutral-100"
+            className="inline-flex h-10 items-center rounded-full border border-neutral-200 bg-white px-4 text-sm font-bold text-neutral-800 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
           >
             Browse events
           </button>

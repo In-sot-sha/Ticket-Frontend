@@ -1,6 +1,4 @@
-import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart } from 'lucide-react';
 import { LazyImage } from './LazyImage';
 import { getEventUrgencyBadges, isEventPast } from '../lib/eventBadges';
 import { cn } from '../lib/utils';
@@ -36,33 +34,27 @@ interface EventCardProps {
   onHover?: (id: number | null) => void;
 }
 
+export function EventCardSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <div className="aspect-[16/9] w-full rounded-lg bg-neutral-200 dark:bg-neutral-800" />
+      <div className="mt-3 sm:mt-2.5">
+        <div className="h-3.5 w-28 rounded bg-neutral-200 dark:bg-neutral-800 sm:h-3" />
+        <div className="mt-1 h-5 w-[88%] rounded bg-neutral-200 dark:bg-neutral-800 sm:h-[15px]" />
+        <div className="mt-1 h-5 w-2/3 rounded bg-neutral-200 dark:bg-neutral-800 sm:hidden" />
+        <div className="mt-1 h-4 w-1/2 rounded bg-neutral-200 dark:bg-neutral-800 sm:mt-0.5 sm:h-3" />
+        <div className="mt-2 h-5 w-24 rounded bg-neutral-200 dark:bg-neutral-800 sm:h-3.5" />
+      </div>
+    </div>
+  );
+}
+
 const EventCard: React.FC<EventCardProps> = ({
   event,
   showTicketsAvailable = false,
   showPrice = true,
   onHover,
 }) => {
-  const [isSaved, setIsSaved] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem(`wishlist_${event.id}`);
-    if (saved === 'true') {
-      setIsSaved(true);
-    }
-  }, [event.id]);
-
-  const handleWishlistToggle = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const newState = !isSaved;
-    setIsSaved(newState);
-    if (newState) {
-      localStorage.setItem(`wishlist_${event.id}`, 'true');
-    } else {
-      localStorage.removeItem(`wishlist_${event.id}`);
-    }
-  };
-
   let displayPrice = '';
   if (event.ticketTypes && event.ticketTypes.length > 0) {
     const prices = event.ticketTypes.map((t) => Number(t.price));
@@ -108,7 +100,17 @@ const EventCard: React.FC<EventCardProps> = ({
     });
   };
 
-  const formattedDate = formatRelativeDate(event.date);
+  const eventDate = new Date(event.date);
+  const formattedDate = isNaN(eventDate.getTime())
+    ? formatRelativeDate(event.date)
+    : eventDate.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      }) +
+      (event.date.includes('T')
+        ? ` · ${eventDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+        : '');
   const isPast = isEventPast(event.date, event.endDate);
   const isPromotedActive = Boolean(event.isPromoted) && !isPast;
   const urgencyBadges = getEventUrgencyBadges({
@@ -125,9 +127,12 @@ const EventCard: React.FC<EventCardProps> = ({
       onMouseLeave={() => onHover?.(null)}
       className="group"
     >
-      <Link to={`/events/${event.slug || event.id}`} className="block w-full">
-        <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-100/50 dark:border-neutral-900/30">
-          <div className="absolute left-3 top-3 z-10 flex flex-col gap-1 items-start max-w-[70%]">
+      <Link
+        to={`/events/${event.slug || event.id}`}
+        className="block w-full"
+      >
+        <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg bg-neutral-100 dark:bg-neutral-800">
+          <div className="absolute left-2 top-2 z-10 flex max-w-[80%] flex-col items-start gap-1">
             {isPromotedActive && (
               <span className="px-2 py-0.5 rounded text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wider shadow-sm bg-rose-500 text-white">
                 Promoted
@@ -156,54 +161,37 @@ const EventCard: React.FC<EventCardProps> = ({
             containerClassName="relative w-full h-full"
           />
 
-          <button
-            onClick={handleWishlistToggle}
-            className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-transparent text-white/90 transition-transform active:scale-90"
-            aria-label={isSaved ? 'Remove from wishlist' : 'Add to wishlist'}
-          >
-            <Heart
-              className={`h-5 w-5 stroke-[2] drop-shadow-md transition-colors ${
-                isSaved
-                  ? 'fill-rose-500 stroke-rose-500'
-                  : 'fill-black/35 stroke-white hover:stroke-rose-500'
-              }`}
-            />
-          </button>
-
           {showTicketsAvailable &&
             !isPast &&
             event.ticketsAvailable !== undefined &&
             event.ticketsAvailable > 0 &&
             event.ticketsAvailable <= 50 && (
-              <div className="hidden sm:block absolute bottom-3 left-3 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-extrabold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
+              <div className="absolute bottom-3 left-3 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-extrabold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
                 {event.ticketsAvailable} left
               </div>
             )}
         </div>
 
-        <div className="mt-2 flex flex-col">
-          <div className="flex justify-between items-start gap-2">
-            <h3
-              className={cn(
-                'font-bold text-xs sm:text-sm text-neutral-900 dark:text-neutral-100 line-clamp-2 leading-tight flex-1',
-                isPast && 'text-neutral-500 dark:text-neutral-400'
-              )}
-            >
-              {event.title}
-            </h3>
-          </div>
-
-          <p className="text-[10px] sm:text-xs text-neutral-500 dark:text-neutral-400 mt-1 line-clamp-1">
-            {event.location}
-          </p>
-
-          <p className="text-[10px] sm:text-xs text-neutral-450 dark:text-neutral-505 mt-0.5 font-normal">
+        <div className="mt-3 sm:mt-2.5">
+          <p className="text-sm font-semibold text-rose-600 dark:text-rose-400 sm:text-xs">
             {formattedDate}
           </p>
-
+          <h3
+            className={cn(
+              'mt-1 line-clamp-2 text-lg font-bold leading-snug text-neutral-900 dark:text-white sm:text-[15px]',
+              isPast && 'text-neutral-500 dark:text-neutral-400'
+            )}
+          >
+            {event.title}
+          </h3>
+          <p className="mt-1 line-clamp-1 text-sm text-neutral-500 dark:text-neutral-400 sm:mt-0.5 sm:text-xs">
+            {event.location}
+          </p>
           {shouldShowPrice && (
-            <p className="text-[10px] sm:text-xs text-neutral-900 dark:text-white mt-1.5 font-bold leading-none">
-              {displayPrice}
+            <p className="mt-2 text-base font-bold tabular-nums text-neutral-900 dark:text-white sm:text-sm">
+              {displayPrice === 'Free' || displayPrice.startsWith('From') || displayPrice.includes('-')
+                ? displayPrice
+                : `From ${displayPrice}`}
             </p>
           )}
         </div>

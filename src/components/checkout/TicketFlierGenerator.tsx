@@ -109,7 +109,10 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
     const measure = () => {
       if (!containerRef.current) return;
       const w = containerRef.current.clientWidth;
-      const maxH = Math.min(window.innerHeight * 0.5, 520);
+      const wide = window.innerWidth >= 1024;
+      const maxH = wide
+        ? Math.min(window.innerHeight * 0.72, 640)
+        : Math.min(window.innerHeight * 0.62, 560);
       const byW = w < flierW ? (w - 16) / flierW : 1;
       const byH = maxH / flierH;
       setScale(Math.min(1, byW, byH));
@@ -362,27 +365,26 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
     template === 'spotlight' ? SpotlightFace : template === 'clean' ? CleanFace : GoingFace;
 
   return (
-    <div className="overflow-hidden border-0 bg-white dark:bg-neutral-900 sm:rounded-2xl sm:border sm:border-neutral-200 sm:shadow-2xl dark:sm:border-neutral-700">
+    <div className="overflow-hidden bg-white dark:bg-neutral-900">
       {onClose && (
-        <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 dark:border-neutral-800 sm:px-5">
+        <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-3.5 w-3.5" />
             Close
           </button>
-          <p className="text-xs font-bold text-neutral-500 dark:text-neutral-400">Event flier</p>
-          <span className="w-14" aria-hidden />
+          <p className="text-[11px] font-bold text-neutral-500">Event flier</p>
+          <span className="w-10" aria-hidden />
         </div>
       )}
 
-      <div className="flex flex-col lg:flex-row">
-        {/* Live preview */}
+      <div className="flex flex-col lg:flex-row lg:items-stretch">
         <div
           ref={containerRef}
-          className="flex min-h-[260px] flex-1 items-center justify-center bg-neutral-100 p-4 dark:bg-black/40 sm:p-6"
+          className="flex min-h-[360px] flex-1 items-center justify-center bg-neutral-100 px-4 py-5 dark:bg-black/40 sm:min-h-[420px] sm:py-6"
         >
           <div
             style={{ width: flierW * scale, height: flierH * scale }}
@@ -405,76 +407,55 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
         </div>
 
         {/* Controls — one job: configure then export */}
-        <div className="flex w-full shrink-0 flex-col border-t border-neutral-200 p-4 dark:border-neutral-800 sm:p-5 lg:w-[320px] lg:border-l lg:border-t-0">
-          <div className="flex-1 space-y-4">
-            <div>
-              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Format
-              </p>
-              <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-neutral-100 p-1 dark:bg-neutral-800/80">
-                {FORMATS.map((f) => (
-                  <button
-                    key={f.key}
-                    type="button"
-                    onClick={() => setFormat(f.key)}
-                    className={`rounded-lg px-2.5 py-2 text-left transition-colors ${
-                      format === f.key
-                        ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white'
-                        : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200'
-                    }`}
-                  >
-                    <span className="block text-xs font-bold">{f.label}</span>
-                    <span className="text-[9px] opacity-70">{f.sub}</span>
-                  </button>
-                ))}
-              </div>
+        <div className="flex w-full shrink-0 flex-col border-t border-neutral-200 p-4 dark:border-neutral-800 sm:p-5 lg:w-[280px] lg:border-l lg:border-t-0">
+          <div className="space-y-2.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {FORMATS.map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setFormat(f.key)}
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                    format === f.key
+                      ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900'
+                      : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+              <span className="mx-0.5 h-3 w-px bg-neutral-200 dark:bg-neutral-700" />
+              {TEMPLATES.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setTemplate(t.key)}
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                    template === t.key
+                      ? 'bg-rose-500 text-white'
+                      : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
 
-            <div>
-              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Look
-              </p>
-              <div className="flex flex-col gap-1.5">
-                {TEMPLATES.map((t) => (
-                  <button
-                    key={t.key}
-                    type="button"
-                    onClick={() => setTemplate(t.key)}
-                    className={`rounded-xl border px-3 py-2 text-left transition-colors ${
-                      template === t.key
-                        ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/30'
-                        : 'border-neutral-200 dark:border-neutral-700'
-                    }`}
-                  >
-                    <span className="block text-xs font-bold text-neutral-900 dark:text-white">
-                      {t.label}
-                    </span>
-                    <span className="text-[10px] text-neutral-500">{t.hint}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Tagline
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {TAGLINES.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setTagline(t)}
-                    className={`rounded-full px-3 py-1.5 text-[11px] font-bold transition-colors ${
-                      tagline === t
-                        ? 'bg-rose-500 text-white'
-                        : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
+            <div className="flex flex-wrap gap-1.5">
+              {TAGLINES.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTagline(t)}
+                  className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                    tagline === t
+                      ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900'
+                      : 'text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
             </div>
 
             {template === 'going' && (
@@ -501,28 +482,25 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
             )}
           </div>
 
-          <div className="mt-5 space-y-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+          <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={handleShare}
               disabled={busy}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-rose-500 text-sm font-bold text-white hover:bg-rose-600 disabled:opacity-70"
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full bg-rose-500 text-xs font-bold text-white hover:bg-rose-600 disabled:opacity-70"
             >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />}
               Share
             </button>
             <button
               type="button"
               onClick={handleDownload}
               disabled={busy}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-neutral-300 bg-white text-sm font-bold text-neutral-900 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white disabled:opacity-70"
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-neutral-300 text-xs font-bold text-neutral-900 dark:border-neutral-600 dark:text-white disabled:opacity-70"
             >
-              <Download className="h-4 w-4" />
-              Download PNG
+              <Download className="h-3.5 w-3.5" />
+              Download
             </button>
-            <p className="pt-0.5 text-center text-[10px] text-neutral-400">
-              Title · date · venue · get tickets
-            </p>
           </div>
         </div>
       </div>

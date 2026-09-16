@@ -11,7 +11,6 @@ import {
   Clock,
   Ticket,
   Share2,
-  Heart,
   CheckCircle,
   Store,
   Mail,
@@ -34,6 +33,7 @@ import { GoogleMapLocation } from '../components/GoogleMapLocation';
 import { ResponsiveModal } from '../components/ui/ResponsiveModal';
 import EventCard from '@/components/EventCard';
 import { Button } from '@/components/ui/Button';
+import { VerifiedBadge } from '@/components/icons/VerifiedBadge';
 import { cn } from '@/lib/utils';
 import { getEventUrgencyBadges } from '@/lib/eventBadges';
 
@@ -65,6 +65,176 @@ const formatDeadlineFriendly = (dateStr: string) => {
     return `Applications close: ${dateStr}`;
   }
 };
+
+function startOfLocalDay(value: Date) {
+  const day = new Date(value);
+  day.setHours(0, 0, 0, 0);
+  return day;
+}
+
+function eventDayCount(startIso: string, endIso?: string) {
+  const start = startOfLocalDay(new Date(startIso));
+  const end = startOfLocalDay(new Date(endIso || startIso));
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 1;
+  return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1);
+}
+
+function remainingParts(ms: number) {
+  const total = Math.max(0, ms);
+  return {
+    days: Math.floor(total / 86_400_000),
+    hours: Math.floor((total % 86_400_000) / 3_600_000),
+    minutes: Math.floor((total % 3_600_000) / 60_000),
+    seconds: Math.floor((total % 60_000) / 1000),
+  };
+}
+
+function EventCountdown({ startIso, endIso }: { startIso: string; endIso?: string }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const start = new Date(startIso).getTime();
+  const end = new Date(endIso || startIso).getTime();
+  if (isNaN(start)) return null;
+
+  const ended = now > end;
+  const started = now >= start;
+  const parts = remainingParts((started ? end : start) - now);
+  const heading = ended ? 'Event ended' : started ? 'Time left' : 'Starts in';
+  const units = [
+    { label: 'Days', value: String(parts.days) },
+    { label: 'Hours', value: String(parts.hours).padStart(2, '0') },
+    { label: 'Min', value: String(parts.minutes).padStart(2, '0') },
+    { label: 'Sec', value: String(parts.seconds).padStart(2, '0') },
+  ];
+
+  return (
+    <div className="w-full mb-3">
+      <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-500">
+        {heading}
+      </p>
+      <div className="grid w-full grid-cols-4 gap-1.5 sm:gap-2">
+        {units.map((unit) => (
+          <div
+            key={unit.label}
+            className="flex min-w-0 flex-col items-center justify-center rounded-lg border border-rose-200/80 bg-rose-50/80 px-1 py-1.5 dark:border-rose-900/50 dark:bg-rose-950/30"
+          >
+            <span className="font-ticket text-base font-bold tabular-nums leading-none text-rose-600 dark:text-rose-400 sm:text-lg">
+              {ended ? '00' : unit.value}
+            </span>
+            <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
+              {unit.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EventDetailSkeleton() {
+  const bone = 'bg-neutral-200 dark:bg-neutral-800';
+  return (
+    <div className="animate-pulse">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+        <div className="flex flex-col lg:flex-row gap-8">
+          <div className="lg:w-[60%] xl:w-[65%]">
+            <div className="mb-3 space-y-2">
+              <div className={`w-full aspect-[16/9] max-h-[320px] rounded-2xl ${bone}`} />
+              <div className="flex gap-1.5">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className={`h-11 w-11 sm:h-12 sm:w-12 shrink-0 rounded-lg ${bone}`} />
+                ))}
+                <div className={`h-11 sm:h-12 w-14 shrink-0 rounded-lg ${bone}`} />
+              </div>
+            </div>
+
+            <div className="flex items-start justify-between gap-4 mb-2">
+              <div className="flex-1">
+                <div className={`h-4 w-16 rounded mb-2.5 ${bone}`} />
+                <div className={`h-7 sm:h-9 w-4/5 rounded-lg ${bone}`} />
+              </div>
+              <div className={`h-9 w-16 rounded-lg shrink-0 ${bone}`} />
+            </div>
+
+            <div className="w-full mb-3">
+              <div className={`mb-1 h-2.5 w-16 rounded ${bone}`} />
+              <div className="grid w-full grid-cols-4 gap-1.5 sm:gap-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className={`h-11 rounded-lg ${bone}`} />
+                ))}
+              </div>
+            </div>
+
+            <div className={`h-4 w-40 rounded mb-3 ${bone}`} />
+            <hr className="border-neutral-100 dark:border-neutral-900 mb-3" />
+
+            <div className="space-y-1.5 mb-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className={`h-4 w-4 rounded shrink-0 ${bone}`} />
+                  <div className={`h-4 rounded ${bone} ${i === 2 ? 'w-2/3' : 'w-1/2'}`} />
+                </div>
+              ))}
+            </div>
+
+            <hr className="border-neutral-100 dark:border-neutral-900 mb-4" />
+
+            <div className="mb-5">
+              <div className={`h-6 w-40 rounded mb-4 ${bone}`} />
+              <div className="space-y-2">
+                <div className={`h-3.5 w-full rounded ${bone}`} />
+                <div className={`h-3.5 w-full rounded ${bone}`} />
+                <div className={`h-3.5 w-5/6 rounded ${bone}`} />
+                <div className={`h-3.5 w-2/3 rounded ${bone}`} />
+              </div>
+            </div>
+
+            <hr className="border-neutral-100 dark:border-neutral-900 mb-1" />
+
+            <div className="flex items-center gap-4 p-3 -mx-3 mb-2">
+              <div className={`h-14 w-14 rounded-full shrink-0 ${bone}`} />
+              <div className="flex-1 space-y-2">
+                <div className={`h-4 w-44 rounded ${bone}`} />
+                <div className={`h-3 w-28 rounded ${bone}`} />
+              </div>
+            </div>
+
+            <hr className="border-neutral-100 dark:border-neutral-900 mb-4" />
+            <div className={`mb-5 h-52 rounded-2xl ${bone}`} />
+          </div>
+
+          <div className="hidden lg:block lg:w-[40%] xl:w-[35%]">
+            <div className="sticky top-24 rounded-2xl border-2 border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950 p-6">
+              <div className={`h-3 w-16 rounded ${bone}`} />
+              <div className={`mt-2 h-9 w-32 rounded ${bone}`} />
+              <div className="mt-5 space-y-2">
+                <div className={`h-4 w-3/4 rounded ${bone}`} />
+                <div className={`h-4 w-1/2 rounded ${bone}`} />
+              </div>
+              <div className={`mt-6 h-12 w-full rounded-xl ${bone}`} />
+              <div className={`mt-3 h-3 w-32 mx-auto rounded ${bone}`} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="lg:hidden fixed bottom-[3.6rem] left-0 right-0 z-40 border-t border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-gray-900/95 px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="space-y-1.5">
+            <div className={`h-2 w-8 rounded ${bone}`} />
+            <div className={`h-5 w-20 rounded ${bone}`} />
+          </div>
+          <div className={`h-11 w-36 rounded-xl ${bone}`} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface TicketType {
   id: number;
@@ -272,7 +442,6 @@ const EventDetailPage = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
-  const [isSaved, setIsSaved] = useState(false);
   const [showAllPhotos, setShowAllPhotos] = useState(false);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [showOrganizerModal, setShowOrganizerModal] = useState(false);
@@ -312,6 +481,7 @@ const EventDetailPage = () => {
   // Derived status flags
   const isEventDraft = !event.isPublished;
   const isEventEnded = event.endDateRaw ? new Date(event.endDateRaw) < new Date() : false;
+  const spanDays = eventDayCount(event.date, event.endDateRaw);
   const ticketingBlocked = isEventDraft || isEventEnded;
   const isVendorDeadlinePassed = event.vendorDeadline ? new Date() > new Date(event.vendorDeadline) : false;
 
@@ -386,13 +556,6 @@ const EventDetailPage = () => {
       setIsSubmittingReport(false);
     }
   };
-
-  useEffect(() => {
-    if (eventData?.id) {
-      const saved = localStorage.getItem(`wishlist_${eventData.id}`);
-      setIsSaved(saved === 'true');
-    }
-  }, [eventData?.id]);
 
   const handlePurchaseTicket = () => {
     navigate(`/book/${event.id}`);
@@ -522,27 +685,7 @@ const EventDetailPage = () => {
           </script>
         )}
       </Helmet>
-      {isLoading && (
-        <div className="animate-pulse">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <div className="flex flex-col lg:flex-row gap-12">
-              <div className="lg:w-[60%] xl:w-[65%] space-y-6">
-                <div className="h-8 w-3/4 bg-neutral-200 dark:bg-neutral-800 rounded-lg" />
-                <div className="h-4 w-1/2 bg-neutral-200 dark:bg-neutral-800 rounded-md" />
-                <div className="w-full aspect-[4/3] max-h-[420px] bg-neutral-200 dark:bg-neutral-800 rounded-2xl" />
-                <div className="space-y-3">
-                  <div className="h-4 w-full bg-neutral-200 dark:bg-neutral-800 rounded-md" />
-                  <div className="h-4 w-full bg-neutral-200 dark:bg-neutral-800 rounded-md" />
-                  <div className="h-4 w-3/4 bg-neutral-200 dark:bg-neutral-800 rounded-md" />
-                </div>
-              </div>
-              <div className="hidden lg:block lg:w-[40%] xl:w-[35%]">
-                <div className="border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 h-48 bg-neutral-100 dark:bg-neutral-800/50" />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {isLoading && <EventDetailSkeleton />}
 
       {/* ─── Not Found State ─── */}
       {!isLoading && notFound && (
@@ -633,8 +776,8 @@ const EventDetailPage = () => {
       {!isLoading && !notFound && (<>
 
       {/* ─── Content ─── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex flex-col lg:flex-row gap-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+        <div className="flex flex-col lg:flex-row gap-8">
 
           {/* Left: Event Details */}
           <div className="lg:w-[60%] xl:w-[65%]">
@@ -643,14 +786,14 @@ const EventDetailPage = () => {
               const photos = event.images;
               const safeIndex = Math.min(activePhotoIndex, photos.length - 1);
               return (
-                <div className="mb-5 space-y-2.5">
+                <div className="mb-3 space-y-2">
                   <button
                     type="button"
                     onClick={() => {
                       setActivePhotoIndex(safeIndex);
                       setShowAllPhotos(true);
                     }}
-                    className="relative block w-full overflow-hidden rounded-2xl aspect-[4/3] max-h-[440px] bg-neutral-100 dark:bg-neutral-900 group"
+                    className="relative block w-full overflow-hidden rounded-2xl aspect-[16/9] max-h-[320px] bg-neutral-100 dark:bg-neutral-900 group"
                   >
                     <LazyImage
                       src={photos[safeIndex]}
@@ -667,14 +810,14 @@ const EventDetailPage = () => {
                   </button>
 
                   {photos.length > 1 && (
-                    <div className="flex gap-2 overflow-x-auto pb-0.5">
+                    <div className="flex gap-1.5 overflow-x-auto pb-0.5">
                       {photos.map((img, i) => (
                         <button
                           key={`hero-thumb-${i}`}
                           type="button"
                           onClick={() => setActivePhotoIndex(i)}
                           className={cn(
-                            'relative h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-xl overflow-hidden ring-2 transition-all',
+                            'relative h-11 w-11 sm:h-12 sm:w-12 shrink-0 rounded-lg overflow-hidden ring-2 transition-all',
                             i === safeIndex
                               ? 'ring-rose-500'
                               : 'ring-transparent opacity-75 hover:opacity-100'
@@ -687,7 +830,7 @@ const EventDetailPage = () => {
                       <button
                         type="button"
                         onClick={() => setShowAllPhotos(true)}
-                        className="h-14 sm:h-16 shrink-0 rounded-xl px-3 text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 dark:text-rose-300"
+                        className="h-11 sm:h-12 shrink-0 rounded-lg px-3 text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 dark:text-rose-300"
                       >
                         View all
                       </button>
@@ -700,34 +843,12 @@ const EventDetailPage = () => {
             {/* Title Row */}
             <div className="flex items-start justify-between gap-4 mb-2">
               <div className="flex-1">
-                {renderUrgencyBadges({ className: 'mb-2.5' })}
+                {renderUrgencyBadges({ className: 'mb-1.5' })}
                 <h1 className="text-xl sm:text-3xl font-extrabold text-neutral-900 dark:text-white leading-tight">
                   {event.title}
                 </h1>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => {
-                    if (!event.id) return;
-                    const newState = !isSaved;
-                    setIsSaved(newState);
-                    if (newState) {
-                      localStorage.setItem(`wishlist_${event.id}`, 'true');
-                    } else {
-                      localStorage.removeItem(`wishlist_${event.id}`);
-                    }
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
-                >
-                  <Heart
-                    className={`h-4 w-4 ${
-                      isSaved ? 'fill-rose-500 text-rose-500' : 'text-neutral-600 dark:text-neutral-400'
-                    }`}
-                  />
-                  <span className="text-xs font-bold underline text-neutral-700 dark:text-neutral-300">
-                    {isSaved ? 'Saved' : 'Save'}
-                  </span>
-                </button>
                 <button 
                   onClick={handleShare}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
@@ -749,8 +870,10 @@ const EventDetailPage = () => {
               </div>
             </div>
 
+            <EventCountdown startIso={event.date} endIso={event.endDateRaw} />
+
             {/* Quick meta */}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-neutral-600 dark:text-neutral-400 mb-6">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-neutral-600 dark:text-neutral-400 mb-3">
               {event.reviewCount > 0 && (
                 <>
                   <span className="flex items-center gap-1">
@@ -766,14 +889,16 @@ const EventDetailPage = () => {
             </div>
 
             {/* Divider */}
-            <hr className="border-neutral-100 dark:border-neutral-900 mb-4" />
+            <hr className="border-neutral-100 dark:border-neutral-900 mb-3" />
 
             {/* Event details - Date/Time/Location (Simplified) */}
-            <div className="space-y-2 mb-6">
+            <div className="space-y-1.5 mb-3">
               <div className="flex items-center gap-3 text-sm">
                 <Calendar className="h-4 w-4 text-rose-500 shrink-0" />
                 <span className="text-neutral-700 dark:text-neutral-300 font-medium">
-                  {formatDate(event.date)}
+                  {spanDays > 1
+                    ? `${formatDate(event.date)} – ${formatDate(event.endDateRaw)}`
+                    : formatDate(event.date)}
                 </span>
               </div>
               <div className="flex items-center gap-3 text-sm">
@@ -790,11 +915,11 @@ const EventDetailPage = () => {
               </div>
             </div>
 
-            <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+            <hr className="border-neutral-100 dark:border-neutral-900 mb-4" />
 
             {/* About */}
-            <div className="mb-8">
-              <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white mb-4">
+            <div className="mb-5">
+              <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white mb-2">
                 About this event
               </h2>
               <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed whitespace-pre-line">
@@ -804,7 +929,7 @@ const EventDetailPage = () => {
                 {/* Highlights */}
             {event.highlights.length > 0 && (
               <>
-                <div className="space-y-5 mb-2">
+                <div className="space-y-2.5 mb-2">
                   {event.highlights.map((h, i) => (
                     <div key={i} className="flex items-center gap-4">
                       <span className="text-2xl">{h.icon}</span>
@@ -820,12 +945,12 @@ const EventDetailPage = () => {
 
             {event.amenities.length > 0 && (
               <div className="mb-2">
-                <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white mb-4">
+                <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white mb-2">
                   What's included
                 </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5">
                   {event.amenities.map((amenity, i) => (
-                    <div key={i} className="flex items-center gap-3 py-3">
+                    <div key={i} className="flex items-center gap-3 py-1.5">
                       <CheckCircle className="h-5 w-5 text-rose-500 shrink-0" />
                       <span className="text-sm text-neutral-700 dark:text-neutral-300 font-medium">
                         {amenity}
@@ -841,14 +966,22 @@ const EventDetailPage = () => {
             {/* Hosted by - Organizer section */}
             <button
               onClick={() => setShowOrganizerModal(true)}
-              className="w-full flex items-center gap-4 mb-2 group text-left hover:bg-neutral-50 dark:hover:bg-neutral-900/50 rounded-2xl p-3 -mx-3 transition-colors"
+              className="w-full flex items-center gap-3 mb-1 group text-left hover:bg-neutral-50 dark:hover:bg-neutral-900/50 rounded-2xl px-3 py-2 -mx-3 transition-colors"
             >
-              <div className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-full w-14 h-14 flex items-center justify-center text-white text-xl font-extrabold shadow-md shrink-0 overflow-hidden">
+              <div className="relative shrink-0">
+              <div className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-full w-11 h-11 flex items-center justify-center text-white text-lg font-extrabold shadow-md overflow-hidden">
                <img src={event.organizer.logo || event.organizer.avatar} alt={event.organizer.name} className='w-full h-full object-cover' />
               </div>
+              {event.organizer.isVerified && (
+                <VerifiedBadge className="absolute -bottom-0.5 -right-0.5 h-5 w-5 rounded-full ring-2 ring-white dark:ring-neutral-950" title="Verified organizer" />
+              )}
+              </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-neutral-900 dark:text-white">
-                  Hosted by {event.organizer.name}
+                <h3 className="font-bold text-neutral-900 dark:text-white flex items-center gap-1.5 min-w-0">
+                  <span className="truncate">Hosted by {event.organizer.name}</span>
+                  {event.organizer.isVerified && (
+                    <VerifiedBadge className="h-4 w-4 shrink-0" title="Verified organizer" />
+                  )}
                 </h3>
                 {event.organizer.eventsHosted > 0 && (
                   <p className="text-xs text-neutral-500 dark:text-neutral-400">
@@ -860,32 +993,33 @@ const EventDetailPage = () => {
               <ChevronRight className="h-4 w-4 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 shrink-0 transition-colors" />
             </button>
 
-            <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+            <hr className="border-neutral-100 dark:border-neutral-900 mb-4" />
 
             {/* Map - for physical events */}
             {event.location && event.location !== 'Online' && (
               <>
-                <div className="mb-8 rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800">
+                <div className="mb-5">
                   <GoogleMapLocation 
                     location={event.location}
                     latitude={event.latitude}
                     longitude={event.longitude}
                     eventTitle={event.title}
+                    // height="220px"
                   />
                 </div>
-                <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
+                <hr className="border-neutral-100 dark:border-neutral-900 mb-4" />
               </>
             )}
 
         
 
             {/* ─── Events You May Like ─── */}
-            <div className="mt-12">
-              <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white mb-6">
+            <div className="mt-8">
+              <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white mb-4">
                 More in {event.category}
               </h2>
               {similarEvents.length > 0 ? (
-                <div className="grid gap-x-4 gap-y-6 grid-cols-2 sm:gap-x-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
+                <div className="grid gap-x-4 gap-y-4 grid-cols-1 sm:gap-x-6 sm:gap-y-6 sm:grid-cols-2 md:grid-cols-3">
                   {similarEvents.map((evt: any, idx: number) => (
                     <motion.div
                       key={evt.id}
@@ -914,7 +1048,7 @@ const EventDetailPage = () => {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.35 }}
-                className="rounded-2xl border-2 border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-950 p-6 shadow-sm"
+                className="rounded-2xl border-2 border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-950 p-5 shadow-sm"
               >
                 <p className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
                   Tickets
@@ -933,10 +1067,14 @@ const EventDetailPage = () => {
                   )}
                 </div>
 
-                <div className="mt-5 space-y-2 text-sm text-neutral-600 dark:text-neutral-400">
+                <div className="mt-4 space-y-1.5 text-sm text-neutral-600 dark:text-neutral-400">
                   <div className="flex items-center gap-2">
                     <Calendar className="h-3.5 w-3.5 text-neutral-400 shrink-0" />
-                    <span>{formatDate(event.date)}</span>
+                    <span>
+                      {spanDays > 1
+                        ? `${formatDate(event.date)} – ${formatDate(event.endDateRaw)}`
+                        : formatDate(event.date)}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Clock className="h-3.5 w-3.5 text-neutral-400 shrink-0" />
@@ -946,7 +1084,7 @@ const EventDetailPage = () => {
                   </div>
                 </div>
 
-                <div className="mt-6">
+                <div className="mt-4">
                   {ticketingBlocked ? (
                     <div className="rounded-xl bg-neutral-50 dark:bg-neutral-900 p-4 text-center">
                       {isEventDraft ? (
@@ -1148,20 +1286,22 @@ const EventDetailPage = () => {
                           <img src={event.organizer.logo || event.organizer.avatar} alt={event.organizer.name} className='w-full h-full object-cover' />
 
                       </div>
-                      {/* Verified badge */}
-                      <div className="absolute -bottom-2 -right-2 flex items-center justify-center w-8 h-8 rounded-full bg-rose-500 border-4 border-white dark:border-neutral-900 shadow-lg">
-                        <svg viewBox="0 0 24 24" className="w-4 h-4 fill-white" aria-hidden="true">
-                          <path d="M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                        </svg>
-                      </div>
+                      {event.organizer.isVerified && (
+                        <VerifiedBadge className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full ring-2 ring-white dark:ring-neutral-900" title="Verified organizer" />
+                      )}
                     </div>
                     <div className="pb-2">
-                      <h3 className="font-extrabold text-2xl text-neutral-900 dark:text-white mb-1">
+                      <h3 className="font-extrabold text-2xl text-neutral-900 dark:text-white mb-1 flex items-center gap-2">
                         {event.organizer.name}
+                        {event.organizer.isVerified && (
+                          <VerifiedBadge className="h-5 w-5 shrink-0" title="Verified organizer" />
+                        )}
                       </h3>
+                      {event.organizer.isVerified && (
                       <p className="text-sm text-neutral-600 dark:text-neutral-400">
                         Verified Organizer
                       </p>
+                      )}
                          <p className="text-sm text-neutral-600 dark:text-neutral-400">
                         Member Since {event.organizer.joinedYear}
                       </p>
