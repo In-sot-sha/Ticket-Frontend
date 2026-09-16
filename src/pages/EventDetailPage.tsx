@@ -101,10 +101,11 @@ function EventCountdown({ startIso, endIso }: { startIso: string; endIso?: strin
   const end = new Date(endIso || startIso).getTime();
   if (isNaN(start)) return null;
 
-  const ended = now > end;
   const started = now >= start;
-  const parts = remainingParts((started ? end : start) - now);
-  const heading = ended ? 'Event ended' : started ? 'Time left' : 'Starts in';
+  const remaining = (started ? end : start) - now;
+  if (remaining <= 0) return null;
+  const parts = remainingParts(remaining);
+  const heading = started ? 'Time left' : 'Starts in';
   const units = [
     { label: 'Days', value: String(parts.days) },
     { label: 'Hours', value: String(parts.hours).padStart(2, '0') },
@@ -124,7 +125,7 @@ function EventCountdown({ startIso, endIso }: { startIso: string; endIso?: strin
             className="flex min-w-0 flex-col items-center justify-center rounded-lg border border-rose-200/80 bg-rose-50/80 px-1 py-1.5 dark:border-rose-900/50 dark:bg-rose-950/30"
           >
             <span className="font-ticket text-base font-bold tabular-nums leading-none text-rose-600 dark:text-rose-400 sm:text-lg">
-              {ended ? '00' : unit.value}
+              {unit.value}
             </span>
             <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
               {unit.label}

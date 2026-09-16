@@ -1,9 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { MapPin, Search, X, Check, Navigation, Loader2 } from 'lucide-react';
-
-const KANO_CENTER = { lat: 11.9626, lng: 8.6753 };
+import { KANO_CENTER, resolveVenue, searchVenues, venueLabel, type VenueSuggestion } from '../../lib/venueSearch';
 const LIBRARIES: ('places')[] = ['places'];
+
+function nameFromGeocode(result: google.maps.GeocoderResult) {
+  const match = result.address_components?.find((part) =>
+    part.types.some((type) =>
+      ['establishment', 'point_of_interest', 'premise', 'restaurant'].includes(type)
+    )
+  );
+  return match?.long_name || '';
+}
 
 interface GoogleMapLocationPickerProps {
   onLocationSelect: (location: {
@@ -25,6 +33,7 @@ export const GoogleMapLocationPicker: React.FC<GoogleMapLocationPickerProps> = (
     lng: number;
   }>(initialLocation);
   const [address, setAddress] = useState(initialAddress);
+  const [placeName, setPlaceName] = useState('');
 
   useEffect(() => {
     if (initialLocation?.lat != null && initialLocation?.lng != null) {
@@ -36,7 +45,8 @@ export const GoogleMapLocationPicker: React.FC<GoogleMapLocationPickerProps> = (
   }, [initialLocation?.lat, initialLocation?.lng, initialAddress]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<Array<{ lat: number; lng: number; address: string }>>([]);
+  const [searchResults, setSearchResults] = useState<VenueSuggestion[]>([]);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
   const hasGoogleKey = Boolean(apiKey && apiKey !== 'YOUR_GOOGLE_MAPS_API_KEY_HERE');
@@ -58,6 +68,7 @@ export const GoogleMapLocationPicker: React.FC<GoogleMapLocationPickerProps> = (
         const geocoder = new window.google.maps.Geocoder();
         geocoder.geocode({ location: { lat, lng } }, (results, status) => {
           if (status === 'OK' && results?.[0]) {
+            setPlaceName(nameFromGeocode(results[0]));
             setAddress(results[0].formatted_address);
           }
         });
@@ -65,71 +76,44 @@ export const GoogleMapLocationPicker: React.FC<GoogleMapLocationPickerProps> = (
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
-    setIsSearching(true);
-
-    // 1. Try Google Geocoder if available
-    if (hasGoogleKey && window.google?.maps?.Geocoder) {
-      const geocoder = new window.google.maps.Geocoder();
-      geocoder.geocode({ address: searchQuery }, (results, status) => {
-        if (status === 'OK' && results?.[0]) {
-          const loc = results[0].geometry.location;
-          const lat = loc.lat();
-          const lng = loc.lng();
-          setSelectedLocation({ lat, lng });
-          setAddress(results[0].formatted_address);
-          setSearchQuery('');
-          setSearchResults([]);
-        } else {
-          fallbackSearchNominatim();
-        }
-        setIsSearching(false);
-      });
-      return;
+  const applySuggestion = async (suggestion: VenueSuggestion) => {
+    const resolved = await resolveVenue(suggestion);
+    if (resolved.latitude != null && resolved.longitude != null) {
+      setSelectedLocation({ lat: resolved.latitude, lng: resolved.longitude });
     }
-
-    // 2. Fallback to OpenStreetMap Nominatim
-    fallbackSearchNominatim();
+    const label = venueLabel(resolved);
+    setPlaceName(label);
+    setAddress(resolved.address);
+    setSearchQuery(label);
+    setSearchResults([]);
   };
 
-  const fallbackSearchNominatim = async () => {
+  const runSearch = async (query: string) => {
+    if (query.trim().length < 2) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+    setIsSearching(true);
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-          searchQuery
-        )}&countrycodes=ng&limit=4`,
-        { headers: { 'Accept-Language': 'en' } }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        if (data.length > 0) {
-          const first = data[0];
-          setSelectedLocation({ lat: parseFloat(first.lat), lng: parseFloat(first.lon) });
-          setAddress(first.display_name);
-          setSearchResults(
-            data.map((d: any) => ({
-              lat: parseFloat(d.lat),
-              lng: parseFloat(d.lon),
-              address: d.display_name,
-            }))
-          );
-        } else {
-          alert('Location not found. Try typing a landmark or city name.');
-        }
-      }
+      setSearchResults(await searchVenues(query));
     } catch {
-      alert('Error searching for location. Please check connection.');
+      setSearchResults([]);
     } finally {
       setIsSearching(false);
     }
+  };
+
+  const handleSearch = () => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    void runSearch(searchQuery);
   };
 
   const handleConfirm = () => {
     onLocationSelect({
       lat: selectedLocation.lat,
       lng: selectedLocation.lng,
-      address,
+      address: placeName || address,
     });
   };
 
@@ -141,17 +125,30 @@ export const GoogleMapLocationPicker: React.FC<GoogleMapLocationPickerProps> = (
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
           <input
             type="text"
-            placeholder="Search venue or address (e.g. Landmark Centre Lagos)..."
+            placeholder="Search a venue, restaurant, or address"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setSearchQuery(next);
+              if (debounceTimer.current) clearTimeout(debounceTimer.current);
+              debounceTimer.current = setTimeout(() => {
+                void runSearch(next);
+              }, 300);
+            }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSearch();
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSearch();
+              }
             }}
             className="w-full pl-10 pr-8 py-2.5 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
           />
           {searchQuery && (
             <button
-              onClick={() => setSearchQuery('')}
+              onClick={() => {
+                setSearchQuery('');
+                setSearchResults([]);
+              }}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
             >
               <X className="h-4 w-4" />
@@ -169,22 +166,23 @@ export const GoogleMapLocationPicker: React.FC<GoogleMapLocationPickerProps> = (
       </div>
 
       {/* Search results list if multiple matches found */}
-      {searchResults.length > 1 && (
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-850 p-2 space-y-1">
-          <p className="text-[10px] font-bold uppercase text-neutral-400 px-2 py-0.5">Select Result</p>
-          {searchResults.map((r, i) => (
+      {searchResults.length > 0 && (
+        <div className="max-h-52 overflow-y-auto rounded-xl border border-neutral-200 bg-neutral-50 p-2 space-y-1 dark:border-neutral-800 dark:bg-neutral-900">
+          <p className="px-2 py-0.5 text-[10px] font-bold uppercase text-neutral-400">
+            Venues, restaurants, and addresses
+          </p>
+          {searchResults.map((result, i) => (
             <button
-              key={i}
+              key={result.placeId || `${result.address}-${i}`}
               type="button"
-              onClick={() => {
-                setSelectedLocation({ lat: r.lat, lng: r.lng });
-                setAddress(r.address);
-                setSearchResults([]);
-              }}
-              className="w-full text-left p-2 rounded-lg text-xs hover:bg-rose-50 dark:hover:bg-rose-950/40 text-neutral-800 dark:text-neutral-200 truncate flex items-center gap-2"
+              onClick={() => void applySuggestion(result)}
+              className="flex w-full items-start gap-2 rounded-lg p-2 text-left text-xs text-neutral-800 hover:bg-rose-50 dark:text-neutral-200 dark:hover:bg-rose-950/40"
             >
-              <MapPin className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-              <span className="truncate">{r.address}</span>
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-500" />
+              <span className="min-w-0">
+                {result.name && <span className="block truncate font-semibold">{result.name}</span>}
+                <span className="block truncate text-neutral-500">{result.address}</span>
+              </span>
             </button>
           ))}
         </div>
@@ -228,6 +226,7 @@ export const GoogleMapLocationPicker: React.FC<GoogleMapLocationPickerProps> = (
                     const geocoder = new window.google.maps.Geocoder();
                     geocoder.geocode({ location: { lat, lng } }, (results, status) => {
                       if (status === 'OK' && results?.[0]) {
+                        setPlaceName(nameFromGeocode(results[0]));
                         setAddress(results[0].formatted_address);
                       }
                     });
@@ -259,8 +258,11 @@ export const GoogleMapLocationPicker: React.FC<GoogleMapLocationPickerProps> = (
             Selected Location
           </p>
           <p className="text-xs sm:text-sm font-semibold text-neutral-900 dark:text-white mt-0.5 line-clamp-2">
-            {address}
+            {placeName || address}
           </p>
+          {placeName && address && placeName !== address && (
+            <p className="text-[11px] text-neutral-500 mt-0.5 line-clamp-2">{address}</p>
+          )}
           <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
             Coordinates: {selectedLocation.lat.toFixed(4)}, {selectedLocation.lng.toFixed(4)}
           </p>

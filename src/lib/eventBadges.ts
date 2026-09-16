@@ -6,10 +6,24 @@ export type EventUrgencyBadge = {
 type EventBadgeInput = {
   date?: string | null;
   endDate?: string | null;
-  ticketsAvailable?: number;
+  ticketsAvailable?: number | null;
+  ticketsUnlimited?: boolean;
   hasTicketTypes?: boolean;
   maxBadges?: number;
 };
+
+/** Organizers save unlimited inventory as null or 0. */
+export function isUnlimitedTicketQuantity(quantity: number | null | undefined) {
+  return quantity == null || Number(quantity) <= 0;
+}
+
+export function eventHasUnlimitedTickets(
+  ticketTypes?: Array<{ quantity?: number | null; isPaused?: boolean }> | null
+) {
+  const onSale = (ticketTypes || []).filter((ticket) => !ticket.isPaused);
+  const pool = onSale.length ? onSale : ticketTypes || [];
+  return pool.some((ticket) => isUnlimitedTicketQuantity(ticket.quantity));
+}
 
 export function isEventPast(date?: string | null, endDate?: string | null): boolean {
   const end = new Date(endDate || date || '');

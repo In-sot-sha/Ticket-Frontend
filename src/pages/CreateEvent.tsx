@@ -1246,7 +1246,7 @@ const CreateEvent: React.FC = () => {
                   <FieldLabel>Location</FieldLabel>
                   <div
                     className={cn(
-                      'rounded-xl border overflow-hidden bg-white dark:bg-neutral-900',
+                      'rounded-xl border bg-white dark:bg-neutral-900',
                       hasError('location') || hasError('link')
                         ? 'border-rose-500 ring-2 ring-rose-500/20'
                         : 'border-neutral-200 dark:border-neutral-700'
