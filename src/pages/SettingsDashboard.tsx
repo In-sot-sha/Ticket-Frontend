@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   User,
@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   RefreshCw,
   Banknote,
+  Camera,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -188,15 +189,61 @@ const ProfilePanel = () => {
 const OrganisationPanel = () => {
   const { user, updateUser } = useAuth();
   const org = user?.ownedOrganizations?.[0];
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     businessName:  org?.name        ?? '',
     description:   org?.description ?? '',
     contactInfo:   org?.website     ?? '',
     phone:         user?.phone      ?? '',
   });
+  const [logo, setLogo] = useState(org?.logo ?? '');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
   const [error,  setError]  = useState('');
+
+  useEffect(() => {
+    setLogo(org?.logo ?? '');
+  }, [org?.logo]);
+
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !org?.id) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image must be under 5MB.');
+      return;
+    }
+
+    setUploadingLogo(true);
+    setError('');
+    setSaved(false);
+    try {
+      const uploaded = await api.userRoles.uploadOrgLogo(file);
+      const url = uploaded.data.url;
+      await api.userRoles.updateOrganizerProfile({
+        organizationId: org.id,
+        businessName: form.businessName,
+        description: form.description,
+        contactInfo: form.contactInfo,
+        phone: form.phone,
+        logo: url,
+      });
+      setLogo(url);
+      const profileRes = await api.auth.verify();
+      if (profileRes.data) updateUser(profileRes.data);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? 'Could not update the image.');
+    } finally {
+      setUploadingLogo(false);
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true); setError(''); setSaved(false);
@@ -234,6 +281,51 @@ const OrganisationPanel = () => {
             <BadgeCheck className="h-3.5 w-3.5" /> Verified organiser
           </span>
         )}
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className="relative shrink-0">
+          <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-rose-500 to-pink-600 text-xl font-extrabold text-white">
+            {logo ? (
+              <img src={logo} alt="" className="h-full w-full object-cover" />
+            ) : (
+              (form.businessName?.[0] ?? 'H').toUpperCase()
+            )}
+            {uploadingLogo && (
+              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40">
+                <Loader2 className="h-5 w-5 animate-spin text-white" />
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => logoInputRef.current?.click()}
+            disabled={uploadingLogo || !org?.id}
+            className="absolute -bottom-0.5 -right-0.5 rounded-full border-2 border-white bg-neutral-900 p-1.5 text-white disabled:opacity-50 dark:border-neutral-950"
+            aria-label="Change organisation image"
+          >
+            <Camera className="h-3 w-3" />
+          </button>
+          <input
+            ref={logoInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleLogoChange}
+          />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-neutral-900 dark:text-white">Host image</p>
+          <button
+            type="button"
+            onClick={() => logoInputRef.current?.click()}
+            disabled={uploadingLogo || !org?.id}
+            className="text-xs font-bold text-rose-500 disabled:opacity-50"
+          >
+            {uploadingLogo ? 'Uploading…' : logo ? 'Change image' : 'Upload image'}
+          </button>
+          <p className="mt-0.5 text-[10px] text-neutral-400">Shown on event pages. JPG or PNG, under 5MB.</p>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -983,7 +1075,7 @@ const TeamPanel = () => {
 
 const TABS = [
   { id: 'profile',       label: 'Your profile',     desc: 'Name, email, and phone',                      icon: User },
-  { id: 'organisation',  label: 'Organisation',     desc: 'Public name, about, and contact link',        icon: Building2 },
+  { id: 'organisation',  label: 'Organisation',     desc: 'Public name, image, about, and contact link', icon: Building2 },
   { id: 'payouts',       label: 'Payouts & bank',   desc: 'Where ticket money gets paid out',            icon: Receipt },
   { id: 'team',          label: 'Gate scanners',    desc: 'Create PINs for day-of gate staff phones',    icon: Users },
 ];
