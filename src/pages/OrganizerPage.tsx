@@ -1,16 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  ArrowRight,
-  ChevronDown,
-  ChevronUp,
-  ChevronRight,
-  Store,
-  Ticket,
-  UserCog,
-  ScanLine,
-  CheckCircle2,
-} from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import EventCard, { Event } from '../components/EventCard';
 import { useEvents } from '../hooks/queries/useEvents';
@@ -84,64 +74,79 @@ const OrganizerPage: React.FC = () => {
 
   const whatYouGet = [
     {
-      icon: Ticket,
       title: 'Sell tickets',
-      body: 'Free or paid tiers, guest checkout, QR passes, live sell-through.',
+      body: 'Free or paid. Guests pay on the site and get a ticket on their phone.',
     },
     {
-      icon: ScanLine,
-      title: 'Run the gate',
-      body: 'Phone QR scan, walk-ins, guest lookup, and live capacity.',
+      title: 'Check people in',
+      body: 'Scan tickets with any phone. You can also sell tickets at the door.',
     },
     {
-      icon: Store,
-      title: 'Vendors & booths',
-      body: 'Sell stall packages, review applicants, collect booth fees.',
+      title: 'Add vendors',
+      body: 'Sell booths, look at applications, and collect the booth fee.',
     },
     {
-      icon: UserCog,
-      title: 'Optional on-site staff',
-      body: 'Need people on the door? PartyStorm can staff scanning and entry.',
+      title: 'Get help at the door',
+      body: 'Need extra hands? We can send people to scan tickets on the day.',
+    },
+  ];
+
+  const steps = [
+    {
+      title: 'Create your event',
+      body: 'Add the date, the place, and a photo. Publish when you are ready.',
+    },
+    {
+      title: 'Add tickets',
+      body: 'Set the price. Free tickets are fine. You can also add booths.',
+    },
+    {
+      title: 'Share the link',
+      body: 'People pay online and get a ticket on their phone.',
+    },
+    {
+      title: 'Check people in',
+      body: 'Scan tickets at the door. We pay you after the event starts.',
     },
   ];
 
   const serviceTiers = [
     {
-      name: 'Self-Service',
-      blurb: 'List, sell, and scan with your own team. Platform ticket fees apply as listed above.',
+      name: 'Do it yourself',
+      blurb: 'You sell tickets and scan them with your own team. You only pay the ticket fee.',
       points: [
-        'Online ticket sales & QR passes',
-        'Phone-based gate scanner',
-        'Walk-in sales & guest recovery',
-        'Live attendance dashboard',
+        'Sell tickets online',
+        'Scan with a phone',
+        'Sell tickets at the door',
+        'See who has checked in',
       ],
-      cta: 'Become an organizer',
+      cta: 'Start as an organizer',
       to: '/become-organizer',
       contactOnly: false,
     },
     {
-      name: 'Managed Event',
-      blurb: 'Same platform plus PartyStorm on-site for entry, scanning, and crowd flow.',
+      name: 'We help at the door',
+      blurb: 'Same tools, plus our team on the day. We scan tickets and help people in.',
       points: [
-        'Trained scanners & cashiers',
-        'Wristband issuance support',
-        'Real-time attendance monitoring',
-        'Technical support on event day',
+        'People to scan tickets',
+        'Cashiers if you need them',
+        'Wristbands if you use them',
+        'Help on the day of the event',
       ],
-      cta: 'Contact for quote',
+      cta: 'Ask for a price',
       to: '/contact',
       contactOnly: true,
     },
     {
-      name: 'Enterprise',
-      blurb: 'Concerts, festivals, and large conferences with a dedicated access plan.',
+      name: 'Big events',
+      blurb: 'For concerts, festivals, and conferences. We plan the door with you.',
       points: [
-        'Custom commercial terms',
-        'Dedicated ops lead',
-        'Multi-gate / multi-day coverage',
-        'Volume-ready workflows',
+        'A price that fits the event',
+        'One person in charge',
+        'More than one gate or day',
+        'Ready for a large crowd',
       ],
-      cta: 'Contact for quote',
+      cta: 'Ask for a price',
       to: '/contact',
       contactOnly: true,
     },
@@ -150,19 +155,19 @@ const OrganizerPage: React.FC = () => {
   const faqData = [
     {
       q: 'When do I get paid?',
-      a: 'Payouts typically start within 24 hours after your event begins, sent by bank transfer to the account in your organizer settings.',
+      a: 'We usually pay you within a day after your event starts. The money goes to the bank account in your settings.',
     },
     {
-      q: 'Do I need special scanners?',
-      a: 'No. Any smartphone browser works for QR check-in, whether your staff or PartyStorm ops are on the gate.',
+      q: 'Do I need a special scanner?',
+      a: 'No. Any phone can scan the ticket.',
     },
     {
-      q: 'Do you publish on-site staffing prices?',
-      a: 'No. Managed gate staffing, wristband ops, and enterprise coverage are quoted per event. Contact us with expected attendance and we will send a clear quote.',
+      q: 'How much does door staff cost?',
+      a: 'We do not list one price. Tell us how many people you expect and we will send a quote.',
     },
     {
-      q: 'What about payment processing?',
-      a: 'By default, buyers pay a checkout Fee that covers the PartyStorm platform fee plus payment processing. You can absorb fees so buyers pay the ticket price only — then both come out of your payout. PartyStorm fees are non-refundable.',
+      q: 'Who pays the fees?',
+      a: 'Guests usually pay a small extra at checkout. You can choose to pay it instead, so they pay only the ticket price. Our fee is not refunded.',
     },
   ];
 
@@ -172,109 +177,79 @@ const OrganizerPage: React.FC = () => {
   }, [price, feeEach]);
 
   return (
-    <div className="bg-white dark:bg-neutral-950 min-h-screen text-neutral-900 dark:text-neutral-100">
-      {/* Hero */}
-      <section className="relative overflow-hidden border-b border-neutral-100 dark:border-neutral-900 py-12 sm:py-16 lg:py-20">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(244,63,94,0.12),_transparent_50%)] dark:bg-[radial-gradient(ellipse_at_top_left,_rgba(244,63,94,0.16),_transparent_45%)]"
-        />
-        <div className="relative container mx-auto max-w-5xl px-4 sm:px-6 text-center">
-          <h1 className="text-4xl font-extrabold tracking-tight text-neutral-900 dark:text-white sm:text-5xl leading-[1.1] text-balance">
-            Sell tickets. Run the gate. Get paid.
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-neutral-600 dark:text-neutral-400 sm:text-lg">
-            PartyStorm helps Nigerian organizers publish, sell, and scan. Use the platform yourself,
-            or add our team on site. Fees below; staffing is quoted per event.
-          </p>
-          <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-            <Button
-              className="h-12 rounded-full bg-rose-500 px-8 text-sm font-bold text-white hover:bg-rose-600"
-              asChild
-            >
-              <Link to="/become-organizer">
-                Become an organizer
-                <ArrowRight className="ml-2 h-4 w-4" />
+    <div className="min-h-screen bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+      <section className="border-b border-neutral-200 dark:border-neutral-800">
+        <div className="mx-auto grid max-w-5xl gap-8 px-4 py-10 sm:px-6 sm:py-14 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
+          <div>
+            <h1 className="max-w-xl text-3xl font-bold tracking-tight text-neutral-900 dark:text-white sm:text-4xl text-balance">
+              Sell tickets for your event
+            </h1>
+            <p className="mt-3 max-w-lg text-base leading-relaxed text-neutral-700 dark:text-neutral-300">
+              List your event, sell tickets, and check people in at the door. It costs nothing to start.
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Button
+                className="h-11 rounded-full bg-rose-500 px-6 text-sm font-semibold text-white hover:bg-rose-600"
+                asChild
+              >
+                <Link to="/become-organizer">
+                  Start as an organizer
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+              <Link
+                to="/organizer/events/create"
+                className="text-sm font-semibold text-neutral-700 underline-offset-4 hover:text-rose-600 hover:underline dark:text-neutral-300"
+              >
+                Already set up? Create an event
               </Link>
-            </Button>
-            <Link
-              to="/organizer/events/create"
-              className="text-sm font-bold text-neutral-600 underline-offset-4 hover:text-rose-500 hover:underline dark:text-neutral-400"
-            >
-              Already set up? Create an event
-            </Link>
+            </div>
           </div>
-          <p className="mt-6 text-xs text-neutral-500">
-            Setup ₦0 · Paid tickets 6% (min ₦100 / max ₦2,000) · Free events ₦0
-          </p>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section className="border-b border-neutral-100 py-14 dark:border-neutral-900 sm:py-16">
-        <div className="container mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="mb-10 max-w-2xl">
-            <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white text-balance">
-              How to get started
-            </h2>
-            <p className="mt-2 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
-              From blank page to gate in four steps.
-            </p>
-          </div>
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              {
-                n: '01',
-                t: 'Create your org & event',
-                d: 'Photos, venue, dates, description. Publish when ready.',
-              },
-              {
-                n: '02',
-                t: 'Set tickets & booths',
-                d: 'Tiers, prices, limits. Optional vendor packages.',
-              },
-              {
-                n: '03',
-                t: 'Share & sell',
-                d: 'Promote the event link. Guests pay and get QR passes.',
-              },
-              {
-                n: '04',
-                t: 'Scan & get paid',
-                d: 'Check in with your team or PartyStorm staff. Payouts follow.',
-              },
-            ].map((s) => (
-              <div key={s.n}>
-                <p className="mb-2 text-3xl font-black text-rose-500/30">{s.n}</p>
-                <h3 className="font-bold text-neutral-900 dark:text-white">{s.t}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
-                  {s.d}
-                </p>
-              </div>
-            ))}
+          <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
+            <p className="text-sm font-semibold text-neutral-900 dark:text-white">What you pay</p>
+            <ul className="mt-3 space-y-2 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+              <li>Creating an event is free.</li>
+              <li>Paid tickets: 6% of the price. At least ₦100. At most ₦2,000.</li>
+              <li>Free tickets cost nothing.</li>
+              <li>Door staff is priced per event. Ask us.</li>
+            </ul>
           </div>
         </div>
       </section>
 
-      {/* What you get */}
-      <section className="border-b border-neutral-100 bg-neutral-50 py-14 dark:border-neutral-900 dark:bg-neutral-900/40 sm:py-16">
-        <div className="container mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="mb-10 max-w-2xl">
-            <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white text-balance">
-              Everything from listing to last scan
-            </h2>
-            <p className="mt-2 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
-              One system for sales, the door, vendors, and optional on-site help.
-            </p>
-          </div>
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            {whatYouGet.map((item) => (
-              <div key={item.title} className="space-y-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500">
-                  <item.icon className="h-5 w-5" />
+      <section className="border-b border-neutral-200 py-12 dark:border-neutral-800 sm:py-14">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
+            How it works
+          </h2>
+          <ol className="mt-6 grid gap-5 sm:grid-cols-2">
+            {steps.map((step, index) => (
+              <li key={step.title} className="flex gap-3">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white">
+                  {index + 1}
+                </span>
+                <div>
+                  <h3 className="font-semibold text-neutral-900 dark:text-white">{step.title}</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+                    {step.body}
+                  </p>
                 </div>
-                <h3 className="text-base font-bold text-neutral-900 dark:text-white">{item.title}</h3>
-                <p className="text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section className="border-b border-neutral-200 bg-neutral-50 py-12 dark:border-neutral-800 dark:bg-neutral-900/40 sm:py-14">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
+            What you can do
+          </h2>
+          <div className="mt-6 grid gap-x-10 gap-y-5 sm:grid-cols-2">
+            {whatYouGet.map((item) => (
+              <div key={item.title}>
+                <h3 className="font-semibold text-neutral-900 dark:text-white">{item.title}</h3>
+                <p className="mt-1 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
                   {item.body}
                 </p>
               </div>
@@ -283,18 +258,14 @@ const OrganizerPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Pricing + estimator */}
-      <section className="border-b border-neutral-100 py-14 dark:border-neutral-900 sm:py-16">
-        <div className="container mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="mb-10 max-w-2xl">
-            <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white text-balance">
-              Clear fees for tickets and vendors
-            </h2>
-            <p className="mt-2 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
-              No signup cost. You pay when paid tickets sell. On-site staffing is separate; see
-              below.
-            </p>
-          </div>
+      <section className="border-b border-neutral-200 py-12 dark:border-neutral-800 sm:py-14">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
+            What it costs
+          </h2>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+            It is free to create an event. We only charge when a paid ticket or booth sells.
+          </p>
 
           <div className="grid items-start gap-10 lg:grid-cols-12">
             {/* Fee table */}
@@ -307,7 +278,7 @@ const OrganizerPage: React.FC = () => {
                         Item
                       </th>
                       <th className="px-4 py-3 font-bold text-neutral-700 dark:text-neutral-300">
-                        Platform fee
+                        Our fee
                       </th>
                     </tr>
                   </thead>
@@ -317,45 +288,45 @@ const OrganizerPage: React.FC = () => {
                         Paid tickets
                       </td>
                       <td className="px-4 py-3.5 font-semibold text-neutral-900 dark:text-white">
-                        6% · min ₦100 · max ₦2,000
+                        6%. At least ₦100. At most ₦2,000.
                       </td>
                     </tr>
                     <tr>
                       <td className="px-4 py-3.5 text-neutral-800 dark:text-neutral-200">
-                        Free / RSVP
+                        Free tickets
                       </td>
-                      <td className="px-4 py-3.5 font-semibold text-emerald-600">₦0</td>
+                      <td className="px-4 py-3.5 font-semibold text-neutral-900 dark:text-white">Nothing</td>
                     </tr>
                     <tr>
                       <td className="px-4 py-3.5 text-neutral-800 dark:text-neutral-200">
                         Vendor booths
                       </td>
                       <td className="px-4 py-3.5 font-semibold text-neutral-900 dark:text-white">
-                        6% · min ₦100 · max ₦2,000
+                        6%. At least ₦100. At most ₦2,000.
                       </td>
                     </tr>
                     <tr>
                       <td className="px-4 py-3.5 text-neutral-800 dark:text-neutral-200">
-                        Create & publish
+                        Creating an event
                       </td>
                       <td className="px-4 py-3.5 font-semibold text-neutral-900 dark:text-white">
-                        ₦0
+                        Nothing
                       </td>
                     </tr>
                     <tr>
                       <td className="px-4 py-3.5 text-neutral-800 dark:text-neutral-200">
-                        On-site staffing
+                        Door staff
                       </td>
-                      <td className="px-4 py-3.5 font-semibold text-amber-700 dark:text-amber-400">
-                        Contact for quote
+                      <td className="px-4 py-3.5 font-semibold text-neutral-900 dark:text-white">
+                        Ask us for a price
                       </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
-              <p className="mt-3 text-xs leading-relaxed text-neutral-500">
-                Buyers usually pay a checkout Fee (platform + processing). Absorb fees if you want
-                them to pay the ticket price only — then processing comes from your payout.
+              <p className="mt-3 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+                Guests usually pay a small extra at checkout. If you want them to pay only the ticket
+                price, you can cover that fee yourself.
               </p>
             </div>
 
@@ -363,17 +334,16 @@ const OrganizerPage: React.FC = () => {
             <div className="lg:col-span-7">
               <div className="rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900 sm:p-7">
                 <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
-                  Estimate your payout
+                  See what you keep
                 </h3>
-                <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                  When buyers pay the Fee (default). Your cut is the platform fee only — before
-                  on-site staffing.
+                <p className="mt-1 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+                  This is after our fee. It does not include door staff.
                 </p>
 
                 <div className="mt-6 space-y-5">
                   <div>
                     <div className="mb-2 flex items-center justify-between">
-                      <label className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                      <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
                         Ticket price
                       </label>
                       <span className="text-sm font-bold text-neutral-900 dark:text-white">
@@ -394,8 +364,8 @@ const OrganizerPage: React.FC = () => {
 
                   <div>
                     <div className="mb-2 flex items-center justify-between">
-                      <label className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-                        Expected tickets sold
+                      <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                        Tickets you expect to sell
                       </label>
                       <span className="text-sm font-bold text-neutral-900 dark:text-white">
                         {attendees.toLocaleString()}
@@ -415,20 +385,20 @@ const OrganizerPage: React.FC = () => {
                 </div>
 
                 <div className="mt-6 rounded-xl bg-neutral-50 p-4 dark:bg-neutral-950">
-                  <p className="text-xs font-semibold text-neutral-500">
-                    Est. after platform fee ({feeLabel}/ticket)
+                  <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                    You keep ({feeLabel} fee per ticket)
                   </p>
                   <p className="mt-1 text-3xl font-black text-neutral-900 dark:text-white">
                     ₦{netEarnings.toLocaleString()}
                   </p>
                   <div className="mt-3 space-y-1.5 border-t border-neutral-200 pt-3 text-sm text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
                     <div className="flex justify-between">
-                      <span>Gross sales</span>
+                      <span>Ticket sales</span>
                       <span>₦{grossEarnings.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>
-                        Platform fee ({feeLabel} × {attendees.toLocaleString()})
+                        Our fee ({feeLabel} × {attendees.toLocaleString()})
                       </span>
                       <span>-₦{platformFeeTotal.toLocaleString()}</span>
                     </div>
@@ -440,55 +410,36 @@ const OrganizerPage: React.FC = () => {
         </div>
       </section>
 
-      {/* On-site staffing */}
-      <section className="border-b border-neutral-100 bg-neutral-50 py-14 dark:border-neutral-900 dark:bg-neutral-900/40 sm:py-16">
-        <div className="container mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="mb-10 max-w-2xl">
-            <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white text-balance">
-              Need people on the door?
-            </h2>
-            <p className="mt-2 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
-              Ticket fees are published above. Managed and enterprise on-site support is quoted per
-              event. Contact us with expected attendance.
-            </p>
-          </div>
+      <section className="border-b border-neutral-200 bg-neutral-50 py-12 dark:border-neutral-800 dark:bg-neutral-900/40 sm:py-14">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
+            Need people at the door?
+          </h2>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+            You can run the event yourself, or ask us to send people. Door staff is priced per event.
+          </p>
 
-          <div className="grid gap-5 md:grid-cols-3">
+          <div className="mt-6 divide-y divide-neutral-200 border-y border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
             {serviceTiers.map((tier) => (
               <div
                 key={tier.name}
-                className="flex flex-col rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900"
+                className="grid gap-3 py-5 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-8"
               >
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-xs font-bold uppercase tracking-widest text-rose-500">
-                    {tier.name}
+                <div>
+                  <h3 className="font-semibold text-neutral-900 dark:text-white">{tier.name}</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+                    {tier.blurb}
                   </p>
-                  {tier.contactOnly && (
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                      Contact for pricing
-                    </span>
-                  )}
+                  <p className="mt-2 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+                    {tier.points.join(' · ')}
+                  </p>
                 </div>
-                <p className="mt-3 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
-                  {tier.blurb}
-                </p>
-                <ul className="mt-5 flex-1 space-y-2.5">
-                  {tier.points.map((p) => (
-                    <li
-                      key={p}
-                      className="flex items-start gap-2 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400"
-                    >
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
-                      {p}
-                    </li>
-                  ))}
-                </ul>
                 <Button
                   variant={tier.contactOnly ? 'outline' : 'default'}
                   className={
                     tier.contactOnly
-                      ? 'mt-6 h-10 w-full rounded-full text-xs font-bold'
-                      : 'mt-6 h-10 w-full rounded-full bg-rose-500 text-xs font-bold text-white hover:bg-rose-600'
+                      ? 'h-10 rounded-full px-5 text-sm font-semibold sm:w-auto'
+                      : 'h-10 rounded-full bg-rose-500 px-5 text-sm font-semibold text-white hover:bg-rose-600 sm:w-auto'
                   }
                   asChild
                 >
@@ -502,22 +453,22 @@ const OrganizerPage: React.FC = () => {
 
       {/* Live events (not ended) */}
       {showcaseEvents.length > 0 && (
-        <section className="border-b border-neutral-100 py-14 dark:border-neutral-900 sm:py-16">
-          <div className="container mx-auto max-w-7xl px-4 sm:px-6">
-            <div className="mb-8 flex items-end justify-between gap-4">
+        <section className="border-b border-neutral-200 py-12 dark:border-neutral-800 sm:py-14">
+          <div className="mx-auto max-w-5xl px-4 sm:px-6">
+            <div className="mb-6 flex items-end justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-extrabold tracking-tight text-neutral-900 dark:text-white sm:text-3xl">
-                  Events hosting with us
+                <h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
+                  Events on PartyStorm
                 </h2>
-                <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                  Upcoming and live on PartyStorm right now.
+                <p className="mt-1 text-sm text-neutral-700 dark:text-neutral-300">
+                  See what other people are hosting.
                 </p>
               </div>
               <Link
                 to="/events"
-                className="flex shrink-0 items-center gap-1 text-xs font-extrabold text-rose-500 hover:text-rose-600"
+                className="flex shrink-0 items-center gap-1 text-sm font-semibold text-rose-600 hover:text-rose-700"
               >
-                Browse all <ChevronRight className="h-4 w-4" />
+                See all <ChevronRight className="h-4 w-4" />
               </Link>
             </div>
             <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-6 md:grid-cols-3 lg:grid-cols-4">
@@ -532,16 +483,11 @@ const OrganizerPage: React.FC = () => {
       )}
 
       {/* FAQ */}
-      <section className="border-b border-neutral-100 py-14 dark:border-neutral-900 sm:py-16">
-        <div className="container mx-auto max-w-3xl px-4 sm:px-6">
-          <div className="mb-8">
-            <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
-              Questions organizers ask
-            </h2>
-            <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-              Payouts, scanners, staffing quotes, and processing fees.
-            </p>
-          </div>
+      <section className="border-b border-neutral-200 py-12 dark:border-neutral-800 sm:py-14">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6">
+          <h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
+            Common questions
+          </h2>
           <div className="space-y-2">
             {faqData.map((item, index) => {
               const open = activeFaq === index;
@@ -567,7 +513,7 @@ const OrganizerPage: React.FC = () => {
                   </button>
                   {open && (
                     <div className="pb-4">
-                      <p className="text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
+                      <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
                         {item.a}
                       </p>
                     </div>
@@ -580,28 +526,27 @@ const OrganizerPage: React.FC = () => {
       </section>
 
       {/* CTA */}
-      <section className="py-14 sm:py-16">
-        <div className="container mx-auto max-w-3xl px-4 sm:px-6 text-center">
-          <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white sm:text-4xl text-balance">
-            Ready for your next event?
+      <section className="py-12 sm:py-14">
+        <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
+          <h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white sm:text-3xl text-balance">
+            Ready to host?
           </h2>
-          <p className="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
-            Start free, sell tickets and booths, scan at the gate, and contact us when you need
-            on-site staffing.
+          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+            Create your event for free. Ask us if you need people at the door.
           </p>
-          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row sm:items-center">
+          <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row sm:items-center">
             <Button
-              className="h-12 rounded-full bg-rose-500 px-8 text-sm font-bold text-white hover:bg-rose-600"
+              className="h-11 rounded-full bg-rose-500 px-6 text-sm font-semibold text-white hover:bg-rose-600"
               asChild
             >
-              <Link to="/become-organizer">Become an organizer</Link>
+              <Link to="/become-organizer">Start as an organizer</Link>
             </Button>
             <Button
               variant="outline"
-              className="h-12 rounded-full border-neutral-300 px-8 text-sm font-bold dark:border-neutral-600"
+              className="h-11 rounded-full border-neutral-300 px-6 text-sm font-semibold dark:border-neutral-600"
               asChild
             >
-              <Link to="/contact">Contact for on-site services</Link>
+              <Link to="/contact">Ask about door staff</Link>
             </Button>
           </div>
         </div>

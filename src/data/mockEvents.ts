@@ -1,4 +1,5 @@
 import { Event } from '../components/EventCard';
+import { eventHasUnlimitedTickets } from '../lib/eventBadges';
 
 export const mockEvents: Event[] = [
   {
@@ -103,6 +104,8 @@ export const mockEvents: Event[] = [
  * Transform API event to frontend Event format
  */
 export const mapApiEventToFrontendEvent = (apiEvent: any): Event => {
+  const ticketsUnlimited =
+    apiEvent.ticketsUnlimited === true || eventHasUnlimitedTickets(apiEvent.ticketTypes);
   const inventory = apiEvent.ticketTypes
     ? apiEvent.ticketTypes.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0)
     : 0;
@@ -111,8 +114,9 @@ export const mapApiEventToFrontendEvent = (apiEvent: any): Event => {
     : typeof apiEvent.attendees === 'number'
       ? apiEvent.attendees
       : 0;
-  const ticketsAvailable =
-    typeof apiEvent.ticketsAvailable === 'number'
+  const ticketsAvailable = ticketsUnlimited
+    ? undefined
+    : typeof apiEvent.ticketsAvailable === 'number'
       ? apiEvent.ticketsAvailable
       : Math.max(0, inventory - sold);
   const promotedUntil = apiEvent.promotedUntil ? new Date(apiEvent.promotedUntil) : null;

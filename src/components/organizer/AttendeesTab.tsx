@@ -154,7 +154,7 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
       a.name,
       a.email,
       a.phone,
-      Array.from(a.ticketTypeCounts.entries())
+      (Array.from(a.ticketTypeCounts.entries()) as [string, number][])
         .map(([type, count]) => `${type} × ${count}`)
         .join(' | '),
       a.tickets.length,
@@ -336,7 +336,7 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
               header: 'Days / tickets',
               cell: (a) => (
                 <span className="text-xs text-neutral-600 dark:text-neutral-400">
-                  {Array.from(a.ticketTypeCounts.entries())
+                  {(Array.from(a.ticketTypeCounts.entries()) as [string, number][])
                     .map(([type, count]) => (count > 1 ? `${type} × ${count}` : type))
                     .join(', ') || '—'}
                 </span>

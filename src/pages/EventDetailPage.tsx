@@ -35,7 +35,7 @@ import EventCard from '@/components/EventCard';
 import { Button } from '@/components/ui/Button';
 import { VerifiedBadge } from '@/components/icons/VerifiedBadge';
 import { cn } from '@/lib/utils';
-import { getEventUrgencyBadges } from '@/lib/eventBadges';
+import { eventHasUnlimitedTickets, getEventUrgencyBadges } from '@/lib/eventBadges';
 
 const formatDeadlineFriendly = (dateStr: string) => {
   try {
@@ -388,11 +388,15 @@ const mapApiEventToDetail = (apiEvent: any): EventDetail => {
     longitude: Number.isFinite(Number(apiEvent.longitude)) ? Number(apiEvent.longitude) : undefined,
     category: apiEvent.category || 'Other',
     price: apiEvent.price ?? 0,
-    ticketsAvailable:
-      typeof apiEvent.ticketsAvailable === 'number'
+    ticketsAvailable: eventHasUnlimitedTickets(apiEvent.ticketTypes) || apiEvent.ticketsUnlimited
+      ? Number.POSITIVE_INFINITY
+      : typeof apiEvent.ticketsAvailable === 'number'
         ? apiEvent.ticketsAvailable
         : apiEvent.ticketTypes
-          ? apiEvent.ticketTypes.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0)
+          ? apiEvent.ticketTypes.reduce((acc: number, t: any) => {
+              const qty = Number(t.quantity);
+              return acc + (Number.isFinite(qty) && qty > 0 ? qty : 0);
+            }, 0)
           : 0,
     rating: 0,
     reviewCount: 0,
@@ -492,6 +496,7 @@ const EventDetailPage = () => {
         date: event.date,
         endDate: event.endDateRaw,
         ticketsAvailable: event.ticketsAvailable,
+        ticketsUnlimited: eventHasUnlimitedTickets(event.ticketTypes),
         hasTicketTypes: (event.ticketTypes?.length ?? 0) > 0,
         maxBadges: 2,
       });
@@ -1158,7 +1163,9 @@ const EventDetailPage = () => {
                         </p>
                       )}
 
-                      {event.ticketsAvailable > 0 && event.ticketsAvailable <= 50 && (
+                      {!eventHasUnlimitedTickets(event.ticketTypes) &&
+                        event.ticketsAvailable > 0 &&
+                        event.ticketsAvailable <= 50 && (
                         <p className="text-[10px] font-ticket font-semibold text-center mt-2 text-neutral-500 uppercase tracking-wide">
                           {event.ticketsAvailable} tickets left
                         </p>

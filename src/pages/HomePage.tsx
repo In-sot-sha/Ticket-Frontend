@@ -255,15 +255,19 @@ const HomePage = () => {
       .map(mapApiEventToFrontendEvent)
       .filter((e: Event) => e.isPromoted && !isPastEvent(e));
     const seen = new Set(promoted.map((e) => e.id));
-    const rest = base.filter((e: Event) => !isPastEvent(e) && !seen.has(e.id));
-    return sortEventsUpcomingFirst([...promoted, ...rest]);
+    const rest = base.filter((e: Event) => !seen.has(e.id));
+    const upcoming = rest.filter((e) => !isPastEvent(e));
+    const past = rest
+      .filter(isPastEvent)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5);
+    return sortEventsUpcomingFirst([...promoted, ...upcoming, ...past]);
   }, [eventsData, promotedData]);
 
   const dynamicSlides = useMemo(() => {
     const upcomingPromoted = (promotedData || [])
       .map((raw: any) => {
         const e = mapApiEventToFrontendEvent(raw);
-        if (isPastEvent(e)) return null;
         const description =
           typeof raw.description === 'string'
             ? raw.description.trim()

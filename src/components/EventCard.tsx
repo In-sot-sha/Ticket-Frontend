@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { LazyImage } from './LazyImage';
-import { getEventUrgencyBadges, isEventPast } from '../lib/eventBadges';
+import { eventHasUnlimitedTickets, getEventUrgencyBadges, isEventPast } from '../lib/eventBadges';
 import { cn } from '../lib/utils';
 
 // Define the event type
@@ -19,7 +19,7 @@ interface Event {
   attendees?: number;
   latitude?: number;
   longitude?: number;
-  ticketTypes?: Array<{ price: number; quantity?: number }>;
+  ticketTypes?: Array<{ price: number; quantity?: number | null; isPaused?: boolean }>;
   isPromoted?: boolean;
   description?: string;
 }
@@ -113,10 +113,12 @@ const EventCard: React.FC<EventCardProps> = ({
         : '');
   const isPast = isEventPast(event.date, event.endDate);
   const isPromotedActive = Boolean(event.isPromoted) && !isPast;
+  const ticketsUnlimited = eventHasUnlimitedTickets(event.ticketTypes);
   const urgencyBadges = getEventUrgencyBadges({
     date: event.date,
     endDate: event.endDate,
     ticketsAvailable: event.ticketsAvailable,
+    ticketsUnlimited,
     hasTicketTypes: (event.ticketTypes?.length ?? 0) > 0,
     maxBadges: isPromotedActive ? 1 : 2,
   });
@@ -163,7 +165,9 @@ const EventCard: React.FC<EventCardProps> = ({
 
           {showTicketsAvailable &&
             !isPast &&
+            !ticketsUnlimited &&
             event.ticketsAvailable !== undefined &&
+            event.ticketsAvailable != null &&
             event.ticketsAvailable > 0 &&
             event.ticketsAvailable <= 50 && (
               <div className="absolute bottom-3 left-3 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-extrabold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">

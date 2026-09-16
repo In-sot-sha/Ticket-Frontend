@@ -6,7 +6,7 @@ import {
   ChevronRight,
   Clock,
   Wallet,
-  MessageSquare,
+  LifeBuoy,
   Sparkles,
   FolderKanban,
 } from 'lucide-react';
@@ -21,7 +21,7 @@ const STAT_META = [
   { label: 'Total Users', icon: Users, color: 'text-blue-500' },
   { label: 'Pending Hosts', icon: Clock, color: 'text-amber-500' },
   { label: 'Ops requests', icon: FolderKanban, color: 'text-amber-500' },
-  { label: 'Open Support', icon: MessageSquare, color: 'text-rose-500' },
+  { label: 'Open requests', icon: LifeBuoy, color: 'text-rose-500' },
 ] as const;
 
 function AdminDashboardSkeleton() {
@@ -100,10 +100,11 @@ function AdminDashboardSkeleton() {
                 },
                 {
                   to: '/admin/support',
-                  icon: MessageSquare,
+                  icon: LifeBuoy,
                   wrap: 'bg-rose-50 dark:bg-rose-950/30',
                   iconColor: 'text-rose-600',
-                  title: 'Help & Support',
+                  title: 'Support',
+                  sub: 'Read requests and email them',
                 },
                 {
                   to: '/admin/events',
@@ -160,7 +161,7 @@ const AdminDashboard = () => {
     { label: 'Total Users', value: stats?.totalUsers ?? 0, icon: Users, color: 'text-blue-500' },
     { label: 'Pending Hosts', value: stats?.pendingHosts ?? 0, icon: Clock, color: 'text-amber-500' },
     { label: 'Ops requests', value: pendingOps, icon: FolderKanban, color: 'text-amber-500' },
-    { label: 'Open Support', value: stats?.openSupportTickets ?? 0, icon: MessageSquare, color: 'text-rose-500' },
+    { label: 'Open requests', value: stats?.openSupportTickets ?? 0, icon: LifeBuoy, color: 'text-rose-500' },
   ];
 
   return (
@@ -303,11 +304,11 @@ const AdminDashboard = () => {
                 >
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-xl bg-rose-50 dark:bg-rose-950/30 flex items-center justify-center">
-                      <MessageSquare className="h-5 w-5 text-rose-600" />
+                      <LifeBuoy className="h-5 w-5 text-rose-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold">Help & Support</p>
-                      <p className="text-xs text-neutral-500">{stats?.openSupportTickets ?? 0} open tickets</p>
+                      <p className="text-sm font-bold">Support</p>
+                      <p className="text-xs text-neutral-500">{stats?.openSupportTickets ?? 0} open requests</p>
                     </div>
                   </div>
                   <ChevronRight className="h-4 w-4 text-neutral-400" />

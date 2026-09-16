@@ -7,7 +7,7 @@ import {
   X,
   Shield,
   CreditCard,
-  MessageSquare,
+  LifeBuoy,
   Phone,
   Ticket,
   FolderKanban,
@@ -36,7 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { title: 'Organizations', icon: Building2, href: '/admin/organizations', exact: true, badgeKey: 'pendingHosts' },
   { title: 'Transactions', icon: CreditCard, href: '/admin/transactions', exact: true },
   { title: 'Users', icon: Users, href: '/admin/users', exact: true },
-  { title: 'Support', icon: MessageSquare, href: '/admin/support', exact: true, badgeKey: 'openSupportTickets' },
+  { title: 'Support', icon: LifeBuoy, href: '/admin/support', exact: true, badgeKey: 'openSupportTickets' },
   { title: 'WhatsApp', icon: Phone, href: '/admin/whatsapp', exact: true },
 ];
 
