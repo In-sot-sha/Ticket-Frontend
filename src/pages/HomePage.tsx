@@ -256,10 +256,10 @@ const HomePage = () => {
       .filter((e: Event) => e.isPromoted && !isPastEvent(e));
     const seen = new Set(promoted.map((e) => e.id));
     const rest = base.filter((e: Event) => !seen.has(e.id));
-    const upcoming = rest.filter((e) => !isPastEvent(e));
+    const upcoming = rest.filter((e: Event) => !isPastEvent(e));
     const past = rest
       .filter(isPastEvent)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .sort((a: Event, b: Event) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 5);
     return sortEventsUpcomingFirst([...promoted, ...upcoming, ...past]);
   }, [eventsData, promotedData]);
