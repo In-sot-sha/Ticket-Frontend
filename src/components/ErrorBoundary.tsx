@@ -8,7 +8,15 @@ interface ErrorBoundaryProps {
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
-  errorId?: number; // ID from database
+  errorId?: number;
+}
+
+/** Same base as api.ts — VITE_API_URL already includes `/api`. */
+function getApiBase(): string {
+  const raw =
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) ||
+    'http://localhost:33333/api';
+  return String(raw).replace(/\/$/, '');
 }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -28,43 +36,43 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Log to console in development
     console.error('ErrorBoundary caught:', error, errorInfo);
-
-    // Send crash report to backend
     this.reportError(error, errorInfo);
   }
 
   reportError = async (error: Error, errorInfo: React.ErrorInfo) => {
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:33312'}/api/errors/report`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      const token = localStorage.getItem('token');
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${getApiBase()}/errors/report`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          message: error.message || 'Unknown error',
+          stack: error.stack,
+          type: 'ERROR',
+          severity: 'HIGH',
+          userAgent: navigator.userAgent,
+          url: window.location.href,
+          context: {
+            componentStack: errorInfo.componentStack,
           },
-          body: JSON.stringify({
-            message: error.message,
-            stack: error.stack,
-            type: 'ERROR',
-            severity: 'HIGH',
-            userAgent: navigator.userAgent,
-            url: window.location.href,
-            context: {
-              componentStack: errorInfo.componentStack,
-            },
-          }),
-        }
-      );
+        }),
+      });
 
       if (response.ok) {
         const data = await response.json();
-        // Store error ID for reference
         this.setState({ errorId: data.errorId });
+      } else {
+        console.error('Failed to report error:', response.status, await response.text().catch(() => ''));
       }
     } catch (err) {
-      // Silently fail - don't want to crash while trying to report crash
       console.error('Failed to report error:', err);
     }
   };
@@ -73,6 +81,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     this.setState({
       hasError: false,
       error: null,
+      errorId: undefined,
     });
     window.location.href = '/';
   };
@@ -93,7 +102,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
             </h1>
 
             <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
-              We encountered an unexpected error. Our team has been notified. Try refreshing the page or returning home.
+              We encountered an unexpected error. Our team has been notified. Try refreshing the page or
+              returning home.
             </p>
 
             {this.state.errorId && (
@@ -104,7 +114,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
               </div>
             )}
 
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <div className="mb-6 p-3 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200 dark:border-red-900 text-left">
                 <p className="text-xs font-mono text-red-800 dark:text-red-200 break-words">
                   {this.state.error.message}

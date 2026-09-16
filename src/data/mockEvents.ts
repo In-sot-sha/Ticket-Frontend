@@ -103,21 +103,40 @@ export const mockEvents: Event[] = [
  * Transform API event to frontend Event format
  */
 export const mapApiEventToFrontendEvent = (apiEvent: any): Event => {
-  const ticketsAvailable = apiEvent.ticketTypes
+  const inventory = apiEvent.ticketTypes
     ? apiEvent.ticketTypes.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0)
-    : 100;
+    : 0;
+  const sold = typeof apiEvent.ticketsSold === 'number'
+    ? apiEvent.ticketsSold
+    : typeof apiEvent.attendees === 'number'
+      ? apiEvent.attendees
+      : 0;
+  const ticketsAvailable =
+    typeof apiEvent.ticketsAvailable === 'number'
+      ? apiEvent.ticketsAvailable
+      : Math.max(0, inventory - sold);
+  const promotedUntil = apiEvent.promotedUntil ? new Date(apiEvent.promotedUntil) : null;
+  const isPromoted =
+    Boolean(apiEvent.isPromoted) &&
+    (!promotedUntil || promotedUntil.getTime() >= Date.now());
+
   return {
     id: apiEvent.id,
     slug: apiEvent.slug,
     title: apiEvent.title,
     date: apiEvent.startDate,
+    endDate: apiEvent.endDate,
     location: apiEvent.location || 'Online',
     image: apiEvent.imageUrl || 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?q=80&w=800',
     category: apiEvent.category || 'Other',
     ticketsAvailable,
     price: apiEvent.price ?? 0,
-    ticketTypes: apiEvent.ticketTypes, // Pass down for advanced pricing logic
+    ticketTypes: apiEvent.ticketTypes,
     rating: apiEvent.rating ?? 0,
-    attendees: apiEvent.attendees || 0
+    attendees: apiEvent.attendees || 0,
+    isPromoted,
+    description: apiEvent.description || '',
+    latitude: apiEvent.latitude,
+    longitude: apiEvent.longitude,
   };
 };

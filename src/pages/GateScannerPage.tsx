@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   CheckCircle,
   AlertTriangle,
@@ -20,6 +21,9 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { cn } from '../lib/utils';
+import { Skeleton } from '../components/ui/skeleton';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -210,11 +214,13 @@ const PinEntry: React.FC<{ onUnlock: (name: string, orgId: number) => void }> = 
 
 // ── Gate scanner UI ───────────────────────────────────────────────────────────
 
-const GateScanner: React.FC<{ staffName: string; organizationId: number | null; onLogout: () => void }> = ({
-  staffName,
-  organizationId,
-  onLogout,
-}) => {
+const GateScanner: React.FC<{
+  staffName: string;
+  organizationId: number | null;
+  staffMode?: boolean;
+  embeddedInShell?: boolean;
+  onLogout: () => void;
+}> = ({ staffName, organizationId, staffMode = false, embeddedInShell = false, onLogout }) => {
   const [scanStatus,   setScanStatus]   = useState<ScanStatus>('idle');
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError,  setCameraError]  = useState<string | null>(null);
@@ -231,29 +237,90 @@ const GateScanner: React.FC<{ staffName: string; organizationId: number | null; 
   const [loadingEvents, setLoadingEvents] = useState(true);
 
   const scannerRef     = useRef<Html5Qrcode | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mountedRef     = useRef(true);
+  /** Bumped on every stop so in-flight startCamera cannot keep the lens open */
+  const cameraSessionRef = useRef(0);
   const isVerifyingRef = useRef(false);
   const handleVerifRef = useRef<(code: string) => void>(() => {});
 
-  // Fetch today's upcoming events for this organization
+  // Fetch today's / covered events — PIN org, or staff coverage (no PIN)
   useEffect(() => {
-    if (!organizationId) return;
+    let cancelled = false;
     setLoadingEvents(true);
-    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
-    api.events.getAll({ organizationId, date: today, upcoming: 'true', limit: 50 })
-      .then((res: any) => {
+
+    const load = async () => {
+      try {
+        if (staffMode) {
+          const res = await api.staff.getHome();
+          const today = res.data?.todayGates || [];
+          const all = res.data?.events || [];
+          const list = today.length > 0 ? today : all;
+          if (!cancelled) setEventsList(list);
+          return;
+        }
+
+        if (!organizationId) {
+          if (!cancelled) setEventsList([]);
+          return;
+        }
+
+        const today = new Date().toLocaleDateString('en-CA');
+        const res: any = await api.events.getAll({
+          organizationId,
+          date: today,
+          upcoming: 'true',
+          limit: 50,
+        });
         const list = res.data?.events || res.data || [];
-        setEventsList(list);
-      })
-      .catch((err) => console.error('Failed to load events:', err))
-      .finally(() => setLoadingEvents(false));
-  }, [organizationId]);
+        if (!cancelled) setEventsList(list);
+      } catch (err) {
+        console.error('Failed to load events:', err);
+        if (!cancelled) setEventsList([]);
+      } finally {
+        if (!cancelled) setLoadingEvents(false);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId, staffMode]);
 
   // ── Verify ──────────────────────────────────────────────────────────────────
   const handleVerification = useCallback(async (code: string) => {
-    if (scannerRef.current) {
-      try { if (scannerRef.current.isScanning) await scannerRef.current.stop(); scannerRef.current.clear(); } catch { /* swallow */ }
-      scannerRef.current = null;
+    // Stop capture before validating so the light turns off immediately
+    const scanner = scannerRef.current;
+    scannerRef.current = null;
+    if (scanner) {
+      try {
+        await scanner.stop();
+      } catch {
+        /* ignore */
+      }
+      try {
+        scanner.clear();
+      } catch {
+        /* ignore */
+      }
     }
+    const held = mediaStreamRef.current;
+    mediaStreamRef.current = null;
+    held?.getTracks().forEach((t) => {
+      try {
+        t.stop();
+      } catch {
+        /* ignore */
+      }
+    });
+    const region = document.getElementById(SCANNER_DIV_ID);
+    region?.querySelectorAll('video').forEach((el) => {
+      const video = el as HTMLVideoElement;
+      const stream = video.srcObject as MediaStream | null;
+      stream?.getTracks().forEach((t) => t.stop());
+      video.srcObject = null;
+    });
     setCameraActive(false);
     setScanStatus('loading');
     setMessage('');
@@ -298,68 +365,215 @@ const GateScanner: React.FC<{ staffName: string; organizationId: number | null; 
 
   useEffect(() => { handleVerifRef.current = handleVerification; }, [handleVerification]);
 
-  const stopCamera = useCallback(async () => {
-    if (scannerRef.current) {
-      try { if (scannerRef.current.isScanning) await scannerRef.current.stop(); scannerRef.current.clear(); } catch { /* swallow */ }
-      scannerRef.current = null;
+  const releaseMediaTracks = useCallback(() => {
+    const stream = mediaStreamRef.current;
+    mediaStreamRef.current = null;
+    if (stream) {
+      stream.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch {
+          /* ignore */
+        }
+      });
     }
-    setCameraActive(false);
+    const region = document.getElementById(SCANNER_DIV_ID);
+    if (region) {
+      region.querySelectorAll('video').forEach((el) => {
+        const video = el as HTMLVideoElement;
+        const vs = video.srcObject as MediaStream | null;
+        if (vs) {
+          vs.getTracks().forEach((track) => {
+            try {
+              track.stop();
+            } catch {
+              /* ignore */
+            }
+          });
+        }
+        video.pause?.();
+        video.srcObject = null;
+        try {
+          video.removeAttribute('src');
+          video.load?.();
+        } catch {
+          /* ignore */
+        }
+      });
+    }
   }, []);
 
+  const killScannerInstance = useCallback(async (scanner: Html5Qrcode | null) => {
+    if (!scanner) return;
+    try {
+      await scanner.stop();
+    } catch {
+      /* already stopped */
+    }
+    try {
+      scanner.clear();
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const stopCamera = useCallback(async () => {
+    cameraSessionRef.current += 1;
+    const scanner = scannerRef.current;
+    scannerRef.current = null;
+    await killScannerInstance(scanner);
+    releaseMediaTracks();
+    if (mountedRef.current) setCameraActive(false);
+  }, [killScannerInstance, releaseMediaTracks]);
+
   const startCamera = useCallback(async () => {
+    if (!mountedRef.current) return;
     if (scannerRef.current?.isScanning) return;
+    // Ensure previous session is fully dead before starting again
+    await stopCamera();
+    if (!mountedRef.current) return;
+
+    const session = cameraSessionRef.current;
     setCameraError(null);
     isVerifyingRef.current = false;
+
+    let scanner: Html5Qrcode | null = null;
     try {
-      const scanner = new Html5Qrcode(SCANNER_DIV_ID, { verbose: false } as any);
+      const el = document.getElementById(SCANNER_DIV_ID);
+      if (!el) return;
+
+      scanner = new Html5Qrcode(SCANNER_DIV_ID, { verbose: false } as any);
       scannerRef.current = scanner;
       await scanner.start(
         { facingMode: 'environment' },
         { fps: 12, qrbox: { width: 220, height: 220 } },
-        (decoded) => { if (!isVerifyingRef.current) { isVerifyingRef.current = true; handleVerifRef.current(decoded); } },
-        () => { /* per-frame failures are normal */ },
+        (decoded) => {
+          if (
+            !isVerifyingRef.current &&
+            mountedRef.current &&
+            cameraSessionRef.current === session
+          ) {
+            isVerifyingRef.current = true;
+            handleVerifRef.current(decoded);
+          }
+        },
+        () => {
+          /* per-frame failures are normal */
+        }
       );
+
+      // Capture stream even if we are about to tear down
+      const video = document.querySelector(
+        `#${SCANNER_DIV_ID} video`
+      ) as HTMLVideoElement | null;
+      if (video?.srcObject instanceof MediaStream) {
+        mediaStreamRef.current = video.srcObject;
+      }
+
+      // Left the page (or stopCamera ran) while start() was awaiting — kill THIS instance
+      if (!mountedRef.current || cameraSessionRef.current !== session) {
+        if (scannerRef.current === scanner) scannerRef.current = null;
+        await killScannerInstance(scanner);
+        releaseMediaTracks();
+        return;
+      }
+
       setScanStatus('scanning');
       setCameraActive(true);
     } catch (err: any) {
-      scannerRef.current = null;
+      if (scannerRef.current === scanner) scannerRef.current = null;
+      await killScannerInstance(scanner);
+      releaseMediaTracks();
+      if (!mountedRef.current || cameraSessionRef.current !== session) return;
       const raw = err?.message ?? '';
       setCameraError(
-        /[Pp]ermission|[Dd]enied/.test(raw) ? 'Camera access denied. Allow it in browser settings.' :
-        /[Nn]ot[Ff]ound|device not found/.test(raw) ? 'No camera found on this device.' :
-        /[Hh][Tt][Tt][Pp][Ss]|[Ss]ecure/.test(raw) ? 'HTTPS required for camera. Open this page over https://.' :
-        `Could not start camera: ${raw}`
+        /[Pp]ermission|[Dd]enied/.test(raw)
+          ? 'Camera access denied. Allow it in browser settings.'
+          : /[Nn]ot[Ff]ound|device not found/.test(raw)
+            ? 'No camera found on this device.'
+            : /[Hh][Tt][Tt][Pp][Ss]|[Ss]ecure/.test(raw)
+              ? 'HTTPS required for camera. Open this page over https://.'
+              : `Could not start camera: ${raw}`
       );
-      setScanStatus('idle'); setCameraActive(false);
+      setScanStatus('idle');
+      setCameraActive(false);
     }
-  }, []);
+  }, [stopCamera, killScannerInstance, releaseMediaTracks]);
 
-  useEffect(() => () => { stopCamera(); }, [stopCamera]);
+  // Mount lifecycle — always kill camera when leaving this screen
+  useEffect(() => {
+    mountedRef.current = true;
+    const hardStop = () => {
+      mountedRef.current = false;
+      cameraSessionRef.current += 1;
+      void stopCamera();
+      // Nuclear: any lingering getUserMedia tracks on this page
+      try {
+        document.querySelectorAll('video').forEach((el) => {
+          const video = el as HTMLVideoElement;
+          const stream = video.srcObject as MediaStream | null;
+          if (!stream) return;
+          stream.getTracks().forEach((t) => {
+            try {
+              t.stop();
+            } catch {
+              /* ignore */
+            }
+          });
+          video.srcObject = null;
+        });
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener('pagehide', hardStop);
+    window.addEventListener('beforeunload', hardStop);
+    return () => {
+      window.removeEventListener('pagehide', hardStop);
+      window.removeEventListener('beforeunload', hardStop);
+      hardStop();
+    };
+  }, [stopCamera]);
 
   useEffect(() => {
     if (!selectedEventId) return;
-    if (tab === 'camera' && !['success','error','loading'].includes(scanStatus)) {
-      const t = setTimeout(() => startCamera(), 100);
-      return () => clearTimeout(t);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    if (tab === 'camera' && !['success', 'error', 'loading'].includes(scanStatus)) {
+      timer = setTimeout(() => {
+        if (!cancelled && mountedRef.current) void startCamera();
+      }, 80);
     } else if (tab !== 'camera') {
-      stopCamera().then(() => { if (!['success','error'].includes(scanStatus)) setScanStatus('idle'); });
+      void stopCamera().then(() => {
+        if (!cancelled && mountedRef.current && !['success', 'error'].includes(scanStatus)) {
+          setScanStatus('idle');
+        }
+      });
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      void stopCamera();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, selectedEventId]);
 
   const resetScanner = () => {
     setScanStatus('idle'); setMessage(''); setTicketData(null); setManualCode('');
     isVerifyingRef.current = false;
-    if (tab === 'camera' && selectedEventId) setTimeout(() => startCamera(), 100);
+    if (tab === 'camera' && selectedEventId) {
+      setTimeout(() => {
+        if (mountedRef.current) void startCamera();
+      }, 100);
+    }
   };
 
   const handleSelectEvent = (id: number, title: string) => {
     setSelectedEventId(id);
     setSelectedEventTitle(title);
-    if (tab === 'camera') {
-      setTimeout(() => startCamera(), 100);
-    }
+    // Camera starts via the tab/selectedEventId effect — do not double-start here
   };
 
   const handleResetEvent = () => {
@@ -384,36 +598,62 @@ const GateScanner: React.FC<{ staffName: string; organizationId: number | null; 
   const showResult = scanStatus === 'loading' || scanStatus === 'success' || scanStatus === 'error';
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-gray-950 flex flex-col">
-
-      {/* Header */}
-      <div className="sticky top-0 z-20 bg-white/95 dark:bg-gray-950/95 backdrop-blur-sm border-b border-neutral-100 dark:border-neutral-900 px-4 py-3 flex items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
-          {/* Logo */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <div className="w-6 h-6 rounded-lg bg-rose-500 flex items-center justify-center">
-              <Ticket className="h-3.5 w-3.5 text-white" />
+    <div
+      className={cn(
+        'bg-neutral-50 dark:bg-gray-950 flex flex-col',
+        embeddedInShell ? 'min-h-0 flex-1' : 'min-h-screen'
+      )}
+    >
+      {/* PIN / public scanner chrome — staff shell already has Header + sidebar */}
+      {!embeddedInShell && (
+        <div className="sticky top-0 z-20 bg-white/95 dark:bg-gray-950/95 backdrop-blur-sm border-b border-neutral-100 dark:border-neutral-900 px-4 py-3 flex items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <div className="w-6 h-6 rounded-lg bg-rose-500 flex items-center justify-center">
+                <Ticket className="h-3.5 w-3.5 text-white" />
+              </div>
+              <span className="text-rose-500 font-extrabold text-sm tracking-tight hidden sm:block">
+                partystorm
+              </span>
             </div>
-            <span className="text-rose-500 font-extrabold text-sm tracking-tight hidden sm:block">partystorm</span>
+            <div className="w-px h-4 bg-neutral-200 dark:bg-neutral-700 mx-1 shrink-0" />
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-6 h-6 rounded-full bg-rose-500 flex items-center justify-center shrink-0">
+                <ShieldCheck className="h-3.5 w-3.5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-extrabold text-neutral-900 dark:text-white truncate leading-none">
+                  {staffName}
+                </p>
+                <p className="text-[10px] text-neutral-500 leading-none mt-0.5">
+                  {scanCount} scanned
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="w-px h-4 bg-neutral-200 dark:bg-neutral-700 mx-1 shrink-0" />
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-6 h-6 rounded-full bg-rose-500 flex items-center justify-center shrink-0">
-              <ShieldCheck className="h-3.5 w-3.5 text-white" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-extrabold text-neutral-900 dark:text-white truncate leading-none">{staffName}</p>
-              <p className="text-[10px] text-neutral-500 leading-none mt-0.5">{scanCount} scanned</p>
-            </div>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-400 hover:text-red-500 transition-colors shrink-0"
+          >
+            <LogOut className="h-3.5 w-3.5" /> Exit
+          </button>
+        </div>
+      )}
+
+      {embeddedInShell && (
+        <div className="flex items-center justify-between gap-3 px-1 pb-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-rose-500">Gate scan</p>
+            <p className="text-sm font-extrabold text-neutral-900 dark:text-white truncate">
+              {staffName}
+              <span className="ml-2 text-xs font-semibold text-neutral-400 normal-case tracking-normal">
+                · {scanCount} scanned
+              </span>
+            </p>
           </div>
         </div>
-        <button
-          onClick={onLogout}
-          className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-400 hover:text-red-500 transition-colors shrink-0"
-        >
-          <LogOut className="h-3.5 w-3.5" /> Exit
-        </button>
-      </div>
+      )}
 
       {/* Event lock indicator */}
       {selectedEventId && (
@@ -657,31 +897,195 @@ const GateScanner: React.FC<{ staffName: string; organizationId: number | null; 
 // ── Page wrapper ──────────────────────────────────────────────────────────────
 
 const GateScannerPage: React.FC = () => {
-  const [pageState, setPageState] = useState<PageState>(() => {
-    const s = sessionStorage.getItem(SESSION_KEY);
-    return s ? 'scanner' : 'pin-entry';
-  });
-  const [staffName, setStaffName] = useState<string>(() => {
-    try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? '{}').name ?? ''; } catch { return ''; }
-  });
-  const [organizationId, setOrganizationId] = useState<number | null>(() => {
-    try { return Number(JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? '{}').organizationId) || null; } catch { return null; }
-  });
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const preferStaff = searchParams.get('staff') === '1';
+  const embeddedInShell = location.pathname.startsWith('/staff/scan');
 
-  const handleUnlock = (name: string, orgId: number) => { 
-    setStaffName(name); 
+  const [pageState, setPageState] = useState<PageState | 'booting'>('booting');
+  const [staffName, setStaffName] = useState('');
+  const [organizationId, setOrganizationId] = useState<number | null>(null);
+  const [staffMode, setStaffMode] = useState(false);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    // Staff should use /staff/scan (layout + sidebar), not bare /scan-gate?staff=1
+    if (
+      !embeddedInShell &&
+      preferStaff &&
+      isAuthenticated &&
+      (user?.isStaff || user?.role === 'ADMIN')
+    ) {
+      navigate('/staff/scan', { replace: true });
+      return;
+    }
+
+    const unlockAsStaff = () => {
+      const name =
+        `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Staff';
+      sessionStorage.setItem(
+        SESSION_KEY,
+        JSON.stringify({
+          pin: null,
+          name,
+          organizationId: null,
+          staffMode: true,
+        })
+      );
+      setStaffName(name);
+      setOrganizationId(null);
+      setStaffMode(true);
+      setPageState('scanner');
+    };
+
+    if (
+      embeddedInShell &&
+      isAuthenticated &&
+      (user?.isStaff || user?.role === 'ADMIN')
+    ) {
+      unlockAsStaff();
+      return;
+    }
+
+    if (isAuthenticated && (user?.isStaff || user?.role === 'ADMIN') && preferStaff) {
+      unlockAsStaff();
+      return;
+    }
+
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (raw) {
+        const s = JSON.parse(raw);
+        // Don't restore PIN sessions inside staff shell
+        if (embeddedInShell && !s.staffMode) {
+          unlockAsStaff();
+          return;
+        }
+        setStaffName(s.name || '');
+        setOrganizationId(Number(s.organizationId) || null);
+        setStaffMode(Boolean(s.staffMode));
+        setPageState('scanner');
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
+
+    if (isAuthenticated && (user?.isStaff || user?.role === 'ADMIN') && embeddedInShell) {
+      unlockAsStaff();
+      return;
+    }
+
+    if (embeddedInShell) {
+      navigate('/staff', { replace: true });
+      return;
+    }
+
+    setPageState('pin-entry');
+  }, [
+    authLoading,
+    isAuthenticated,
+    user,
+    preferStaff,
+    embeddedInShell,
+    navigate,
+  ]);
+
+  const handleUnlock = (name: string, orgId: number) => {
+    setStaffName(name);
     setOrganizationId(orgId);
-    setPageState('scanner'); 
+    setStaffMode(false);
+    setPageState('scanner');
   };
-  const handleLogout = () => { 
-    sessionStorage.removeItem(SESSION_KEY); 
-    setPageState('pin-entry'); 
-    setStaffName(''); 
+
+  const handleLogout = () => {
+    // Force scanner unmount first so camera cleanup always runs
+    setPageState('booting');
+    sessionStorage.removeItem(SESSION_KEY);
+    setStaffName('');
     setOrganizationId(null);
+    setStaffMode(false);
+
+    // Extra belt-and-suspenders track stop (region may already be gone)
+    requestAnimationFrame(() => {
+      document.querySelectorAll(`#${SCANNER_DIV_ID} video`).forEach((el) => {
+        const video = el as HTMLVideoElement;
+        const stream = video.srcObject as MediaStream | null;
+        stream?.getTracks().forEach((t) => t.stop());
+        video.srcObject = null;
+      });
+    });
+
+    if (staffMode || embeddedInShell) {
+      navigate('/staff');
+      return;
+    }
+    setPageState('pin-entry');
   };
+
+  if (pageState === 'booting' || authLoading) {
+    return <GateScannerBootSkeleton embedded={embeddedInShell} />;
+  }
 
   if (pageState === 'pin-entry') return <PinEntry onUnlock={handleUnlock} />;
-  return <GateScanner staffName={staffName} organizationId={organizationId} onLogout={handleLogout} />;
+  return (
+    <GateScanner
+      staffName={staffName}
+      organizationId={organizationId}
+      staffMode={staffMode || embeddedInShell}
+      embeddedInShell={embeddedInShell}
+      onLogout={handleLogout}
+    />
+  );
 };
+
+function GateScannerBootSkeleton({ embedded }: { embedded: boolean }) {
+  return (
+    <div
+      className={cn(
+        'flex flex-col bg-neutral-50 dark:bg-neutral-950',
+        embedded ? 'min-h-[60vh]' : 'min-h-dvh'
+      )}
+    >
+      {!embedded && (
+        <div className="shrink-0 border-b border-neutral-200 dark:border-neutral-800 px-4 py-3.5 flex items-center gap-3">
+          <div className="h-9 w-9 rounded-xl bg-rose-500 flex items-center justify-center">
+            <span className="text-white text-sm font-extrabold">P</span>
+          </div>
+          <div>
+            <p className="text-sm font-extrabold text-neutral-900 dark:text-white">Gate scan</p>
+            <p className="text-[11px] text-neutral-500">Preparing scanner…</p>
+          </div>
+        </div>
+      )}
+      <div className="flex-1 max-w-lg w-full mx-auto px-4 py-8 space-y-5">
+        <div className="space-y-2">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-rose-500">Gate scan</p>
+          <h1 className="text-2xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
+            Select event
+          </h1>
+          <p className="text-sm text-neutral-500">
+            Today&apos;s covered events will appear here.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-800">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="px-4 py-4 flex items-center gap-3">
+              <Skeleton className="h-11 w-11 rounded-xl shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-2/3 rounded-md" />
+                <Skeleton className="h-3 w-1/2 rounded-md" />
+              </div>
+              <Skeleton className="h-4 w-4 rounded-full shrink-0" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default GateScannerPage;

@@ -54,11 +54,11 @@ export const useRegister = () => {
 
   return useMutation({
     mutationFn: (userData: {
-      email: string;
+      email?: string | null;
       password: string;
       firstName: string;
       lastName: string;
-      phone?: string;
+      phone?: string | null;
     }) => api.auth.register(userData).then(res => res.data),
     onSuccess: (data) => {
       // Store token and user info

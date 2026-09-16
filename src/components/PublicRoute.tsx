@@ -16,23 +16,17 @@ interface PublicRouteProps {
  * Allows any user to access (authenticated or not)
  * Can optionally redirect authenticated users elsewhere
  * Used for login, register, etc. pages
+ * Initial load UI is the HTML #app-boot screen in index.html
  */
-const PublicRoute: React.FC<PublicRouteProps> = ({ children, redirectIfAuthenticated = true }) => {
+const PublicRoute: React.FC<PublicRouteProps> = ({
+  children,
+  redirectIfAuthenticated = true,
+}) => {
   const { isAuthenticated, loading, user } = useAuth();
 
-  // Still loading auth from storage/token verification
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500 mx-auto mb-4"></div>
-          <p className="text-neutral-600 dark:text-neutral-400">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+  // HTML boot covers until auth resolves
+  if (loading) return null;
 
-  // If authenticated and should redirect, send to home or appropriate dashboard
   if (isAuthenticated && redirectIfAuthenticated) {
     if (user?.role === 'ADMIN') {
       return <Navigate to="/admin" replace />;
@@ -40,7 +34,6 @@ const PublicRoute: React.FC<PublicRouteProps> = ({ children, redirectIfAuthentic
     return <Navigate to="/" replace />;
   }
 
-  // Show the route
   return <>{children}</>;
 };
 

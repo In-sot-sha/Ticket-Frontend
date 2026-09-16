@@ -1,20 +1,21 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Building2, Users, CreditCard, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, Calendar, Users, MessageSquare } from 'lucide-react';
 
 const AdminMobileTabBar: React.FC = () => {
   const location = useLocation();
 
   const tabs = [
     { label: 'Overview', icon: LayoutDashboard, path: '/admin', exact: true },
-    { label: 'Transactions', icon: CreditCard, path: '/admin/transactions', exact: true },
-    { label: 'Support', icon: MessageSquare, path: '/admin/support', exact: true },
+    { label: 'Ops', icon: FolderKanban, path: '/admin/ops', exact: true },
+    { label: 'Events', icon: Calendar, path: '/admin/events', exact: true },
     { label: 'Users', icon: Users, path: '/admin/users', exact: true },
+    { label: 'Support', icon: MessageSquare, path: '/admin/support', exact: true },
   ];
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-t border-gray-200 dark:border-gray-800 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
-      <div className="flex items-center justify-around px-3 py-2">
+      <div className="flex items-center justify-around px-2 py-2">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = tab.exact

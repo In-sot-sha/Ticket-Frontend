@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { Button } from '../components/ui/Button';
@@ -8,6 +8,7 @@ import {
   CheckCircle,
   Loader2,
   ArrowLeft,
+  ArrowRight,
   ImageIcon,
   AlertCircle,
   RefreshCw,
@@ -100,7 +101,10 @@ const BecomeOrganizer = () => {
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, updateUser } = useAuth();
+  const redirectAfterVerified =
+    searchParams.get('redirect') || '/organizer/events/create';
 
   const org = user?.ownedOrganizations?.[0];
   const isVerified = org?.isVerified;
@@ -232,8 +236,13 @@ const BecomeOrganizer = () => {
           <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6 leading-relaxed">
             Your host account is active. You can create events and manage your audience from the dashboard.
           </p>
-          <Button onClick={() => navigate('/organizer')} className="w-full rounded-xl h-11 font-bold">
-            Go to Host Dashboard
+          <Button
+            onClick={() => navigate(redirectAfterVerified)}
+            className="w-full rounded-xl h-11 font-bold"
+          >
+            {redirectAfterVerified.includes('/events/create')
+              ? 'Create your event'
+              : 'Go to Host Dashboard'}
           </Button>
         </div>
       </div>
@@ -346,6 +355,16 @@ const BecomeOrganizer = () => {
                   ? 'Update your details based on feedback, then resubmit.'
                   : 'Apply to host events on PartyStorm. Complete the form and our team will verify your brand.'}
               </p>
+              <Button
+                variant="outline"
+                className="mt-4 w-full rounded-xl h-10 text-xs font-bold"
+                asChild
+              >
+                <Link to="/for-organizers">
+                  See what organizers get
+                  <ArrowRight className="ml-2 h-3.5 w-3.5" />
+                </Link>
+              </Button>
             </div>
 
             <div className={`${cardClass} p-5`}>

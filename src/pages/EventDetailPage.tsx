@@ -14,24 +14,16 @@ import {
   Heart,
   CheckCircle,
   Store,
-  User,
   Mail,
-  Building,
   ArrowLeft,
   Star,
-  Shield,
   Flag,
   ChevronRight,
   X,
-  ArrowRight,
-  Sparkles,
   AlertCircle,
-  MessageCircle,
-  CheckCircle2,
   Globe,
   Instagram,
   Twitter,
-  Linkedin,
   TicketIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -39,16 +31,11 @@ import { motion } from 'framer-motion';
 import { api } from '../services/api';
 import { LazyImage } from '../components/LazyImage';
 import { GoogleMapLocation } from '../components/GoogleMapLocation';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { ResponsiveModal } from './GuestDashboard';
+import { ResponsiveModal } from '../components/ui/ResponsiveModal';
 import EventCard from '@/components/EventCard';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
+import { getEventUrgencyBadges } from '@/lib/eventBadges';
 
 const formatDeadlineFriendly = (dateStr: string) => {
   try {
@@ -84,6 +71,7 @@ interface TicketType {
   name: string;
   price: number;
   quantity: number;
+  isPaused?: boolean;
 }
 
 interface Organizer {
@@ -225,13 +213,16 @@ const mapApiEventToDetail = (apiEvent: any): EventDetail => {
     startTime: formatTime(startDate),
     endTime: formatTime(endDate),
     location: apiEvent.location || 'Online',
-    latitude: apiEvent.latitude,
-    longitude: apiEvent.longitude,
+    latitude: Number.isFinite(Number(apiEvent.latitude)) ? Number(apiEvent.latitude) : undefined,
+    longitude: Number.isFinite(Number(apiEvent.longitude)) ? Number(apiEvent.longitude) : undefined,
     category: apiEvent.category || 'Other',
     price: apiEvent.price ?? 0,
-    ticketsAvailable: apiEvent.ticketTypes
-      ? apiEvent.ticketTypes.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0)
-      : 0,
+    ticketsAvailable:
+      typeof apiEvent.ticketsAvailable === 'number'
+        ? apiEvent.ticketsAvailable
+        : apiEvent.ticketTypes
+          ? apiEvent.ticketTypes.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0)
+          : 0,
     rating: 0,
     reviewCount: 0,
     images,
@@ -283,6 +274,7 @@ const EventDetailPage = () => {
   const { user, isAuthenticated } = useAuth();
   const [isSaved, setIsSaved] = useState(false);
   const [showAllPhotos, setShowAllPhotos] = useState(false);
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [showOrganizerModal, setShowOrganizerModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState('');
@@ -290,10 +282,17 @@ const EventDetailPage = () => {
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [showFlier, setShowFlier] = useState(false);
 
+  // Reserved path words must never resolve as event detail
+  useEffect(() => {
+    if (slug === 'create' || slug === 'new' || slug === 'edit') {
+      navigate('/organizer/events/create', { replace: true });
+    }
+  }, [slug, navigate]);
+
   // Use React Query hook to fetch event with 3min cache (EVENT_DETAIL config)
   const { data: eventData, isLoading, error, isError } = useEventBySlug(
     slug || '',
-    !!slug,
+    !!slug && slug !== 'create' && slug !== 'new' && slug !== 'edit',
     CACHE_CONFIGS.EVENT_DETAIL
   );
 
@@ -304,6 +303,10 @@ const EventDetailPage = () => {
   );
 
   const event: EventDetail = eventData ? mapApiEventToDetail(eventData) : fallbackEvent;
+
+  useEffect(() => {
+    setActivePhotoIndex(0);
+  }, [event.id, event.images?.[0]]);
   const notFound = isError && (error as any)?.response?.status === 404;
 
   // Derived status flags
@@ -312,27 +315,36 @@ const EventDetailPage = () => {
   const ticketingBlocked = isEventDraft || isEventEnded;
   const isVendorDeadlinePassed = event.vendorDeadline ? new Date() > new Date(event.vendorDeadline) : false;
 
-  const getEventBadge = () => {
-    if (!event.date) return null;
-    const eventDate = new Date(event.date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const diffTime = eventDate.getTime() - today.getTime();
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  const urgencyBadges = isEventDraft && !isEventEnded
+    ? []
+    : getEventUrgencyBadges({
+        date: event.date,
+        endDate: event.endDateRaw,
+        ticketsAvailable: event.ticketsAvailable,
+        hasTicketTypes: (event.ticketTypes?.length ?? 0) > 0,
+        maxBadges: 2,
+      });
 
-    if (diffDays >= 0 && diffDays <= 1) {
-      return { text: 'Sales End Soon', className: 'bg-rose-500 text-white' };
-    }
-    if (event.ticketsAvailable !== undefined && event.ticketsAvailable > 0 && event.ticketsAvailable <= 15) {
-      return { text: 'Almost Full', className: 'bg-amber-500 text-white' };
-    }
-    if (event.ticketsAvailable !== undefined && event.ticketsAvailable > 0 && event.ticketsAvailable <= 50) {
-      return { text: 'Going Fast', className: 'bg-indigo-600 text-white' };
-    }
-    return null;
+  const renderUrgencyBadges = (opts?: { className?: string; size?: 'sm' | 'md' }) => {
+    if (!urgencyBadges.length) return null;
+    const size = opts?.size ?? 'md';
+    return (
+      <div className={cn('flex flex-wrap items-center gap-1.5', opts?.className)}>
+        {urgencyBadges.map((b) => (
+          <span
+            key={b.text}
+            className={cn(
+              'inline-flex items-center rounded-md font-extrabold uppercase tracking-wider shadow-sm',
+              size === 'sm' ? 'px-2 py-0.5 text-[9px]' : 'px-2.5 py-1 text-[10px] sm:text-[11px]',
+              b.className
+            )}
+          >
+            {b.text}
+          </span>
+        ))}
+      </div>
+    );
   };
-
-  const badge = getEventBadge();
 
   // Filter out current event and format similar events
   const similarEvents = similarEventsData
@@ -384,6 +396,16 @@ const EventDetailPage = () => {
 
   const handlePurchaseTicket = () => {
     navigate(`/book/${event.id}`);
+  };
+
+  const handleVendorApply = () => {
+    if (isVendorDeadlinePassed) return;
+    if (isAuthenticated) {
+      navigate(`/book/${event.id}?type=vendor`);
+    } else {
+      alert('Please login to apply for vendor slots');
+      navigate(`/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor`)}`);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -455,7 +477,9 @@ const EventDetailPage = () => {
   // Pricing Logic
   let displayPrice = '';
   if (event.ticketTypes && event.ticketTypes.length > 0) {
-    const prices = event.ticketTypes.map(t => Number(t.price));
+    const onSale = event.ticketTypes.filter((t) => !t.isPaused);
+    const priced = (onSale.length ? onSale : event.ticketTypes);
+    const prices = priced.map(t => Number(t.price));
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
     
@@ -479,15 +503,19 @@ const EventDetailPage = () => {
 
       <Helmet>
         <title>{event?.title || 'Event Details'} | PartyStorm</title>
-        <meta name="description" content={event?.description?.substring(0, 160) || 'Book tickets for amazing events in Kano.'} />
+        <meta name="description" content={event?.description?.substring(0, 160) || 'Book tickets for amazing events in Nigeria.'} />
         <meta property="og:title" content={event?.title || 'Event Details'} />
         <meta property="og:description" content={event?.description?.substring(0, 160) || 'Book tickets for amazing events.'} />
-        <meta property="og:type" content="event" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={event?.slug ? `https://partystorm.ng/events/${event.slug}` : `https://partystorm.ng/events/${event?.id || ''}`} />
         {event?.images && event.images.length > 0 && <meta property="og:image" content={event.images[0]} />}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={event?.title || 'Event Details'} />
         <meta name="twitter:description" content={event?.description?.substring(0, 160) || 'Book tickets for amazing events.'} />
-        {event?.slug && <link rel="canonical" href={`https://partystorm.com/events/${event.slug}`} />}
+        {event?.slug && <link rel="canonical" href={`https://partystorm.ng/events/${event.slug}`} />}
+        {event?.id && !event?.slug && (
+          <link rel="canonical" href={`https://partystorm.ng/events/${event.id}`} />
+        )}
         {event?.id && (
           <script type="application/ld+json">
             {JSON.stringify(generateEventStructuredData(event))}
@@ -496,42 +524,20 @@ const EventDetailPage = () => {
       </Helmet>
       {isLoading && (
         <div className="animate-pulse">
-          {/* Skeleton Gallery */}
-          <div className="max-w-7xl mx-auto px-0 md:px-6 lg:px-8 pt-0 md:pt-6">
-            <div className="w-full h-[300px] sm:h-[380px] md:h-[460px] bg-neutral-200 dark:bg-neutral-800 md:rounded-2xl"></div>
-          </div>
-
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="flex flex-col lg:flex-row gap-12">
-              {/* Skeleton Left: Details */}
-              <div className="lg:w-[60%] xl:w-[65%]">
-                <div className="h-8 w-3/4 bg-neutral-200 dark:bg-neutral-800 rounded-lg mb-4"></div>
-                <div className="h-4 w-1/2 bg-neutral-200 dark:bg-neutral-800 rounded-md mb-6"></div>
-                <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-14 h-14 rounded-full bg-neutral-200 dark:bg-neutral-800"></div>
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 w-1/3 bg-neutral-200 dark:bg-neutral-800 rounded-md"></div>
-                    <div className="h-3 w-1/4 bg-neutral-200 dark:bg-neutral-800 rounded-md"></div>
-                  </div>
-                </div>
-                <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-20 bg-neutral-200 dark:bg-neutral-800 rounded-2xl"></div>
-                  ))}
-                </div>
-                <hr className="border-neutral-100 dark:border-neutral-900 mb-6" />
-                <div className="space-y-3 mb-8">
-                  <div className="h-4 w-full bg-neutral-200 dark:bg-neutral-800 rounded-md"></div>
-                  <div className="h-4 w-full bg-neutral-200 dark:bg-neutral-800 rounded-md"></div>
-                  <div className="h-4 w-3/4 bg-neutral-200 dark:bg-neutral-800 rounded-md"></div>
+              <div className="lg:w-[60%] xl:w-[65%] space-y-6">
+                <div className="h-8 w-3/4 bg-neutral-200 dark:bg-neutral-800 rounded-lg" />
+                <div className="h-4 w-1/2 bg-neutral-200 dark:bg-neutral-800 rounded-md" />
+                <div className="w-full aspect-[4/3] max-h-[420px] bg-neutral-200 dark:bg-neutral-800 rounded-2xl" />
+                <div className="space-y-3">
+                  <div className="h-4 w-full bg-neutral-200 dark:bg-neutral-800 rounded-md" />
+                  <div className="h-4 w-full bg-neutral-200 dark:bg-neutral-800 rounded-md" />
+                  <div className="h-4 w-3/4 bg-neutral-200 dark:bg-neutral-800 rounded-md" />
                 </div>
               </div>
-
-              {/* Skeleton Right: Booking Card */}
               <div className="hidden lg:block lg:w-[40%] xl:w-[35%]">
-                <div className="border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 h-48 bg-neutral-100 dark:bg-neutral-800/50"></div>
+                <div className="border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 h-48 bg-neutral-100 dark:bg-neutral-800/50" />
               </div>
             </div>
           </div>
@@ -626,85 +632,75 @@ const EventDetailPage = () => {
       {/* ─── Main Content (only when loaded and found) ─── */}
       {!isLoading && !notFound && (<>
 
-      {/* ─── Photo Gallery ─── */}
-      <div className="max-w-8xl mx-auto px-0 md:px-6 lg:px-8 pt-0 md:pt-6">
-        {event.images.length === 1 ? (
-          /* Single image — full width */
-          <div
-            className="relative w-full h-[300px] sm:h-[380px] md:h-[460px] rounded-none md:rounded-2xl overflow-hidden cursor-pointer group"
-            onClick={() => setShowAllPhotos(true)}
-          >
-            <LazyImage
-              src={event.images[0]}
-              alt={event.title}
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-              containerClassName="relative w-full h-full"
-            />
-          </div>
-        ) : (
-          /* 2–5 images — Airbnb-style grid */
-          <div className={`relative grid gap-2 rounded-none md:rounded-2xl overflow-hidden h-[300px] sm:h-[360px] md:h-[420px] ${
-            event.images.length === 2
-              ? 'grid-cols-2'
-              : 'grid-cols-2 md:grid-cols-4 md:grid-rows-2'
-          }`}>
-            {/* Main large image */}
-            <div
-              className={`relative cursor-pointer group overflow-hidden ${
-                event.images.length >= 3 ? 'md:col-span-2 md:row-span-2' : ''
-              }`}
-              onClick={() => setShowAllPhotos(true)}
-            >
-              <LazyImage
-                src={event.images[0]}
-                alt={event.title}
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                containerClassName="relative w-full h-full"
-              />
-            </div>
-            {/* Secondary images */}
-            {event.images.slice(1).map((img, i) => (
-              <div
-                key={i}
-                className="relative cursor-pointer group overflow-hidden"
-                onClick={() => setShowAllPhotos(true)}
-              >
-                <LazyImage
-                  src={img}
-                  alt={`${event.title} ${i + 2}`}
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                  containerClassName="relative w-full h-full"
-                />
-              </div>
-            ))}
-            {/* Show all photos button — only when more than 1 image */}
-            <button
-              onClick={() => setShowAllPhotos(true)}
-              className="absolute bottom-4 right-4 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors z-10"
-            >
-              Show all {event.images.length} photos
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* ─── Mobile Booking Card (shown only on mobile, right after gallery) ─── */}
-     
-
       {/* ─── Content ─── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex flex-col lg:flex-row gap-12">
 
           {/* Left: Event Details */}
           <div className="lg:w-[60%] xl:w-[65%]">
+            {/* Media first */}
+            {event.images.length > 0 && (() => {
+              const photos = event.images;
+              const safeIndex = Math.min(activePhotoIndex, photos.length - 1);
+              return (
+                <div className="mb-5 space-y-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActivePhotoIndex(safeIndex);
+                      setShowAllPhotos(true);
+                    }}
+                    className="relative block w-full overflow-hidden rounded-2xl aspect-[4/3] max-h-[440px] bg-neutral-100 dark:bg-neutral-900 group"
+                  >
+                    <LazyImage
+                      src={photos[safeIndex]}
+                      alt={event.title}
+                      className="h-full w-full object-cover object-center transition-transform duration-500 ease-out group-hover:scale-[1.02]"
+                      containerClassName="absolute inset-0"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent pointer-events-none" />
+                    {photos.length > 1 && (
+                      <span className="absolute bottom-3 right-3 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+                        {safeIndex + 1} / {photos.length}
+                      </span>
+                    )}
+                  </button>
+
+                  {photos.length > 1 && (
+                    <div className="flex gap-2 overflow-x-auto pb-0.5">
+                      {photos.map((img, i) => (
+                        <button
+                          key={`hero-thumb-${i}`}
+                          type="button"
+                          onClick={() => setActivePhotoIndex(i)}
+                          className={cn(
+                            'relative h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-xl overflow-hidden ring-2 transition-all',
+                            i === safeIndex
+                              ? 'ring-rose-500'
+                              : 'ring-transparent opacity-75 hover:opacity-100'
+                          )}
+                          aria-label={`Show photo ${i + 1}`}
+                        >
+                          <img src={img} alt="" className="h-full w-full object-cover" />
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setShowAllPhotos(true)}
+                        className="h-14 sm:h-16 shrink-0 rounded-xl px-3 text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 dark:text-rose-300"
+                      >
+                        View all
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Title Row */}
             <div className="flex items-start justify-between gap-4 mb-2">
               <div className="flex-1">
-                {badge && (
-                  <span className={`inline-block px-2 py-0.5 rounded text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wider mb-2 ${badge.className}`}>
-                    {badge.text}
-                  </span>
-                )}
+                {renderUrgencyBadges({ className: 'mb-2.5' })}
                 <h1 className="text-xl sm:text-3xl font-extrabold text-neutral-900 dark:text-white leading-tight">
                   {event.title}
                 </h1>
@@ -911,132 +907,135 @@ const EventDetailPage = () => {
             </div>
           </div>
 
-          {/* ─── Right: Booking Card (Sticky, Desktop only) ─── */}
+          {/* ─── Right: Booking card (Sticky, Desktop only) ─── */}
           <div className="hidden lg:block lg:w-[40%] xl:w-[35%]">
             <div className="sticky top-24">
               <motion.div
-                initial={{ opacity: 0, y: 16 }}
+                initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-                className="border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 shadow-lg bg-white dark:bg-gray-900"
+                transition={{ duration: 0.35 }}
+                className="rounded-2xl border-2 border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-950 p-6 shadow-sm"
               >
-                {/* Price header */}
-                <div className="flex items-baseline justify-between mb-6">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl font-extrabold text-neutral-900 dark:text-white">
-                      {displayPrice}
-                    </span>
-                  </div>
+                <p className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                  Tickets
+                </p>
+                <div className="mt-2 flex items-end justify-between gap-3">
+                  <p className="font-ticket text-3xl font-bold tracking-tight text-neutral-900 dark:text-white leading-none">
+                    {displayPrice}
+                  </p>
                   {event.reviewCount > 0 && (
-                    <div className="flex items-center gap-1 text-xs">
+                    <div className="flex items-center gap-1 text-xs text-neutral-500">
                       <Star className="h-3 w-3 fill-neutral-900 text-neutral-900 dark:fill-white dark:text-white" />
-                      <span className="font-bold text-neutral-900 dark:text-white">{event.rating}</span>
-                      <span className="text-neutral-500">· {event.reviewCount} reviews</span>
+                      <span className="font-ticket font-semibold text-neutral-900 dark:text-white">
+                        {event.rating}
+                      </span>
                     </div>
                   )}
                 </div>
 
-                {/* Show choice buttons if vendors are allowed, otherwise just reserve button */}
-                {ticketingBlocked ? (
-                  <div className="rounded-xl bg-neutral-100 dark:bg-neutral-800 p-4 text-center">
-                    {isEventDraft ? (
-                      <>
-                        <AlertCircle className="h-6 w-6 text-amber-500 mx-auto mb-2" />
-                        <p className="text-sm font-bold text-neutral-900 dark:text-white mb-1">Tickets not available yet</p>
-                        <p className="text-xs text-neutral-500">This event hasn't been published. Check back later.</p>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="h-6 w-6 text-neutral-400 mx-auto mb-2" />
-                        <p className="text-sm font-bold text-neutral-900 dark:text-white mb-1">This event has ended</p>
-                        <p className="text-xs text-neutral-500">Ticket sales are closed. Thanks for your interest!</p>
-                      </>
-                    )}
+                <div className="mt-5 space-y-2 text-sm text-neutral-600 dark:text-neutral-400">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-3.5 w-3.5 text-neutral-400 shrink-0" />
+                    <span>{formatDate(event.date)}</span>
                   </div>
-                ) : event.vendorApplicationsAllowed ? (
-                  <>
-                    {/* Reserve Tickets Button */}
-                    <button
-                      onClick={handlePurchaseTicket}
-                      className="w-full h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] mb-2 flex items-center justify-center gap-2"
-                    >
-                      <Ticket className="h-4 w-4" />
-                      Buy Tickets
-                    </button>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-3.5 w-3.5 text-neutral-400 shrink-0" />
+                    <span>
+                      {event.startTime} – {event.endTime}
+                    </span>
+                  </div>
+                </div>
 
-                    {/* Apply as Vendor Button */}
-                    <button
-                      disabled={isVendorDeadlinePassed}
-                      onClick={() => {
-                        if (isVendorDeadlinePassed) return;
-                        if (isAuthenticated ) {
-                          navigate(`/book/${event.id}?type=vendor`);
-                        } else {
-                          navigate(`/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor`)}`);
-                        }
-                      }}
-                      className={cn(
-                        "w-full h-11 border-2 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98]",
-                        isVendorDeadlinePassed
-                          ? "border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 text-neutral-400 dark:text-neutral-600 cursor-not-allowed"
-                          : "border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white hover:border-rose-300 dark:hover:border-rose-700 hover:bg-rose-50/50 dark:hover:bg-rose-950/10"
-                      )}
-                    >
-                      <Store className="h-4 w-4" />
-                      {isVendorDeadlinePassed ? 'Vendor Application Closed' : 'Apply as Vendor'}
-                    </button>
-
-                    {event.vendorDeadline && (
-                      <p className={cn(
-                        "text-[10px] font-bold text-center mt-2.5 uppercase tracking-wide",
-                        isVendorDeadlinePassed ? "text-rose-500" : "text-amber-605 dark:text-amber-500"
-                      )}>
-                        Vendor: {formatDeadlineFriendly(event.vendorDeadline)}
-                      </p>
-                    )}
-
-                    {(() => {
-                      if (!event.date) return null;
-                      const eventDate = new Date(event.date);
-                      const today = new Date();
-                      today.setHours(0, 0, 0, 0);
-                      const diffTime = eventDate.getTime() - today.getTime();
-                      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-                      if (diffDays >= 0 && diffDays <= 1) {
-                        return (
-                          <p className="text-[10px] font-bold text-center mt-2 text-rose-500 uppercase tracking-wide">
-                            Tickets: Closes {diffDays === 0 ? 'Today' : 'Tomorrow'}!
+                <div className="mt-6">
+                  {ticketingBlocked ? (
+                    <div className="rounded-xl bg-neutral-50 dark:bg-neutral-900 p-4 text-center">
+                      {isEventDraft ? (
+                        <>
+                          <AlertCircle className="h-5 w-5 text-amber-500 mx-auto mb-2" />
+                          <p className="font-ticket text-sm font-semibold text-neutral-900 dark:text-white">
+                            Coming soon
                           </p>
-                        );
-                      }
-                      return null;
-                    })()}
+                          <p className="mt-1 text-xs text-neutral-500">Tickets aren’t live yet.</p>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="h-5 w-5 text-neutral-400 mx-auto mb-2" />
+                          <p className="font-ticket text-sm font-semibold text-neutral-900 dark:text-white">
+                            Event ended
+                          </p>
+                          <p className="mt-1 text-xs text-neutral-500">Ticket sales are closed.</p>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handlePurchaseTicket}
+                        className="group w-full rounded-xl bg-rose-500 px-4 py-3.5 text-white shadow-[0_8px_20px_-10px_rgba(244,63,94,0.65)] transition-[background-color,box-shadow,transform] duration-200 hover:bg-rose-600 hover:shadow-[0_12px_24px_-10px_rgba(244,63,94,0.55)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
+                      >
+                        <span className="flex items-center justify-center gap-2 font-ticket text-[15px] font-semibold uppercase tracking-[0.12em]">
+                          <Ticket className="h-4 w-4 opacity-90" />
+                          Get tickets
+                          <motion.span
+                            className="inline-flex"
+                            animate={{ x: [0, 5, 0] }}
+                            transition={{
+                              duration: 1.1,
+                              repeat: Infinity,
+                              ease: 'easeInOut',
+                            }}
+                          >
+                            <ChevronRight className="h-4 w-4 opacity-90" />
+                          </motion.span>
+                        </span>
+                      </button>
 
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center mt-3">
-                      You won't be charged yet
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    {/* Reserve button */}
-                    <button
-                      onClick={handlePurchaseTicket}
-                      className="w-full h-12 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] mb-3 mt-4"
-                    >
-                      Reserve Tickets
-                    </button>
+                      {event.vendorApplicationsAllowed && (
+                        <button
+                          type="button"
+                          disabled={isVendorDeadlinePassed}
+                          onClick={handleVendorApply}
+                          className={cn(
+                            'mt-2.5 w-full h-11 rounded-xl border text-sm font-ticket font-semibold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors active:scale-[0.99]',
+                            isVendorDeadlinePassed
+                              ? 'border-neutral-200 dark:border-neutral-800 text-neutral-400 cursor-not-allowed'
+                              : 'border-neutral-200 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-900'
+                          )}
+                        >
+                          <Store className="h-4 w-4" />
+                          {isVendorDeadlinePassed ? 'Vendor closed' : 'Apply as vendor'}
+                        </button>
+                      )}
 
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center mb-4 mt-3">
-                      You won't be charged yet
-                    </p>
-                  </>
-                )}
+                      {event.vendorApplicationsAllowed && event.vendorDeadline && (
+                        <p
+                          className={cn(
+                            'text-[10px] font-ticket font-semibold text-center mt-2.5 uppercase tracking-wide',
+                            isVendorDeadlinePassed ? 'text-rose-500' : 'text-neutral-500'
+                          )}
+                        >
+                          Vendor: {formatDeadlineFriendly(event.vendorDeadline)}
+                        </p>
+                      )}
+
+                      {event.ticketsAvailable > 0 && event.ticketsAvailable <= 50 && (
+                        <p className="text-[10px] font-ticket font-semibold text-center mt-2 text-neutral-500 uppercase tracking-wide">
+                          {event.ticketsAvailable} tickets left
+                        </p>
+                      )}
+
+                      <p className="text-[11px] text-neutral-500 text-center mt-3">
+                        You won’t be charged yet
+                      </p>
+                    </>
+                  )}
+                </div>
               </motion.div>
 
-              {/* Report listing */}
               <div className="flex items-center justify-center gap-2 mt-4">
                 <Flag className="h-3.5 w-3.5 text-neutral-400" />
-                <button 
+                <button
                   onClick={() => setShowReportModal(true)}
                   className="text-xs font-medium text-neutral-500 dark:text-neutral-400 underline hover:text-neutral-700 dark:hover:text-neutral-300"
                 >
@@ -1050,31 +1049,79 @@ const EventDetailPage = () => {
       </div>
 
       {/* ─── Full-screen Photo Gallery Modal ─── */}
-      {/* {showAllPhotos && (
-        <div className="fixed inset-0 bg-white dark:bg-gray-950 z-50 overflow-y-auto">
-          <div className="sticky top-0 z-10 bg-white/95 dark:bg-gray-950/95 backdrop-blur border-b border-neutral-100 dark:border-neutral-900 px-4 py-3 flex items-center">
+      {showAllPhotos && (
+        <div className="fixed inset-0 bg-neutral-950 z-50 flex flex-col">
+          <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/10">
             <button
+              type="button"
               onClick={() => setShowAllPhotos(false)}
-              className="flex items-center gap-2 text-sm font-bold text-neutral-900 dark:text-white hover:bg-neutral-50 dark:hover:bg-neutral-900 px-3 py-2 rounded-lg transition-colors"
+              className="flex items-center gap-2 text-sm font-bold text-white hover:bg-white/10 px-3 py-2 rounded-lg transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
               Back
             </button>
+            <p className="text-sm font-semibold text-white/80">
+              {Math.min(activePhotoIndex, event.images.length - 1) + 1} / {event.images.length}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowAllPhotos(false)}
+              className="p-2 rounded-lg text-white hover:bg-white/10"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
-          <div className="max-w-4xl mx-auto px-4 py-6 space-y-2">
-            {event.images.map((img, i) => (
-              <div key={i} className="relative w-full h-96 rounded-xl overflow-hidden">
-                <LazyImage
-                  src={img}
-                  alt={`${event.title} ${i + 1}`}
-                  className="w-full h-full object-cover"
-                  containerClassName="relative w-full h-full"
-                />
-              </div>
-            ))}
+
+          <div className="relative flex-1 min-h-0 flex items-center justify-center px-3 py-4">
+            {event.images.length > 1 && (
+              <button
+                type="button"
+                className="absolute left-2 sm:left-4 z-10 h-10 w-10 rounded-full bg-white/15 text-white hover:bg-white/25 flex items-center justify-center"
+                onClick={() =>
+                  setActivePhotoIndex((i) => (i - 1 + event.images.length) % event.images.length)
+                }
+                aria-label="Previous photo"
+              >
+                <ChevronRight className="h-5 w-5 rotate-180" />
+              </button>
+            )}
+            <img
+              src={event.images[Math.min(activePhotoIndex, event.images.length - 1)]}
+              alt={`${event.title} photo ${activePhotoIndex + 1}`}
+              className="max-h-[min(78vh,820px)] max-w-full object-contain rounded-lg"
+            />
+            {event.images.length > 1 && (
+              <button
+                type="button"
+                className="absolute right-2 sm:right-4 z-10 h-10 w-10 rounded-full bg-white/15 text-white hover:bg-white/25 flex items-center justify-center"
+                onClick={() => setActivePhotoIndex((i) => (i + 1) % event.images.length)}
+                aria-label="Next photo"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            )}
           </div>
+
+          {event.images.length > 1 && (
+            <div className="shrink-0 flex gap-2 overflow-x-auto justify-center px-4 py-3 border-t border-white/10">
+              {event.images.map((img, i) => (
+                <button
+                  key={`modal-thumb-${i}`}
+                  type="button"
+                  onClick={() => setActivePhotoIndex(i)}
+                  className={cn(
+                    'h-14 w-14 shrink-0 rounded-lg overflow-hidden border-2 bg-neutral-800',
+                    i === activePhotoIndex ? 'border-rose-500' : 'border-transparent opacity-70'
+                  )}
+                >
+                  <img src={img} alt="" className="h-full w-full object-contain" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      )} */}
+      )}
 
       {/* ─── Organizer Detail Modal ─── */}
       {showOrganizerModal && (
@@ -1134,69 +1181,145 @@ const EventDetailPage = () => {
                 </p>
               </div>
 
-              {/* Social & website links */}
-              {(event.organizer.website || hasAnySocial(event.organizer.socials || {})) && (
-              <div className="space-y-4">
-                <h4 className="text-sm font-extrabold text-neutral-900 dark:text-white">Connect</h4>
-                <div className="flex flex-wrap items-center gap-3">
+              {/* Contact & socials */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-extrabold text-neutral-900 dark:text-white">Contact</h4>
+                <div className="space-y-2">
                   {event.organizer.website && (
                     <a
-                      href={event.organizer.website.startsWith('http') ? event.organizer.website : `https://${event.organizer.website}`}
+                      href={
+                        event.organizer.website.startsWith('http')
+                          ? event.organizer.website
+                          : `https://${event.organizer.website}`
+                      }
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                      className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-rose-300 dark:hover:border-rose-800 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-colors group"
                     >
-                      <Globe className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
-                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Website</span>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 group-hover:bg-rose-100 dark:group-hover:bg-rose-950/40">
+                        <Globe className="h-4 w-4 text-neutral-600 dark:text-neutral-300 group-hover:text-rose-500" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-neutral-900 dark:text-white">Website</p>
+                        <p className="text-[11px] text-rose-500 truncate underline-offset-2 group-hover:underline">
+                          {event.organizer.website.replace(/^https?:\/\//, '')}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-neutral-300 group-hover:text-rose-400 shrink-0" />
                     </a>
                   )}
+
                   {event.organizer.socials?.instagram && (
                     <a
                       href={buildSocialUrl('instagram', event.organizer.socials.instagram)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                      className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-rose-300 dark:hover:border-rose-800 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-colors group"
                     >
-                      <Instagram className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
-                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Instagram</span>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 group-hover:bg-rose-100 dark:group-hover:bg-rose-950/40">
+                        <Instagram className="h-4 w-4 text-neutral-600 dark:text-neutral-300 group-hover:text-rose-500" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-neutral-900 dark:text-white">Instagram</p>
+                        <p className="text-[11px] text-rose-500 truncate underline-offset-2 group-hover:underline">
+                          {event.organizer.socials.instagram.startsWith('http')
+                            ? event.organizer.socials.instagram.replace(/^https?:\/\/(www\.)?instagram\.com\//, '@')
+                            : event.organizer.socials.instagram.startsWith('@')
+                              ? event.organizer.socials.instagram
+                              : `@${event.organizer.socials.instagram}`}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-neutral-300 group-hover:text-rose-400 shrink-0" />
                     </a>
                   )}
+
                   {event.organizer.socials?.twitter && (
                     <a
                       href={buildSocialUrl('twitter', event.organizer.socials.twitter)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                      className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-rose-300 dark:hover:border-rose-800 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-colors group"
                     >
-                      <Twitter className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
-                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">X</span>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800">
+                        <Twitter className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-neutral-900 dark:text-white">X / Twitter</p>
+                        <p className="text-[11px] text-rose-500 truncate">
+                          {event.organizer.socials.twitter}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-neutral-300 shrink-0" />
                     </a>
                   )}
+
                   {event.organizer.socials?.facebook && (
                     <a
                       href={buildSocialUrl('facebook', event.organizer.socials.facebook)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                      className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-rose-300 dark:hover:border-rose-800 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-colors group"
                     >
-                      <span className="text-xs font-bold text-neutral-600 dark:text-neutral-400">f</span>
-                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Facebook</span>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-xs font-bold text-neutral-600">
+                        f
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-neutral-900 dark:text-white">Facebook</p>
+                        <p className="text-[11px] text-rose-500 truncate">
+                          {event.organizer.socials.facebook}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-neutral-300 shrink-0" />
                     </a>
                   )}
+
                   {event.organizer.socials?.tiktok && (
                     <a
                       href={buildSocialUrl('tiktok', event.organizer.socials.tiktok)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                      className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-rose-300 dark:hover:border-rose-800 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-colors group"
                     >
-                      <span className="text-[10px] font-extrabold text-neutral-600 dark:text-neutral-400">TT</span>
-                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">TikTok</span>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-[10px] font-extrabold text-neutral-600">
+                        TT
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-neutral-900 dark:text-white">TikTok</p>
+                        <p className="text-[11px] text-rose-500 truncate">
+                          {event.organizer.socials.tiktok}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-neutral-300 shrink-0" />
                     </a>
                   )}
+
+                  {event.organizer.email && (
+                    <a
+                      href={`mailto:${event.organizer.email}`}
+                      className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-rose-300 dark:hover:border-rose-800 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-colors group"
+                    >
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800">
+                        <Mail className="h-4 w-4 text-neutral-600 dark:text-neutral-300 group-hover:text-rose-500" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-neutral-900 dark:text-white">Email</p>
+                        <p className="text-[11px] text-rose-500 truncate underline-offset-2 group-hover:underline">
+                          {event.organizer.email}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-neutral-300 group-hover:text-rose-400 shrink-0" />
+                    </a>
+                  )}
+
+                  {!event.organizer.website &&
+                    !hasAnySocial(event.organizer.socials || {}) &&
+                    !event.organizer.email && (
+                      <p className="text-xs text-neutral-500 py-2">
+                        This organizer hasn&apos;t added public contact links yet.
+                      </p>
+                    )}
                 </div>
               </div>
-              )}
 
               {/* Trust & Safety Section */}
               {/* <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 rounded-2xl space-y-3">
@@ -1342,72 +1465,90 @@ const EventDetailPage = () => {
 
       {/* ─── Sticky Bottom Bar (Mobile only, when not loading) ─── */}
       {!isLoading && !notFound && (
-        <div className="lg:hidden fixed bottom-16 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-t border-neutral-200 dark:border-neutral-800 px-4 py-3 flex items-center justify-between shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
-          <div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-lg font-extrabold text-neutral-900 dark:text-white">
-                {displayPrice}
+        <div className="lg:hidden fixed bottom-[3.6rem] left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-t border-neutral-200 dark:border-neutral-800 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+          {ticketingBlocked ? (
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[9px] font-ticket font-semibold uppercase tracking-[0.16em] text-neutral-400">
+                  From
+                </p>
+                <span className="font-ticket text-lg font-bold tracking-tight text-neutral-900 dark:text-white">
+                  {displayPrice}
+                </span>
+              </div>
+              <span className="text-xs font-ticket font-semibold uppercase tracking-wide text-neutral-400 px-4 py-2.5 rounded-lg bg-neutral-100 dark:bg-neutral-800">
+                {isEventDraft ? 'Coming Soon' : 'Event Ended'}
               </span>
             </div>
-            {event.vendorApplicationsAllowed && event.vendorDeadline && (
-              <p className={cn(
-                "text-[9px] font-bold uppercase tracking-wider mt-0.5",
-                isVendorDeadlinePassed ? "text-rose-500 animate-pulse" : "text-amber-600 dark:text-amber-500"
-              )}>
-                Vendor: {formatDeadlineFriendly(event.vendorDeadline)}
-              </p>
-            )}
-            {(() => {
-              if (!event.date) return null;
-              const eventDate = new Date(event.date);
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-              const diffTime = eventDate.getTime() - today.getTime();
-              const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-              if (diffDays >= 0 && diffDays <= 1) {
-                return (
-                  <p className="text-[9px] font-bold uppercase tracking-wider mt-0.5 text-rose-500 animate-pulse">
-                    Tickets: Closes {diffDays === 0 ? 'Today' : 'Tomorrow'}!
-                  </p>
-                );
-              }
-              return null;
-            })()}
-          </div>
-          {ticketingBlocked ? (
-            <span className="text-xs font-bold text-neutral-400 px-4 py-2.5 rounded-lg bg-neutral-100 dark:bg-neutral-800">
-              {isEventDraft ? 'Coming Soon' : 'Event Ended'}
-            </span>
           ) : event.vendorApplicationsAllowed ? (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handlePurchaseTicket}
-                className="bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-lg text-xs font-bold px-4 py-2.5 shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
-              >
-                Buy
-              </button>
-              {!isVendorDeadlinePassed && (
+            <div className="space-y-2.5">
+              <div className="flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-ticket font-semibold uppercase tracking-[0.16em] text-neutral-400">
+                    From
+                  </p>
+                  <span className="font-ticket text-lg font-bold tracking-tight text-neutral-900 dark:text-white">
+                    {displayPrice}
+                  </span>
+                </div>
+                {event.vendorDeadline && (
+                  <p
+                    className={cn(
+                      'text-[9px] font-ticket font-semibold uppercase tracking-wider shrink-0',
+                      isVendorDeadlinePassed ? 'text-rose-500' : 'text-neutral-500'
+                    )}
+                  >
+                    Vendor: {formatDeadlineFriendly(event.vendorDeadline)}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-stretch gap-2">
                 <button
-                  onClick={() => {
-                    if (isAuthenticated && user?.role === 'VENDOR') {
-                      navigate(`/book/${event.id}?type=vendor`);
-                    } else {
-                      navigate(`/login?redirect=${encodeURIComponent(`/book/${event.id}?type=vendor`)}`);
-                    }
-                  }}
-                  className="border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-lg text-xs font-bold px-4 py-2.5 hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98]"
+                  type="button"
+                  onClick={handlePurchaseTicket}
+                  className="flex-[1.2] min-w-0 rounded-xl bg-rose-500 px-3 py-3 text-white shadow-[0_6px_16px_-8px_rgba(244,63,94,0.7)] transition-[background-color,box-shadow,transform] duration-200 active:scale-[0.99]"
                 >
-                  Vendor
+                  <span className="flex items-center justify-center gap-1.5 font-ticket text-xs font-semibold uppercase tracking-wider">
+                    <Ticket className="h-3.5 w-3.5 shrink-0" />
+                    Get tickets
+                  </span>
                 </button>
-              )}
+                <button
+                  type="button"
+                  disabled={isVendorDeadlinePassed}
+                  onClick={handleVendorApply}
+                  className={cn(
+                    'flex-1 min-w-0 rounded-xl border px-3 py-3 font-ticket text-xs font-semibold uppercase tracking-wider transition-colors active:scale-[0.99]',
+                    isVendorDeadlinePassed
+                      ? 'border-neutral-200 dark:border-neutral-800 text-neutral-400 cursor-not-allowed'
+                      : 'border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-white'
+                  )}
+                >
+                  <span className="flex items-center justify-center gap-1.5">
+                    <Store className="h-3.5 w-3.5 shrink-0" />
+                    {isVendorDeadlinePassed ? 'Closed' : 'Vendor'}
+                  </span>
+                </button>
+              </div>
             </div>
           ) : (
-            <button
-              onClick={handlePurchaseTicket}
-              className="bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-xs font-bold px-6 py-3 shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
-            >
-              Reserve
-            </button>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[9px] font-ticket font-semibold uppercase tracking-[0.16em] text-neutral-400">
+                  From
+                </p>
+                <span className="font-ticket text-lg font-bold tracking-tight text-neutral-900 dark:text-white">
+                  {displayPrice}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handlePurchaseTicket}
+                className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-ticket font-semibold uppercase tracking-wider px-6 py-3 shadow-[0_6px_16px_-8px_rgba(244,63,94,0.7)] transition-[background-color,box-shadow,transform] duration-200 active:scale-[0.99]"
+              >
+                Get tickets
+              </button>
+            </div>
           )}
         </div>
       )}

@@ -2,8 +2,8 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { isTokenExpired } from '../lib/tokenUtils';
 
-let localEndpoint = import.meta.env.VITE_API_URL || "http://localhost:33333/api";
-let productionEndpoint = "https://partystormapi.vercel.app/api";
+let localEndpoint = import.meta.env.VITE_API_URL || "http://192.168.1.119:33333/api";
+let productionEndpoint = "https://api.partystorm.ng/api";
 
 let currentEndpoint =
   import.meta.env.MODE === "development" ? localEndpoint : productionEndpoint;
@@ -23,10 +23,10 @@ apiClient.interceptors.request.use(
     if (token) {
       // Check if token is expired before sending request
       if (isTokenExpired(token)) {
-        // Token expired — remove it and redirect
+        // Token expired — remove it and notify auth state
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        window.location.href = '/login?expired=true';
+        window.dispatchEvent(new Event('auth:unauthorized'));
         return Promise.reject(new Error('Token expired'));
       }
       config.headers.Authorization = `Bearer ${token}`;
@@ -36,7 +36,7 @@ apiClient.interceptors.request.use(
     }
     const url = config.url ?? '';
     // Cache-bust admin/support GETs (do not add Cache-Control header — triggers CORS preflight)
-    if (config.method?.toLowerCase() === 'get' && (url.includes('/admin/') || url.includes('/support/'))) {
+    if (config.method?.toLowerCase() === 'get' && (url.includes('/admin/') || url.includes('/support/') || url.includes('/staff/support'))) {
       config.params = { ...config.params, _t: Date.now() };
     }
     return config;
@@ -124,7 +124,7 @@ apiClient.interceptors.response.use(
           // Logout on refresh failure
           localStorage.removeItem('token');
           localStorage.removeItem('user');
-          window.location.href = '/login';
+          window.dispatchEvent(new Event('auth:unauthorized'));
           return Promise.reject(refreshError);
         }
       } else {
@@ -141,7 +141,7 @@ apiClient.interceptors.response.use(
     } else if (error.response?.status === 401 && !isAuthEndpoint) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      window.dispatchEvent(new Event('auth:unauthorized'));
     }
     
     return Promise.reject(error);
@@ -186,15 +186,16 @@ export const api = {
   // Authentication endpoints
   auth: {
     register: (userData: {
-      email: string;
+      email?: string | null;
       password: string;
       firstName: string;
       lastName: string;
-      phone?: string;
+      phone?: string | null;
     }) => apiRequest<{ token: string; user: any }> ('POST', '/users/register', userData),
     
     login: (credentials: {
-      email: string;
+      email?: string;
+      identifier?: string;
       password: string;
     }) => apiRequest<{ token: string; user: any }>('POST', '/users/login', credentials),
     
@@ -258,11 +259,14 @@ export const api = {
       taxId?: string;
       vatNumber?: string;
       businessAddress?: string;
+      absorbFee?: boolean;
     }) => apiRequest<any>('PUT', '/user-roles/organizer-profile', data),
     
     getVendorApplications: () => apiRequest<any[]>('GET', '/user-roles/vendor-applications'),
     
     getMyVendorApplications: () => apiRequest<any[]>('GET', '/user-roles/my-vendor-applications'),
+
+    getBanks: () => apiRequest<{ banks: Array<{ name: string; code: string }> }>('GET', '/user-roles/banks'),
   },
 
   // Event endpoints
@@ -276,6 +280,8 @@ export const api = {
       promoted?: string;
       organizationId?: number;
       date?: string;
+      dateFrom?: string;
+      dateTo?: string;
       upcoming?: string;
     }) => apiRequest<any>('GET', '/events', undefined, { params }),
     
@@ -309,11 +315,65 @@ export const api = {
     getOrganizerEvents: (params?: { page?: number; limit?: number }) =>
       apiRequest<any>('GET', '/events/organizer', undefined, { params }),
 
-    getOrganizerEventById: (id: number) =>
-      apiRequest<any>('GET', `/events/organizer/${id}`),
+    getOrganizerEventById: (idOrSlug: string | number) =>
+      apiRequest<any>('GET', `/events/organizer/${idOrSlug}`),
 
     getOrganizerAnalytics: () =>
       apiRequest<any>('GET', '/events/organizer/analytics'),
+
+    getAttendeeBlastPreview: (
+      eventId: number,
+      params?: { filterStatus?: string; ticketTypeId?: number }
+    ) =>
+      apiRequest<{
+        totalTickets: number;
+        matchingTickets: number;
+        matchingRecipients: number;
+        autoReminderEnabled: boolean;
+        autoPostEventEnabled: boolean;
+        autoReminder24hSent: string | null;
+        autoPostEventSent: string | null;
+      }>('GET', `/events/${eventId}/attendee-blast-preview`, undefined, { params }),
+
+    sendAttendeeBlast: (
+      eventId: number,
+      data: {
+        subject: string;
+        message: string;
+        filterStatus?: string;
+        ticketTypeId?: number;
+        templateType?: string;
+        testEmail?: string;
+      }
+    ) =>
+      apiRequest<{ message: string; sent: number; failed: number; recipientCount: number }>(
+        'POST',
+        `/events/${eventId}/attendee-blast`,
+        data
+      ),
+
+    triggerLifecycleEmail: (
+      eventId: number,
+      data: {
+        triggerType?: 'REMINDER_24H' | 'POST_EVENT';
+        enableReminder?: boolean;
+        enablePostEvent?: boolean;
+      }
+    ) =>
+      apiRequest<{
+        message: string;
+        sent?: number;
+        autoReminderEnabled?: boolean;
+        autoPostEventEnabled?: boolean;
+      }>('POST', `/events/${eventId}/trigger-lifecycle-email`, data),
+
+    requestPromotion: (eventId: number) =>
+      apiRequest<{
+        message: string;
+        event?: any;
+        alreadyPromoted?: boolean;
+        alreadyRequested?: boolean;
+      }>('POST', `/events/${eventId}/request-promotion`),
     
     getCategories: () => apiRequest<any[]>('GET', '/events/categories'),
   },
@@ -340,6 +400,18 @@ export const api = {
       ticketTypeId: number;
       quantity: number;
     }) => apiRequest<any>('POST', '/tickets/purchase', ticketData),
+
+    checkEligibility: (data: {
+      eventId: number;
+      ticketTypeId: number;
+      email?: string;
+      phone?: string;
+    }) =>
+      apiRequest<{ owned: number; maxPerPerson: number; remaining: number }>(
+        'POST',
+        '/tickets/eligibility',
+        data
+      ),
     
     validate: (qrCode: string, eventId?: number) => 
       apiRequest<any>('POST', '/tickets/validate', { qrCode, eventId }),
@@ -374,8 +446,17 @@ export const api = {
     
     getAll: () => apiRequest<any[]>('GET', '/user-roles/my-vendor-applications'), // User's applications
     
-    updateStatus: (id: number, applicationStatus: 'APPROVED' | 'REJECTED', paymentStatus?: 'PENDING' | 'PAID' | 'FAILED') => 
-      apiRequest<any>('PUT', `/vendors/applications/${id}/status`, { applicationStatus, paymentStatus }),
+    updateStatus: (
+      id: number,
+      applicationStatus: 'APPROVED' | 'REJECTED',
+      paymentStatus?: 'PENDING' | 'PAID' | 'FAILED',
+      stallNumber?: string | null,
+    ) =>
+      apiRequest<any>('PUT', `/vendors/applications/${id}/status`, {
+        applicationStatus,
+        paymentStatus,
+        stallNumber,
+      }),
   },
 
   // Gate PIN endpoints
@@ -419,6 +500,7 @@ export const api = {
       processingFees?: number;
       organizerPayouts?: number;
       openSupportTickets?: number;
+      pendingOpsRequests?: number;
       platformFeePercent?: number;
     }>('GET', '/admin/stats'),
 
@@ -435,11 +517,15 @@ export const api = {
     getSupportTicket: (id: number) =>
       apiRequest<any>('GET', `/admin/support/tickets/${id}`),
 
-    replyToSupportTicket: (id: number, data: { body: string; status?: string }) =>
-      apiRequest<any>('POST', `/admin/support/tickets/${id}/replies`, data),
+    replyToSupportTicket: (
+      id: number,
+      data: { body: string; status?: string; needsMoreInfo?: boolean }
+    ) => apiRequest<any>('POST', `/admin/support/tickets/${id}/replies`, data),
 
-    updateSupportTicket: (id: number, data: { status?: string; priority?: string }) =>
-      apiRequest<any>('PUT', `/admin/support/tickets/${id}`, data),
+    updateSupportTicket: (
+      id: number,
+      data: { status?: string; priority?: string; notifyMessage?: string }
+    ) => apiRequest<any>('PUT', `/admin/support/tickets/${id}`, data),
 
     getHostApplications: (status?: 'pending' | 'verified' | 'rejected' | 'all') =>
       apiRequest<any[]>('GET', '/admin/host-applications', undefined, {
@@ -464,6 +550,77 @@ export const api = {
     promoteEvent: (id: number, data: { isPromoted: boolean; promotedUntil?: string | null }) =>
       apiRequest<any>('PUT', `/admin/events/${id}/promote`, data),
 
+    transferEvent: (id: number, organizationId: number) =>
+      apiRequest<any>('POST', `/admin/events/${id}/transfer`, { organizationId }),
+
+    getStaff: () => apiRequest<{ staff: any[] }>('GET', '/admin/staff'),
+
+    createStaff: (data: {
+      email: string;
+      firstName: string;
+      lastName: string;
+      phone?: string;
+      password?: string;
+      capabilities?: string[];
+      active?: boolean;
+      organizationIds?: number[];
+      sendInvite?: boolean;
+    }) => apiRequest<any>('POST', '/admin/staff', data),
+
+    resendStaffInvite: (userId: number, data?: { resetPassword?: boolean }) =>
+      apiRequest<any>('POST', `/admin/staff/${userId}/invite`, data || {}),
+
+    upsertStaff: (
+      userId: number,
+      data: { isStaff?: boolean; capabilities?: string[]; active?: boolean }
+    ) => apiRequest<any>('PUT', `/admin/staff/${userId}`, data),
+
+    addStaffOrgCoverage: (
+      userId: number,
+      data: { organizationId: number; capabilitiesOverride?: string[] }
+    ) => apiRequest<any>('POST', `/admin/staff/${userId}/org-coverage`, data),
+
+    removeStaffOrgCoverage: (userId: number, organizationId: number) =>
+      apiRequest<any>('DELETE', `/admin/staff/${userId}/org-coverage/${organizationId}`),
+
+    getOpsProjects: (status?: string) =>
+      apiRequest<{ projects: any[] }>('GET', '/admin/ops-projects', undefined, {
+        params: status ? { status } : undefined,
+      }),
+
+    createOpsProject: (data: {
+      title: string;
+      organizationId?: number | null;
+      eventId?: number | null;
+      services?: string[];
+      notes?: string;
+      windowStart?: string | null;
+      windowEnd?: string | null;
+      status?: string;
+    }) => apiRequest<any>('POST', '/admin/ops-projects', data),
+
+    updateOpsProject: (
+      id: number,
+      data: {
+        title?: string;
+        organizationId?: number | null;
+        eventId?: number | null;
+        services?: string[];
+        notes?: string;
+        windowStart?: string | null;
+        windowEnd?: string | null;
+        status?: string;
+      }
+    ) => apiRequest<any>('PUT', `/admin/ops-projects/${id}`, data),
+
+    assignOpsStaff: (
+      projectId: number,
+      data: { userId: number; capabilitiesOverride?: string[] }
+    ) => apiRequest<any>('POST', `/admin/ops-projects/${projectId}/staff`, data),
+
+    removeOpsStaff: (projectId: number, userId: number) =>
+      apiRequest<any>('DELETE', `/admin/ops-projects/${projectId}/staff/${userId}`),
+
     updateOrganizationFee: (id: number, data: { serviceFeePercent?: number; absorbFee?: boolean }) =>
       apiRequest<any>('PUT', `/admin/host-applications/${id}/fee`, data),
 
@@ -475,21 +632,73 @@ export const api = {
 
     rejectPayout: (id: number) =>
       apiRequest<any>('POST', `/admin/payouts/${id}/reject`),
+
+    resolvePayment: (reference: string) =>
+      apiRequest<any>('POST', '/admin/payments/resolve', { reference }),
+  },
+
+  staff: {
+    getHome: () =>
+      apiRequest<{
+        profile: { capabilities: string[]; active: boolean } | null;
+        orgCoverage: Array<{
+          organizationId: number;
+          organizationName: string;
+          gatePinCount?: number;
+        }>;
+        projects: any[];
+        events: any[];
+        todayGates?: any[];
+      }>('GET', '/staff/home'),
+
+    requestOps: (data: {
+      title?: string;
+      organizationId?: number;
+      eventId?: number;
+      services?: string[];
+      notes?: string;
+      windowStart?: string;
+      windowEnd?: string;
+    }) => apiRequest<any>('POST', '/staff/ops-request', data),
+
+    getSupportTickets: (status?: string) =>
+      apiRequest<any[]>('GET', '/staff/support/tickets', undefined, {
+        params: status ? { status } : undefined,
+      }),
+
+    getSupportTicket: (id: number) =>
+      apiRequest<any>('GET', `/staff/support/tickets/${id}`),
+
+    replyToSupportTicket: (
+      id: number,
+      data: { body: string; status?: string; needsMoreInfo?: boolean }
+    ) => apiRequest<any>('POST', `/staff/support/tickets/${id}/replies`, data),
+
+    updateSupportTicket: (
+      id: number,
+      data: { status?: string; priority?: string; notifyMessage?: string }
+    ) => apiRequest<any>('PUT', `/staff/support/tickets/${id}`, data),
   },
 
   // Finance and Payouts endpoints
   finance: {
     getBalance: () => apiRequest<{
       totalEarnings: number;
+      grossSales?: number;
+      platformFees?: number;
+      processingFees?: number;
       totalPaidOut: number;
       totalPending: number;
       availableBalance: number;
+      settlementMode?: string;
       payouts: any[];
       bankSettings: {
         payoutBankName: string | null;
         payoutAccountNumber: string | null;
         payoutAccountName: string | null;
         payoutSchedule: string | null;
+        absorbFee?: boolean;
+        paystackConnected?: boolean;
       };
     }>('GET', '/finance/balance'),
     

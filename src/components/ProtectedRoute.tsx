@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 interface ProtectedRouteProps {
@@ -8,37 +8,25 @@ interface ProtectedRouteProps {
 }
 
 /**
- * ProtectedRoute component
- * Protects routes by checking if user is authenticated
- * Optional role-based access control
- * Auth check happens in AuthProvider at top-level (not in page useEffect)
+ * Protects routes by checking if user is authenticated.
+ * Guests are sent to login with redirect back to the intended URL.
  */
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
   const { isAuthenticated, loading, user } = useAuth();
+  const location = useLocation();
 
-  // Still loading auth from storage/token verification
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500 mx-auto mb-4"></div>
-          <p className="text-neutral-600 dark:text-neutral-400">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+  // HTML boot covers until auth resolves
+  if (loading) return null;
 
-  // Not authenticated, redirect to login
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    const redirect = encodeURIComponent(`${location.pathname}${location.search}`);
+    return <Navigate to={`/login?redirect=${redirect}`} replace />;
   }
 
-  // Check role if specified
   if (requiredRole && user?.role !== requiredRole) {
     return <Navigate to="/" replace />;
   }
 
-  // Authenticated and authorized
   return <>{children}</>;
 };
 

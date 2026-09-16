@@ -1,505 +1,530 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
-  UserPlus,
-  Ticket,
   CheckCircle2,
   AlertCircle,
   Phone,
   Mail,
-  User,
-  Calendar,
+  Minus,
+  Plus,
+  ScanLine,
   MapPin,
-  Clock,
-  ShieldCheck,
+  Calendar,
+  UserCheck,
+  CreditCard,
+  User,
+  Ticket,
+  X,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/skeleton';
 import { Switch } from '../components/ui/Switch';
 import { api } from '../services/api';
+import { cn } from '../lib/utils';
+import { isValidEmail, isValidPhone } from '../lib/phone';
 
 interface TicketType {
   id: number;
   name: string;
   price: number;
   quantity: number;
+  maxPerPerson?: number | null;
+  isPaused?: boolean;
 }
 
 interface EventInfo {
   id: number;
   title: string;
   startDate?: string;
-  startTime?: string;
   location?: string;
   ticketTypes: TicketType[];
 }
 
+type PaymentMethod = 'CASH' | 'POS' | 'TRANSFER' | 'COMPLIMENTARY';
+
+const PAYMENTS: { id: PaymentMethod; label: string }[] = [
+  { id: 'CASH', label: 'Cash' },
+  { id: 'POS', label: 'POS' },
+  { id: 'TRANSFER', label: 'Transfer' },
+  { id: 'COMPLIMENTARY', label: 'Complimentary' },
+];
+
+const hasValidContact = (email: string, phone: string) => {
+  const e = email.trim();
+  const p = phone.trim();
+  if (e && !isValidEmail(e)) return false;
+  if (p && !isValidPhone(p)) return false;
+  return (!!e && isValidEmail(e)) || (!!p && isValidPhone(p));
+};
+
 const ManualAttendeePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isStaffMode = location.pathname.startsWith('/staff/');
+  const backPath = isStaffMode ? '/staff' : `/organizer/events/${id}`;
+  const scanPath = isStaffMode ? '/staff/scan' : '/organizer/scan';
+  const nameRef = useRef<HTMLInputElement>(null);
 
   const [event, setEvent] = useState<EventInfo | null>(null);
   const [loadingEvent, setLoadingEvent] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [form, setForm] = useState({
-    ticketTypeId: '',
-    paymentMethod: 'CASH' as 'CASH' | 'POS' | 'TRANSFER',
-    checkInNow: true,
-    useSameDetails: true,
-  });
+  const [ticketTypeId, setTicketTypeId] = useState('');
+  const [qty, setQty] = useState(1);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
+  const [checkInNow, setCheckInNow] = useState(true);
+  const [useSameDetails, setUseSameDetails] = useState(true);
 
   const [attendees, setAttendees] = useState([{ name: '', email: '', phone: '' }]);
 
-  const handleQuantityChange = (newQty: number) => {
+  const syncQty = (newQty: number) => {
     if (newQty < 1 || newQty > 20) return;
-    setAttendees(prev => {
+    setQty(newQty);
+    setAttendees((prev) => {
       const updated = [...prev];
-      while (updated.length < newQty) {
-        updated.push({ name: '', email: '', phone: '' });
-      }
+      while (updated.length < newQty) updated.push({ name: '', email: '', phone: '' });
       return updated.slice(0, newQty);
     });
   };
 
-  const updateAttendee = (index: number, field: string, value: string) => {
-    const updated = [...attendees];
-    updated[index] = { ...updated[index], [field]: value };
-    setAttendees(updated);
+  const updateAttendee = (index: number, field: 'name' | 'email' | 'phone', value: string) => {
+    setAttendees((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
   };
 
   useEffect(() => {
     if (!id) return;
     setLoadingEvent(true);
-    api.events
-      .getOrganizerEventById(Number(id))
+    const load = isStaffMode
+      ? api.events.getByIdentifier(id)
+      : api.events.getOrganizerEventById(id);
+
+    load
       .then((res) => {
+        const data = res.data;
         setEvent({
-          id: res.data.id,
-          title: res.data.title,
-          startDate: res.data.startDate,
-          startTime: res.data.startTime,
-          location: res.data.location,
-          ticketTypes: res.data.ticketTypes || [],
+          id: data.id,
+          title: data.title,
+          startDate: data.startDate,
+          location: data.location,
+          ticketTypes: data.ticketTypes || [],
         });
-        if (res.data.ticketTypes?.length > 0) {
-          setForm((f) => ({ ...f, ticketTypeId: String(res.data.ticketTypes[0].id) }));
+        const sellable = (data.ticketTypes || []).filter((tt: TicketType) => !tt.isPaused);
+        if (sellable.length > 0) {
+          setTicketTypeId(String(sellable[0].id));
         }
       })
-      .catch(() => setError('Could not load event details.'))
+      .catch(() => setError('Could not load event.'))
       .finally(() => setLoadingEvent(false));
-  }, [id]);
+  }, [id, isStaffMode]);
 
-  const selectedTicketType = event?.ticketTypes.find(
-    (tt) => String(tt.id) === form.ticketTypeId
-  );
+  useEffect(() => {
+    nameRef.current?.focus();
+  }, []);
 
+  useEffect(() => {
+    if (toastMsg) {
+      const timer = setTimeout(() => setToastMsg(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMsg]);
+
+  const selectedTicketType = event?.ticketTypes.find((tt) => String(tt.id) === ticketTypeId);
   const total =
-    selectedTicketType && !isNaN(selectedTicketType.price)
-      ? selectedTicketType.price * attendees.length
+    paymentMethod === 'COMPLIMENTARY'
+      ? 0
+      : selectedTicketType && !Number.isNaN(selectedTicketType.price)
+      ? selectedTicketType.price * qty
       : 0;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const guestsToValidate = useSameDetails ? [attendees[0]] : attendees;
+
+  const canSubmit =
+    !!ticketTypeId &&
+    guestsToValidate.every(
+      (a) => a.name.trim() && hasValidContact(a.email, a.phone)
+    );
+
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setError(null);
 
-    if (!form.ticketTypeId) return setError('Please select a ticket type.');
-    if (form.useSameDetails) {
-      if (!attendees[0].name.trim()) return setError('Please enter a name for the attendee.');
-    } else {
-      if (attendees.some(a => !a.name.trim())) return setError('Please enter names for all attendees.');
+    if (!ticketTypeId) return setError('Select a ticket type.');
+    for (const a of guestsToValidate) {
+      if (!a.name.trim()) return setError('Enter a guest name.');
+      if (!a.email.trim() && !a.phone.trim()) {
+        return setError('Email or phone number is required.');
+      }
+      if (a.email.trim() && !isValidEmail(a.email)) {
+        return setError('Enter a valid email address.');
+      }
+      if (a.phone.trim() && !isValidPhone(a.phone)) {
+        return setError('Enter a valid Nigerian phone number (e.g. 0803… or +234…).');
+      }
     }
 
     setSaving(true);
     try {
-      const payloadAttendees = form.useSameDetails
-        ? Array.from({ length: attendees.length }).map(() => ({
+      const payloadAttendees = useSameDetails
+        ? Array.from({ length: qty }, () => ({
             name: attendees[0].name.trim(),
-            email: attendees[0].email.trim() || undefined,
+            email: attendees[0].email.trim().toLowerCase() || undefined,
             phone: attendees[0].phone.trim() || undefined,
           }))
-        : attendees.map(a => ({
+        : attendees.map((a) => ({
             name: a.name.trim(),
-            email: a.email.trim() || undefined,
+            email: a.email.trim().toLowerCase() || undefined,
             phone: a.phone.trim() || undefined,
           }));
 
       await api.post('/tickets/manual', {
-        eventId: Number(id),
-        ticketTypeId: Number(form.ticketTypeId),
-        quantity: attendees.length,
+        eventId: event!.id,
+        ticketTypeId: Number(ticketTypeId),
+        quantity: qty,
         buyerName: attendees[0].name.trim(),
-        buyerEmail: attendees[0].email.trim() || undefined,
+        buyerEmail: attendees[0].email.trim().toLowerCase() || undefined,
         buyerPhone: attendees[0].phone.trim() || undefined,
         attendees: payloadAttendees,
-        paymentMethod: form.paymentMethod,
-        checkInNow: form.checkInNow,
+        paymentMethod: paymentMethod === 'COMPLIMENTARY' ? 'CASH' : paymentMethod,
+        checkInNow,
       });
-      setSuccess(true);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to register attendee.');
+
+      const guestName = attendees[0].name.trim() || 'Guest';
+      setToastMsg(`✓ ${qty} ${selectedTicketType?.name || 'Ticket'} issued for ${guestName}${checkInNow ? ' (Checked in ✓)' : ''}`);
+      // Rapid reset: keep ticket type, clear guest fields & refocus for continuous rapid creation
+      setAttendees([{ name: '', email: '', phone: '' }]);
+      setQty(1);
+      setTimeout(() => nameRef.current?.focus(), 60);
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Failed to register guest.';
+      setError(msg);
     } finally {
       setSaving(false);
     }
   };
-  const handleReset = () => {
-    setSuccess(false);
-    setForm((f) => ({
-      ...f,
-      checkInNow: true,
-    }));
-    setAttendees([{ name: '', email: '', phone: '' }]);
-  };
-  const inputClass =
-    'w-full px-4 py-3 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all';
 
-  if (success) {
-    return (
-      <div className="max-w-xl mx-auto px-4 py-12">
-        <div className="text-center py-16 px-6 border border-green-200 dark:border-green-800 rounded-3xl bg-green-50 dark:bg-green-950/20 shadow-sm">
-          <div className="w-20 h-20 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 className="h-10 w-10 text-green-500" />
-          </div>
-          <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white mb-3">
-            Attendee Registered!
-          </h2>
-          <p className="text-neutral-500 mb-8 max-w-sm mx-auto">
-            {form.checkInNow
-              ? 'The attendee has been registered and marked as checked in.'
-              : 'The attendee has been registered successfully.'}
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button onClick={handleReset} variant="outline" className="rounded-xl h-12 px-6 font-bold">
-              Register Another
-            </Button>
-            <Button
-              onClick={() => navigate(`/organizer/events/${id}`)}
-              className="rounded-xl h-12 px-6 bg-rose-500 hover:bg-rose-600 text-white border-0 font-bold"
-            >
-              Back to Dashboard
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const handleReset = () => {
+    setError(null);
+    setCheckInNow(true);
+    setQty(1);
+    setAttendees([{ name: '', email: '', phone: '' }]);
+    setUseSameDetails(true);
+    setTimeout(() => nameRef.current?.focus(), 60);
+  };
+
+  const inputClass =
+    'w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-colors';
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 sm:py-10 py-4">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Navigation & Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Link 
-            to={`/organizer/events/${id}`} 
-            className="flex items-center justify-center w-10 h-10 rounded-full border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+    <div className={cn('relative max-w-5xl mx-auto px-3 sm:px-6 pb-20 sm:pb-8 pt-2')}>
+      {/* Rapid Creation Success Toast */}
+      {toastMsg && (
+        <div className="mb-4 p-3.5 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-between shadow-md animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-white" />
+            <span>{toastMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setToastMsg(null)}
+            className="p-1 hover:bg-emerald-700 rounded-md cursor-pointer transition-colors text-white"
           >
-            <ArrowLeft className="h-4 w-4 text-neutral-800 dark:text-neutral-100" />
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+      {/* Ultra-compact top bar */}
+      <div className="border-b border-neutral-200/80 dark:border-neutral-800 pb-2.5 mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <Link
+            to={backPath}
+            className="p-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 text-neutral-700 dark:text-neutral-300 shrink-0 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-neutral-900 dark:text-white">
-              Gate Registration
+          <div className="min-w-0">
+            <h1 className="text-sm sm:text-base font-extrabold text-neutral-900 dark:text-white truncate leading-tight">
+              Add Attendee
             </h1>
-            <p className="text-xs text-neutral-500 font-medium">Add attendees manually to your event</p>
+            <p className="text-[11px] text-neutral-500 truncate leading-none mt-0.5">
+              {event?.title || 'Walk-in Registration'}
+            </p>
           </div>
         </div>
 
-        {error && (
-          <div className="flex items-start gap-3 p-4 mb-8 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-2xl text-rose-600 dark:text-rose-400">
-            <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
-            <div>
-              <h3 className="text-sm font-bold">Registration Failed</h3>
-              <p className="text-xs mt-1">{error}</p>
-            </div>
-          </div>
-        )}
+        <Link to={scanPath}>
+          <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs gap-1 border-neutral-200 dark:border-neutral-700 hover:border-rose-400 hover:text-rose-500">
+            <ScanLine className="h-3.5 w-3.5 text-rose-500" />
+            <span className="hidden sm:inline">Scan Gate</span>
+          </Button>
+        </Link>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
-          
-          {/* Main Form Column */}
-          <div className="lg:col-span-8 space-y-6">
-            
-            {/* Ticket Options Section */}
-            <section className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-sm">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center">
-                  <Ticket className="h-5 w-5 text-rose-500" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Ticket Selection</h2>
-                  <p className="text-xs text-neutral-500">Choose the ticket type and quantity</p>
+      {error && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 px-3.5 py-2.5 text-xs text-rose-700 dark:text-rose-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span className="flex-1 font-medium">{error}</span>
+          <button type="button" onClick={() => setError(null)} className="font-bold underline">
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        {/* Left Column: Compact Attendee Inputs */}
+        <div className="lg:col-span-7 space-y-4">
+          {/* 1. Ticket Type Selection */}
+          <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 shadow-2xs space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                <Ticket className="h-3.5 w-3.5 text-rose-500" /> 1. Select Ticket
+              </span>
+              <span className="text-[11px] text-neutral-400">
+                {qty} ticket{qty > 1 ? 's' : ''} selected
+              </span>
+            </div>
+
+            {loadingEvent ? (
+              <Skeleton className="h-10 w-full rounded-xl" />
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {event?.ticketTypes.filter((tt) => !tt.isPaused).map((tt) => {
+                  const selected = String(tt.id) === ticketTypeId;
+                  return (
+                    <button
+                      key={tt.id}
+                      type="button"
+                      onClick={() => setTicketTypeId(String(tt.id))}
+                      className={cn(
+                        'p-2.5 rounded-xl border text-left transition-all cursor-pointer min-w-0',
+                        selected
+                          ? 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/40 dark:bg-rose-950/20'
+                          : 'border-neutral-200 dark:border-neutral-800 hover:border-rose-300 bg-neutral-50/50 dark:bg-neutral-850/40'
+                      )}
+                    >
+                      <p className="text-xs font-bold text-neutral-900 dark:text-white truncate">
+                        {tt.name}
+                      </p>
+                      <p className={cn('text-[11px] font-semibold mt-0.5', selected ? 'text-rose-600 dark:text-rose-400' : 'text-neutral-500')}>
+                        {tt.price === 0 ? 'Free' : `₦${tt.price.toLocaleString()}`}
+                      </p>
+                    </button>
+                  );
+                })}
+                {event && event.ticketTypes.filter((tt) => !tt.isPaused).length === 0 && (
+                  <p className="col-span-full text-xs text-neutral-500 py-3 text-center">
+                    No ticket types are on sale. Resume a paused type in event settings.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Compact Quantity Control */}
+            <div className="flex items-center justify-between pt-2 border-t border-neutral-100 dark:border-neutral-800">
+              <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Quantity</span>
+              <div className="flex items-center gap-1.5">
+                {[1, 2, 5].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => syncQty(preset)}
+                    className={cn(
+                      'px-2 py-0.5 rounded-md text-[11px] font-semibold border transition-colors',
+                      qty === preset
+                        ? 'border-rose-500 bg-rose-500 text-white'
+                        : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-rose-300'
+                    )}
+                  >
+                    {preset}
+                  </button>
+                ))}
+                <div className="flex items-center gap-1 ml-1.5">
+                  <button
+                    type="button"
+                    onClick={() => syncQty(qty - 1)}
+                    disabled={qty <= 1}
+                    className="h-7 w-7 rounded-lg border border-neutral-200 dark:border-neutral-700 flex items-center justify-center text-xs disabled:opacity-30"
+                  >
+                    <Minus className="h-3 w-3" />
+                  </button>
+                  <span className="w-5 text-center text-xs font-bold tabular-nums">{qty}</span>
+                  <button
+                    type="button"
+                    onClick={() => syncQty(qty + 1)}
+                    disabled={qty >= 20}
+                    className="h-7 w-7 rounded-lg border border-neutral-200 dark:border-neutral-700 flex items-center justify-center text-xs disabled:opacity-30"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </button>
                 </div>
               </div>
+            </div>
+          </div>
 
-              {loadingEvent ? (
-                <div className="space-y-4">
-                  <Skeleton className="h-12 w-full rounded-xl" />
-                  <Skeleton className="h-12 w-full rounded-xl" />
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {event?.ticketTypes.map((tt) => {
-                    const isSelected = String(tt.id) === form.ticketTypeId;
-                    return (
-                      <div
-                        key={tt.id}
-                        onClick={() => {
-                          if (!isSelected) {
-                            setForm(f => ({ ...f, ticketTypeId: String(tt.id) }));
-                            setAttendees([attendees[0]]);
-                          }
-                        }}
-                        className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between ${
-                          isSelected
-                            ? 'border-rose-500 bg-rose-50/50 dark:bg-rose-900/20'
-                            : 'border-neutral-200 dark:border-neutral-800 hover:border-rose-300'
-                        }`}
-                      >
-                        <div>
-                          <p className="font-bold text-neutral-900 dark:text-white">{tt.name}</p>
-                          <p className="text-sm font-semibold text-rose-500 mt-1">
-                            {tt.price === 0 ? 'Free' : `₦${tt.price.toLocaleString()}`}
-                          </p>
-                        </div>
-                        {isSelected && (
-                          <div className="flex items-center gap-3">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleQuantityChange(attendees.length - 1);
-                              }}
-                              disabled={attendees.length <= 1}
-                              className="w-8 h-8 rounded-full flex items-center justify-center border border-neutral-300 dark:border-neutral-700 text-neutral-600 disabled:opacity-50 hover:bg-white dark:hover:bg-neutral-800"
-                            >
-                              -
-                            </button>
-                            <span className="font-bold text-neutral-900 dark:text-white min-w-[20px] text-center">
-                              {attendees.length}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleQuantityChange(attendees.length + 1);
-                              }}
-                              disabled={attendees.length >= 20}
-                              className="w-8 h-8 rounded-full flex items-center justify-center border border-neutral-300 dark:border-neutral-700 text-neutral-600 disabled:opacity-50 hover:bg-white dark:hover:bg-neutral-800"
-                            >
-                              +
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+          {/* 2. Attendee Guest Details */}
+          <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 shadow-2xs space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5 text-rose-500" /> 2. Guest Information
+              </span>
+              {qty > 1 && (
+                <label className="flex items-center gap-1.5 text-xs text-neutral-500 cursor-pointer">
+                  Same details for all
+                  <Switch checked={useSameDetails} onCheckedChange={setUseSameDetails} />
+                </label>
               )}
-            </section>
+            </div>
 
-            {/* Attendee Info Section */}
-            <section className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-sm">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center">
-                    <User className="h-5 w-5 text-rose-500" />
+            {(useSameDetails ? [attendees[0]] : attendees).map((attendee, index) => (
+              <div key={index} className={cn(index > 0 && 'pt-3 border-t border-neutral-100 dark:border-neutral-800 space-y-2.5', 'space-y-2.5')}>
+                {qty > 1 && !useSameDetails && (
+                  <p className="text-[10px] font-bold text-rose-500 uppercase">Attendee {index + 1}</p>
+                )}
+                <div>
+                  <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Full Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    ref={index === 0 ? nameRef : undefined}
+                    type="text"
+                    className={inputClass}
+                    placeholder="e.g. Tunde Adeleke"
+                    value={attendee.name}
+                    onChange={(e) => updateAttendee(index, 'name', e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      className={inputClass}
+                      placeholder="tunde@gmail.com"
+                      value={attendee.email}
+                      onChange={(e) => updateAttendee(index, 'email', e.target.value)}
+                    />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Guest Details</h2>
-                    <p className="text-xs text-neutral-500">Enter the attendee's information</p>
-                  </div>
-                </div>
-                {attendees.length > 1 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">Use for all tickets</span>
-                    <Switch
-                      checked={form.useSameDetails}
-                      onCheckedChange={(c) => setForm(f => ({ ...f, useSameDetails: c }))}
+                    <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      className={inputClass}
+                      placeholder="0803 000 0000"
+                      value={attendee.phone}
+                      onChange={(e) => updateAttendee(index, 'phone', e.target.value)}
                     />
                   </div>
-                )}
+                </div>
               </div>
-
-              <div className="space-y-8">
-                {(form.useSameDetails ? [attendees[0]] : attendees).map((attendee, index) => (
-                  <div key={index} className={index > 0 ? "pt-6 border-t border-neutral-100 dark:border-neutral-800" : ""}>
-                    {!form.useSameDetails && (
-                      <h3 className="text-sm font-bold text-neutral-900 dark:text-white mb-4">
-                        Attendee {index + 1}
-                      </h3>
-                    )}
-                    <div className="space-y-5">
-                      <div>
-                        <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 block mb-2 uppercase tracking-wider">
-                          Full Name <span className="text-rose-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          className={inputClass}
-                          placeholder="Enter guest's full name"
-                          value={attendee.name}
-                          onChange={(e) => updateAttendee(index, 'name', e.target.value)}
-                          autoFocus={index === 0}
-                          required
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        <div>
-                          <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 block mb-2 uppercase tracking-wider flex items-center gap-1.5">
-                            <Mail className="h-3.5 w-3.5" /> Email Address
-                          </label>
-                          <input
-                            type="email"
-                            className={inputClass}
-                            placeholder="Optional (to send ticket)"
-                            value={attendee.email}
-                            onChange={(e) => updateAttendee(index, 'email', e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 block mb-2 uppercase tracking-wider flex items-center gap-1.5">
-                            <Phone className="h-3.5 w-3.5" /> Phone Number
-                          </label>
-                          <input
-                            type="tel"
-                            className={inputClass}
-                            placeholder="Optional"
-                            value={attendee.phone}
-                            onChange={(e) => updateAttendee(index, 'phone', e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
+            ))}
           </div>
 
-          {/* Right Column - Summary & Checkout */}
-          <div className="lg:col-span-4">
-            <div className="sticky top-6 space-y-6">
-              
-              {/* Event Context Card */}
-              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 shadow-sm">
-                <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-4">Event Details</h3>
-                
-                {loadingEvent ? (
-                  <div className="space-y-3">
-                    <Skeleton className="h-6 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
-                    <Skeleton className="h-4 w-2/3" />
-                  </div>
-                ) : (
-                  <>
-                    <h4 className="font-extrabold text-neutral-900 dark:text-white mb-4 leading-tight">
-                      {event?.title}
-                    </h4>
-                    
-                    <div className="space-y-3">
-                      {(event?.startDate || event?.startTime) && (
-                        <div className="flex items-start gap-2 text-sm text-neutral-600 dark:text-neutral-400">
-                          <Calendar className="w-4 h-4 mt-0.5 text-neutral-400 shrink-0" />
-                          <span>
-                            {event?.startDate && new Date(event.startDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                            {event?.startTime && ` at ${event.startTime}`}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {event?.location && (
-                        <div className="flex items-start gap-2 text-sm text-neutral-600 dark:text-neutral-400">
-                          <MapPin className="w-4 h-4 mt-0.5 text-neutral-400 shrink-0" />
-                          <span className="line-clamp-2">{event.location}</span>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
+          {/* 3. Payment & Check-In */}
+          <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 shadow-2xs space-y-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+              <CreditCard className="h-3.5 w-3.5 text-rose-500" /> 3. Payment & Gate Check-in
+            </span>
 
-              {/* Order Summary & Payment Card */}
-              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 shadow-sm">
-                <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-4">Order Summary</h3>
-                
-                <div className="flex justify-between items-center mb-6">
-                  <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
-                    {selectedTicketType?.name || 'Ticket'} (x{attendees.length})
-                  </span>
-                  <span className="font-bold text-neutral-900 dark:text-white">
-                    ₦{total.toLocaleString()}
-                  </span>
-                </div>
-
-                <div className="h-px w-full bg-neutral-100 dark:bg-neutral-800 mb-6" />
-
-                <div className="mb-6">
-                  <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 block mb-3 uppercase tracking-wider">
-                    Payment Method
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['CASH', 'POS', 'TRANSFER'] as const).map((method) => (
-                      <button
-                        key={method}
-                        type="button"
-                        onClick={() => setForm((f) => ({ ...f, paymentMethod: method }))}
-                        className={`py-2.5 rounded-xl text-xs font-bold border transition-all ${
-                          form.paymentMethod === method
-                            ? 'bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400 shadow-sm'
-                            : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300'
-                        }`}
-                      >
-                        {method}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mb-6 p-4 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800">
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <Switch
-                      checked={form.checkInNow}
-                      onCheckedChange={(checked) => setForm((f) => ({ ...f, checkInNow: checked }))}
-                    />
-                  
-                    <div>
-                      <p className="text-sm font-bold text-neutral-900 dark:text-white">
-                        Check In Immediately
-                      </p>
-                      <p className="text-xs text-neutral-500 mt-1">
-                        Automatically mark this attendee as entered at the gate.
-                      </p>
-                    </div>
-                  </label>
-                </div>
-
-                <Button
-                  onClick={handleSubmit}
-                  disabled={saving || (form.useSameDetails ? !attendees[0].name.trim() : attendees.some(a => !a.name.trim())) || !form.ticketTypeId}
-                  className="w-full h-14 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white border-0 font-extrabold text-base shadow-md transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
-                >
-                  {saving ? (
-                    'Registering...'
-                  ) : (
-                    <>
-                      <ShieldCheck className="w-5 h-5" />
-                      Complete Registration
-                    </>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {PAYMENTS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPaymentMethod(p.id)}
+                  className={cn(
+                    'py-2 px-2.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer text-center',
+                    paymentMethod === p.id
+                      ? 'border-rose-500 bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 ring-1 ring-rose-500/20'
+                      : 'border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-850/40 text-neutral-600 dark:text-neutral-300 hover:border-rose-300'
                   )}
-                </Button>
-                
-              </div>
-              
+                >
+                  {p.label}
+                </button>
+              ))}
             </div>
-          </div>
 
+            <label className="flex items-center justify-between gap-3 pt-2 border-t border-neutral-100 dark:border-neutral-800 cursor-pointer">
+              <div className="flex items-center gap-2">
+                <UserCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <div>
+                  <p className="text-xs font-bold text-neutral-900 dark:text-white">Check-in immediately</p>
+                  <p className="text-[10px] text-neutral-400">Mark attendee as entered at the gate</p>
+                </div>
+              </div>
+              <Switch checked={checkInNow} onCheckedChange={setCheckInNow} />
+            </label>
+          </div>
         </div>
-      </div>
+
+        {/* Right Column: Live Summary & Action */}
+        <div className="lg:col-span-5">
+          <div className="lg:sticky lg:top-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 sm:p-5 shadow-2xs space-y-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Order Summary</h3>
+
+            <div className="space-y-2">
+              <p className="font-bold text-sm text-neutral-900 dark:text-white line-clamp-1">{event?.title}</p>
+              {event?.startDate && (
+                <p className="flex items-center gap-1.5 text-xs text-neutral-500">
+                  <Calendar className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                  {new Date(event.startDate).toLocaleDateString('en-NG', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </p>
+              )}
+            </div>
+
+            <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3 space-y-2">
+              <div className="flex justify-between text-xs text-neutral-600 dark:text-neutral-300">
+                <span>{selectedTicketType?.name || 'Ticket'} × {qty}</span>
+                <span className="font-bold">{total === 0 ? 'Free' : `₦${total.toLocaleString()}`}</span>
+              </div>
+              <div className="flex justify-between text-xs text-neutral-500">
+                <span>Payment</span>
+                <span className="font-medium">{PAYMENTS.find((p) => p.id === paymentMethod)?.label}</span>
+              </div>
+              <div className="flex justify-between text-xs text-neutral-500">
+                <span>Gate status</span>
+                <span className={cn('font-medium', checkInNow ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500')}>
+                  {checkInNow ? 'Check-in on issue' : 'Unchecked'}
+                </span>
+              </div>
+            </div>
+
+            <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3 flex justify-between items-center">
+              <span className="text-xs font-bold text-neutral-900 dark:text-white">Total</span>
+              <span className="text-base sm:text-lg font-extrabold text-neutral-900 dark:text-white tabular-nums">
+                {total === 0 ? 'Free' : `₦${total.toLocaleString()}`}
+              </span>
+            </div>
+
+            <Button
+              type="button"
+              disabled={saving || !canSubmit || loadingEvent}
+              onClick={() => handleSubmit()}
+              className="w-full h-11 rounded-xl bg-rose-500 hover:bg-rose-600 text-white border-0 text-xs sm:text-sm font-bold shadow-2xs cursor-pointer disabled:opacity-50"
+            >
+              {saving ? 'Processing…' : checkInNow ? 'Issue Ticket & Check In' : 'Issue Ticket'}
+            </Button>
+          </div>
+        </div>
+      </form>
     </div>
   );
 };

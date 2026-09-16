@@ -7,13 +7,14 @@ const liveQueryOptions = {
   refetchOnMount: 'always' as const,
 };
 
-export function useMySupportTickets() {
+export function useMySupportTickets(enabled = true) {
   return useQuery({
     queryKey: queryKeys.support.myTickets(),
     queryFn: async () => {
       const res = await api.support.getMyTickets();
       return res.data;
     },
+    enabled,
     ...liveQueryOptions,
   });
 }
@@ -37,6 +38,8 @@ export function useCreateSupportTicket() {
       subject: string;
       body: string;
       category?: string;
+      contactEmail?: string;
+      contactName?: string;
     }) => api.support.createTicket(data),
     onSuccess: async (res) => {
       const ticket = res.data?.ticket;

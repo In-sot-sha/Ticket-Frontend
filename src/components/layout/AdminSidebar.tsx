@@ -9,9 +9,13 @@ import {
   CreditCard,
   MessageSquare,
   Ticket,
+  FolderKanban,
+  Calendar,
+  UserCog,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../context/AuthContext';
+import { useAdminStats } from '../../hooks/queries/useAdmin';
 import { cn } from '../../lib/utils';
 
 interface NavItem {
@@ -19,15 +23,19 @@ interface NavItem {
   icon: React.ElementType;
   href: string;
   exact: boolean;
+  badgeKey?: 'pendingOpsRequests' | 'openSupportTickets' | 'pendingHosts';
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { title: 'Overview',          icon: LayoutDashboard, href: '/admin',                   exact: true  },
-  { title: 'Transactions',      icon: CreditCard,      href: '/admin/transactions',      exact: true  },
-  { title: 'Tickets Audit',     icon: Ticket,          href: '/admin/tickets',           exact: true  },
-  { title: 'Organizations',     icon: Building2,       href: '/admin/organizations',     exact: true  },
-  { title: 'Help & Support',    icon: MessageSquare,   href: '/admin/support',           exact: true  },
-  { title: 'Users',             icon: Users,           href: '/admin/users',             exact: true  },
+  { title: 'Overview', icon: LayoutDashboard, href: '/admin', exact: true },
+  { title: 'Ops projects', icon: FolderKanban, href: '/admin/ops', exact: true, badgeKey: 'pendingOpsRequests' },
+  { title: 'Staff', icon: UserCog, href: '/admin/staff', exact: true },
+  { title: 'Events', icon: Calendar, href: '/admin/events', exact: true },
+  { title: 'Tickets', icon: Ticket, href: '/admin/tickets', exact: true },
+  { title: 'Organizations', icon: Building2, href: '/admin/organizations', exact: true, badgeKey: 'pendingHosts' },
+  { title: 'Transactions', icon: CreditCard, href: '/admin/transactions', exact: true },
+  { title: 'Users', icon: Users, href: '/admin/users', exact: true },
+  { title: 'Support', icon: MessageSquare, href: '/admin/support', exact: true, badgeKey: 'openSupportTickets' },
 ];
 
 const AdminSidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = ({
@@ -36,10 +44,16 @@ const AdminSidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = (
 }) => {
   const location = useLocation();
   const { user } = useAuth();
+  const { data: stats } = useAdminStats();
 
   const isActive = (item: NavItem) => {
     if (item.exact) return location.pathname === item.href;
     return location.pathname.startsWith(item.href);
+  };
+
+  const badgeFor = (item: NavItem) => {
+    if (!item.badgeKey || !stats) return 0;
+    return Number((stats as any)[item.badgeKey] || 0);
   };
 
   const initials = user
@@ -92,7 +106,11 @@ const AdminSidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = (
               return (
                 <li key={item.href}>
                   <Link
-                    to={item.href}
+                    to={
+                      item.href === '/admin/ops' && badgeFor(item) > 0
+                        ? '/admin/ops?status=REQUESTED'
+                        : item.href
+                    }
                     onClick={() => window.innerWidth < 768 && toggleSidebar()}
                     className={cn(
                       'group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
@@ -112,7 +130,12 @@ const AdminSidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = (
                       <Icon className="h-4 w-4" />
                     </span>
                     <span>{item.title}</span>
-                    {active && (
+                    {badgeFor(item) > 0 && (
+                      <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white min-w-[1.25rem] text-center">
+                        {badgeFor(item) > 99 ? '99+' : badgeFor(item)}
+                      </span>
+                    )}
+                    {active && badgeFor(item) === 0 && (
                       <span className="ml-auto h-1.5 w-1.5 rounded-full bg-rose-500" />
                     )}
                   </Link>

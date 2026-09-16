@@ -4,16 +4,21 @@ import {
   TrendingUp,
   Wallet,
   Percent,
-  Receipt,
   ChevronLeft,
   ChevronRight,
   Check,
   X,
-  Landmark,
-  User,
-  Clock
 } from 'lucide-react';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Skeleton } from '../../components/ui/skeleton';
+import { DataTable, DataTableSkeleton, type DataTableColumn } from '../../components/ui/data-table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui/select';
 import {
   useAdminTransactions,
   useAdminRevenue,
@@ -31,6 +36,10 @@ const AdminTransactionsPage = () => {
   const [status, setStatus] = useState<string>('all');
   const [page, setPage] = useState(1);
   const [payoutStatus, setPayoutStatus] = useState<string>('all');
+  const [resolveRef, setResolveRef] = useState('');
+  const [resolveBusy, setResolveBusy] = useState(false);
+  const [resolveResult, setResolveResult] = useState<any>(null);
+  const [resolveError, setResolveError] = useState('');
 
   const { data: revenue, isLoading: revenueLoading } = useAdminRevenue();
   const { data, isLoading: transactionsLoading } = useAdminTransactions({
@@ -44,6 +53,23 @@ const AdminTransactionsPage = () => {
 
   const approvePayoutMutation = useApprovePayout();
   const rejectPayoutMutation = useRejectPayout();
+
+  const handleResolvePayment = async () => {
+    const reference = resolveRef.trim();
+    if (!reference) return;
+    setResolveBusy(true);
+    setResolveError('');
+    setResolveResult(null);
+    try {
+      const { api } = await import('../../services/api');
+      const res = await api.admin.resolvePayment(reference);
+      setResolveResult(res.data);
+    } catch (err: any) {
+      setResolveError(err.response?.data?.message || err.message || 'Resolve failed');
+    } finally {
+      setResolveBusy(false);
+    }
+  };
 
   const handleApprove = async (id: number) => {
     if (!window.confirm('Are you sure you want to approve this payout? This will trigger the Paystack Transfer API to send funds directly to the organizer\'s bank account.')) {
@@ -84,50 +110,92 @@ const AdminTransactionsPage = () => {
 
   return (
     <div className="py-4 px-2 sm:px-2 max-w-7xl mx-auto text-neutral-900 dark:text-neutral-100 pb-6">
-      <div className="mb-6 border-b border-neutral-100 dark:border-neutral-900 pb-4">
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-          Transactions & <span className="text-rose-500">Revenue</span>
-        </h1>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-          Monitor payments, platform revenue, and process organizer payout requests via Paystack.
-        </p>
-      </div>
+      <PageHeader
+        title="Transactions &"
+        accent="Revenue"
+        description="Monitor payments, platform revenue, and process organizer payout requests via Paystack."
+        actions={
+          <Select
+            value={activeTab}
+            onValueChange={(v) => setActiveTab(v as 'transactions' | 'payouts')}
+          >
+            <SelectTrigger className="w-[200px] h-10 rounded-xl">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="transactions">Transactions & revenue</SelectItem>
+              <SelectItem value="payouts">
+                Payout requests
+                {payouts.filter((p: any) => p.status === 'PENDING').length
+                  ? ` (${payouts.filter((p: any) => p.status === 'PENDING').length})`
+                  : ''}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        }
+      />
 
-      {/* Tabs */}
-      <div className="flex border-b border-neutral-200 dark:border-neutral-800 mb-6">
-        <button
-          onClick={() => setActiveTab('transactions')}
-          className={cn(
-            "py-2.5 px-4 font-bold text-sm border-b-2 transition-all",
-            activeTab === 'transactions'
-              ? "border-rose-500 text-rose-500"
-              : "border-transparent text-neutral-500 hover:text-neutral-700"
-          )}
-        >
-          Transactions & Revenue
-        </button>
-        <button
-          onClick={() => setActiveTab('payouts')}
-          className={cn(
-            "py-2.5 px-4 font-bold text-sm border-b-2 transition-all flex items-center gap-1.5",
-            activeTab === 'payouts'
-              ? "border-rose-500 text-rose-500"
-              : "border-transparent text-neutral-500 hover:text-neutral-700"
-          )}
-        >
-          Payout Requests
-          {payouts.filter((p: any) => p.status === 'PENDING').length > 0 && (
-            <span className="bg-rose-500 text-white rounded-full text-[10px] px-1.5 py-0.5 font-extrabold">
-              {payouts.filter((p: any) => p.status === 'PENDING').length}
-            </span>
-          )}
-        </button>
+      <div className="mb-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
+        <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">
+          Resolve payment
+        </p>
+        <p className="text-[11px] text-neutral-500 mb-3">
+          Enter a Paystack reference to verify with Paystack and fulfill missing tickets / vendor apps.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            value={resolveRef}
+            onChange={(e) => setResolveRef(e.target.value)}
+            placeholder="EVT_… or VND_…"
+            className="flex-1 h-10 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950 px-3 text-sm"
+          />
+          <button
+            type="button"
+            disabled={resolveBusy || !resolveRef.trim()}
+            onClick={handleResolvePayment}
+            className="h-10 rounded-xl bg-rose-500 px-4 text-xs font-bold text-white hover:bg-rose-600 disabled:opacity-40"
+          >
+            {resolveBusy ? 'Checking…' : 'Verify & fulfill'}
+          </button>
+        </div>
+        {resolveError && (
+          <p className="mt-2 text-xs text-red-600">{resolveError}</p>
+        )}
+        {resolveResult && (
+          <pre className="mt-3 max-h-48 overflow-auto rounded-lg bg-neutral-50 dark:bg-neutral-950 p-3 text-[10px] text-neutral-700 dark:text-neutral-300">
+            {JSON.stringify(resolveResult, null, 2)}
+          </pre>
+        )}
       </div>
 
       {activeTab === 'transactions' ? (
         <>
           {revenueLoading ? (
-            <div className="flex justify-center py-12"><Spinner /></div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
+              {[
+                { label: 'Platform earnings', icon: Wallet },
+                { label: 'Total GMV', icon: TrendingUp },
+                { label: 'Processing fees', icon: Percent },
+                { label: 'Organizer share', icon: CreditCard },
+              ].map((card) => {
+                const Icon = card.icon;
+                return (
+                  <div
+                    key={card.label}
+                    className="border border-neutral-150 dark:border-neutral-900 rounded-2xl p-3 sm:p-5 bg-white dark:bg-neutral-900 shadow-sm"
+                  >
+                    <div className="flex justify-between items-center text-neutral-400 mb-1.5">
+                      <span className="text-[9px] sm:text-xs font-bold uppercase tracking-wider">
+                        {card.label}
+                      </span>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <Skeleton className="h-7 w-24 rounded-lg" />
+                    <Skeleton className="h-3 w-28 mt-2 rounded-md" />
+                  </div>
+                );
+              })}
+            </div>
           ) : summary && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
               {[
@@ -169,76 +237,95 @@ const AdminTransactionsPage = () => {
             </div>
           )}
 
-          <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
-            {STATUS_FILTERS.map((f) => (
-              <button
-                key={f}
-                onClick={() => { setStatus(f); setPage(1); }}
-                className={cn(
-                  'px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors',
-                  status === f ? 'bg-rose-500 text-white' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600'
-                )}
-              >
-                {f === 'all' ? 'All' : f}
-              </button>
-            ))}
-          </div>
-
           {transactionsLoading ? (
-            <div className="flex justify-center py-16"><Spinner /></div>
+            <DataTableSkeleton rows={6} columns={5} />
           ) : (
-            <div className="border border-neutral-100 dark:border-neutral-800 rounded-2xl bg-white dark:bg-neutral-900 overflow-hidden">
-              <div className="hidden md:grid grid-cols-12 gap-3 px-5 py-3 bg-neutral-50 dark:bg-neutral-800/50 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                <div className="col-span-1">#</div>
-                <div className="col-span-2">Type</div>
-                <div className="col-span-3">Event / Buyer</div>
-                <div className="col-span-2">Gross</div>
-                <div className="col-span-2">Platform fee</div>
-                <div className="col-span-2">Net to host / Status</div>
-              </div>
-              <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                {transactions.length === 0 ? (
-                  <p className="px-5 py-12 text-sm text-neutral-500 text-center">No transactions yet</p>
-                ) : (
-                  transactions.map((tx: any) => (
-                    <div key={tx.id} className="px-5 py-4 grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-3 md:items-center text-sm">
-                      <div className="md:col-span-1 flex items-center gap-2 text-neutral-400">
-                        <Receipt className="h-4 w-4 md:hidden" />
-                        #{tx.txId}
-                      </div>
-                      <div className="md:col-span-2">
-                        <span className={cn(
-                          "px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase",
-                          tx.type === 'VENDOR' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-455'
-                        )}>
-                          {tx.type}
-                        </span>
-                      </div>
-                      <div className="md:col-span-3 min-w-0">
-                        <p className="font-bold truncate">{tx.event?.title ?? '—'}</p>
+            <>
+              <DataTable
+                columns={[
+                  {
+                    id: 'id',
+                    header: '#',
+                    cell: (tx) => <span className="text-neutral-400 text-xs">#{tx.txId}</span>,
+                  },
+                  {
+                    id: 'type',
+                    header: 'Type',
+                    cell: (tx) => (
+                      <span className={cn(
+                        'px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase',
+                        tx.type === 'VENDOR'
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                          : 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400'
+                      )}>
+                        {tx.type}
+                      </span>
+                    ),
+                  },
+                  {
+                    id: 'event',
+                    header: 'Event / Buyer',
+                    cell: (tx) => (
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm truncate">{tx.event?.title ?? '—'}</p>
                         <p className="text-xs text-neutral-500 truncate">
                           {tx.buyer?.name ?? 'Guest'} · {tx.detail}
                         </p>
                       </div>
-                      <div className="md:col-span-2 font-semibold">{formatNaira(tx.totalAmount)}</div>
-                      <div className="md:col-span-2 font-semibold text-rose-500">{formatNaira(tx.platformFee)}</div>
-                      <div className="md:col-span-2 flex flex-col gap-1">
-                        <span className="font-semibold text-neutral-600 dark:text-neutral-300">{formatNaira(tx.netAmount)}</span>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className={cn('text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full w-fit', statusBadge(tx.status))}>
-                            {tx.status}
-                          </span>
-                          <span className="text-[9px] text-neutral-400">
-                            {new Date(tx.createdAt).toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </span>
-                        </div>
+                    ),
+                  },
+                  {
+                    id: 'gross',
+                    header: 'Gross',
+                    cell: (tx) => <span className="font-semibold text-sm">{formatNaira(tx.totalAmount)}</span>,
+                  },
+                  {
+                    id: 'fee',
+                    header: 'Platform fee',
+                    cell: (tx) => <span className="font-semibold text-sm text-rose-500">{formatNaira(tx.platformFee)}</span>,
+                  },
+                  {
+                    id: 'net',
+                    header: 'Net / Status',
+                    cell: (tx) => (
+                      <div className="flex flex-col gap-1">
+                        <span className="font-semibold text-sm">{formatNaira(tx.netAmount)}</span>
+                        <span className={cn('text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full w-fit', statusBadge(tx.status))}>
+                          {tx.status}
+                        </span>
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
+                    ),
+                  },
+                ] as DataTableColumn<any>[]}
+                rows={transactions}
+                getRowId={(tx) => tx.id}
+                pageSize={Math.max(transactions.length, 1)}
+                hideSearch
+                toolbar={
+                  <Select
+                    value={status}
+                    onValueChange={(v) => {
+                      setStatus(v);
+                      setPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="w-[150px] h-10 rounded-xl">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATUS_FILTERS.map((f) => (
+                        <SelectItem key={f} value={f}>
+                          {f === 'all' ? 'All statuses' : f}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                }
+                emptyTitle="No transactions yet"
+                emptyDescription="Paid orders will show up here."
+              />
               {pagination && pagination.pages > 1 && (
-                <div className="flex items-center justify-between px-5 py-3 border-t border-neutral-100 dark:border-neutral-800">
+                <div className="flex items-center justify-between px-1 py-3">
                   <button
                     disabled={page <= 1}
                     onClick={() => setPage((p) => p - 1)}
@@ -256,101 +343,103 @@ const AdminTransactionsPage = () => {
                   </button>
                 </div>
               )}
-            </div>
+            </>
           )}
         </>
       ) : (
         <>
-          <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
-            {STATUS_FILTERS.map((f) => (
-              <button
-                key={f}
-                onClick={() => setPayoutStatus(f)}
-                className={cn(
-                  'px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors',
-                  payoutStatus === f ? 'bg-rose-500 text-white' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600'
-                )}
-              >
-                {f === 'all' ? 'All' : f}
-              </button>
-            ))}
-          </div>
-
           {payoutsLoading ? (
-            <div className="flex justify-center py-16"><Spinner /></div>
+            <DataTableSkeleton rows={6} columns={5} />
           ) : (
-            <div className="border border-neutral-100 dark:border-neutral-800 rounded-2xl bg-white dark:bg-neutral-900 overflow-hidden">
-              <div className="hidden md:grid grid-cols-12 gap-3 px-5 py-3 bg-neutral-50 dark:bg-neutral-800/50 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                <div className="col-span-1">Ref</div>
-                <div className="col-span-3">Organization / Host</div>
-                <div className="col-span-2">Amount</div>
-                <div className="col-span-3">Bank Details</div>
-                <div className="col-span-3 text-right">Actions / Status</div>
-              </div>
-              <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                {payouts.length === 0 ? (
-                  <p className="px-5 py-12 text-sm text-neutral-500 text-center">No payouts found</p>
-                ) : (
-                  payouts.map((p: any) => (
-                    <div key={p.id} className="px-5 py-4 grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-3 md:items-center text-sm">
-                      <div className="md:col-span-1 text-xs text-neutral-400 font-mono">
-                        {p.reference || `#${p.id}`}
-                      </div>
-                      <div className="md:col-span-3">
-                        <p className="font-bold">{p.organization?.name ?? 'Unknown Organization'}</p>
-                        {p.organization?.owner && (
-                          <p className="text-xs text-neutral-500 flex items-center gap-1 mt-0.5">
-                            <User className="h-3 w-3 shrink-0" />
-                            {p.organization.owner.firstName} {p.organization.owner.lastName}
-                          </p>
-                        )}
-                      </div>
-                      <div className="md:col-span-2 font-semibold text-rose-500 text-base">
-                        {formatNaira(p.amount)}
-                      </div>
-                      <div className="md:col-span-3">
-                        <div className="flex items-start gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
-                          <Landmark className="h-3.5 w-3.5 mt-0.5 text-neutral-400 shrink-0" />
-                          <div>
-                            <p className="font-semibold text-neutral-800 dark:text-neutral-200">{p.bankName}</p>
-                            <p className="font-mono mt-0.5">{p.accountNumber}</p>
-                            <p className="text-[10px] text-neutral-500 mt-0.5 italic truncate max-w-[180px]" title={p.accountName}>{p.accountName}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="md:col-span-3 flex flex-col md:items-end gap-2">
-                        {p.status === 'PENDING' ? (
-                          <div className="flex items-center gap-2">
-                            <button
-                              disabled={approvePayoutMutation.isPending || rejectPayoutMutation.isPending}
-                              onClick={() => handleApprove(p.id)}
-                              className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm active:scale-95 disabled:opacity-50 transition-all"
-                            >
-                              <Check className="h-3.5 w-3.5" /> Approve
-                            </button>
-                            <button
-                              disabled={approvePayoutMutation.isPending || rejectPayoutMutation.isPending}
-                              onClick={() => handleReject(p.id)}
-                              className="px-3 py-1.5 bg-rose-55 text-rose-600 hover:bg-rose-100 rounded-lg text-xs font-bold flex items-center gap-1 active:scale-95 disabled:opacity-50 transition-all"
-                            >
-                              <X className="h-3.5 w-3.5" /> Reject
-                            </button>
-                          </div>
-                        ) : (
-                          <span className={cn('text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full w-fit', statusBadge(p.status))}>
-                            {p.status}
-                          </span>
-                        )}
-                        <span className="text-[10px] text-neutral-400 flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {new Date(p.createdAt).toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
+            <DataTable
+              columns={[
+                {
+                  id: 'ref',
+                  header: 'Ref',
+                  cell: (p) => (
+                    <span className="text-xs text-neutral-400 font-mono">{p.reference || `#${p.id}`}</span>
+                  ),
+                },
+                {
+                  id: 'org',
+                  header: 'Organization',
+                  cell: (p) => (
+                    <div>
+                      <p className="font-bold text-sm">{p.organization?.name ?? 'Unknown'}</p>
+                      {p.organization?.owner && (
+                        <p className="text-xs text-neutral-500">
+                          {p.organization.owner.firstName} {p.organization.owner.lastName}
+                        </p>
+                      )}
                     </div>
-                  ))
-                )}
-              </div>
-            </div>
+                  ),
+                },
+                {
+                  id: 'amount',
+                  header: 'Amount',
+                  cell: (p) => (
+                    <span className="font-semibold text-rose-500">{formatNaira(p.amount)}</span>
+                  ),
+                },
+                {
+                  id: 'bank',
+                  header: 'Bank',
+                  cell: (p) => (
+                    <div className="text-xs">
+                      <p className="font-semibold">{p.bankName}</p>
+                      <p className="font-mono text-neutral-500">{p.accountNumber}</p>
+                    </div>
+                  ),
+                },
+                {
+                  id: 'actions',
+                  header: 'Actions',
+                  cell: (p) =>
+                    p.status === 'PENDING' ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          disabled={approvePayoutMutation.isPending || rejectPayoutMutation.isPending}
+                          onClick={() => handleApprove(p.id)}
+                          className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold flex items-center gap-1"
+                        >
+                          <Check className="h-3.5 w-3.5" /> Approve
+                        </button>
+                        <button
+                          disabled={approvePayoutMutation.isPending || rejectPayoutMutation.isPending}
+                          onClick={() => handleReject(p.id)}
+                          className="px-3 py-1.5 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold flex items-center gap-1"
+                        >
+                          <X className="h-3.5 w-3.5" /> Reject
+                        </button>
+                      </div>
+                    ) : (
+                      <span className={cn('text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full', statusBadge(p.status))}>
+                        {p.status}
+                      </span>
+                    ),
+                },
+              ] as DataTableColumn<any>[]}
+              rows={payouts}
+              getRowId={(p) => p.id}
+              pageSize={12}
+              hideSearch
+              toolbar={
+                <Select value={payoutStatus} onValueChange={setPayoutStatus}>
+                  <SelectTrigger className="w-[150px] h-10 rounded-xl">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_FILTERS.map((f) => (
+                      <SelectItem key={f} value={f}>
+                        {f === 'all' ? 'All statuses' : f}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              }
+              emptyTitle="No payouts found"
+              emptyDescription="Organizer payout requests will appear here."
+            />
           )}
         </>
       )}

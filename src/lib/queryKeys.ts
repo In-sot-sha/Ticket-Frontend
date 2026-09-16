@@ -82,6 +82,20 @@ export const queryKeys = {
       [...queryKeys.admin.all, 'support-tickets', status ?? 'all'] as const,
     supportTicket: (id: number) =>
       [...queryKeys.admin.all, 'support-ticket', id] as const,
+    staff: () => [...queryKeys.admin.all, 'staff'] as const,
+    opsProjects: (status?: string) =>
+      [...queryKeys.admin.all, 'ops-projects', status ?? 'all'] as const,
+    events: (search?: string) =>
+      [...queryKeys.admin.all, 'events', search ?? ''] as const,
+  },
+
+  staff: {
+    all: ['staff'] as const,
+    home: () => [...queryKeys.staff.all, 'home'] as const,
+    supportTickets: (status?: string) =>
+      [...queryKeys.staff.all, 'support-tickets', status ?? 'all'] as const,
+    supportTicket: (id: number) =>
+      [...queryKeys.staff.all, 'support-ticket', id] as const,
   },
 
   support: {

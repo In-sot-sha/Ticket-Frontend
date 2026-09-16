@@ -15,7 +15,8 @@ import {
   Percent,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Skeleton } from '../../components/ui/skeleton';
 import { CustomAlertDialog } from '../../components/ui/CustomAlertDialog';
 import { buildSocialUrl, hasAnySocial, parseOrgSocials } from '../../lib/orgSocials';
 import {
@@ -26,6 +27,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui/select';
 import {
   useHostApplications,
   useVerifyHost,
@@ -110,9 +118,8 @@ const OrganizationsPage = () => {
     id: null,
   });
   
-  // Custom fee states
+  // Fee absorb toggle (platform rate is fixed: 6% · ₦100–₦2,000)
   const [editingFee, setEditingFee] = useState(false);
-  const [feePercent, setFeePercent] = useState<number>(5.0);
   const [absorbFee, setAbsorbFee] = useState<boolean>(false);
 
   const [actionError, setActionError] = useState('');
@@ -145,7 +152,6 @@ const OrganizationsPage = () => {
   // Sync fee inputs when organization selection changes
   useEffect(() => {
     if (selected) {
-      setFeePercent(selected.serviceFeePercent ?? 5.0);
       setAbsorbFee(selected.absorbFee ?? false);
       setEditingFee(false);
     }
@@ -208,12 +214,11 @@ const OrganizationsPage = () => {
     try {
       await updateFeeMutation.mutateAsync({
         id: selected.id,
-        serviceFeePercent: Number(feePercent),
         absorbFee,
       });
       await refreshList();
       setEditingFee(false);
-      setActionSuccess('Organization service fee settings updated successfully.');
+      setActionSuccess('Organization fee settings updated successfully.');
     } catch (err: any) {
       setActionError(err.response?.data?.message || 'Failed to update fee settings.');
     }
@@ -230,14 +235,33 @@ const OrganizationsPage = () => {
 
   return (
     <div className="py-4 px-2 sm:px-2 max-w-7xl mx-auto text-neutral-900 dark:text-neutral-100 pb-6">
-      <div className="mb-6 border-b border-neutral-100 dark:border-neutral-900 pb-4">
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-          Organization <span className="text-rose-500">Management</span>
-        </h1>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-          Verify host organizations, manage variable ticket fees, and audit details.
-        </p>
-      </div>
+      <PageHeader
+        title="Organization"
+        accent="Management"
+        description="Verify host organizations, manage fee absorb settings, and audit details."
+        actions={
+          <Select
+            value={filter}
+            onValueChange={(v) => {
+              setFilter(v as FilterStatus);
+              setSelectedId(null);
+              setActionError('');
+              setActionSuccess('');
+            }}
+          >
+            <SelectTrigger className="w-[180px] h-10 rounded-xl">
+              <SelectValue placeholder="Filter" />
+            </SelectTrigger>
+            <SelectContent>
+              {filters.map((f) => (
+                <SelectItem key={f.key} value={f.key}>
+                  {f.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        }
+      />
 
       {actionError && (
         <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/30 text-red-600 text-sm font-medium">
@@ -250,32 +274,8 @@ const OrganizationsPage = () => {
         </div>
       )}
 
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
-        {filters.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => {
-              setFilter(f.key);
-              setSelectedId(null);
-              setActionError('');
-              setActionSuccess('');
-            }}
-            className={cn(
-              'px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer',
-              filter === f.key
-                ? 'bg-rose-500 text-white'
-                : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
       {isLoading || (isFetching && applications.length === 0) ? (
-        <div className="flex items-center justify-center min-h-[40vh]">
-          <Spinner />
-        </div>
+        <OrganizationsBodySkeleton />
       ) : applications.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl bg-neutral-50/20 dark:bg-neutral-900/5">
           <Building2 className="h-12 w-12 text-neutral-300 mx-auto mb-3" />
@@ -320,7 +320,7 @@ const OrganizationsPage = () => {
                       </div>
                     </div>
                     <span className="flex items-center gap-1 mt-0.5 shrink-0 text-[10px] font-bold text-neutral-450 uppercase">
-                      Fee: {org.serviceFeePercent ?? 5}%
+                      {org.absorbFee ? 'Absorbs fee' : 'Buyer pays fee'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-850 text-[10px] text-neutral-400">
@@ -373,35 +373,22 @@ const OrganizationsPage = () => {
                   </div>
                 )}
 
-                {/* VARIABLE SERVICE CHARGES BLOCK FOR VERIFIED ORGANIZATIONS */}
+                {/* FEE SETTINGS FOR VERIFIED ORGANIZATIONS */}
                 {selectedStatus === 'verified' && (
                   <div className="border border-neutral-200 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/10 rounded-xl p-4 space-y-3">
                     <div className="flex items-center gap-2 border-b border-neutral-150 dark:border-neutral-805 pb-2">
                       <Percent className="h-4 w-4 text-rose-500" />
                       <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
-                        Variable Service Charges
+                        Checkout fees
                       </h4>
                     </div>
 
                     {editingFee ? (
                       <div className="space-y-4 pt-1">
-                        <div>
-                          <label className="block text-xs font-bold text-neutral-450 uppercase tracking-wider mb-1.5">
-                            Ticket Service Charge Fee (%)
-                          </label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="0.1"
-                              value={feePercent}
-                              onChange={(e) => setFeePercent(parseFloat(e.target.value) || 0)}
-                              className="w-24 px-3 py-1.5 text-sm rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-rose-500/25"
-                            />
-                            <span className="text-xs text-neutral-500">% of ticket price</span>
-                          </div>
-                        </div>
+                        <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                          Platform fee is fixed at <strong>6%</strong> (min ₦100 / max ₦2,000 per ticket or booth),
+                          plus payment processing. Buyers pay a bundled Fee unless the host absorbs fees.
+                        </p>
 
                         <div className="flex items-center gap-2">
                           <input
@@ -412,7 +399,7 @@ const OrganizationsPage = () => {
                             className="rounded text-rose-500 focus:ring-rose-500 h-4 w-4"
                           />
                           <label htmlFor="absorbFeeInput" className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 cursor-pointer">
-                            Absorb Service Fee (Host pays instead of the buyer)
+                            Absorb fees (buyers pay ticket/booth price only)
                           </label>
                         </div>
 
@@ -426,7 +413,6 @@ const OrganizationsPage = () => {
                           </button>
                           <button
                             onClick={() => {
-                              setFeePercent(selected.serviceFeePercent ?? 5.0);
                               setAbsorbFee(selected.absorbFee ?? false);
                               setEditingFee(false);
                             }}
@@ -440,17 +426,19 @@ const OrganizationsPage = () => {
                       <div className="flex items-center justify-between pt-1">
                         <div>
                           <p className="text-sm font-bold text-neutral-900 dark:text-white">
-                            {selected.serviceFeePercent ?? 5.0}% Service Fee
+                            6% · min ₦100 · max ₦2,000
                           </p>
                           <p className="text-[11px] text-neutral-500">
-                            {selected.absorbFee ? 'Absorbed by organizer' : 'Paid by buyer at checkout'}
+                            {selected.absorbFee
+                              ? 'Absorbed by organizer — buyers pay face price only'
+                              : 'Buyer pays Fee at checkout (platform + processing)'}
                           </p>
                         </div>
                         <button
                           onClick={() => setEditingFee(true)}
                           className="px-3 py-1.5 text-xs font-bold border border-neutral-250 dark:border-neutral-700 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 cursor-pointer"
                         >
-                          Modify Rates
+                          Edit absorb
                         </button>
                       </div>
                     )}
@@ -641,6 +629,45 @@ function DetailRow({
         ) : (
           <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 truncate">{value}</p>
         )}
+      </div>
+    </div>
+  );
+}
+
+function OrganizationsBodySkeleton() {
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6">
+      <div className="lg:col-span-2 space-y-2">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div
+            key={i}
+            className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 py-3.5 space-y-2"
+          >
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-10 rounded-xl shrink-0" />
+              <div className="flex-1 space-y-1.5 min-w-0">
+                <Skeleton className="h-4 w-2/3 rounded-md" />
+                <Skeleton className="h-3 w-1/2 rounded-md" />
+              </div>
+              <Skeleton className="h-5 w-16 rounded-full shrink-0" />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="lg:col-span-3 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 space-y-4 min-h-[50vh]">
+        <div className="flex items-start gap-3">
+          <Skeleton className="h-12 w-12 rounded-2xl shrink-0" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-6 w-1/2 rounded-lg" />
+            <Skeleton className="h-3 w-1/3 rounded-md" />
+          </div>
+        </div>
+        <Skeleton className="h-20 w-full rounded-xl" />
+        <div className="grid grid-cols-2 gap-3">
+          <Skeleton className="h-16 rounded-xl" />
+          <Skeleton className="h-16 rounded-xl" />
+        </div>
+        <Skeleton className="h-10 w-36 rounded-xl" />
       </div>
     </div>
   );
