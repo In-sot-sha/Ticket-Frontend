@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { Download, Loader2 } from 'lucide-react';
 import EventTicketCard from './tickets/EventTicketCard';
+import { downloadElementPng } from '../lib/capturePng';
+import { useIsMobile } from '../hooks/use-mobile';
+import { parseTicketStyle } from '../data/ticketDesigns';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +45,8 @@ export interface TicketCardEventMeta {
   accentColor?: string | null;
   totalAmount?: number;
   quantity?: number;
+  organizerName?: string | null;
+  organizerLogo?: string | null;
 }
 
 export interface TicketCardProps {
@@ -54,6 +59,8 @@ export interface TicketCardProps {
   showDownload?: boolean;
   /** Smaller pass for confirmation and other tight layouts */
   compact?: boolean;
+  /** Always use the landscape pass (confirmation + PNG capture) */
+  forceLandscape?: boolean;
   /** Override the DOM id prefix (default: "ticket-card") */
   idPrefix?: string;
 }
@@ -112,19 +119,7 @@ export function getTicketSerial(ticket: TicketCardTicket, index: number, eventId
 export async function downloadTicketCard(elementId: string, filename: string): Promise<void> {
   const element = document.getElementById(elementId);
   if (!element) throw new Error('Ticket element not found');
-
-  const html2canvas = (await import('html2canvas')).default;
-  const canvas = await html2canvas(element, {
-    scale: 2,
-    useCORS: true,
-    logging: false,
-    backgroundColor: '#ffffff',
-  });
-
-  const link = document.createElement('a');
-  link.href = canvas.toDataURL('image/png');
-  link.download = filename;
-  link.click();
+  await downloadElementPng(element, filename, { backgroundColor: '#ffffff', scale: 2 });
 }
 
 /** Shared Save-as-PNG button with loading state */
@@ -182,6 +177,7 @@ const TicketCard: React.FC<TicketCardProps> = ({
   eventMeta = {},
   showDownload = true,
   compact = false,
+  forceLandscape = false,
   idPrefix = 'ticket-card',
 }) => {
   const eventName = eventMeta.eventName ?? ticket.event?.title ?? 'Event';
@@ -192,31 +188,52 @@ const TicketCard: React.FC<TicketCardProps> = ({
 
   const typeName = ticket.ticketType?.name ?? eventMeta.ticketType ?? 'General Admission';
   const serial = getTicketSerial(ticket, index, eventMeta.eventId);
-  const qrValue = ticket.qrCode || serial;
+  // Only the DB qrCode opens the gate. Never fall back to the display serial
+  // (TKT-{eventId}-{ticketId}) — that would let someone mint a working QR from a photo.
+  const qrValue = ticket.qrCode || 'preview-ticket';
   const cardId = `${idPrefix}-${serial}`;
+  const isMobile = useIsMobile();
+  const layout = parseTicketStyle(ticket.ticketType?.ticketStyle ?? eventMeta.ticketStyle).layout;
+  const keepLandscape = layout === 'stub' || layout === 'folio';
+  const captureLandscape = forceLandscape || keepLandscape || !isMobile;
+
+  const shared = {
+    eventName,
+    eventDate,
+    eventTime: eventTime || undefined,
+    eventLocation: eventLoc,
+    eventImageUrl: bannerImg || undefined,
+    organizerName: eventMeta.organizerName,
+    organizerLogo: eventMeta.organizerLogo,
+    qrValue,
+    ticketType: {
+      name: typeName,
+      ticketStyle: ticket.ticketType?.ticketStyle ?? eventMeta.ticketStyle,
+      accentColor: ticket.ticketType?.accentColor ?? eventMeta.accentColor,
+      badgeText: ticket.ticketType?.badgeText || typeName,
+      ticketHeadline: ticket.ticketType?.ticketHeadline,
+      venueLabel: ticket.ticketType?.venueLabel,
+      ticketSublabel: ticket.ticketType?.ticketSublabel,
+    },
+  };
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-2.5 sm:gap-3">
       <div className={compact ? 'mx-auto w-full min-w-0 max-w-md' : 'mx-auto w-full min-w-0 max-w-xl md:max-w-none'}>
+        <EventTicketCard compact={compact} forceLandscape={forceLandscape || keepLandscape} {...shared} />
+      </div>
+
+      <div
+        className={`pointer-events-none fixed left-[-10000px] top-0 ${
+          captureLandscape ? 'w-[840px]' : 'w-[400px]'
+        }`}
+        aria-hidden
+      >
         <EventTicketCard
-          compact={compact}
           id={cardId}
-          eventName={eventName}
-          eventDate={eventDate}
-          eventTime={eventTime || undefined}
-          eventLocation={eventLoc}
-          eventImageUrl={bannerImg || undefined}
-          ticketSerial={serial}
-          qrValue={qrValue}
-          ticketType={{
-            name: typeName,
-            ticketStyle: ticket.ticketType?.ticketStyle ?? eventMeta.ticketStyle,
-            accentColor: ticket.ticketType?.accentColor ?? eventMeta.accentColor,
-            badgeText: ticket.ticketType?.badgeText || typeName,
-            ticketHeadline: ticket.ticketType?.ticketHeadline,
-            venueLabel: ticket.ticketType?.venueLabel,
-            ticketSublabel: ticket.ticketType?.ticketSublabel,
-          }}
+          compact={false}
+          forceLandscape={captureLandscape}
+          {...shared}
         />
       </div>
 

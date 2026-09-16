@@ -73,6 +73,8 @@ const BookingSuccessPage = () => {
           eventTime: cachedOrder.eventTime,
           eventLocation: cachedOrder.eventLocation,
           eventImageUrl: cachedOrder.eventImageUrl,
+          organizerName: cachedOrder.organizerName || null,
+          organizerLogo: cachedOrder.organizerLogo || null,
           ticketType: firstType?.name || 'General Admission',
           ticketStyle: firstType?.ticketStyle,
           accentColor: firstType?.accentColor,
