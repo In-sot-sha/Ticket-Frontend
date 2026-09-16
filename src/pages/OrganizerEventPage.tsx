@@ -41,6 +41,7 @@ const OrganizerEventPage: React.FC = () => {
   // Event QR modal state
   const [showQrModal, setShowQrModal] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [copiedQr, setCopiedQr] = useState(false);
 
   useEffect(() => {
     if (!eventParam) return;
@@ -71,6 +72,7 @@ const OrganizerEventPage: React.FC = () => {
   const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(fullPublicUrl)}`;
 
   const [downloadingQr, setDownloadingQr] = useState(false);
+  const [sharingQr, setSharingQr] = useState(false);
 
   const copyPublicUrl = async () => {
     try {
@@ -102,7 +104,7 @@ const OrganizerEventPage: React.FC = () => {
       setDownloadingQr(false);
     }
   };
-  const handleShareEvent = async () => {
+  const handleShareLink = async () => {
     if (navigator.share) {
       try {
         await navigator.share({
@@ -111,13 +113,49 @@ const OrganizerEventPage: React.FC = () => {
           url: fullPublicUrl,
         });
         return;
-      } catch {
-        // user cancelled or share failed
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
       }
     }
-    // Fallback: WhatsApp share
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Check out ${event?.title || 'this event'} on PartyStorm: ${fullPublicUrl}`)}`;
     window.open(whatsappUrl, '_blank');
+  };
+
+  const handleShareQr = async () => {
+    const filename = `event_qr_${event?.slug || event?.id}.png`;
+    setSharingQr(true);
+    try {
+      const response = await fetch(qrCodeImageUrl);
+      const blob = await response.blob();
+      const file = new File([blob], filename, { type: blob.type || 'image/png' });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: event?.title || 'Event QR',
+          text: `Scan to get tickets for ${event?.title || 'this event'}`,
+          files: [file],
+        });
+        return;
+      }
+      if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+        await navigator.clipboard.write([new ClipboardItem({ [blob.type || 'image/png']: blob })]);
+        setCopiedQr(true);
+        setTimeout(() => setCopiedQr(false), 2000);
+        return;
+      }
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return;
+      window.open(qrCodeImageUrl, '_blank');
+    } finally {
+      setSharingQr(false);
+    }
   };
 
   if (loading) {
@@ -172,7 +210,6 @@ const OrganizerEventPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* Event QR Code for other people to scan */}
           <Button
             type="button"
             variant="outline"
@@ -182,6 +219,16 @@ const OrganizerEventPage: React.FC = () => {
           >
             <QrCode className="h-3.5 w-3.5 sm:mr-1 text-rose-500" />
             <span className="hidden sm:inline">Event QR</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleShareLink}
+            className="rounded-lg text-xs px-2.5 h-8 border-neutral-200 dark:border-neutral-700 hover:border-rose-400 hover:text-rose-500 cursor-pointer"
+          >
+            <Share2 className="h-3.5 w-3.5 sm:mr-1 text-rose-500" />
+            <span className="hidden sm:inline">Share</span>
           </Button>
         </div>
       </div>
@@ -325,11 +372,18 @@ const OrganizerEventPage: React.FC = () => {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={handleShareEvent}
+                disabled={sharingQr}
+                onClick={handleShareQr}
                 className="flex-1 rounded-xl text-xs font-semibold h-10 gap-1.5 border-neutral-200 dark:border-neutral-700 hover:border-rose-400 hover:text-rose-500 cursor-pointer"
               >
-                <Share2 className="h-3.5 w-3.5 text-rose-500" />
-                Share
+                {sharingQr ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-500" />
+                ) : copiedQr ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-500" />
+                ) : (
+                  <Share2 className="h-3.5 w-3.5 text-rose-500" />
+                )}
+                {copiedQr ? 'Copied' : 'Share'}
               </Button>
 
               <Button
@@ -340,7 +394,7 @@ const OrganizerEventPage: React.FC = () => {
                 className="flex-1 rounded-xl text-xs font-semibold h-10 gap-1.5 border-neutral-200 dark:border-neutral-700 cursor-pointer"
               >
                 {copiedUrl ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                {copiedUrl ? 'Copied' : 'Copy'}
+                {copiedUrl ? 'Copied' : 'Copy link'}
               </Button>
 
               <Button

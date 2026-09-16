@@ -16,6 +16,7 @@ export interface TicketCardTicket {
     badgeText?: string | null;
     ticketHeadline?: string | null;
     venueLabel?: string | null;
+    ticketSublabel?: string | null;
   };
   event?: {
     id?: number;
@@ -210,6 +211,7 @@ const TicketCard: React.FC<TicketCardProps> = ({
             badgeText: ticket.ticketType?.badgeText || typeName,
             ticketHeadline: ticket.ticketType?.ticketHeadline,
             venueLabel: ticket.ticketType?.venueLabel,
+            ticketSublabel: ticket.ticketType?.ticketSublabel,
           }}
         />
       </div>

@@ -9,6 +9,7 @@ export interface TicketDraft {
   accentColor: string;
   ticketHeadline: string;
   venueLabel: string;
+  ticketSublabel: string;
   maxPerPerson?: string;
   /** Organizer closed sales for this type. Existing tickets stay valid. */
   isPaused?: boolean;
@@ -37,8 +38,9 @@ const defaultTicket = (overrides: Partial<TicketDraft>): TicketDraft => ({
   ticketStyle: 'rose',
   badgeText: '',
   accentColor: '',
-  ticketHeadline: 'COME AND JOIN',
-  venueLabel: 'LIVE AT',
+  ticketHeadline: '',
+  venueLabel: '',
+  ticketSublabel: '',
   ...overrides,
 });
 
@@ -60,8 +62,9 @@ export const EVENT_TEMPLATES: EventTemplate[] = [
       ticketStyle: 'rose',
       badgeText: '',
       accentColor: '',
-      ticketHeadline: 'COME AND JOIN',
-      venueLabel: 'LIVE AT',
+      ticketHeadline: '',
+      venueLabel: '',
+      ticketSublabel: '',
     }],
     amenities: [],
     category: 'Other',

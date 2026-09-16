@@ -1,6 +1,6 @@
 /** Ticket design system: layout family + accent color. */
 
-export type TicketLayoutId = 'classic' | 'boarding' | 'stub';
+export type TicketLayoutId = 'classic' | 'boarding' | 'stub' | 'cinema' | 'folio';
 
 export type TicketAccentId =
   | 'rose'
@@ -32,10 +32,14 @@ export interface TicketDesignPreset {
 }
 
 export const TICKET_LAYOUTS: TicketLayoutPreset[] = [
-  { id: 'classic', name: 'Classic', description: 'Vertical gate pass' },
-  { id: 'boarding', name: 'Celebration', description: 'Wedding boarding pass' },
+  { id: 'classic', name: 'Classic', description: 'Photo gate pass' },
+  { id: 'boarding', name: 'Celebration', description: 'Ivory first-class pass' },
   { id: 'stub', name: 'Concert', description: 'Nightlife stage pass' },
+  { id: 'cinema', name: 'Cinema', description: 'Movie ticket stub' },
+  { id: 'folio', name: 'Gallery', description: 'Photo cover pass' },
 ];
+
+const LAYOUT_IDS = new Set<string>(TICKET_LAYOUTS.map((l) => l.id));
 
 export const TICKET_ACCENTS: TicketAccentPreset[] = [
   { id: 'rose', name: 'Coral', accent: '#d85060', description: 'Bold & energetic' },
@@ -67,13 +71,10 @@ export function parseTicketStyle(raw?: string | null): {
   const value = (raw || '').trim().toLowerCase();
   if (!value) return { layout: 'classic', accent: 'rose' };
 
-  // New format: classic-rose, boarding-gold, stub-midnight
-  const match = value.match(/^(classic|boarding|stub)-([a-z]+)$/);
-  if (match) {
-    const layout = match[1] as TicketLayoutId;
-    const accentId = match[2];
-    const accent = (LEGACY_ACCENTS.has(accentId) ? accentId : 'rose') as TicketAccentId;
-    return { layout, accent };
+  // New format: classic-rose, boarding-gold, cinema-midnight
+  const match = value.match(/^([a-z]+)-([a-z]+)$/);
+  if (match && LAYOUT_IDS.has(match[1]) && LEGACY_ACCENTS.has(match[2])) {
+    return { layout: match[1] as TicketLayoutId, accent: match[2] as TicketAccentId };
   }
 
   // Legacy: just an accent id
@@ -120,6 +121,56 @@ const BORDER_MAP: Record<TicketAccentId, string> = {
   ocean: 'border-sky-200 dark:border-sky-900',
 };
 
+export const LAYOUT_COPY: Record<
+  TicketLayoutId,
+  { headline: string; sublabel: string; venueLabel: string }
+> = {
+  classic: { headline: 'COME AND JOIN', sublabel: 'Admit one', venueLabel: 'LIVE AT' },
+  boarding: { headline: "You're invited", sublabel: 'First class', venueLabel: 'Venue' },
+  stub: { headline: 'LIVE SHOW', sublabel: 'Stage pass', venueLabel: 'STAGE' },
+  cinema: { headline: 'Now showing', sublabel: 'Admit one', venueLabel: 'Screen' },
+  folio: { headline: 'Exhibition', sublabel: 'Admit one', venueLabel: 'Venue' },
+};
+
+const STOCK_HEADLINES = [
+  'COME AND JOIN',
+  "YOU'RE INVITED",
+  'NOW SHOWING',
+  'EXHIBITION',
+  'LIVE SHOW',
+];
+const STOCK_SUBLABELS = ['FIRST CLASS', 'ADMIT ONE', 'STAGE PASS', 'SCAN TO ENTRY', 'SCAN TO ENTER'];
+const STOCK_VENUES = ['LIVE AT', 'DESTINATION', 'VENUE', 'STAGE', 'SCREEN'];
+
+function normalizeCopy(value: string) {
+  return value.trim().toUpperCase().replace(/['’]/g, '');
+}
+
+function pickCopy(stored: string | null | undefined, fallback: string, stock: string[]) {
+  const s = stored?.trim() || '';
+  if (!s) return fallback;
+  const n = normalizeCopy(s);
+  const isStock = stock.some((item) => normalizeCopy(item) === n);
+  if (isStock && n !== normalizeCopy(fallback)) return fallback;
+  return s;
+}
+
+export function resolveTicketCopy(
+  ticketType: {
+    ticketHeadline?: string | null;
+    venueLabel?: string | null;
+    ticketSublabel?: string | null;
+  } | undefined,
+  layout: TicketLayoutId
+) {
+  const defaults = LAYOUT_COPY[layout] ?? LAYOUT_COPY.classic;
+  return {
+    headline: pickCopy(ticketType?.ticketHeadline, defaults.headline, STOCK_HEADLINES),
+    sublabel: pickCopy(ticketType?.ticketSublabel, defaults.sublabel, STOCK_SUBLABELS),
+    venueLabel: pickCopy(ticketType?.venueLabel, defaults.venueLabel, STOCK_VENUES),
+  };
+}
+
 export function resolveTicketStyle(ticketType?: {
   name?: string;
   ticketStyle?: string | null;
@@ -158,6 +209,22 @@ export function suggestTicketDesign(category?: string | null): {
       accent: /birthday|rose/.test(c) ? 'rose' : 'gold',
       styleId: encodeTicketStyle('boarding', /birthday|rose/.test(c) ? 'rose' : 'gold'),
       reason: 'Celebration boarding pass suits weddings & birthdays',
+    };
+  }
+  if (/film|cinema|movie|screening|theatre|theater/.test(c)) {
+    return {
+      layout: 'cinema',
+      accent: 'rose',
+      styleId: encodeTicketStyle('cinema', 'rose'),
+      reason: 'Cinema stub suits screenings & premieres',
+    };
+  }
+  if (/art|gallery|launch|fashion|exhibition/.test(c)) {
+    return {
+      layout: 'folio',
+      accent: 'midnight',
+      styleId: encodeTicketStyle('folio', 'midnight'),
+      reason: 'Gallery cover pass suits exhibitions & launches',
     };
   }
   if (/concert|festival|nightlife|club|party|music|afrobeats/.test(c)) {

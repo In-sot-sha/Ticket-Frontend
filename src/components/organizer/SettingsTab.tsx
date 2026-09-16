@@ -34,6 +34,7 @@ interface EditableTicket {
   price: number | string;
   quantity: number | string;
   isPaused?: boolean;
+  isUnlimited?: boolean;
 }
 
 function formatDateInput(isoString?: string) {
@@ -98,7 +99,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
       id: t.id,
       name: t.name,
       price: t.price,
-      quantity: t.quantity ?? 100,
+      isUnlimited: t.quantity === 0,
+      quantity: t.quantity === 0 ? '' : t.quantity ?? 100,
       isPaused: !!t.isPaused,
     })) || [{ name: 'Regular', price: 0, quantity: 100, isPaused: false }]
   );
@@ -171,6 +173,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
     }
 
     const rows = ticketsOverride ?? tickets;
+    if (rows.some((t) => !t.isUnlimited && Number(t.quantity) < 1)) {
+      setUpdateMsg({
+        text: 'Each ticket needs a quantity of at least 1, or mark it Unlimited.',
+        type: 'error',
+      });
+      return;
+    }
+
     setUpdating(true);
     setUpdateMsg(null);
 
@@ -198,7 +208,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
             ...(t.id ? { id: t.id } : {}),
             name: t.name.trim() || 'General Admission',
             price: Number(t.price) || 0,
-            quantity: Number(t.quantity) || 0,
+            quantity: t.isUnlimited ? 0 : Number(t.quantity) || 0,
             isPaused: !!t.isPaused,
           }))
         ),
@@ -220,7 +230,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
             id: t.id || 0,
             name: t.name,
             price: Number(t.price) || 0,
-            quantity: Number(t.quantity) || 0,
+            quantity: t.isUnlimited ? 0 : Number(t.quantity) || 0,
             isPaused: !!t.isPaused,
           })),
         });
@@ -383,6 +393,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
 
       {/* Card 2: Simple In-Place Event Details & Ticket Editor */}
       <form onSubmit={handleSaveQuickDetails} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 shadow-2xs space-y-5">
+        <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-4">
+          <div>
+            <h3 className="text-sm sm:text-base font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-rose-500" />
+              Event Details
+            </h3>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              Update title, schedule, location, and ticket tiers.
+            </p>
+          </div>
+        </div>
+
         {/* 1. Basic Information */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="sm:col-span-2">
@@ -580,15 +602,42 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
                   </div>
                 </div>
                 <div className="w-24">
-                  <input
-                    type="number"
-                    min={1}
-                    value={t.quantity}
-                    onChange={(e) => handleUpdateTicket(idx, 'quantity', e.target.value)}
-                    placeholder="Qty"
-                    className="w-full h-8 px-2.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white tabular-nums text-center"
-                  />
+                  {t.isUnlimited ? (
+                    <div className="h-8 px-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-[11px] font-bold text-neutral-500 flex items-center justify-center">
+                      Unlimited
+                    </div>
+                  ) : (
+                    <input
+                      type="number"
+                      min={1}
+                      value={t.quantity}
+                      onChange={(e) => handleUpdateTicket(idx, 'quantity', e.target.value)}
+                      placeholder="Qty"
+                      className="w-full h-8 px-2.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white tabular-nums text-center"
+                    />
+                  )}
                 </div>
+                <label className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-500 cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={!!t.isUnlimited}
+                    onChange={(e) => {
+                      setTickets((prev) =>
+                        prev.map((row, i) =>
+                          i === idx
+                            ? {
+                                ...row,
+                                isUnlimited: e.target.checked,
+                                quantity: e.target.checked ? '' : row.quantity || 100,
+                              }
+                            : row
+                        )
+                      );
+                    }}
+                    className="rounded accent-rose-500"
+                  />
+                  Unlimited
+                </label>
                 <button
                   type="button"
                   onClick={() => {
@@ -624,7 +673,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
           </div>
         </div>
 
-        {/* Footer save action + link to advanced 4-step wizard */}
+        {/* Footer save action + link to full editor */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-neutral-100 dark:border-neutral-800">
           <p className="text-[11px] text-neutral-400">
             Need custom ticket flier badges or vendor forms?{' '}
@@ -633,7 +682,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
               onClick={() => navigate(`/organizer/events/create/${event.id}`)}
               className="text-rose-500 hover:underline font-semibold cursor-pointer"
             >
-              Open the 4-step wizard →
+              Open the 3-step wizard →
             </button>
           </p>
 
