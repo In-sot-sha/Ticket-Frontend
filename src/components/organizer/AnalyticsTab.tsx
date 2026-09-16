@@ -35,11 +35,8 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
   const checkedIn = stats?.ticketsCheckedIn ?? 0;
   const pct = stats?.sellThroughPercent ?? 0;
   const earned = stats?.actualRevenue ?? event.revenue ?? 0;
-  const expected = stats?.expectedRevenue ?? 0;
   const inventory = stats?.ticketInventory ?? 0;
   const remaining = Math.max(inventory - sold, 0);
-  const revenuePace = expected > 0 ? Math.round((earned / expected) * 100) : 0;
-  const remainingPotential = Math.max(expected - earned, 0);
 
   const ticketStats = stats?.ticketTypeStats ?? [];
 
@@ -82,17 +79,17 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
             {formatNaira(earned)}
           </p>
           <p className="text-[11px] text-neutral-500 mt-0.5">
-            of {formatNaira(expected)} expected · {revenuePace}%
+            {sold} tickets sold
           </p>
         </div>
         <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3">
           <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-            Still to earn
+            Tickets left
           </p>
           <p className="text-xl font-extrabold text-neutral-900 dark:text-white tabular-nums mt-0.5">
-            {formatNaira(remainingPotential)}
+            {remaining}
           </p>
-          <p className="text-[11px] text-neutral-500 mt-0.5">{remaining} tickets left</p>
+          <p className="text-[11px] text-neutral-500 mt-0.5">{checkedIn} checked in</p>
         </div>
       </div>
 

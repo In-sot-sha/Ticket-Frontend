@@ -131,14 +131,13 @@ const AnalyticsDashboard = () => {
     {
       title: 'Tickets sold',
       value: summaryData.ticketsSold || 0,
-      sub: `${summaryData.sellThroughPercent || 0}% of potential revenue`,
+      sub: `${summaryData.ticketsCheckedIn || 0} checked in`,
       icon: <Ticket className="h-5 w-5" />,
     },
     {
       title: 'Revenue earned',
       value: summaryData.actualRevenue || 0,
-      expectedRevenue: summaryData.expectedRevenue || 0,
-      sub: `${formatNaira(summaryData.expectedRevenue || 0)} max potential`,
+      sub: 'From ticket sales',
       icon: <TrendingUp className="h-5 w-5" />,
     },
     {
