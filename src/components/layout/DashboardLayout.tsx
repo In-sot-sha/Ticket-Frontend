@@ -12,6 +12,7 @@ const DashboardLayout: React.FC = () => {
 
   const isCreateEvent = /\/organizer\/events\/create/.test(location.pathname);
   const isScanner    = location.pathname === '/organizer/scan';
+  const isEventsList = location.pathname === '/organizer/events';
 
   const toggleSidebar = () => setSidebarOpen((o) => !o);
 
@@ -61,7 +62,9 @@ const DashboardLayout: React.FC = () => {
             className={
               isCreateEvent || isScanner
                 ? 'w-full'
-                : 'max-w-7xl mx-auto p-2 md:p-3.5'
+                : isEventsList
+                  ? 'w-full p-2 md:p-3.5'
+                  : 'max-w-7xl mx-auto p-2 md:p-3.5'
             }
           >
             <Outlet />

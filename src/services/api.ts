@@ -2,7 +2,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { isTokenExpired } from '../lib/tokenUtils';
 
-let localEndpoint = import.meta.env.VITE_API_URL || "http://192.168.1.254:33333/api";
+let localEndpoint = import.meta.env.VITE_API_URL || "http://192.168.1.165:33333/api";
 let productionEndpoint = "https://api.partystorm.ng/api";
 
 let currentEndpoint =
@@ -402,6 +402,9 @@ export const api = {
 
     getEventAudit: (eventId: number, limit?: number) =>
       apiRequest<any[]>('GET', `/tickets/event/${eventId}/audit`, undefined, { params: { limit } }),
+
+    getAdminAudit: (limit?: number, eventId?: number) =>
+      apiRequest<any[]>('GET', '/tickets/admin/audit', undefined, { params: { limit, eventId } }),
 
     issueManual: (data: {
       eventId: number;

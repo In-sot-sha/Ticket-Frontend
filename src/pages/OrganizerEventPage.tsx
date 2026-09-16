@@ -27,7 +27,7 @@ import { AnalyticsTab } from '../components/organizer/AnalyticsTab';
 import { EventToolsPanel } from '../components/organizer/EventToolsPanel';
 import { SettingsTab } from '../components/organizer/SettingsTab';
 
-type TabType = 'overview' | 'marketing' | 'attendees' | 'vendors' | 'analytics' | 'settings';
+type TabType = 'overview' | 'attendees' | 'marketing' | 'vendors' | 'analytics' | 'settings';
 
 const OrganizerEventPage: React.FC = () => {
   const { id: eventParam } = useParams<{ id: string }>();
@@ -246,18 +246,18 @@ const OrganizerEventPage: React.FC = () => {
             Overview
           </TabsTrigger>
           <TabsTrigger
-            value="marketing"
-            className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-2.5 px-3 data-[state=active]:shadow-none text-sm"
-          >
-            <Megaphone className="h-3.5 w-3.5 mr-1.5" />
-            Marketing
-          </TabsTrigger>
-          <TabsTrigger
             value="attendees"
             className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-2.5 px-3 data-[state=active]:shadow-none text-sm"
           >
             <Users className="h-3.5 w-3.5 mr-1.5" />
             Attendees
+          </TabsTrigger>
+          <TabsTrigger
+            value="marketing"
+            className="data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-2.5 px-3 data-[state=active]:shadow-none text-sm"
+          >
+            <Megaphone className="h-3.5 w-3.5 mr-1.5" />
+            Marketing
           </TabsTrigger>
           {event.allowVendors && (
             <TabsTrigger
@@ -306,15 +306,15 @@ const OrganizerEventPage: React.FC = () => {
             <OverviewTab event={event} vendorApplications={vendorApplications} />
           </TabsContent>
 
+          <TabsContent value="attendees" className="mt-0">
+            <AttendeesTab eventId={event.id} eventSlug={event.slug} />
+          </TabsContent>
+
           <TabsContent value="marketing" className="mt-0">
             <EventToolsPanel
               event={event as any}
               onEventUpdate={(patch) => setEvent((prev) => (prev ? { ...prev, ...patch } : prev))}
             />
-          </TabsContent>
-
-          <TabsContent value="attendees" className="mt-0">
-            <AttendeesTab eventId={event.id} eventSlug={event.slug} />
           </TabsContent>
 
           {event.allowVendors && (

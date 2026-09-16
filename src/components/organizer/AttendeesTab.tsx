@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Users, Download, Plus, UserCheck, Ticket, Banknote, CreditCard, ArrowLeftRight } from 'lucide-react';
+import { Users, Download, Plus, UserCheck, Ticket } from 'lucide-react';
 import { api } from '../../services/api';
 import { Link } from 'react-router-dom';
 import { Skeleton } from '../ui/skeleton';
@@ -14,7 +14,6 @@ import {
   SelectValue,
 } from '../ui/select';
 import { downloadCSV } from '../../lib/exportCSV';
-import { formatNaira } from '../../lib/eventOrganizer';
 
 interface AttendeesTabProps {
   eventId?: number;
@@ -22,14 +21,6 @@ interface AttendeesTabProps {
 }
 
 type StatusFilter = 'all' | 'checked_in' | 'registered';
-
-const paymentLabel = (method?: string | null) => {
-  if (method === 'CASH') return 'Cash';
-  if (method === 'POS') return 'POS';
-  if (method === 'TRANSFER') return 'Transfer';
-  if (method === 'FREE') return 'Free';
-  return '';
-};
 
 const personKey = (ticket: any) => {
   if (ticket.user?.id) return `u:${ticket.user.id}`;
@@ -49,7 +40,6 @@ const personName = (ticket: any) => {
 
 export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }) => {
   const [attendees, setAttendees] = useState<any[]>([]);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -58,13 +48,10 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
   useEffect(() => {
     if (!eventId) return;
     setLoading(true);
-    Promise.all([
-      api.tickets.getEventAttendance(eventId),
-      api.tickets.getEventAudit(eventId, 40).catch(() => ({ data: [] })),
-    ])
-      .then(([ticketsRes, auditRes]) => {
+    api.tickets
+      .getEventAttendance(eventId)
+      .then((ticketsRes) => {
         setAttendees(ticketsRes.data || []);
-        setAuditLogs(auditRes.data || []);
       })
       .catch(() => setError('Failed to load attendees'))
       .finally(() => setLoading(false));
@@ -82,8 +69,6 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
           name: personName(ticket),
           phone: ticket.user?.phone || ticket.buyerPhone || '',
           ticketTypeCounts: new Map<string, number>(),
-          payments: new Set<string>(),
-          sellers: new Set<string>(),
           tickets: [],
           checkedInCount: 0,
         });
@@ -92,11 +77,6 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
       group.tickets.push(ticket);
       const typeName = ticket.ticketType?.name || 'Ticket';
       group.ticketTypeCounts.set(typeName, (group.ticketTypeCounts.get(typeName) || 0) + 1);
-      const pay = paymentLabel(ticket.paymentMethod);
-      if (pay) group.payments.add(pay);
-      if (ticket.soldBy) {
-        group.sellers.add(`${ticket.soldBy.firstName} ${ticket.soldBy.lastName}`.trim());
-      }
       if (ticket.status === 'USED') {
         group.checkedInCount++;
       }
@@ -127,28 +107,6 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
   const checkedInTickets = attendees.filter((t) => t.status === 'USED').length;
   const checkInRate = totalTickets > 0 ? Math.round((checkedInTickets / totalTickets) * 100) : 0;
 
-  const collections = useMemo(() => {
-    const sums = { CASH: 0, POS: 0, TRANSFER: 0, FREE: 0, total: 0 };
-    const byStaff = new Map<string, { id: string; name: string; cash: number; pos: number; transfer: number; tickets: number }>();
-    for (const ticket of attendees) {
-      const amount = Number(ticket.amountPaid) || 0;
-      const method = ticket.paymentMethod as keyof typeof sums;
-      if (method && method in sums && method !== 'total') sums[method] += amount;
-      if (ticket.purchaseType === 'GATE') sums.total += amount;
-      if (ticket.soldBy) {
-        const staffKey = String(ticket.soldBy.id);
-        const staffName = `${ticket.soldBy.firstName} ${ticket.soldBy.lastName}`.trim();
-        const row = byStaff.get(staffKey) || { id: staffKey, name: staffName, cash: 0, pos: 0, transfer: 0, tickets: 0 };
-        row.tickets += 1;
-        if (ticket.paymentMethod === 'CASH') row.cash += amount;
-        if (ticket.paymentMethod === 'POS') row.pos += amount;
-        if (ticket.paymentMethod === 'TRANSFER') row.transfer += amount;
-        byStaff.set(staffKey, row);
-      }
-    }
-    return { ...sums, staff: Array.from(byStaff.values()).sort((a, b) => b.tickets - a.tickets) };
-  }, [attendees]);
-
   const exportCsv = () => {
     const rows = filtered.map((a) => [
       a.name,
@@ -158,8 +116,6 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
         .map(([type, count]) => `${type} × ${count}`)
         .join(' | '),
       a.tickets.length,
-      Array.from(a.payments).join(' | '),
-      Array.from(a.sellers).join(' | '),
       a.checkedInCount > 0
         ? a.checkedInCount === a.tickets.length
           ? 'All Checked In'
@@ -167,7 +123,7 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
         : 'Registered',
     ]);
     downloadCSV(
-      ['Name', 'Email', 'Phone', 'Ticket Types', 'Tickets Count', 'Payment', 'Sold By', 'Status'],
+      ['Name', 'Email', 'Phone', 'Ticket Types', 'Tickets Count', 'Status'],
       rows,
       `attendees_${eventId || 'event'}.csv`
     );
@@ -269,46 +225,6 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-2.5 sm:p-3">
-          <div className="flex items-center justify-between mb-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Cash</span>
-            <Banknote className="h-3.5 w-3.5 text-emerald-500" />
-          </div>
-          <p className="text-sm sm:text-lg font-bold text-neutral-900 dark:text-white tabular-nums">{formatNaira(collections.CASH)}</p>
-        </div>
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-2.5 sm:p-3">
-          <div className="flex items-center justify-between mb-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">POS</span>
-            <CreditCard className="h-3.5 w-3.5 text-sky-500" />
-          </div>
-          <p className="text-sm sm:text-lg font-bold text-neutral-900 dark:text-white tabular-nums">{formatNaira(collections.POS)}</p>
-        </div>
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-2.5 sm:p-3">
-          <div className="flex items-center justify-between mb-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Transfer</span>
-            <ArrowLeftRight className="h-3.5 w-3.5 text-violet-500" />
-          </div>
-          <p className="text-sm sm:text-lg font-bold text-neutral-900 dark:text-white tabular-nums">{formatNaira(collections.TRANSFER)}</p>
-        </div>
-      </div>
-
-      {collections.staff.length > 0 && (
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Staff collections</p>
-          <ul className="space-y-1.5">
-            {collections.staff.map((s) => (
-              <li key={s.id} className="flex items-center justify-between gap-2 text-xs">
-                <span className="font-semibold text-neutral-800 dark:text-neutral-200 truncate">{s.name}</span>
-                <span className="text-neutral-500 tabular-nums shrink-0">
-                  {s.tickets} tix · Cash {formatNaira(s.cash)} · POS {formatNaira(s.pos)} · Trf {formatNaira(s.transfer)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       <DataTable
         columns={
           [
@@ -349,22 +265,6 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
                 <span className="inline-flex items-center justify-center bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 w-7 h-7 rounded-full text-xs font-bold">
                   {a.tickets.length}
                 </span>
-              ),
-            },
-            {
-              id: 'payment',
-              header: 'Paid',
-              cell: (a) => (
-                <span className="text-xs text-neutral-600 dark:text-neutral-400">
-                  {Array.from(a.payments).join(', ') || '—'}
-                </span>
-              ),
-            },
-            {
-              id: 'soldBy',
-              header: 'Sold by',
-              cell: (a) => (
-                <span className="text-xs text-neutral-500">{Array.from(a.sellers).join(', ') || '—'}</span>
               ),
             },
             {
@@ -422,39 +322,6 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
         emptyTitle="No matches"
         emptyDescription="Try a different search or filter."
       />
-
-      {auditLogs.length > 0 && (
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Activity log</p>
-          <ul className="space-y-1.5 max-h-56 overflow-y-auto">
-            {auditLogs.map((log) => {
-              const actor = log.user ? `${log.user.firstName} ${log.user.lastName}`.trim() : 'Unknown';
-              const meta = log.metadata || {};
-              const when = new Date(log.createdAt).toLocaleString('en-NG', {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              });
-              let detail = log.action.replace('_', ' ').toLowerCase();
-              if (log.action === 'GATE_SALE') {
-                const pay = paymentLabel(meta.paymentMethod) || 'sale';
-                detail = `sold ${meta.quantity || 1} × ${meta.ticketTypeName || 'ticket'} · ${pay}${meta.amountPaid ? ` · ${formatNaira(Number(meta.amountPaid))}` : ''}`;
-              } else if (log.action === 'CHECK_IN') {
-                detail = `checked in ${meta.attendee || 'a guest'}${meta.ticketType ? ` (${meta.ticketType})` : ''}`;
-              }
-              return (
-                <li key={log.id} className="text-xs text-neutral-600 dark:text-neutral-400 flex gap-2">
-                  <span className="text-neutral-400 shrink-0 tabular-nums w-[92px]">{when}</span>
-                  <span>
-                    <span className="font-semibold text-neutral-800 dark:text-neutral-200">{actor}</span> {detail}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
     </div>
   );
 };

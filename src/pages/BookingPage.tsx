@@ -120,6 +120,11 @@ const BookingPage = () => {
     allowVendors: eventData.allowVendors === true,
   } : mockEvent;
 
+  const hostBrand = {
+    organizerName: (normalizedEventData as any).organization?.name || null,
+    organizerLogo: (normalizedEventData as any).organization?.logo || null,
+  };
+
   const showAlert = (message: string, title?: string) => {
     setAlertDialog({ isOpen: true, message, title });
   };
@@ -259,6 +264,7 @@ const BookingPage = () => {
             accentColor: firstType?.accentColor,
             tickets: data.tickets,
             paymentReference: paymentRef,
+            ...hostBrand,
           };
           navigate('/ticket-confirmation', { state: confirmedOrder });
           return;
@@ -298,6 +304,7 @@ const BookingPage = () => {
           ticketStyle: firstType?.ticketStyle,
           accentColor: firstType?.accentColor,
           tickets: checkoutRes.data.tickets,
+          ...hostBrand,
         };
         navigate('/ticket-confirmation', { state: confirmedOrder });
       }
@@ -420,6 +427,7 @@ const BookingPage = () => {
             ticketStyle: firstType?.ticketStyle,
             accentColor: firstType?.accentColor,
             tickets: init.tickets,
+            ...hostBrand,
           },
         });
         return;
@@ -463,6 +471,8 @@ const BookingPage = () => {
         eventTime: `${normalizedEventData.startTime || '09:00 AM'} - ${normalizedEventData.endTime || '06:00 PM'}`,
         eventLocation: normalizedEventData.location,
         eventImageUrl: normalizedEventData.imageUrl,
+        organizerName: hostBrand.organizerName,
+        organizerLogo: hostBrand.organizerLogo,
         items,
         totalAmount: totalAmount
       }));

@@ -127,7 +127,7 @@ export const LAYOUT_COPY: Record<
 > = {
   classic: { headline: 'COME AND JOIN', sublabel: 'Admit one', venueLabel: 'LIVE AT' },
   boarding: { headline: "You're invited", sublabel: 'First class', venueLabel: 'Venue' },
-  stub: { headline: 'LIVE SHOW', sublabel: 'Stage pass', venueLabel: 'STAGE' },
+  stub: { headline: 'LIVE SHOW', sublabel: 'Admit one', venueLabel: 'LIVE AT' },
   cinema: { headline: 'Now showing', sublabel: 'Admit one', venueLabel: 'Screen' },
   folio: { headline: 'Exhibition', sublabel: 'Admit one', venueLabel: 'Venue' },
 };

@@ -6,6 +6,7 @@ import {
   resolveTicketCopy,
   type TicketLayoutId,
 } from '../../data/ticketDesigns';
+import { resolveImageUrl } from '../../lib/media';
 
 export interface TicketCopyPatch {
   ticketHeadline?: string;
@@ -36,6 +37,10 @@ export interface EventTicketCardProps {
   id?: string;
   editable?: boolean;
   onCopyChange?: (patch: TicketCopyPatch) => void;
+  organizerName?: string | null;
+  organizerLogo?: string | null;
+  /** Always render the landscape pass (skip the stacked mobile stub). */
+  forceLandscape?: boolean;
 }
 
 /** Pick black or white text for contrast on a hex background */
@@ -245,6 +250,32 @@ function QrBlock({
   return <QRCode value={qrValue} size={size} renderAs="canvas" includeMargin={false} level="M" />;
 }
 
+function HostBadge({
+  logo,
+  name,
+}: {
+  logo?: string | null;
+  name?: string | null;
+}) {
+  const src = resolveImageUrl(logo);
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt=""
+        className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg object-cover bg-white shrink-0"
+        crossOrigin="anonymous"
+      />
+    );
+  }
+  if (!name) return null;
+  return (
+    <span className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white/15 text-sm font-black text-white shrink-0">
+      {name.charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
 /** Pill badge — flex + line-height 1 keeps label vertically centered (no top gap). */
 function TicketBadge({
   label,
@@ -261,20 +292,51 @@ function TicketBadge({
 }) {
   return (
     <span
-      className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider shrink-0 z-10 max-w-full ${className}`}
-      style={{
-        lineHeight: 1,
-        ...style,
-      }}
+      data-ticket-badge
+      className={`inline-flex h-[22px] items-center justify-center rounded-full px-3 text-[10px] font-bold uppercase leading-none shrink-0 z-10 max-w-full text-center ${className}`}
+      style={style}
     >
-      <EditableText
-        value={label}
-        enabled={editable && !!onCommit}
-        onCommit={(next) => onCommit?.(next)}
-        className="leading-none"
-        style={{ lineHeight: 1 }}
-      />
+      {editable && onCommit ? (
+        <EditableText
+          value={label}
+          enabled
+          onCommit={onCommit}
+          className="leading-none"
+          style={{ lineHeight: 1 }}
+        />
+      ) : (
+        label
+      )}
     </span>
+  );
+}
+
+/** In-flow stack html2canvas can rasterize without overlapping lines. */
+function CopyStack({
+  kicker,
+  title,
+  venueLabel,
+  venue,
+  meta,
+}: {
+  kicker?: React.ReactNode;
+  title: React.ReactNode;
+  venueLabel?: React.ReactNode;
+  venue?: React.ReactNode;
+  meta?: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
+      {kicker}
+      <div className="min-w-0">{title}</div>
+      {venueLabel || venue ? (
+        <div className="flex min-w-0 flex-col gap-1">
+          {venueLabel}
+          {venue}
+        </div>
+      ) : null}
+      {meta}
+    </div>
   );
 }
 
@@ -292,10 +354,10 @@ function ClassicLayout(props: LayoutProps) {
   const {
     eventName,
     eventDate,
+    eventTime,
     eventLocation = 'Venue TBA',
     eventImageUrl,
     ticketType,
-    ticketSerial = 'TKT-PREVIEW',
     qrValue = 'preview-ticket',
     qrCodeImage,
     compact = false,
@@ -306,6 +368,9 @@ function ClassicLayout(props: LayoutProps) {
     copy,
     editable,
     onCopyChange,
+    organizerLogo,
+    organizerName,
+    forceLandscape = false,
   } = props;
   const isMobile = useIsMobile();
   const split = splitTitle(eventName);
@@ -314,8 +379,8 @@ function ClassicLayout(props: LayoutProps) {
   const bannerImage =
     eventImageUrl ||
     'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1200&q=80';
-  const mobileQr = 148;
-  const desktopQr = compact ? 72 : 160;
+  const mobileQr = 96;
+  const desktopQr = compact ? 72 : 108;
   const badgePill = {
     backgroundColor: onAccent === '#ffffff' ? '#0a0a0a' : '#ffffff',
     color: onAccent === '#ffffff' ? '#ffffff' : '#0a0a0a',
@@ -342,9 +407,12 @@ function ClassicLayout(props: LayoutProps) {
             </div>
 
             <div className="relative z-10">
-              <p className="text-[9px] font-black tracking-[0.25em] text-neutral-400 uppercase font-mono">
-                <EditCopy value={copy.headline} field="ticketHeadline" enabled={editable} onCopyChange={onCopyChange} />
-              </p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[9px] font-black tracking-[0.25em] text-neutral-400 uppercase font-mono">
+                  <EditCopy value={copy.headline} field="ticketHeadline" enabled={editable} onCopyChange={onCopyChange} />
+                </p>
+                <HostBadge logo={organizerLogo} name={organizerName} />
+              </div>
               <h3 className="text-2xl font-extrabold tracking-tight leading-none mt-3 uppercase drop-shadow-md">
                 <span style={{ color: accent }}>{split.firstWord}</span>
                 {split.restOfTitle ? (
@@ -355,11 +423,11 @@ function ClassicLayout(props: LayoutProps) {
                 ) : null}
               </h3>
 
-              <div className="mt-3">
-                <p className="text-[8px] font-black tracking-widest text-neutral-400 font-mono">
+              <div className="mt-3 flex flex-col gap-1">
+                <p className="text-[10px] font-black uppercase text-neutral-400">
                   <EditCopy value={copy.venueLabel} field="venueLabel" enabled={editable} onCopyChange={onCopyChange} />
                 </p>
-                <p className="text-xs font-black tracking-tight text-white uppercase mt-0.5 line-clamp-2">
+                <p className="text-xs font-black text-white uppercase">
                   {eventLocation}
                 </p>
               </div>
@@ -369,10 +437,12 @@ function ClassicLayout(props: LayoutProps) {
                   <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/45 font-mono">Date</p>
                   <p className="font-extrabold text-white uppercase font-mono mt-0.5">{formattedDate}</p>
                 </div>
-                <div>
-                  <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/45 font-mono">Code</p>
-                  <p className="font-extrabold text-white uppercase font-mono mt-0.5">{ticketSerial}</p>
-                </div>
+                {eventTime ? (
+                  <div>
+                    <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/45 font-mono">Time</p>
+                    <p className="font-extrabold text-white uppercase font-mono mt-0.5">{eventTime}</p>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -418,61 +488,74 @@ function ClassicLayout(props: LayoutProps) {
     );
   }
 
-  // Only ONE layout in the DOM — prevents double-ticket PNG downloads.
-  if (isMobile) {
+  // Portrait pass — photo, details, then QR. Readable type, no tight tracking.
+  if (isMobile && !forceLandscape) {
     return (
       <div
         id={id}
-        className="relative w-full max-w-[340px] mx-auto flex flex-col overflow-hidden shadow-xl"
-        style={{ borderRadius: 4 }}
+        className={`relative w-full max-w-md mx-auto flex flex-col overflow-hidden rounded-2xl shadow-xl border bg-neutral-900 ${borderColor}`}
       >
-        <div className="relative bg-black text-white px-5 pt-5 pb-6">
-          <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-white/75 font-mono">
-            <EditCopy value={copy.headline} field="ticketHeadline" enabled={editable} onCopyChange={onCopyChange} />
-          </p>
-          <h3 className="mt-3 text-[1.55rem] leading-[1.1] font-extrabold uppercase tracking-tight break-words">
-            <span style={{ color: accent }}>{split.firstWord}</span>
-            {split.restOfTitle ? (
-              <>
-                {' '}
-                <span className="text-white">{split.restOfTitle}</span>
-              </>
-            ) : null}
-          </h3>
-
-          <div className="mt-5 min-w-0">
-            <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-white/50 font-mono">
-              <EditCopy value={copy.venueLabel} field="venueLabel" enabled={editable} onCopyChange={onCopyChange} />
-            </p>
-            <p className="mt-1 text-sm font-extrabold uppercase tracking-wide text-white break-words">
-              {eventLocation}
-            </p>
-          </div>
-
-          <div className="mt-5 pt-4 border-t border-white/15 grid grid-cols-2 gap-3">
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-white/50 font-mono">Date</p>
-              <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-white font-mono leading-snug break-words">
-                {formattedDate}
-              </p>
-            </div>
-            <div className="border-l border-white/15 pl-3 min-w-0">
-              <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-white/50 font-mono">Code</p>
-              <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-white font-mono break-all">
-                {ticketSerial}
-              </p>
-            </div>
+        <div className="relative text-white min-h-[240px]">
+          <img
+            src={bannerImage}
+            alt={eventName}
+            className="absolute inset-0 h-full w-full object-cover"
+            crossOrigin="anonymous"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/75 to-black/30" />
+          <div className="relative z-10 p-5 pb-6">
+            <CopyStack
+              kicker={
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-bold uppercase text-white/70">
+                    <EditCopy value={copy.headline} field="ticketHeadline" enabled={editable} onCopyChange={onCopyChange} />
+                  </p>
+                  <HostBadge logo={organizerLogo} name={organizerName} />
+                </div>
+              }
+              title={
+                <h3 className="text-[1.75rem] font-extrabold uppercase leading-tight">
+                  <span style={{ color: accent }}>{split.firstWord}</span>
+                  {split.restOfTitle ? (
+                    <>
+                      {' '}
+                      <span className="text-white">{split.restOfTitle}</span>
+                    </>
+                  ) : null}
+                </h3>
+              }
+              venueLabel={
+                <p className="text-[11px] font-bold uppercase text-white/50">
+                  <EditCopy value={copy.venueLabel} field="venueLabel" enabled={editable} onCopyChange={onCopyChange} />
+                </p>
+              }
+              venue={<p className="text-sm font-semibold leading-snug text-white">{eventLocation}</p>}
+              meta={
+                <div className={`grid gap-3 ${eventTime ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  <div>
+                    <p className="text-[11px] font-semibold text-white/50">Date</p>
+                    <p className="mt-0.5 text-sm font-bold text-white">{formattedDate}</p>
+                  </div>
+                  {eventTime ? (
+                    <div>
+                      <p className="text-[11px] font-semibold text-white/50">Time</p>
+                      <p className="mt-0.5 text-sm font-bold text-white">{eventTime}</p>
+                    </div>
+                  ) : null}
+                </div>
+              }
+            />
           </div>
         </div>
 
         <div className="relative h-0 z-10" aria-hidden>
           <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-neutral-50 dark:bg-neutral-950" />
           <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-5 h-5 rounded-full bg-neutral-50 dark:bg-neutral-950" />
-          <div className="absolute left-4 right-4 top-1/2 -translate-y-1/2 border-t-2 border-dashed border-white/80" />
+          <div className="absolute left-4 right-4 top-1/2 -translate-y-1/2 border-t-2 border-dashed border-white/50" />
         </div>
 
         <div
-          className="px-5 pt-7 pb-6 flex flex-col items-center text-center"
+          className="px-5 pt-3 pb-3 flex flex-col items-center text-center"
           style={{ backgroundColor: accent, color: onAccent }}
         >
           <TicketBadge
@@ -482,13 +565,11 @@ function ClassicLayout(props: LayoutProps) {
             editable={editable}
             onCommit={(v) => onCopyChange?.({ badgeText: v })}
           />
-          <div className="mt-4 bg-white p-3 rounded-2xl shadow-lg">
+          <div className="mt-2 bg-white p-1.5 rounded-xl shadow-lg">
             <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={mobileQr} />
           </div>
-          <p className="mt-4 text-xs font-black tracking-[0.22em] uppercase opacity-90 font-mono">
-            Scan to entry
-          </p>
-          <p className="mt-1 text-[10px] font-bold tracking-[0.18em] uppercase opacity-75 font-mono">
+          <p className="mt-1.5 text-[11px] font-bold uppercase opacity-90">Scan to enter</p>
+          <p className="mt-0.5 text-[11px] font-semibold opacity-80">
             <EditCopy value={copy.sublabel} field="ticketSublabel" enabled={editable} onCopyChange={onCopyChange} />
           </p>
         </div>
@@ -514,44 +595,55 @@ function ClassicLayout(props: LayoutProps) {
         </div>
 
         <div className="relative z-20 flex flex-col justify-between h-full min-w-0 gap-4">
-          <div className="min-w-0">
-            <p className="text-xs font-black tracking-[0.22em] text-neutral-300 uppercase font-mono">
-              <EditCopy value={copy.headline} field="ticketHeadline" enabled={editable} onCopyChange={onCopyChange} />
-            </p>
-            <h3 className="text-2xl lg:text-4xl font-extrabold tracking-tight leading-[1.08] mt-3 uppercase drop-shadow-md break-words">
-              <span style={{ color: accent }}>{split.firstWord}</span>
-              {split.restOfTitle ? (
-                <>
-                  {' '}
-                  <span className="text-white">{split.restOfTitle}</span>
-                </>
-              ) : null}
-            </h3>
-          </div>
-
-          <div className="min-w-0">
-            <p className="text-[10px] font-black tracking-widest text-neutral-300 font-mono">
-              <EditCopy value={copy.venueLabel} field="venueLabel" enabled={editable} onCopyChange={onCopyChange} />
-            </p>
-            <h4 className="text-base lg:text-lg font-black tracking-tight text-white uppercase mt-0.5 break-words">
-              {eventLocation}
-            </h4>
-          </div>
-
-          <div className="border-t border-white/10 pt-3 flex flex-wrap gap-y-2 gap-x-6 text-xs text-white/80">
-            <div className="min-w-0">
-              <span className="text-[10px] font-bold text-neutral-300 font-mono block">DATE</span>
-              <p className="font-extrabold text-white uppercase font-mono mt-0.5 text-[11px] lg:text-xs break-words">
-                {formattedDate}
-              </p>
-            </div>
-            <div className="pl-4 border-l border-white/10 min-w-0">
-              <span className="text-[10px] font-bold text-neutral-300 font-mono block">CODE</span>
-              <p className="font-extrabold text-white uppercase font-mono mt-0.5 text-[11px] lg:text-xs break-all">
-                {ticketSerial}
-              </p>
-            </div>
-          </div>
+            <CopyStack
+              kicker={
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-bold uppercase text-neutral-300">
+                    <EditCopy value={copy.headline} field="ticketHeadline" enabled={editable} onCopyChange={onCopyChange} />
+                  </p>
+                  <HostBadge logo={organizerLogo} name={organizerName} />
+                </div>
+              }
+              title={
+                <h3 className="text-2xl lg:text-4xl font-extrabold leading-tight uppercase break-words">
+                  <span style={{ color: accent }}>{split.firstWord}</span>
+                  {split.restOfTitle ? (
+                    <>
+                      {' '}
+                      <span className="text-white">{split.restOfTitle}</span>
+                    </>
+                  ) : null}
+                </h3>
+              }
+              venueLabel={
+                <p className="text-[10px] font-bold uppercase text-neutral-300">
+                  <EditCopy value={copy.venueLabel} field="venueLabel" enabled={editable} onCopyChange={onCopyChange} />
+                </p>
+              }
+              venue={
+                <h4 className="text-base lg:text-lg font-extrabold text-white uppercase break-words">
+                  {eventLocation}
+                </h4>
+              }
+              meta={
+                <div className="border-t border-white/10 pt-3 flex flex-wrap gap-y-2 gap-x-6 text-xs text-white/80">
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-bold text-neutral-300 block">DATE</span>
+                    <p className="font-extrabold text-white uppercase mt-0.5 text-[11px] lg:text-xs">
+                      {formattedDate}
+                    </p>
+                  </div>
+                  {eventTime ? (
+                    <div className="pl-4 border-l border-white/10 min-w-0">
+                      <span className="text-[10px] font-bold text-neutral-300 block">TIME</span>
+                      <p className="font-extrabold text-white uppercase mt-0.5 text-[11px] lg:text-xs">
+                        {eventTime}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              }
+            />
         </div>
       </div>
 
@@ -562,22 +654,22 @@ function ClassicLayout(props: LayoutProps) {
       </div>
 
       <div
-        className="w-52 lg:w-60 p-5 lg:p-6 flex flex-col justify-between items-center relative shrink-0"
+        className="w-40 lg:w-48 p-3 flex flex-col justify-center items-center gap-2.5 relative shrink-0"
         style={{ backgroundColor: accent, color: onAccent }}
       >
         <div className="absolute inset-0 bg-black/5 pointer-events-none" />
         <TicketBadge
           label={badgeLabel}
           style={badgePill}
-          className="mb-4 shadow-sm"
+          className="shadow-sm"
           editable={editable}
           onCommit={(v) => onCopyChange?.({ badgeText: v })}
         />
-        <div className="bg-white p-2 rounded-xl shadow-md z-10">
+        <div className="bg-white p-1.5 rounded-xl shadow-md z-10">
           <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={desktopQr} />
         </div>
-        <div className="text-center mt-4 z-10">
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-90 font-mono">
+        <div className="text-center z-10">
+          <p className="text-[10px] font-bold uppercase opacity-90">
             Scan to entry
           </p>
           <p className="text-[10px] font-mono opacity-75 mt-1">
@@ -600,7 +692,6 @@ function BoardingLayout(props: LayoutProps) {
     eventTime = '4:00 PM',
     eventLocation = 'Venue TBA',
     ticketType,
-    ticketSerial = 'TKT-PREVIEW',
     qrValue = 'preview-ticket',
     qrCodeImage,
     compact = false,
@@ -624,7 +715,7 @@ function BoardingLayout(props: LayoutProps) {
   return (
     <div
       id={id}
-      className="relative w-full max-w-xl mx-auto rounded-2xl overflow-hidden shadow-2xl min-w-0"
+      className={`relative w-full ${compact ? 'max-w-xl mx-auto' : ''} rounded-2xl overflow-hidden shadow-2xl min-w-0`}
       style={{
         background: 'linear-gradient(180deg, #fffdf8 0%, #f6ead8 100%)',
         color: ink,
@@ -666,7 +757,7 @@ function BoardingLayout(props: LayoutProps) {
           <div className="grid grid-cols-3 gap-3">
             {fields.map((field) => (
               <div key={field.label} className="min-w-0">
-                <p className="text-[9px] font-semibold uppercase tracking-[0.18em]" style={{ color: muted }}>
+                <p className="text-[9px] font-semibold uppercase" style={{ color: muted }}>
                   {'editableLabel' in field && field.editableLabel ? (
                     <EditCopy value={copy.venueLabel} field="venueLabel" enabled={editable} onCopyChange={onCopyChange} />
                   ) : (
@@ -714,9 +805,6 @@ function BoardingLayout(props: LayoutProps) {
           </div>
           <div>
             <p className="text-[9px] font-bold tracking-[0.2em] uppercase opacity-80">Scan to enter</p>
-            <p data-ticket-text className="mt-1 text-[10px] font-mono font-bold tracking-wide break-all opacity-90">
-              {ticketSerial}
-            </p>
           </div>
         </div>
       </div>
@@ -732,11 +820,9 @@ function StubLayout(props: LayoutProps) {
   const {
     eventName,
     eventDate,
-    eventTime = '7:00 PM',
+    eventTime,
     eventLocation = 'Venue TBA',
     eventImageUrl,
-    ticketType,
-    ticketSerial = 'TKT-PREVIEW',
     qrValue = 'preview-ticket',
     qrCodeImage,
     compact = false,
@@ -746,6 +832,8 @@ function StubLayout(props: LayoutProps) {
     copy,
     editable,
     onCopyChange,
+    organizerLogo,
+    organizerName,
   } = props;
   const split = splitTitle(eventName);
   const shortDate = formatShortDate(eventDate);
@@ -753,18 +841,17 @@ function StubLayout(props: LayoutProps) {
   const bannerImage =
     eventImageUrl ||
     'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=1200&q=80';
-  const qrSize = compact ? 72 : 88;
+  const qrSize = compact ? 64 : 76;
 
   return (
     <div
       id={id}
-      className={`relative w-full max-w-xl mx-auto rounded-2xl overflow-hidden shadow-xl border border-white/10 bg-[#0b0b12] text-white min-w-0`}
+      className={`relative w-full ${compact ? 'max-w-xl mx-auto' : ''} rounded-2xl overflow-hidden shadow-xl border border-white/10 bg-[#0b0b12] text-white min-w-0`}
     >
-      {/* Neon top rail */}
       <div className="h-1.5 w-full" style={{ backgroundColor: accent }} />
 
-      <div data-ticket-body className="flex flex-col sm:flex-row">
-        <div className={`relative flex-1 min-w-0 ${compact ? 'p-4' : 'p-5 sm:p-6'} overflow-hidden`}>
+      <div data-ticket-body className="flex flex-row items-stretch">
+        <div className={`relative flex flex-1 min-w-0 items-center ${compact ? 'p-4' : 'p-3.5 sm:p-6'} overflow-hidden`}>
           <div className="absolute inset-0 opacity-30">
             <img
               src={bannerImage}
@@ -775,101 +862,69 @@ function StubLayout(props: LayoutProps) {
             <div className="absolute inset-0 bg-gradient-to-br from-[#0b0b12] via-[#0b0b12]/92 to-[#0b0b12]/50" />
           </div>
 
-          {/* Diagonal accent slash */}
-          <div
-            className="pointer-events-none absolute -right-8 top-0 h-full w-16 rotate-12 opacity-40"
-            style={{ background: `linear-gradient(180deg, ${accent}, transparent)` }}
-          />
-
-          <div className="relative z-10 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span
-                className="px-2 py-0.5 text-[10px] font-black tracking-[0.2em] uppercase rounded max-w-full truncate"
-                style={{ backgroundColor: accent, color: onAccent }}
-              >
-                <EditCopy value={copy.headline} field="ticketHeadline" enabled={editable} onCopyChange={onCopyChange} />
-              </span>
-              <span className="text-[10px] font-bold tracking-widest uppercase text-white/55">
-                <EditCopy value={copy.sublabel} field="ticketSublabel" enabled={editable} onCopyChange={onCopyChange} />
-              </span>
-            </div>
-
-            <h3
-              data-ticket-text
-              className={`${compact ? 'text-2xl' : 'text-3xl sm:text-4xl'} font-black uppercase leading-[1.05] mt-3 tracking-tight break-words`}
-              style={{ fontFamily: '"Oswald", ui-sans-serif, system-ui, sans-serif' }}
-            >
-              <span style={{ color: accent }}>{split.firstWord}</span>
-              {split.restOfTitle ? (
-                <>
-                  {' '}
-                  <span className="text-white">{split.restOfTitle}</span>
-                </>
-              ) : null}
-            </h3>
-
-            <p
-              data-ticket-text
-              className="mt-3 text-sm font-bold uppercase tracking-wide text-white/90 break-words"
-            >
-              {eventLocation}
-            </p>
-
-            <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs">
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50">Date</p>
-                <p data-ticket-text className="font-extrabold text-white mt-0.5 break-words">
-                  {shortDate}
-                </p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50">Doors</p>
-                <p className="font-extrabold text-white mt-0.5">{eventTime}</p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50">Code</p>
-                <p
-                  data-ticket-text
-                  className="font-extrabold font-mono text-white mt-0.5 break-all"
+          <div className="relative z-10 min-w-0 w-full">
+            <CopyStack
+              kicker={
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className="px-2 py-0.5 text-[10px] font-black uppercase rounded max-w-full truncate"
+                    style={{ backgroundColor: accent, color: onAccent }}
+                  >
+                    <EditCopy value={copy.headline} field="ticketHeadline" enabled={editable} onCopyChange={onCopyChange} />
+                  </span>
+                  <HostBadge logo={organizerLogo} name={organizerName} />
+                </div>
+              }
+              title={
+                <h3
+                  className={`${compact ? 'text-2xl' : 'text-xl sm:text-3xl'} font-black uppercase leading-tight break-words`}
+                  style={{ fontFamily: '"Oswald", ui-sans-serif, system-ui, sans-serif' }}
                 >
-                  {ticketSerial}
+                  <span style={{ color: accent }}>{split.firstWord}</span>
+                  {split.restOfTitle ? (
+                    <>
+                      {' '}
+                      <span className="text-white">{split.restOfTitle}</span>
+                    </>
+                  ) : null}
+                </h3>
+              }
+              venueLabel={
+                <p className="text-[10px] font-bold uppercase leading-normal text-white/55">
+                  <EditCopy value={copy.venueLabel} field="venueLabel" enabled={editable} onCopyChange={onCopyChange} />
                 </p>
-              </div>
-            </div>
-
-            {/* Fake barcode stripes */}
-            <div className="mt-5 flex items-end gap-[2px] h-7 opacity-70" aria-hidden>
-              {Array.from({ length: 28 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="bg-white/80"
-                  style={{
-                    width: i % 5 === 0 ? 3 : 1.5,
-                    height: `${40 + ((i * 17) % 60)}%`,
-                  }}
-                />
-              ))}
-            </div>
+              }
+              venue={
+                <p className="text-xs sm:text-sm font-bold uppercase text-white/90 break-words">
+                  {eventLocation}
+                </p>
+              }
+              meta={
+                <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase text-white/50">Date</p>
+                    <p className="font-extrabold text-white mt-0.5 break-words">{shortDate}</p>
+                  </div>
+                  {eventTime ? (
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase text-white/50">Time</p>
+                      <p className="font-extrabold text-white mt-0.5">{eventTime}</p>
+                    </div>
+                  ) : null}
+                </div>
+              }
+            />
           </div>
         </div>
 
-        {/* Tear */}
-        <div className="relative h-0 sm:h-auto sm:w-0 shrink-0">
-          <div className="sm:hidden absolute left-0 right-0 top-1/2 -translate-y-1/2">
-            <div className="absolute left-0 -translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950" />
-            <div className="absolute right-0 translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950" />
-            <div className="mx-4 border-t-2 border-dashed border-white/25" />
-          </div>
-          <div className="hidden sm:block absolute inset-y-0 left-0">
-            <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950 z-20" />
-            <div className="absolute inset-y-3 left-0 border-l-2 border-dashed border-white/25" />
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950 z-20" />
-          </div>
+        <div className="flex flex-col justify-between items-center py-3 relative bg-[#0b0b12] shrink-0" aria-hidden>
+          <div className="w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950 -mt-5 z-20" />
+          <div className="border-l-2 border-dashed border-white/25 h-full my-0.5" />
+          <div className="w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950 -mb-5 z-20" />
         </div>
 
-        {/* Stub */}
         <div
-          className={`sm:w-[34%] sm:min-w-[120px] sm:max-w-[168px] ${compact ? 'p-4' : 'p-5'} flex flex-row sm:flex-col items-center justify-between gap-3 text-center shrink-0`}
+          className={`w-[108px] sm:w-[148px] ${compact ? 'p-3' : 'p-3 sm:p-5'} flex flex-col items-center justify-center text-center shrink-0 gap-2 sm:gap-3`}
           style={{ backgroundColor: accent, color: onAccent }}
         >
           <TicketBadge
@@ -881,15 +936,10 @@ function StubLayout(props: LayoutProps) {
             editable={editable}
             onCommit={(v) => onCopyChange?.({ badgeText: v })}
           />
-          <div className="bg-white p-2 rounded-xl shadow-md shrink-0" data-ticket-qr>
+          <div className="bg-white p-1.5 rounded-xl shadow-md shrink-0" data-ticket-qr>
             <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={qrSize} />
           </div>
-          <div className="shrink-0">
-            <p className="text-[10px] font-black tracking-[0.18em] uppercase opacity-90">
-              Tear & keep
-            </p>
-            <p className="text-xs font-extrabold mt-0.5 tracking-wide">ADMIT ONE</p>
-          </div>
+          <p className="text-[9px] sm:text-[10px] font-bold uppercase opacity-90">Scan to enter</p>
         </div>
       </div>
     </div>
@@ -905,7 +955,6 @@ function CinemaLayout(props: LayoutProps) {
     eventDate,
     eventTime = '7:00 PM',
     eventLocation = 'Venue TBA',
-    ticketSerial = 'TKT-PREVIEW',
     qrValue = 'preview-ticket',
     qrCodeImage,
     compact = false,
@@ -924,7 +973,7 @@ function CinemaLayout(props: LayoutProps) {
   return (
     <div
       id={id}
-      className="relative w-full max-w-xl mx-auto overflow-hidden shadow-2xl min-w-0"
+      className={`relative w-full ${compact ? 'max-w-xl mx-auto' : ''} overflow-hidden shadow-2xl min-w-0`}
       style={{ backgroundColor: paper, color: ink, borderRadius: 6 }}
     >
       <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-neutral-950">
@@ -960,7 +1009,7 @@ function CinemaLayout(props: LayoutProps) {
               <p className="mt-0.5 text-xs font-extrabold">{eventTime}</p>
             </div>
             <div className="min-w-0">
-              <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-neutral-500">
+              <p className="text-[9px] font-bold uppercase text-neutral-500">
                 <EditCopy value={copy.venueLabel} field="venueLabel" enabled={editable} onCopyChange={onCopyChange} />
               </p>
               <p data-ticket-text className="mt-0.5 text-xs font-extrabold break-words">{eventLocation}</p>
@@ -986,9 +1035,6 @@ function CinemaLayout(props: LayoutProps) {
           <div className="bg-white p-1.5 rounded-md">
             <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={qrSize} />
           </div>
-          <p data-ticket-text className="text-[10px] font-mono font-bold break-all">
-            {ticketSerial}
-          </p>
         </div>
       </div>
 
@@ -1012,7 +1058,6 @@ function FolioLayout(props: LayoutProps) {
     eventLocation = 'Venue TBA',
     eventImageUrl,
     ticketType,
-    ticketSerial = 'TKT-PREVIEW',
     qrValue = 'preview-ticket',
     qrCodeImage,
     compact = false,
@@ -1024,7 +1069,7 @@ function FolioLayout(props: LayoutProps) {
     onCopyChange,
   } = props;
   const onAccent = inkOn(accent);
-  const qrSize = compact ? 72 : 88;
+  const qrSize = compact ? 64 : 72;
   const bannerImage =
     eventImageUrl ||
     'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1200&q=80';
@@ -1032,9 +1077,9 @@ function FolioLayout(props: LayoutProps) {
   return (
     <div
       id={id}
-      className="relative w-full max-w-xl mx-auto rounded-2xl overflow-hidden shadow-2xl min-w-0 text-white"
+      className={`relative w-full ${compact ? 'max-w-xl mx-auto' : ''} rounded-2xl overflow-hidden shadow-2xl min-w-0 text-white`}
     >
-      <div data-ticket-body className="relative min-h-[220px] sm:min-h-[250px]">
+      <div data-ticket-body className="relative min-h-[240px] sm:min-h-[280px]">
         <img
           src={bannerImage}
           alt=""
@@ -1043,10 +1088,10 @@ function FolioLayout(props: LayoutProps) {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-black/15" />
 
-        <div className={`relative z-10 flex h-full min-h-[220px] sm:min-h-[250px] ${compact ? 'p-4' : 'p-5'} gap-4`}>
-          <div className="flex-1 min-w-0 flex flex-col justify-between">
+        <div className={`relative z-10 flex h-full min-h-[240px] sm:min-h-[280px] ${compact ? 'p-4' : 'p-4 sm:p-5'} gap-4`}>
+          <div className="flex-1 min-w-0 flex flex-col justify-between gap-4">
             <div className="flex items-start justify-between gap-2">
-              <p className="text-[10px] font-semibold tracking-[0.28em] uppercase text-white/70">
+              <p className="text-[10px] font-semibold uppercase text-white/70">
                 <EditCopy value={copy.headline} field="ticketHeadline" enabled={editable} onCopyChange={onCopyChange} />
               </p>
               <TicketBadge
@@ -1056,29 +1101,33 @@ function FolioLayout(props: LayoutProps) {
                 onCommit={(v) => onCopyChange?.({ badgeText: v })}
               />
             </div>
-            <div>
-              <h3
-                data-ticket-text
-                className={`${compact ? 'text-2xl' : 'text-3xl'} font-semibold leading-[1.1] break-words`}
-                style={{ fontFamily: '"Cormorant Garamond", Georgia, serif' }}
-              >
-                {eventName}
-              </h3>
-              <p className="mt-2 text-xs font-medium text-white/80">
-                {formatPrettyDate(eventDate)} · {eventTime}
-              </p>
-              <p data-ticket-text className="mt-1 text-xs text-white/70 break-words">
-                {eventLocation}
-              </p>
-            </div>
+            <CopyStack
+              title={
+                <>
+                  <h3
+                    className={`${compact ? 'text-2xl' : 'text-xl sm:text-3xl'} font-semibold leading-tight break-words`}
+                    style={{ fontFamily: '"Cormorant Garamond", Georgia, serif' }}
+                  >
+                    {eventName}
+                  </h3>
+                  <p className="mt-2 text-xs font-medium text-white/80">
+                    {formatPrettyDate(eventDate)}
+                    {eventTime ? ` · ${eventTime}` : ''}
+                  </p>
+                </>
+              }
+              venueLabel={
+                <p className="text-[10px] font-bold uppercase text-white/50">
+                  <EditCopy value={copy.venueLabel} field="venueLabel" enabled={editable} onCopyChange={onCopyChange} />
+                </p>
+              }
+              venue={<p className="text-xs text-white/80 break-words">{eventLocation}</p>}
+            />
           </div>
-          <div className="shrink-0 self-end flex flex-col items-center gap-2">
+          <div className="shrink-0 self-center flex flex-col items-center">
             <div className="bg-white p-1.5 rounded-lg shadow-lg">
               <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={qrSize} />
             </div>
-            <p data-ticket-text className="text-[9px] font-mono tracking-wide text-white/80 break-all max-w-[88px] text-center">
-              {ticketSerial}
-            </p>
           </div>
         </div>
       </div>
