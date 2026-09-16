@@ -45,49 +45,26 @@ function sortEventsUpcomingFirst(list: Event[]) {
   });
 }
 
-/* ── Promoted hero slides ─────────────────────────────── */
-const heroSlides = [
-  {
-    id: 1,
-    title: 'AI & Web3 Developer Summit',
-    subtitle: 'Join 500+ tech leaders in Kano',
-    cta: 'Get Tickets',
-    link: '/events',
-    image:
-      'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
-    tag: 'Featured',
-  },
-  {
-    id: 2,
-    title: 'Afrobeats Live Fest',
-    subtitle: 'Two nights of afrobeats, R&B & more in Kano',
-    cta: 'Explore Lineup',
-    link: '/events',
-    image:
-      'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
-    tag: 'Trending',
-  },
-  {
-    id: 3,
-    title: 'Street Food Carnival',
-    subtitle: 'Taste the best of Kano — 50+ vendors',
-    cta: 'Reserve Your Spot',
-    link: '/events',
-    image:
-      'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
-    tag: 'New',
-  },
-  {
-    id: 4,
-    title: 'Startup Pitch Night',
-    subtitle: 'Where ideas meet investors — Kano Edition',
-    cta: 'Apply Now',
-    link: '/events',
-    image:
-      'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
-    tag: 'Limited Seats',
-  },
-];
+type HeroSlide = {
+  id: number;
+  title: string;
+  subtitle: string;
+  cta: string;
+  link: string;
+  image: string;
+  tag: string;
+};
+
+const contactSlide: HeroSlide = {
+  id: 0,
+  title: 'Hosting an event?',
+  subtitle: 'Tell us what you need. We can help with tickets and the door.',
+  cta: 'Contact us',
+  link: '/contact',
+  image:
+    'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1600&q=80',
+  tag: '',
+};
 
 const categories = [
   { name: 'All',        icon: Globe },
@@ -102,7 +79,7 @@ const categories = [
 ];
 
 /* ── Hero Carousel ────────────────────────────────────── */
-const HeroCarousel = ({ slides }: { slides: typeof heroSlides }) => {
+const HeroCarousel = ({ slides }: { slides: HeroSlide[] }) => {
   const [current, setCurrent] = useState(0);
   const total = slides.length;
 
@@ -135,30 +112,32 @@ const HeroCarousel = ({ slides }: { slides: typeof heroSlides }) => {
             alt={slides[current].title}
             className="h-full w-full object-fill object-center"
           />
-          {/* Gradient overlays */}
-          <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-black/35" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/45 to-black/25" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-transparent" />
         </motion.div>
       </AnimatePresence>
 
       {/* Content */}
-      <div className="absolute inset-0 flex items-end sm:items-center z-10">
-        <div className="px-6 sm:px-10 md:px-14 pb-12 sm:pb-0 max-w-xl">
-          <motion.span
-            key={`tag-${current}`}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="inline-block px-3 py-1 bg-rose-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-full mb-3"
-          >
-            {slides[current].tag}
-          </motion.span>
+      <div className="absolute inset-0 z-10 flex items-end sm:items-center">
+        <div className="max-w-md px-5 pb-10 sm:px-10 sm:pb-0 md:px-14">
+          {slides[current].tag ? (
+            <motion.span
+              key={`tag-${current}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="mb-2 hidden rounded-full bg-rose-500 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white sm:inline-block"
+            >
+              {slides[current].tag}
+            </motion.span>
+          ) : null}
           <motion.h2
             key={`title-${current}`}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white leading-tight mb-2"
+            className="mb-1.5 text-lg font-bold leading-tight text-rose-500 sm:text-2xl sm:text-white md:text-3xl"
           >
             {slides[current].title}
           </motion.h2>
@@ -167,7 +146,7 @@ const HeroCarousel = ({ slides }: { slides: typeof heroSlides }) => {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="text-sm sm:text-base text-white/80 mb-5"
+            className="mb-3 text-xs leading-relaxed text-white sm:mb-4 sm:text-sm"
           >
             {slides[current].subtitle}
           </motion.p>
@@ -179,10 +158,10 @@ const HeroCarousel = ({ slides }: { slides: typeof heroSlides }) => {
           >
             <Link
               to={slides[current].link}
-              className="inline-flex items-center gap-2 bg-white text-neutral-900 font-bold text-sm px-6 py-3 rounded-full hover:bg-rose-500 hover:text-white transition-colors shadow-lg active:scale-95"
+              className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-semibold text-neutral-900 transition-colors hover:bg-rose-500 hover:text-white sm:px-4 sm:py-2 sm:text-sm"
             >
               {slides[current].cta}
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </motion.div>
         </div>
@@ -291,9 +270,9 @@ const HomePage = () => {
           tag: raw.category || e.category || 'Featured',
         };
       })
-      .filter(Boolean) as typeof heroSlides;
+      .filter(Boolean) as HeroSlide[];
 
-    return upcomingPromoted.length > 0 ? upcomingPromoted : heroSlides;
+    return upcomingPromoted.length > 0 ? upcomingPromoted : [contactSlide];
   }, [promotedData]);
 
   return (

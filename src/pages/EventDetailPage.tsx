@@ -878,21 +878,16 @@ const EventDetailPage = () => {
 
             <EventCountdown startIso={event.date} endIso={event.endDateRaw} />
 
-            {/* Quick meta */}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-neutral-600 dark:text-neutral-400 mb-3">
-              {event.reviewCount > 0 && (
-                <>
-                  <span className="flex items-center gap-1">
-                    <Star className="h-3.5 w-3.5 fill-neutral-900 text-neutral-900 dark:fill-white dark:text-white" />
-                    <span className="font-bold text-neutral-900 dark:text-white">{event.rating}</span>
-                  </span>
-                  <span>·</span>
-                  <span className="underline font-medium">{event.reviewCount} reviews</span>
-                  <span>·</span>
-                </>
-              )}
-              <span className="font-medium">{event.location}</span>
-            </div>
+            {event.reviewCount > 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-neutral-600 dark:text-neutral-400">
+                <span className="flex items-center gap-1">
+                  <Star className="h-3.5 w-3.5 fill-neutral-900 text-neutral-900 dark:fill-white dark:text-white" />
+                  <span className="font-bold text-neutral-900 dark:text-white">{event.rating}</span>
+                </span>
+                <span>·</span>
+                <span className="font-medium underline">{event.reviewCount} reviews</span>
+              </div>
+            )}
 
             {/* Divider */}
             <hr className="border-neutral-100 dark:border-neutral-900 mb-3" />
@@ -1013,19 +1008,18 @@ const EventDetailPage = () => {
                     // height="220px"
                   />
                 </div>
-                <hr className="border-neutral-100 dark:border-neutral-900 mb-4" />
+                <hr className="border-neutral-100 dark:border-neutral-900 mb-4 " />
               </>
             )}
 
         
 
-            {/* ─── Events You May Like ─── */}
-            <div className="mt-8">
+            <div className="mt-8 -mx-4 border-t-8 border-neutral-100 bg-neutral-50 px-4 py-6 dark:border-neutral-900 dark:bg-neutral-950 sm:mx-0 sm:rounded-2xl sm:border sm:border-neutral-200 sm:px-5 dark:sm:border-neutral-800">
               <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white mb-4">
                 More in {event.category}
               </h2>
               {similarEvents.length > 0 ? (
-                <div className="grid gap-x-4 gap-y-4 grid-cols-1 sm:gap-x-6 sm:gap-y-6 sm:grid-cols-2 md:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-6 md:grid-cols-3">
                   {similarEvents.map((evt: any, idx: number) => (
                     <motion.div
                       key={evt.id}
@@ -1033,7 +1027,7 @@ const EventDetailPage = () => {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: idx * 0.1 }}
                     >
-                      <EventCard event={evt} showPrice={true} />
+                      <EventCard event={evt} showPrice={true} compact />
                     </motion.div>
                   ))}
                 </div>

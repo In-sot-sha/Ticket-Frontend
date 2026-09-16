@@ -30,6 +30,7 @@ interface EventCardProps {
   showRating?: boolean;
   showTicketsAvailable?: boolean;
   showPrice?: boolean;
+  compact?: boolean;
   distance?: number;
   onHover?: (id: number | null) => void;
 }
@@ -53,6 +54,7 @@ const EventCard: React.FC<EventCardProps> = ({
   event,
   showTicketsAvailable = false,
   showPrice = true,
+  compact = false,
   onHover,
 }) => {
   let displayPrice = '';
@@ -176,23 +178,24 @@ const EventCard: React.FC<EventCardProps> = ({
             )}
         </div>
 
-        <div className="mt-3 sm:mt-2.5">
-          <p className="text-sm font-semibold text-rose-600 dark:text-rose-400 sm:text-xs">
+        <div className={cn(compact ? 'mt-1.5 sm:mt-2.5' : 'mt-3 sm:mt-2.5')}>
+          <p className={cn('font-semibold text-rose-600 dark:text-rose-400', compact ? 'text-[11px] sm:text-xs' : 'text-sm sm:text-xs')}>
             {formattedDate}
           </p>
           <h3
             className={cn(
-              'mt-1 line-clamp-2 text-lg font-bold leading-snug text-neutral-900 dark:text-white sm:text-[15px]',
+              'line-clamp-2 font-bold text-neutral-900 dark:text-white',
+              compact ? 'mt-0.5 text-sm leading-tight sm:mt-1 sm:text-[15px] sm:leading-snug' : 'mt-1 text-lg leading-snug sm:text-[15px]',
               isPast && 'text-neutral-500 dark:text-neutral-400'
             )}
           >
             {event.title}
           </h3>
-          <p className="mt-1 line-clamp-1 text-sm text-neutral-500 dark:text-neutral-400 sm:mt-0.5 sm:text-xs">
+          <p className={cn('line-clamp-1 text-neutral-500 dark:text-neutral-400', compact ? 'mt-0.5 text-xs sm:text-xs' : 'mt-1 text-sm sm:mt-0.5 sm:text-xs')}>
             {event.location}
           </p>
           {shouldShowPrice && (
-            <p className="mt-2 text-base font-bold tabular-nums text-neutral-900 dark:text-white sm:text-sm">
+            <p className={cn('font-bold tabular-nums text-neutral-900 dark:text-white', compact ? 'mt-1 text-sm sm:mt-2 sm:text-sm' : 'mt-2 text-base sm:text-sm')}>
               {displayPrice === 'Free' || displayPrice.startsWith('From') || displayPrice.includes('-')
                 ? displayPrice
                 : `From ${displayPrice}`}
