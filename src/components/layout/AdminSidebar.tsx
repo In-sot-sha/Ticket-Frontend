@@ -8,6 +8,7 @@ import {
   Shield,
   CreditCard,
   MessageSquare,
+  Phone,
   Ticket,
   FolderKanban,
   Calendar,
@@ -36,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { title: 'Transactions', icon: CreditCard, href: '/admin/transactions', exact: true },
   { title: 'Users', icon: Users, href: '/admin/users', exact: true },
   { title: 'Support', icon: MessageSquare, href: '/admin/support', exact: true, badgeKey: 'openSupportTickets' },
+  { title: 'WhatsApp', icon: Phone, href: '/admin/whatsapp', exact: true },
 ];
 
 const AdminSidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = ({

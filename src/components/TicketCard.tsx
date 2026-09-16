@@ -52,6 +52,8 @@ export interface TicketCardProps {
   eventMeta?: TicketCardEventMeta;
   /** Whether to render the download button below the card */
   showDownload?: boolean;
+  /** Smaller pass for confirmation and other tight layouts */
+  compact?: boolean;
   /** Override the DOM id prefix (default: "ticket-card") */
   idPrefix?: string;
 }
@@ -179,6 +181,7 @@ const TicketCard: React.FC<TicketCardProps> = ({
   index = 0,
   eventMeta = {},
   showDownload = true,
+  compact = false,
   idPrefix = 'ticket-card',
 }) => {
   const eventName = eventMeta.eventName ?? ticket.event?.title ?? 'Event';
@@ -194,8 +197,9 @@ const TicketCard: React.FC<TicketCardProps> = ({
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-2.5 sm:gap-3">
-      <div className="mx-auto w-full min-w-0 max-w-xl md:max-w-none">
+      <div className={compact ? 'mx-auto w-full min-w-0 max-w-md' : 'mx-auto w-full min-w-0 max-w-xl md:max-w-none'}>
         <EventTicketCard
+          compact={compact}
           id={cardId}
           eventName={eventName}
           eventDate={eventDate}

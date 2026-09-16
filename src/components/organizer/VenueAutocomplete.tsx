@@ -1,13 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Search, Loader2, X, Navigation } from 'lucide-react';
+import { useJsApiLoader } from '@react-google-maps/api';
+import { MapPin, Loader2, X, Navigation } from 'lucide-react';
 import { cn } from '../../lib/utils';
-
-interface VenueSuggestion {
-  address: string;
-  name?: string;
-  latitude?: number;
-  longitude?: number;
-}
+import { resolveVenue, searchVenues, venueLabel, type VenueSuggestion } from '../../lib/venueSearch';
 
 interface VenueAutocompleteProps {
   value: string;
@@ -27,14 +22,22 @@ export const VenueAutocomplete: React.FC<VenueAutocompleteProps> = ({
   onOpenMapPicker,
   latitude,
   longitude,
-  placeholder = 'e.g. Landmark Centre, Water Corporation Drive, Victoria Island, Lagos',
+  placeholder = 'Search a venue, restaurant, or address in Nigeria',
   className,
 }) => {
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  const hasGoogleKey = Boolean(apiKey && apiKey !== 'YOUR_GOOGLE_MAPS_API_KEY_HERE');
+  const { isLoaded: placesLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: hasGoogleKey ? apiKey : '',
+    libraries: ['places'],
+  });
   const [suggestions, setSuggestions] = useState<VenueSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queryRef = useRef(value);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -49,71 +52,30 @@ export const VenueAutocomplete: React.FC<VenueAutocompleteProps> = ({
 
   // Query suggestions with debounce
   const fetchSuggestions = async (query: string) => {
-    if (!query.trim() || query.length < 3) {
+    if (!query.trim() || query.length < 2) {
       setSuggestions([]);
       setLoading(false);
       return;
     }
 
     setLoading(true);
-
-    // 1. Try Google Maps Places Autocomplete if available in browser
-    if (window.google?.maps?.places) {
-      try {
-        const service = new window.google.maps.places.AutocompleteService();
-        service.getPlacePredictions(
-          { input: query, componentRestrictions: { country: 'ng' } },
-          (predictions, status) => {
-            if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions?.length) {
-              const geocoder = new window.google.maps.Geocoder();
-              const formattedList: VenueSuggestion[] = predictions.slice(0, 5).map((p) => ({
-                address: p.description,
-                name: p.structured_formatting?.main_text || p.description,
-              }));
-              setSuggestions(formattedList);
-              setLoading(false);
-              return;
-            }
-            // Fallback to OSM Nominatim
-            fallbackToNominatim(query);
-          }
-        );
-        return;
-      } catch {
-        // Fallback to OSM Nominatim
-        fallbackToNominatim(query);
-        return;
-      }
-    }
-
-    // 2. Fallback to OpenStreetMap Nominatim for real geo suggestions
-    fallbackToNominatim(query);
-  };
-
-  const fallbackToNominatim = async (query: string) => {
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-          query
-        )}&countrycodes=ng&addressdetails=1&limit=5`,
-        { headers: { 'Accept-Language': 'en' } }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const list: VenueSuggestion[] = data.map((item: any) => ({
-          address: item.display_name,
-          name: item.name || item.display_name.split(',')[0],
-          latitude: parseFloat(item.lat),
-          longitude: parseFloat(item.lon),
-        }));
-        setSuggestions(list);
-      }
+      setSuggestions(await searchVenues(query));
     } catch {
-      // Ignore network errors
+      setSuggestions([]);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    queryRef.current = value;
+  }, [value]);
+
+  useEffect(() => {
+    if (!placesLoaded || queryRef.current.trim().length < 2) return;
+    void fetchSuggestions(queryRef.current);
+  }, [placesLoaded]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -126,35 +88,17 @@ export const VenueAutocomplete: React.FC<VenueAutocompleteProps> = ({
     }, 350);
   };
 
-  const handleSelectSuggestion = (s: VenueSuggestion) => {
-    onChange(s.address);
+  const handleSelectSuggestion = async (s: VenueSuggestion) => {
     setIsOpen(false);
     setSuggestions([]);
-
-    if (s.latitude != null && s.longitude != null) {
-      onSelect({
-        address: s.address,
-        latitude: s.latitude,
-        longitude: s.longitude,
-      });
-    } else if (window.google?.maps?.Geocoder) {
-      // Geocode address to get lat/lng
-      const geocoder = new window.google.maps.Geocoder();
-      geocoder.geocode({ address: s.address }, (results, status) => {
-        if (status === 'OK' && results?.[0]) {
-          const loc = results[0].geometry.location;
-          onSelect({
-            address: s.address,
-            latitude: loc.lat(),
-            longitude: loc.lng(),
-          });
-        } else {
-          onSelect({ address: s.address });
-        }
-      });
-    } else {
-      onSelect({ address: s.address });
-    }
+    const resolved = await resolveVenue(s);
+    const label = venueLabel(resolved);
+    onChange(label);
+    onSelect({
+      address: label,
+      latitude: resolved.latitude,
+      longitude: resolved.longitude,
+    });
   };
 
   return (
@@ -208,7 +152,7 @@ export const VenueAutocomplete: React.FC<VenueAutocompleteProps> = ({
 
       {/* Auto-suggest dropdown menu */}
       {isOpen && suggestions.length > 0 && (
-        <div className="absolute left-0 right-0 top-full z-40 mt-1 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-lg overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-800 animate-in fade-in slide-in-from-top-1 duration-150">
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-xl border border-neutral-200 bg-white shadow-lg divide-y divide-neutral-100 dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900">
           <div className="p-1.5 bg-neutral-50 dark:bg-neutral-850 px-3 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-neutral-400">
             <span>Suggested Locations</span>
             <span className="text-[9px] lowercase font-normal">Click to select</span>

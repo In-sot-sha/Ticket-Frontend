@@ -106,6 +106,7 @@ export default {
   			'chevron-nudge': 'chevron-nudge 1.2s ease-in-out infinite'
   		},
   		fontFamily: {
+  			sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
   			ticket: ['Oswald', 'ui-sans-serif', 'system-ui', 'sans-serif']
   		}
   	}

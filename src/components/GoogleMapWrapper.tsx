@@ -21,6 +21,7 @@ interface GoogleMapWrapperProps {
   height?: string;
   selectedMarkerId?: string | number;
   style?: React.CSSProperties;
+  showControls?: boolean;
 }
 
 export const GoogleMapWrapper: React.FC<GoogleMapWrapperProps> = ({
@@ -33,6 +34,7 @@ export const GoogleMapWrapper: React.FC<GoogleMapWrapperProps> = ({
   height = '400px',
   selectedMarkerId,
   style,
+  showControls = true,
 }) => {
   const [infoWindowId, setInfoWindowId] = useState<string | number | null>(null);
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -106,9 +108,14 @@ export const GoogleMapWrapper: React.FC<GoogleMapWrapperProps> = ({
       zoom={zoom}
       onClick={handleMapClick}
       options={{
+        disableDefaultUI: !showControls,
+        zoomControl: showControls,
+        mapTypeControl: false,
         streetViewControl: false,
-        fullscreenControl: true,
-        zoomControl: true,
+        fullscreenControl: showControls,
+        rotateControl: false,
+        scaleControl: false,
+        clickableIcons: false,
       }}
     >
       {/* Event markers */}

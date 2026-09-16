@@ -60,6 +60,7 @@ import AdminSupportPage from '../pages/admin/AdminSupportPage';
 import AdminStaffPage from '../pages/admin/AdminStaffPage';
 import AdminOpsProjectsPage from '../pages/admin/AdminOpsProjectsPage';
 import AdminEventsPage from '../pages/admin/AdminEventsPage';
+import AdminWhatsAppPage from '../pages/admin/AdminWhatsAppPage';
 import StaffHomePage from '../pages/StaffHomePage';
 import { StaffOrgsPage, StaffProjectsPage } from '../pages/StaffSections';
 import ForceChangePasswordPage from '../pages/ForceChangePasswordPage';
@@ -340,6 +341,10 @@ const AppRoutes: React.FC = () => {
         {
           path: "events",
           element: <AdminEventsPage />,
+        },
+        {
+          path: "whatsapp",
+          element: <AdminWhatsAppPage />,
         },
       ],
     },

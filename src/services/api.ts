@@ -662,6 +662,27 @@ export const api = {
 
     resolvePayment: (reference: string) =>
       apiRequest<any>('POST', '/admin/payments/resolve', { reference }),
+
+    getWhatsAppConfig: () => apiRequest<any>('GET', '/admin/whatsapp'),
+
+    updateWhatsAppConfig: (data: {
+      enabled?: boolean;
+      sendTickets?: boolean;
+      sendOtp?: boolean;
+      ticketTemplate?: string;
+      otpTemplate?: string;
+      templateLanguage?: string;
+      currency?: string;
+      ticketPrice?: number;
+      otpPrice?: number;
+    }) => apiRequest<any>('PUT', '/admin/whatsapp', data),
+
+    getWhatsAppMessages: () => apiRequest<any[]>('GET', '/admin/whatsapp/messages'),
+
+    retryWhatsAppMessage: (id: number) =>
+      apiRequest<any>('POST', `/admin/whatsapp/messages/${id}/retry`),
+
+    testWhatsApp: () => apiRequest<any>('POST', '/admin/whatsapp/test'),
   },
 
   staff: {

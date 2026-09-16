@@ -520,7 +520,7 @@ const OrganizerPage: React.FC = () => {
                 Browse all <ChevronRight className="h-4 w-4" />
               </Link>
             </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-6 md:grid-cols-3 lg:grid-cols-4">
               {showcaseEvents.map((event: Event) => (
                 <EventLink key={event.id} eventId={event.id}>
                   <EventCard event={event} showPrice showRating />
