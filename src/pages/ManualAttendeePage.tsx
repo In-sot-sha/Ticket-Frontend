@@ -1,28 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
   CheckCircle2,
   AlertCircle,
-  Phone,
-  Mail,
+  ScanLine,
   Minus,
   Plus,
-  ScanLine,
-  MapPin,
-  Calendar,
   UserCheck,
-  CreditCard,
-  User,
-  Ticket,
   X,
+  Trash2,
+  Search,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/skeleton';
 import { Switch } from '../components/ui/Switch';
 import { api } from '../services/api';
 import { cn } from '../lib/utils';
-import { isValidEmail, isValidPhone } from '../lib/phone';
+import { isValidEmail, isValidPhone, normalizePhone } from '../lib/phone';
+import { formatNaira } from '../lib/eventOrganizer';
 
 interface TicketType {
   id: number;
@@ -36,19 +32,39 @@ interface TicketType {
 interface EventInfo {
   id: number;
   title: string;
-  startDate?: string;
-  location?: string;
   ticketTypes: TicketType[];
 }
 
-type PaymentMethod = 'CASH' | 'POS' | 'TRANSFER' | 'COMPLIMENTARY';
+type PaymentMethod = 'CASH' | 'POS' | 'TRANSFER' | 'FREE';
 
-const PAYMENTS: { id: PaymentMethod; label: string }[] = [
+const PAID_PAYMENTS: { id: Exclude<PaymentMethod, 'FREE'>; label: string }[] = [
   { id: 'CASH', label: 'Cash' },
   { id: 'POS', label: 'POS' },
   { id: 'TRANSFER', label: 'Transfer' },
-  { id: 'COMPLIMENTARY', label: 'Complimentary' },
 ];
+
+type QueueItem = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  ticketTypeId: string;
+  ticketTypeName: string;
+  qty: number;
+  paymentMethod: PaymentMethod;
+  checkInNow: boolean;
+  unitPrice: number;
+  status: 'pending' | 'issuing' | 'error';
+  error?: string;
+};
+
+type ExistingMatch = {
+  userId: number;
+  name: string;
+  email: string;
+  phone: string;
+  existingTickets: Array<{ ticketTypeId: number; ticketTypeName: string; qty: number }>;
+};
 
 const hasValidContact = (email: string, phone: string) => {
   const e = email.trim();
@@ -58,18 +74,21 @@ const hasValidContact = (email: string, phone: string) => {
   return (!!e && isValidEmail(e)) || (!!p && isValidPhone(p));
 };
 
+const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const draftKey = (eventKey: string) => `gate_walkin_${eventKey}`;
+
 const ManualAttendeePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const location = useLocation();
   const isStaffMode = location.pathname.startsWith('/staff/');
   const backPath = isStaffMode ? '/staff' : `/organizer/events/${id}`;
   const scanPath = isStaffMode ? '/staff/scan' : '/organizer/scan';
-  const nameRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
 
   const [event, setEvent] = useState<EventInfo | null>(null);
   const [loadingEvent, setLoadingEvent] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [issuing, setIssuing] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,27 +96,15 @@ const ManualAttendeePage: React.FC = () => {
   const [qty, setQty] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [checkInNow, setCheckInNow] = useState(true);
-  const [useSameDetails, setUseSameDetails] = useState(true);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [match, setMatch] = useState<ExistingMatch | null>(null);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [sessionCollected, setSessionCollected] = useState({ CASH: 0, POS: 0, TRANSFER: 0, tickets: 0 });
 
-  const [attendees, setAttendees] = useState([{ name: '', email: '', phone: '' }]);
-
-  const syncQty = (newQty: number) => {
-    if (newQty < 1 || newQty > 20) return;
-    setQty(newQty);
-    setAttendees((prev) => {
-      const updated = [...prev];
-      while (updated.length < newQty) updated.push({ name: '', email: '', phone: '' });
-      return updated.slice(0, newQty);
-    });
-  };
-
-  const updateAttendee = (index: number, field: 'name' | 'email' | 'phone', value: string) => {
-    setAttendees((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
-      return next;
-    });
-  };
+  const storageId = event ? String(event.id) : '';
 
   useEffect(() => {
     if (!id) return;
@@ -112,166 +119,280 @@ const ManualAttendeePage: React.FC = () => {
         setEvent({
           id: data.id,
           title: data.title,
-          startDate: data.startDate,
-          location: data.location,
           ticketTypes: data.ticketTypes || [],
         });
         const sellable = (data.ticketTypes || []).filter((tt: TicketType) => !tt.isPaused);
-        if (sellable.length > 0) {
+        const saved = readDraft(String(data.id));
+        if (saved) {
+          setName(saved.name);
+          setEmail(saved.email);
+          setPhone(saved.phone);
+          setQty(saved.qty || 1);
+          setPaymentMethod(saved.paymentMethod || 'CASH');
+          setCheckInNow(saved.checkInNow !== false);
+          setQueue((saved.queue || []).map((item) => ({ ...item, status: 'pending', error: undefined })));
+          const stillValid = sellable.some((tt: TicketType) => String(tt.id) === saved.ticketTypeId);
+          setTicketTypeId(stillValid ? saved.ticketTypeId : sellable[0] ? String(sellable[0].id) : '');
+        } else if (sellable.length > 0) {
           setTicketTypeId(String(sellable[0].id));
         }
+        setSessionCollected(readSession(String(data.id)));
       })
-      .catch(() => setError('Could not load event.'))
+      .catch(() => setError('Could not load event. Your list is still saved on this phone.'))
       .finally(() => setLoadingEvent(false));
   }, [id, isStaffMode]);
 
   useEffect(() => {
-    nameRef.current?.focus();
+    phoneRef.current?.focus();
   }, []);
 
   useEffect(() => {
     if (toastMsg) {
-      const timer = setTimeout(() => setToastMsg(null), 4000);
+      const timer = setTimeout(() => setToastMsg(null), 3500);
       return () => clearTimeout(timer);
     }
   }, [toastMsg]);
 
+  useEffect(() => {
+    if (!storageId) return;
+    writeDraft(storageId, {
+      name,
+      email,
+      phone,
+      ticketTypeId,
+      qty,
+      paymentMethod,
+      checkInNow,
+      queue,
+    });
+  }, [storageId, name, email, phone, ticketTypeId, qty, paymentMethod, checkInNow, queue]);
+
+  useEffect(() => {
+    if (!event?.id) return;
+    const query = phone.trim() || email.trim();
+    const ready = (phone.trim() && (isValidPhone(phone) || phone.replace(/\D/g, '').length >= 8)) || isValidEmail(email);
+    if (!ready) {
+      setMatch(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      setLookingUp(true);
+      api.tickets
+        .lookupAttendee(event.id, query)
+        .then((res) => {
+          if (cancelled) return;
+          const found = res.data?.matches?.[0] || null;
+          setMatch(found);
+          if (found) {
+            setName((prev) => prev.trim() ? prev : found.name);
+            setEmail((prev) => prev.trim() ? prev : found.email);
+            setPhone((prev) => prev.trim() ? prev : found.phone);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setMatch(null);
+        })
+        .finally(() => {
+          if (!cancelled) setLookingUp(false);
+        });
+    }, 280);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [event?.id, phone, email]);
+
   const selectedTicketType = event?.ticketTypes.find((tt) => String(tt.id) === ticketTypeId);
-  const total =
-    paymentMethod === 'COMPLIMENTARY'
-      ? 0
-      : selectedTicketType && !Number.isNaN(selectedTicketType.price)
-      ? selectedTicketType.price * qty
-      : 0;
+  const isPaid = (selectedTicketType?.price || 0) > 0;
+  const unitPrice = selectedTicketType?.price || 0;
+  const resolvedPayment: PaymentMethod = isPaid ? (paymentMethod === 'FREE' ? 'CASH' : paymentMethod) : 'FREE';
 
-  const guestsToValidate = useSameDetails ? [attendees[0]] : attendees;
+  const formValid = !!ticketTypeId && !!name.trim() && hasValidContact(email, phone);
 
-  const canSubmit =
-    !!ticketTypeId &&
-    guestsToValidate.every(
-      (a) => a.name.trim() && hasValidContact(a.email, a.phone)
-    );
+  const queueTotal = queue.reduce((sum, item) => sum + item.unitPrice * item.qty, 0);
+  const queueQty = queue.reduce((sum, item) => sum + item.qty, 0);
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    setError(null);
-
-    if (!ticketTypeId) return setError('Select a ticket type.');
-    for (const a of guestsToValidate) {
-      if (!a.name.trim()) return setError('Enter a guest name.');
-      if (!a.email.trim() && !a.phone.trim()) {
-        return setError('Email or phone number is required.');
-      }
-      if (a.email.trim() && !isValidEmail(a.email)) {
-        return setError('Enter a valid email address.');
-      }
-      if (a.phone.trim() && !isValidPhone(a.phone)) {
-        return setError('Enter a valid Nigerian phone number (e.g. 0803… or +234…).');
-      }
-    }
-
-    setSaving(true);
-    try {
-      const payloadAttendees = useSameDetails
-        ? Array.from({ length: qty }, () => ({
-            name: attendees[0].name.trim(),
-            email: attendees[0].email.trim().toLowerCase() || undefined,
-            phone: attendees[0].phone.trim() || undefined,
-          }))
-        : attendees.map((a) => ({
-            name: a.name.trim(),
-            email: a.email.trim().toLowerCase() || undefined,
-            phone: a.phone.trim() || undefined,
-          }));
-
-      await api.post('/tickets/manual', {
-        eventId: event!.id,
-        ticketTypeId: Number(ticketTypeId),
-        quantity: qty,
-        buyerName: attendees[0].name.trim(),
-        buyerEmail: attendees[0].email.trim().toLowerCase() || undefined,
-        buyerPhone: attendees[0].phone.trim() || undefined,
-        attendees: payloadAttendees,
-        paymentMethod: paymentMethod === 'COMPLIMENTARY' ? 'CASH' : paymentMethod,
-        checkInNow,
-      });
-
-      const guestName = attendees[0].name.trim() || 'Guest';
-      setToastMsg(`✓ ${qty} ${selectedTicketType?.name || 'Ticket'} issued for ${guestName}${checkInNow ? ' (Checked in ✓)' : ''}`);
-      // Rapid reset: keep ticket type, clear guest fields & refocus for continuous rapid creation
-      setAttendees([{ name: '', email: '', phone: '' }]);
-      setQty(1);
-      setTimeout(() => nameRef.current?.focus(), 60);
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        'Failed to register guest.';
-      setError(msg);
-    } finally {
-      setSaving(false);
-    }
+  const resetGuestFields = () => {
+    setName('');
+    setEmail('');
+    setPhone('');
+    setQty(1);
+    setMatch(null);
+    setTimeout(() => phoneRef.current?.focus(), 40);
   };
 
-  const handleReset = () => {
+  const buildQueueItem = (): QueueItem | null => {
+    if (!formValid || !selectedTicketType) return null;
+    return {
+      id: newId(),
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      phone: phone.trim(),
+      ticketTypeId,
+      ticketTypeName: selectedTicketType.name,
+      qty,
+      paymentMethod: resolvedPayment,
+      checkInNow,
+      unitPrice,
+      status: 'pending',
+    };
+  };
+
+  const addToQueue = () => {
     setError(null);
-    setCheckInNow(true);
-    setQty(1);
-    setAttendees([{ name: '', email: '', phone: '' }]);
-    setUseSameDetails(true);
-    setTimeout(() => nameRef.current?.focus(), 60);
+    if (!formValid) {
+      setError('Name plus a valid phone or email is required.');
+      return;
+    }
+    const item = buildQueueItem();
+    if (!item) return;
+
+    setQueue((prev) => {
+      const same = prev.find(
+        (row) =>
+          row.status !== 'error' &&
+          row.ticketTypeId === item.ticketTypeId &&
+          row.paymentMethod === item.paymentMethod &&
+          (normalizePhone(row.phone) || row.email) &&
+          (normalizePhone(row.phone) === normalizePhone(item.phone) ||
+            (row.email && item.email && row.email === item.email))
+      );
+      if (same) {
+        return prev.map((row) => (row.id === same.id ? { ...row, qty: row.qty + item.qty, name: item.name } : row));
+      }
+      return [...prev, item];
+    });
+    resetGuestFields();
+  };
+
+  const removeFromQueue = (itemId: string) => {
+    setQueue((prev) => prev.filter((row) => row.id !== itemId));
+  };
+
+  const issueOne = async (item: QueueItem) => {
+    const attendees = Array.from({ length: item.qty }, () => ({
+      name: item.name,
+      email: item.email || undefined,
+      phone: item.phone || undefined,
+    }));
+    await api.tickets.issueManual({
+      eventId: event!.id,
+      ticketTypeId: Number(item.ticketTypeId),
+      quantity: item.qty,
+      buyerName: item.name,
+      buyerEmail: item.email || undefined,
+      buyerPhone: item.phone || undefined,
+      attendees,
+      paymentMethod: item.paymentMethod,
+      checkInNow: item.checkInNow,
+    });
+  };
+
+  const issueQueue = async () => {
+    if (!event) return;
+    let working = [...queue];
+    if (working.length === 0) {
+      const current = buildQueueItem();
+      if (!current) {
+        setError('Add someone to the list, or fill the form first.');
+        return;
+      }
+      working = [current];
+    }
+
+    setError(null);
+    setIssuing(true);
+    const remaining: QueueItem[] = [];
+    let issuedCount = 0;
+    let issuedQty = 0;
+
+    for (const item of working) {
+      setQueue((prev) => {
+        const exists = prev.some((row) => row.id === item.id);
+        const next = exists ? prev : [...prev, item];
+        return next.map((row) => (row.id === item.id ? { ...row, status: 'issuing', error: undefined } : row));
+      });
+      try {
+        await issueOne(item);
+        issuedCount += 1;
+        issuedQty += item.qty;
+        setSessionCollected((prev) => {
+          const next = { ...prev, tickets: prev.tickets + item.qty };
+          if (item.paymentMethod === 'CASH' || item.paymentMethod === 'POS' || item.paymentMethod === 'TRANSFER') {
+            next[item.paymentMethod] += item.unitPrice * item.qty;
+          }
+          if (event) writeSession(String(event.id), next);
+          return next;
+        });
+      } catch (err: unknown) {
+        const msg =
+          (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+          'Could not issue. Person kept on the list.';
+        remaining.push({ ...item, status: 'error', error: msg });
+      }
+    }
+
+    setQueue(remaining);
+    if (issuedCount > 0) {
+      setToastMsg(`Issued ${issuedQty} ticket${issuedQty === 1 ? '' : 's'}`);
+      if (working.length === 1 && remaining.length === 0) resetGuestFields();
+    }
+    if (remaining.length > 0) {
+      setError(
+        remaining.length === working.length
+          ? remaining[0].error || 'Server error. Nobody was removed from the list.'
+          : `${remaining.length} left on the list after a server error. Issued tickets are saved.`
+      );
+    }
+    setIssuing(false);
   };
 
   const inputClass =
-    'w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-colors';
+    'w-full px-3 py-2.5 text-sm rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500';
 
   return (
-    <div className={cn('relative max-w-5xl mx-auto px-3 sm:px-6 pb-20 sm:pb-8 pt-2')}>
-      {/* Rapid Creation Success Toast */}
+    <div className="relative max-w-5xl mx-auto px-3 sm:px-6 pb-28 sm:pb-8 pt-2">
       {toastMsg && (
-        <div className="mb-4 p-3.5 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-between shadow-md animate-in slide-in-from-top-2 duration-200">
+        <div className="mb-3 p-3 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-between shadow-md">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 shrink-0 text-white" />
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
             <span>{toastMsg}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setToastMsg(null)}
-            className="p-1 hover:bg-emerald-700 rounded-md cursor-pointer transition-colors text-white"
-          >
+          <button type="button" onClick={() => setToastMsg(null)} className="p-1 hover:bg-emerald-700 rounded-md">
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
-      {/* Ultra-compact top bar */}
+
       <div className="border-b border-neutral-200/80 dark:border-neutral-800 pb-2.5 mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <Link
             to={backPath}
-            className="p-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 text-neutral-700 dark:text-neutral-300 shrink-0 transition-colors"
+            className="p-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 text-neutral-700 dark:text-neutral-300 shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="min-w-0">
             <h1 className="text-sm sm:text-base font-extrabold text-neutral-900 dark:text-white truncate leading-tight">
-              Add Attendee
+              Gate sale
             </h1>
             <p className="text-[11px] text-neutral-500 truncate leading-none mt-0.5">
-              {event?.title || 'Walk-in Registration'}
+              {event?.title || 'Walk-in'}
             </p>
           </div>
         </div>
-
         <Link to={scanPath}>
-          <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs gap-1 border-neutral-200 dark:border-neutral-700 hover:border-rose-400 hover:text-rose-500">
+          <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs gap-1 border-neutral-200 dark:border-neutral-700">
             <ScanLine className="h-3.5 w-3.5 text-rose-500" />
-            <span className="hidden sm:inline">Scan Gate</span>
+            <span className="hidden sm:inline">Scan</span>
           </Button>
         </Link>
       </div>
 
       {error && (
-        <div className="mb-4 flex items-center gap-2 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 px-3.5 py-2.5 text-xs text-rose-700 dark:text-rose-300">
-          <AlertCircle className="h-4 w-4 shrink-0" />
+        <div className="mb-3 flex items-start gap-2 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 px-3.5 py-2.5 text-xs text-rose-700 dark:text-rose-300">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <span className="flex-1 font-medium">{error}</span>
           <button type="button" onClick={() => setError(null)} className="font-bold underline">
             Dismiss
@@ -279,26 +400,88 @@ const ManualAttendeePage: React.FC = () => {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Left Column: Compact Attendee Inputs */}
-        <div className="lg:col-span-7 space-y-4">
-          {/* 1. Ticket Type Selection */}
-          <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 shadow-2xs space-y-2.5">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="lg:col-span-7 space-y-3">
+          <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
-                <Ticket className="h-3.5 w-3.5 text-rose-500" /> 1. Select Ticket
-              </span>
-              <span className="text-[11px] text-neutral-400">
-                {qty} ticket{qty > 1 ? 's' : ''} selected
-              </span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">Person</span>
+              {lookingUp && <span className="text-[10px] text-neutral-400 flex items-center gap-1"><Search className="h-3 w-3" /> Looking up…</span>}
             </div>
+            <div>
+              <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                Phone <span className="text-rose-500">*</span>
+              </label>
+              <input
+                ref={phoneRef}
+                type="tel"
+                inputMode="tel"
+                className={inputClass}
+                placeholder="0803 000 0000"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addToQueue();
+                  }
+                }}
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                  Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  className={inputClass}
+                  placeholder="Tunde Adeleke"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addToQueue();
+                    }
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  className={inputClass}
+                  placeholder="optional if phone is set"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+            </div>
+            {match && (
+              <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-300">
+                <p className="font-bold">Returning: {match.name}</p>
+                {match.existingTickets.length > 0 ? (
+                  <p className="mt-0.5">
+                    Already has {match.existingTickets.map((t) => `${t.ticketTypeName} × ${t.qty}`).join(', ')}. Pick another day if needed.
+                  </p>
+                ) : (
+                  <p className="mt-0.5">Known guest — details filled. Add the day they are buying now.</p>
+                )}
+              </div>
+            )}
+          </div>
 
+          <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 space-y-3">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">Ticket / day</span>
             {loadingEvent ? (
               <Skeleton className="h-10 w-full rounded-xl" />
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {event?.ticketTypes.filter((tt) => !tt.isPaused).map((tt) => {
                   const selected = String(tt.id) === ticketTypeId;
+                  const already = match?.existingTickets.find((t) => t.ticketTypeId === tt.id);
                   return (
                     <button
                       key={tt.id}
@@ -308,225 +491,239 @@ const ManualAttendeePage: React.FC = () => {
                         'p-2.5 rounded-xl border text-left transition-all cursor-pointer min-w-0',
                         selected
                           ? 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/40 dark:bg-rose-950/20'
-                          : 'border-neutral-200 dark:border-neutral-800 hover:border-rose-300 bg-neutral-50/50 dark:bg-neutral-850/40'
+                          : 'border-neutral-200 dark:border-neutral-800 hover:border-rose-300'
                       )}
                     >
-                      <p className="text-xs font-bold text-neutral-900 dark:text-white truncate">
-                        {tt.name}
+                      <p className="text-xs font-bold text-neutral-900 dark:text-white truncate">{tt.name}</p>
+                      <p className={cn('text-[11px] font-semibold mt-0.5', selected ? 'text-rose-600' : 'text-neutral-500')}>
+                        {tt.price === 0 ? 'Free' : formatNaira(tt.price)}
                       </p>
-                      <p className={cn('text-[11px] font-semibold mt-0.5', selected ? 'text-rose-600 dark:text-rose-400' : 'text-neutral-500')}>
-                        {tt.price === 0 ? 'Free' : `₦${tt.price.toLocaleString()}`}
-                      </p>
+                      {already && (
+                        <p className="text-[10px] text-emerald-600 mt-0.5">Has ×{already.qty}</p>
+                      )}
                     </button>
                   );
                 })}
-                {event && event.ticketTypes.filter((tt) => !tt.isPaused).length === 0 && (
-                  <p className="col-span-full text-xs text-neutral-500 py-3 text-center">
-                    No ticket types are on sale. Resume a paused type in event settings.
-                  </p>
-                )}
               </div>
             )}
 
-            {/* Compact Quantity Control */}
-            <div className="flex items-center justify-between pt-2 border-t border-neutral-100 dark:border-neutral-800">
-              <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Quantity</span>
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Qty</span>
+              <div className="flex items-center gap-1">
                 {[1, 2, 5].map((preset) => (
                   <button
                     key={preset}
                     type="button"
-                    onClick={() => syncQty(preset)}
+                    onClick={() => setQty(preset)}
                     className={cn(
-                      'px-2 py-0.5 rounded-md text-[11px] font-semibold border transition-colors',
+                      'px-2 py-0.5 rounded-md text-[11px] font-semibold border',
                       qty === preset
                         ? 'border-rose-500 bg-rose-500 text-white'
-                        : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-rose-300'
+                        : 'border-neutral-200 dark:border-neutral-700 text-neutral-600'
                     )}
                   >
                     {preset}
                   </button>
                 ))}
-                <div className="flex items-center gap-1 ml-1.5">
-                  <button
-                    type="button"
-                    onClick={() => syncQty(qty - 1)}
-                    disabled={qty <= 1}
-                    className="h-7 w-7 rounded-lg border border-neutral-200 dark:border-neutral-700 flex items-center justify-center text-xs disabled:opacity-30"
-                  >
-                    <Minus className="h-3 w-3" />
-                  </button>
-                  <span className="w-5 text-center text-xs font-bold tabular-nums">{qty}</span>
-                  <button
-                    type="button"
-                    onClick={() => syncQty(qty + 1)}
-                    disabled={qty >= 20}
-                    className="h-7 w-7 rounded-lg border border-neutral-200 dark:border-neutral-700 flex items-center justify-center text-xs disabled:opacity-30"
-                  >
-                    <Plus className="h-3 w-3" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 2. Attendee Guest Details */}
-          <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 shadow-2xs space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
-                <User className="h-3.5 w-3.5 text-rose-500" /> 2. Guest Information
-              </span>
-              {qty > 1 && (
-                <label className="flex items-center gap-1.5 text-xs text-neutral-500 cursor-pointer">
-                  Same details for all
-                  <Switch checked={useSameDetails} onCheckedChange={setUseSameDetails} />
-                </label>
-              )}
-            </div>
-
-            {(useSameDetails ? [attendees[0]] : attendees).map((attendee, index) => (
-              <div key={index} className={cn(index > 0 && 'pt-3 border-t border-neutral-100 dark:border-neutral-800 space-y-2.5', 'space-y-2.5')}>
-                {qty > 1 && !useSameDetails && (
-                  <p className="text-[10px] font-bold text-rose-500 uppercase">Attendee {index + 1}</p>
-                )}
-                <div>
-                  <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
-                    Full Name <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    ref={index === 0 ? nameRef : undefined}
-                    type="text"
-                    className={inputClass}
-                    placeholder="e.g. Tunde Adeleke"
-                    value={attendee.name}
-                    onChange={(e) => updateAttendee(index, 'name', e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      className={inputClass}
-                      placeholder="tunde@gmail.com"
-                      value={attendee.email}
-                      onChange={(e) => updateAttendee(index, 'email', e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      className={inputClass}
-                      placeholder="0803 000 0000"
-                      value={attendee.phone}
-                      onChange={(e) => updateAttendee(index, 'phone', e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* 3. Payment & Check-In */}
-          <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 shadow-2xs space-y-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
-              <CreditCard className="h-3.5 w-3.5 text-rose-500" /> 3. Payment & Gate Check-in
-            </span>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {PAYMENTS.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setPaymentMethod(p.id)}
-                  className={cn(
-                    'py-2 px-2.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer text-center',
-                    paymentMethod === p.id
-                      ? 'border-rose-500 bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 ring-1 ring-rose-500/20'
-                      : 'border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-850/40 text-neutral-600 dark:text-neutral-300 hover:border-rose-300'
-                  )}
-                >
-                  {p.label}
+                <button type="button" onClick={() => setQty(Math.max(1, qty - 1))} className="h-7 w-7 rounded-lg border border-neutral-200 dark:border-neutral-700 flex items-center justify-center">
+                  <Minus className="h-3 w-3" />
                 </button>
-              ))}
+                <span className="w-5 text-center text-xs font-bold tabular-nums">{qty}</span>
+                <button type="button" onClick={() => setQty(Math.min(20, qty + 1))} className="h-7 w-7 rounded-lg border border-neutral-200 dark:border-neutral-700 flex items-center justify-center">
+                  <Plus className="h-3 w-3" />
+                </button>
+              </div>
             </div>
+
+            {isPaid && (
+              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                {PAID_PAYMENTS.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setPaymentMethod(p.id)}
+                    className={cn(
+                      'py-2 rounded-xl text-xs font-bold border',
+                      resolvedPayment === p.id
+                        ? 'border-rose-500 bg-rose-50 text-rose-600 dark:bg-rose-950/30'
+                        : 'border-neutral-200 dark:border-neutral-800 text-neutral-600'
+                    )}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <label className="flex items-center justify-between gap-3 pt-2 border-t border-neutral-100 dark:border-neutral-800 cursor-pointer">
               <div className="flex items-center gap-2">
-                <UserCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                <div>
-                  <p className="text-xs font-bold text-neutral-900 dark:text-white">Check-in immediately</p>
-                  <p className="text-[10px] text-neutral-400">Mark attendee as entered at the gate</p>
-                </div>
+                <UserCheck className="h-4 w-4 text-emerald-600" />
+                <p className="text-xs font-bold text-neutral-900 dark:text-white">Check in now</p>
               </div>
               <Switch checked={checkInNow} onCheckedChange={setCheckInNow} />
             </label>
           </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!formValid || issuing}
+            onClick={addToQueue}
+            className="w-full h-11 rounded-xl text-sm font-bold border-neutral-200"
+          >
+            Add to list
+          </Button>
         </div>
 
-        {/* Right Column: Live Summary & Action */}
         <div className="lg:col-span-5">
-          <div className="lg:sticky lg:top-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 sm:p-5 shadow-2xs space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Order Summary</h3>
-
-            <div className="space-y-2">
-              <p className="font-bold text-sm text-neutral-900 dark:text-white line-clamp-1">{event?.title}</p>
-              {event?.startDate && (
-                <p className="flex items-center gap-1.5 text-xs text-neutral-500">
-                  <Calendar className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                  {new Date(event.startDate).toLocaleDateString('en-NG', {
-                    weekday: 'short',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </p>
-              )}
+          <div className="lg:sticky lg:top-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Issue list</h3>
+              <span className="text-xs font-bold text-neutral-500">{queueQty} ticket{queueQty === 1 ? '' : 's'}</span>
             </div>
 
-            <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3 space-y-2">
-              <div className="flex justify-between text-xs text-neutral-600 dark:text-neutral-300">
-                <span>{selectedTicketType?.name || 'Ticket'} × {qty}</span>
-                <span className="font-bold">{total === 0 ? 'Free' : `₦${total.toLocaleString()}`}</span>
+            {queue.length === 0 ? (
+              <p className="text-xs text-neutral-500 py-6 text-center">
+                Add people as they come. Issue them together when the line pauses.
+              </p>
+            ) : (
+              <ul className="divide-y divide-neutral-100 dark:divide-neutral-800 max-h-72 overflow-y-auto">
+                {queue.map((item) => (
+                  <li key={item.id} className="py-2.5 flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-neutral-900 dark:text-white truncate">{item.name}</p>
+                      <p className="text-[11px] text-neutral-500 truncate">
+                        {item.ticketTypeName} × {item.qty}
+                        {item.unitPrice > 0 ? ` · ${item.paymentMethod === 'CASH' ? 'Cash' : item.paymentMethod === 'POS' ? 'POS' : 'Transfer'} · ${formatNaira(item.unitPrice * item.qty)}` : ' · Free'}
+                      </p>
+                      {item.error && <p className="text-[11px] text-rose-500 mt-0.5">{item.error}</p>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeFromQueue(item.id)}
+                      className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-500"
+                      aria-label="Remove"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/60 p-2">
+                <p className="text-[10px] font-bold uppercase text-neutral-400">Cash</p>
+                <p className="text-xs font-extrabold tabular-nums">{formatNaira(sessionCollected.CASH)}</p>
               </div>
-              <div className="flex justify-between text-xs text-neutral-500">
-                <span>Payment</span>
-                <span className="font-medium">{PAYMENTS.find((p) => p.id === paymentMethod)?.label}</span>
+              <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/60 p-2">
+                <p className="text-[10px] font-bold uppercase text-neutral-400">POS</p>
+                <p className="text-xs font-extrabold tabular-nums">{formatNaira(sessionCollected.POS)}</p>
               </div>
-              <div className="flex justify-between text-xs text-neutral-500">
-                <span>Gate status</span>
-                <span className={cn('font-medium', checkInNow ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500')}>
-                  {checkInNow ? 'Check-in on issue' : 'Unchecked'}
-                </span>
+              <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/60 p-2">
+                <p className="text-[10px] font-bold uppercase text-neutral-400">Transfer</p>
+                <p className="text-xs font-extrabold tabular-nums">{formatNaira(sessionCollected.TRANSFER)}</p>
               </div>
             </div>
+            <p className="text-[10px] text-neutral-400 text-center -mt-1">Collected on this phone today · {sessionCollected.tickets} ticket{sessionCollected.tickets === 1 ? '' : 's'}</p>
 
-            <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3 flex justify-between items-center">
-              <span className="text-xs font-bold text-neutral-900 dark:text-white">Total</span>
-              <span className="text-base sm:text-lg font-extrabold text-neutral-900 dark:text-white tabular-nums">
-                {total === 0 ? 'Free' : `₦${total.toLocaleString()}`}
-              </span>
+            <div className="flex justify-between items-center pt-1">
+              <span className="text-xs font-bold">List total</span>
+              <span className="text-base font-extrabold tabular-nums">{queueTotal === 0 ? 'Free' : formatNaira(queueTotal)}</span>
             </div>
 
             <Button
               type="button"
-              disabled={saving || !canSubmit || loadingEvent}
-              onClick={() => handleSubmit()}
-              className="w-full h-11 rounded-xl bg-rose-500 hover:bg-rose-600 text-white border-0 text-xs sm:text-sm font-bold shadow-2xs cursor-pointer disabled:opacity-50"
+              disabled={issuing || loadingEvent || (queue.length === 0 && !formValid)}
+              onClick={issueQueue}
+              className="w-full h-11 rounded-xl bg-rose-500 hover:bg-rose-600 text-white border-0 text-sm font-bold"
             >
-              {saving ? 'Processing…' : checkInNow ? 'Issue Ticket & Check In' : 'Issue Ticket'}
+              {issuing
+                ? 'Issuing…'
+                : queue.length > 0
+                  ? `Issue ${queueQty} ticket${queueQty === 1 ? '' : 's'}`
+                  : checkInNow
+                    ? 'Issue & check in'
+                    : 'Issue ticket'}
             </Button>
+            <p className="text-[10px] text-neutral-400 text-center">
+              If the server fails, this list stays on this phone. Nothing is wiped.
+            </p>
           </div>
         </div>
-      </form>
+      </div>
     </div>
   );
 };
+
+function readDraft(eventKey: string): {
+  name: string;
+  email: string;
+  phone: string;
+  ticketTypeId: string;
+  qty: number;
+  paymentMethod: PaymentMethod;
+  checkInNow: boolean;
+  queue: QueueItem[];
+} | null {
+  try {
+    const raw = localStorage.getItem(draftKey(eventKey));
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(
+  eventKey: string,
+  draft: {
+    name: string;
+    email: string;
+    phone: string;
+    ticketTypeId: string;
+    qty: number;
+    paymentMethod: PaymentMethod;
+    checkInNow: boolean;
+    queue: QueueItem[];
+  }
+) {
+  try {
+    localStorage.setItem(draftKey(eventKey), JSON.stringify(draft));
+  } catch {
+    // quota / private mode — keep working in memory
+  }
+}
+
+function sessionKey(eventKey: string) {
+  return `gate_collected_${eventKey}_${new Date().toISOString().slice(0, 10)}`;
+}
+
+function readSession(eventKey: string) {
+  try {
+    const raw = localStorage.getItem(sessionKey(eventKey));
+    if (!raw) return { CASH: 0, POS: 0, TRANSFER: 0, tickets: 0 };
+    const parsed = JSON.parse(raw);
+    return {
+      CASH: Number(parsed.CASH) || 0,
+      POS: Number(parsed.POS) || 0,
+      TRANSFER: Number(parsed.TRANSFER) || 0,
+      tickets: Number(parsed.tickets) || 0,
+    };
+  } catch {
+    return { CASH: 0, POS: 0, TRANSFER: 0, tickets: 0 };
+  }
+}
+
+function writeSession(
+  eventKey: string,
+  value: { CASH: number; POS: number; TRANSFER: number; tickets: number }
+) {
+  try {
+    localStorage.setItem(sessionKey(eventKey), JSON.stringify(value));
+  } catch {
+    // ignore
+  }
+}
 
 export default ManualAttendeePage;

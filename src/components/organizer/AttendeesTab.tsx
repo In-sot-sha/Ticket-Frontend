@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Users, Download, Plus, UserCheck, Ticket } from 'lucide-react';
+import { Users, Download, Plus, UserCheck, Ticket, Banknote, CreditCard, ArrowLeftRight } from 'lucide-react';
 import { api } from '../../services/api';
 import { Link } from 'react-router-dom';
 import { Skeleton } from '../ui/skeleton';
@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '../ui/select';
 import { downloadCSV } from '../../lib/exportCSV';
+import { formatNaira } from '../../lib/eventOrganizer';
 
 interface AttendeesTabProps {
   eventId?: number;
@@ -22,8 +23,33 @@ interface AttendeesTabProps {
 
 type StatusFilter = 'all' | 'checked_in' | 'registered';
 
+const paymentLabel = (method?: string | null) => {
+  if (method === 'CASH') return 'Cash';
+  if (method === 'POS') return 'POS';
+  if (method === 'TRANSFER') return 'Transfer';
+  if (method === 'FREE') return 'Free';
+  return '';
+};
+
+const personKey = (ticket: any) => {
+  if (ticket.user?.id) return `u:${ticket.user.id}`;
+  const email = (ticket.user?.email || ticket.buyerEmail || '').trim().toLowerCase();
+  if (email && email !== 'unknown') return `e:${email}`;
+  const phone = (ticket.user?.phone || ticket.buyerPhone || '').trim();
+  if (phone) return `p:${phone}`;
+  return `t:${ticket.id}`;
+};
+
+const personName = (ticket: any) => {
+  if (ticket.user?.firstName) {
+    return `${ticket.user.firstName} ${ticket.user.lastName || ''}`.replace(/\s+Guest$/, '').trim();
+  }
+  return ticket.buyerName || 'Guest';
+};
+
 export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }) => {
   const [attendees, setAttendees] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -32,9 +58,14 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
   useEffect(() => {
     if (!eventId) return;
     setLoading(true);
-    api.tickets
-      .getEventAttendance(eventId)
-      .then((res) => setAttendees(res.data || []))
+    Promise.all([
+      api.tickets.getEventAttendance(eventId),
+      api.tickets.getEventAudit(eventId, 40).catch(() => ({ data: [] })),
+    ])
+      .then(([ticketsRes, auditRes]) => {
+        setAttendees(ticketsRes.data || []);
+        setAuditLogs(auditRes.data || []);
+      })
       .catch(() => setError('Failed to load attendees'))
       .finally(() => setLoading(false));
   }, [eventId]);
@@ -42,24 +73,29 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
   const groupedAttendees = useMemo(() => {
     const map = new Map<string, any>();
     attendees.forEach((ticket) => {
-      const email = ticket.user?.email || ticket.buyerEmail || 'unknown';
-      if (!map.has(email)) {
-        map.set(email, {
+      const key = personKey(ticket);
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
           user: ticket.user,
-          email,
-          name: ticket.user
-            ? `${ticket.user.firstName} ${ticket.user.lastName}`
-            : ticket.buyerName || 'Guest',
-          phone: ticket.user?.phone || ticket.buyerPhone || '—',
-          ticketTypes: new Set<string>(),
+          email: ticket.user?.email || ticket.buyerEmail || '',
+          name: personName(ticket),
+          phone: ticket.user?.phone || ticket.buyerPhone || '',
+          ticketTypeCounts: new Map<string, number>(),
+          payments: new Set<string>(),
+          sellers: new Set<string>(),
           tickets: [],
           checkedInCount: 0,
         });
       }
-      const group = map.get(email);
+      const group = map.get(key);
       group.tickets.push(ticket);
-      if (ticket.ticketType?.name) {
-        group.ticketTypes.add(ticket.ticketType.name);
+      const typeName = ticket.ticketType?.name || 'Ticket';
+      group.ticketTypeCounts.set(typeName, (group.ticketTypeCounts.get(typeName) || 0) + 1);
+      const pay = paymentLabel(ticket.paymentMethod);
+      if (pay) group.payments.add(pay);
+      if (ticket.soldBy) {
+        group.sellers.add(`${ticket.soldBy.firstName} ${ticket.soldBy.lastName}`.trim());
       }
       if (ticket.status === 'USED') {
         group.checkedInCount++;
@@ -75,10 +111,9 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
         !q ||
         a.name.toLowerCase().includes(q) ||
         a.email.toLowerCase().includes(q) ||
-        (a.phone !== '—' && String(a.phone).toLowerCase().includes(q));
+        (a.phone && String(a.phone).toLowerCase().includes(q));
 
       const anyCheckedIn = a.checkedInCount > 0;
-
       const matchesStatus =
         statusFilter === 'all' ||
         (statusFilter === 'checked_in' && anyCheckedIn) ||
@@ -92,13 +127,39 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
   const checkedInTickets = attendees.filter((t) => t.status === 'USED').length;
   const checkInRate = totalTickets > 0 ? Math.round((checkedInTickets / totalTickets) * 100) : 0;
 
+  const collections = useMemo(() => {
+    const sums = { CASH: 0, POS: 0, TRANSFER: 0, FREE: 0, total: 0 };
+    const byStaff = new Map<string, { id: string; name: string; cash: number; pos: number; transfer: number; tickets: number }>();
+    for (const ticket of attendees) {
+      const amount = Number(ticket.amountPaid) || 0;
+      const method = ticket.paymentMethod as keyof typeof sums;
+      if (method && method in sums && method !== 'total') sums[method] += amount;
+      if (ticket.purchaseType === 'GATE') sums.total += amount;
+      if (ticket.soldBy) {
+        const staffKey = String(ticket.soldBy.id);
+        const staffName = `${ticket.soldBy.firstName} ${ticket.soldBy.lastName}`.trim();
+        const row = byStaff.get(staffKey) || { id: staffKey, name: staffName, cash: 0, pos: 0, transfer: 0, tickets: 0 };
+        row.tickets += 1;
+        if (ticket.paymentMethod === 'CASH') row.cash += amount;
+        if (ticket.paymentMethod === 'POS') row.pos += amount;
+        if (ticket.paymentMethod === 'TRANSFER') row.transfer += amount;
+        byStaff.set(staffKey, row);
+      }
+    }
+    return { ...sums, staff: Array.from(byStaff.values()).sort((a, b) => b.tickets - a.tickets) };
+  }, [attendees]);
+
   const exportCsv = () => {
     const rows = filtered.map((a) => [
       a.name,
       a.email,
       a.phone,
-      Array.from(a.ticketTypes).join(' | '),
+      Array.from(a.ticketTypeCounts.entries())
+        .map(([type, count]) => `${type} × ${count}`)
+        .join(' | '),
       a.tickets.length,
+      Array.from(a.payments).join(' | '),
+      Array.from(a.sellers).join(' | '),
       a.checkedInCount > 0
         ? a.checkedInCount === a.tickets.length
           ? 'All Checked In'
@@ -106,7 +167,7 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
         : 'Registered',
     ]);
     downloadCSV(
-      ['Name', 'Email', 'Phone', 'Ticket Types', 'Tickets Count', 'Status'],
+      ['Name', 'Email', 'Phone', 'Ticket Types', 'Tickets Count', 'Payment', 'Sold By', 'Status'],
       rows,
       `attendees_${eventId || 'event'}.csv`
     );
@@ -141,7 +202,7 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
         <Users className="h-12 w-12 text-neutral-300 mx-auto mb-4" />
         <p className="text-sm font-bold text-neutral-900 dark:text-white mb-1">No attendees yet</p>
         <p className="text-xs text-neutral-500 mb-6 max-w-sm mx-auto">
-          Share your event link or add someone manually to start filling the list.
+          Share your event link or add someone at the gate to start filling the list.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <Button
@@ -181,7 +242,6 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
 
   return (
     <div className="space-y-3 px-4 sm:px-0">
-      {/* Summary */}
       <div className="grid grid-cols-3 gap-2">
         <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-2.5 sm:p-3">
           <div className="flex items-center justify-between mb-0.5">
@@ -209,7 +269,46 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
         </div>
       </div>
 
-      {/* Toolbar + table */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-2.5 sm:p-3">
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Cash</span>
+            <Banknote className="h-3.5 w-3.5 text-emerald-500" />
+          </div>
+          <p className="text-sm sm:text-lg font-bold text-neutral-900 dark:text-white tabular-nums">{formatNaira(collections.CASH)}</p>
+        </div>
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-2.5 sm:p-3">
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">POS</span>
+            <CreditCard className="h-3.5 w-3.5 text-sky-500" />
+          </div>
+          <p className="text-sm sm:text-lg font-bold text-neutral-900 dark:text-white tabular-nums">{formatNaira(collections.POS)}</p>
+        </div>
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-2.5 sm:p-3">
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Transfer</span>
+            <ArrowLeftRight className="h-3.5 w-3.5 text-violet-500" />
+          </div>
+          <p className="text-sm sm:text-lg font-bold text-neutral-900 dark:text-white tabular-nums">{formatNaira(collections.TRANSFER)}</p>
+        </div>
+      </div>
+
+      {collections.staff.length > 0 && (
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Staff collections</p>
+          <ul className="space-y-1.5">
+            {collections.staff.map((s) => (
+              <li key={s.id} className="flex items-center justify-between gap-2 text-xs">
+                <span className="font-semibold text-neutral-800 dark:text-neutral-200 truncate">{s.name}</span>
+                <span className="text-neutral-500 tabular-nums shrink-0">
+                  {s.tickets} tix · Cash {formatNaira(s.cash)} · POS {formatNaira(s.pos)} · Trf {formatNaira(s.transfer)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <DataTable
         columns={
           [
@@ -223,17 +322,23 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
               header: 'Contact',
               cell: (a) => (
                 <div>
-                  <p className="text-neutral-600 dark:text-neutral-400 truncate max-w-[220px]">{a.email}</p>
-                  {a.phone !== '—' && <p className="text-xs text-neutral-500 mt-0.5">{a.phone}</p>}
+                  {a.email ? (
+                    <p className="text-neutral-600 dark:text-neutral-400 truncate max-w-[220px]">{a.email}</p>
+                  ) : (
+                    <p className="text-neutral-400">—</p>
+                  )}
+                  {a.phone && <p className="text-xs text-neutral-500 mt-0.5">{a.phone}</p>}
                 </div>
               ),
             },
             {
               id: 'tickets',
-              header: 'Tickets',
+              header: 'Days / tickets',
               cell: (a) => (
                 <span className="text-xs text-neutral-600 dark:text-neutral-400">
-                  {Array.from(a.ticketTypes).join(', ') || '—'}
+                  {Array.from(a.ticketTypeCounts.entries())
+                    .map(([type, count]) => (count > 1 ? `${type} × ${count}` : type))
+                    .join(', ') || '—'}
                 </span>
               ),
             },
@@ -244,6 +349,22 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
                 <span className="inline-flex items-center justify-center bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 w-7 h-7 rounded-full text-xs font-bold">
                   {a.tickets.length}
                 </span>
+              ),
+            },
+            {
+              id: 'payment',
+              header: 'Paid',
+              cell: (a) => (
+                <span className="text-xs text-neutral-600 dark:text-neutral-400">
+                  {Array.from(a.payments).join(', ') || '—'}
+                </span>
+              ),
+            },
+            {
+              id: 'soldBy',
+              header: 'Sold by',
+              cell: (a) => (
+                <span className="text-xs text-neutral-500">{Array.from(a.sellers).join(', ') || '—'}</span>
               ),
             },
             {
@@ -265,7 +386,7 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
           ] as DataTableColumn<(typeof filtered)[0]>[]
         }
         rows={filtered}
-        getRowId={(a) => a.email}
+        getRowId={(a) => a.key}
         searchValue={query}
         onSearchChange={setQuery}
         searchPlaceholder="Search name, email, phone…"
@@ -301,6 +422,39 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
         emptyTitle="No matches"
         emptyDescription="Try a different search or filter."
       />
+
+      {auditLogs.length > 0 && (
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Activity log</p>
+          <ul className="space-y-1.5 max-h-56 overflow-y-auto">
+            {auditLogs.map((log) => {
+              const actor = log.user ? `${log.user.firstName} ${log.user.lastName}`.trim() : 'Unknown';
+              const meta = log.metadata || {};
+              const when = new Date(log.createdAt).toLocaleString('en-NG', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+              let detail = log.action.replace('_', ' ').toLowerCase();
+              if (log.action === 'GATE_SALE') {
+                const pay = paymentLabel(meta.paymentMethod) || 'sale';
+                detail = `sold ${meta.quantity || 1} × ${meta.ticketTypeName || 'ticket'} · ${pay}${meta.amountPaid ? ` · ${formatNaira(Number(meta.amountPaid))}` : ''}`;
+              } else if (log.action === 'CHECK_IN') {
+                detail = `checked in ${meta.attendee || 'a guest'}${meta.ticketType ? ` (${meta.ticketType})` : ''}`;
+              }
+              return (
+                <li key={log.id} className="text-xs text-neutral-600 dark:text-neutral-400 flex gap-2">
+                  <span className="text-neutral-400 shrink-0 tabular-nums w-[92px]">{when}</span>
+                  <span>
+                    <span className="font-semibold text-neutral-800 dark:text-neutral-200">{actor}</span> {detail}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 };

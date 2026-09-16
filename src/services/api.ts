@@ -390,6 +390,30 @@ export const api = {
     getMyTickets: () => apiRequest<any[]>('GET', '/tickets/my-tickets'),
     
     getEventAttendance: (eventId: number) => apiRequest<any[]>('GET', `/tickets/event/${eventId}`),
+
+    lookupAttendee: (eventId: number, q: string) =>
+      apiRequest<{ matches: Array<{
+        userId: number;
+        name: string;
+        email: string;
+        phone: string;
+        existingTickets: Array<{ ticketTypeId: number; ticketTypeName: string; qty: number }>;
+      }> }>('GET', `/tickets/event/${eventId}/lookup`, undefined, { params: { q } }),
+
+    getEventAudit: (eventId: number, limit?: number) =>
+      apiRequest<any[]>('GET', `/tickets/event/${eventId}/audit`, undefined, { params: { limit } }),
+
+    issueManual: (data: {
+      eventId: number;
+      ticketTypeId: number;
+      quantity: number;
+      buyerName: string;
+      buyerEmail?: string;
+      buyerPhone?: string;
+      attendees: Array<{ name: string; email?: string; phone?: string }>;
+      paymentMethod: string;
+      checkInNow: boolean;
+    }) => apiRequest<any>('POST', '/tickets/manual', data),
     
     getAdminTickets: () => apiRequest<any[]>('GET', '/tickets/admin/all'),
     
