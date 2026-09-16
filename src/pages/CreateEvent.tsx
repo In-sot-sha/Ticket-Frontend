@@ -198,6 +198,7 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
         ticketHeadline: t.ticketHeadline || null,
         venueLabel: t.venueLabel || null,
         maxPerPerson: t.maxPerPerson ? parseInt(t.maxPerPerson, 10) : 5,
+        isPaused: !!t.isPaused,
       }))
     )
   );
@@ -456,6 +457,7 @@ const CreateEvent: React.FC = () => {
                 ticketHeadline?: string | null;
                 venueLabel?: string | null;
                 maxPerPerson?: number | null;
+                isPaused?: boolean;
               }) => ({
                 name: t.name,
                 price: String(t.price ?? 0),
@@ -468,6 +470,7 @@ const CreateEvent: React.FC = () => {
                 venueLabel: t.venueLabel || 'LIVE AT',
                 maxPerPerson:
                   t.maxPerPerson != null ? String(t.maxPerPerson) : '5',
+                isPaused: !!t.isPaused,
               }))
             : [defaultTicket()],
           imageUrl: event.imageUrl || '',
@@ -1388,6 +1391,15 @@ const CreateEvent: React.FC = () => {
                           />
                           Unlimited quantity
                         </label>
+                        <label className="flex items-center gap-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!activeTicket.isPaused}
+                            onChange={(e) => updateTicket(activeTicketIndex, { isPaused: e.target.checked })}
+                            className="rounded accent-rose-500 w-4 h-4"
+                          />
+                          Pause sales
+                        </label>
                       </div>
 
                       <div className="flex gap-3 items-end flex-wrap">
@@ -1632,6 +1644,7 @@ const CreateEvent: React.FC = () => {
                         <span className="text-sm font-medium">{t.name}</span>
                         <span className="text-sm text-neutral-500">
                           {t.isFree ? 'Free' : `₦${Number(t.price).toLocaleString()}`} · {t.isUnlimited ? 'Unlimited qty' : `${t.quantity} qty`}
+                          {t.isPaused ? ' · Paused' : ''}
                         </span>
                       </div>
                       <p className="text-[10px] text-neutral-400">

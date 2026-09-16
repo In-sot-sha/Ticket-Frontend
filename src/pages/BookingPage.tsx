@@ -129,7 +129,9 @@ const BookingPage = () => {
     if (eventData?.ticketTypes) {
       const preselectedTypeId = Number(preselectedData.ticketTypeId);
       const preselectedQty = Number(preselectedData.quantity) || 1;
-      const preselectedExists = eventData.ticketTypes.some((t: any) => Number(t.id) === preselectedTypeId);
+      const preselectedExists = eventData.ticketTypes.some(
+        (t: any) => Number(t.id) === preselectedTypeId && !t.isPaused
+      );
 
       if (preselectedExists) {
         setSelectedTickets({ [preselectedTypeId]: preselectedQty });
@@ -838,7 +840,12 @@ const BookingPage = () => {
                   <p className="text-xs text-neutral-500 mb-3 sm:mb-6">Select the quantity for each ticket type you want to order.</p>
                   
                   <div className="space-y-3">
-                    {normalizedEventData.ticketTypes?.map((t: any) => {
+                    {(normalizedEventData.ticketTypes || []).filter((t: any) => !t.isPaused).length === 0 && (
+                      <p className="text-sm text-neutral-500 rounded-xl border border-neutral-200 dark:border-neutral-700 px-4 py-6 text-center">
+                        Tickets are not on sale right now. The organizer has paused sales for this event.
+                      </p>
+                    )}
+                    {(normalizedEventData.ticketTypes || []).filter((t: any) => !t.isPaused).map((t: any) => {
                       const qty = selectedTickets[t.id] || 0;
                       const availableCount = getAvailableCount(t.id, t);
                       const previousBookings = getPreviousBookings(t.id);

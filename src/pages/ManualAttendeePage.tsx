@@ -30,6 +30,7 @@ interface TicketType {
   price: number;
   quantity: number;
   maxPerPerson?: number | null;
+  isPaused?: boolean;
 }
 
 interface EventInfo {
@@ -115,8 +116,9 @@ const ManualAttendeePage: React.FC = () => {
           location: data.location,
           ticketTypes: data.ticketTypes || [],
         });
-        if (data.ticketTypes?.length > 0) {
-          setTicketTypeId(String(data.ticketTypes[0].id));
+        const sellable = (data.ticketTypes || []).filter((tt: TicketType) => !tt.isPaused);
+        if (sellable.length > 0) {
+          setTicketTypeId(String(sellable[0].id));
         }
       })
       .catch(() => setError('Could not load event.'))
@@ -295,7 +297,7 @@ const ManualAttendeePage: React.FC = () => {
               <Skeleton className="h-10 w-full rounded-xl" />
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {event?.ticketTypes.map((tt) => {
+                {event?.ticketTypes.filter((tt) => !tt.isPaused).map((tt) => {
                   const selected = String(tt.id) === ticketTypeId;
                   return (
                     <button
@@ -318,6 +320,11 @@ const ManualAttendeePage: React.FC = () => {
                     </button>
                   );
                 })}
+                {event && event.ticketTypes.filter((tt) => !tt.isPaused).length === 0 && (
+                  <p className="col-span-full text-xs text-neutral-500 py-3 text-center">
+                    No ticket types are on sale. Resume a paused type in event settings.
+                  </p>
+                )}
               </div>
             )}
 

@@ -71,6 +71,7 @@ interface TicketType {
   name: string;
   price: number;
   quantity: number;
+  isPaused?: boolean;
 }
 
 interface Organizer {
@@ -476,7 +477,9 @@ const EventDetailPage = () => {
   // Pricing Logic
   let displayPrice = '';
   if (event.ticketTypes && event.ticketTypes.length > 0) {
-    const prices = event.ticketTypes.map(t => Number(t.price));
+    const onSale = event.ticketTypes.filter((t) => !t.isPaused);
+    const priced = (onSale.length ? onSale : event.ticketTypes);
+    const prices = priced.map(t => Number(t.price));
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
     

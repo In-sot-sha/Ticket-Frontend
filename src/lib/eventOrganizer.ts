@@ -40,7 +40,7 @@ export interface OrganizerEvent {
   revenue?: number;
   attendees?: number;
   stats?: EventStats;
-  ticketTypes?: Array<{ id: number; name: string; price: number; quantity: number | null }>;
+  ticketTypes?: Array<{ id: number; name: string; price: number; quantity: number | null; isPaused?: boolean }>;
   allowVendors?: boolean;
   amenities?: string[] | string;
   organizationId?: number;

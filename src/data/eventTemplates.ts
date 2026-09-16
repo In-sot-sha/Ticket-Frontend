@@ -10,6 +10,8 @@ export interface TicketDraft {
   ticketHeadline: string;
   venueLabel: string;
   maxPerPerson?: string;
+  /** Organizer closed sales for this type. Existing tickets stay valid. */
+  isPaused?: boolean;
 }
 
 export interface EventTemplate {

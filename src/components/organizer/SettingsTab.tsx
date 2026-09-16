@@ -16,6 +16,8 @@ import {
   Plus,
   X,
   Save,
+  Pause,
+  Play,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { api } from '../../services/api';
@@ -31,6 +33,7 @@ interface EditableTicket {
   name: string;
   price: number | string;
   quantity: number | string;
+  isPaused?: boolean;
 }
 
 function formatDateInput(isoString?: string) {
@@ -96,7 +99,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
       name: t.name,
       price: t.price,
       quantity: t.quantity ?? 100,
-    })) || [{ name: 'Regular', price: 0, quantity: 100 }]
+      isPaused: !!t.isPaused,
+    })) || [{ name: 'Regular', price: 0, quantity: 100, isPaused: false }]
   );
 
   // Loading & Toast States
@@ -159,13 +163,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
   };
 
   // Handle Quick Save of Event Information
-  const handleSaveQuickDetails = async (e?: React.FormEvent) => {
+  const handleSaveQuickDetails = async (e?: React.FormEvent, ticketsOverride?: EditableTicket[]) => {
     e?.preventDefault();
     if (!title.trim()) {
       setUpdateMsg({ text: 'Please enter an event title.', type: 'error' });
       return;
     }
 
+    const rows = ticketsOverride ?? tickets;
     setUpdating(true);
     setUpdateMsg(null);
 
@@ -189,11 +194,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
         allowVendors,
         isPublished,
         ticketTypes: JSON.stringify(
-          tickets.map((t) => ({
+          rows.map((t) => ({
             ...(t.id ? { id: t.id } : {}),
             name: t.name.trim() || 'General Admission',
             price: Number(t.price) || 0,
             quantity: Number(t.quantity) || 0,
+            isPaused: !!t.isPaused,
           }))
         ),
       };
@@ -210,16 +216,20 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
           locationType: payload.locationType,
           location: payload.location,
           onlineUrl: payload.onlineUrl,
-          ticketTypes: tickets.map((t) => ({
+          ticketTypes: rows.map((t) => ({
             id: t.id || 0,
             name: t.name,
             price: Number(t.price) || 0,
             quantity: Number(t.quantity) || 0,
+            isPaused: !!t.isPaused,
           })),
         });
       }
 
-      setUpdateMsg({ text: 'Event details updated successfully!', type: 'success' });
+      setUpdateMsg({
+        text: ticketsOverride ? 'Ticket sales updated.' : 'Event details updated successfully!',
+        type: 'success',
+      });
     } catch (err: any) {
       setUpdateMsg({
         text: err?.response?.data?.message || 'Could not save event details.',
@@ -526,7 +536,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
                 <Ticket className="h-3.5 w-3.5 text-rose-500" />
                 Ticket Tiers & Pricing
               </label>
-              <p className="text-[11px] text-neutral-400">Quickly adjust prices or available tickets</p>
+              <p className="text-[11px] text-neutral-400">Adjust prices, quantity, or pause a day pass when it is over</p>
             </div>
             <button
               type="button"
@@ -541,7 +551,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
             {tickets.map((t, idx) => (
               <div
                 key={t.id || idx}
-                className="flex items-center gap-2 p-2.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-850/40"
+                className={`flex flex-wrap items-center gap-2 p-2.5 rounded-xl border bg-neutral-50/50 dark:bg-neutral-850/40 ${
+                  t.isPaused
+                    ? 'border-amber-300 dark:border-amber-800'
+                    : 'border-neutral-200/80 dark:border-neutral-800'
+                }`}
               >
                 <div className="flex-1 min-w-[120px]">
                   <input
@@ -575,6 +589,26 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
                     className="w-full h-8 px-2.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white tabular-nums text-center"
                   />
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = tickets.map((row, i) =>
+                      i === idx ? { ...row, isPaused: !row.isPaused } : row
+                    );
+                    setTickets(next);
+                    void handleSaveQuickDetails(undefined, next);
+                  }}
+                  disabled={updating}
+                  className={`h-8 px-2.5 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer border disabled:opacity-50 ${
+                    t.isPaused
+                      ? 'border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-800'
+                      : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-amber-300'
+                  }`}
+                  title={t.isPaused ? 'Resume sales' : 'Pause sales'}
+                >
+                  {t.isPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+                  {t.isPaused ? 'Paused' : 'Pause'}
+                </button>
                 {tickets.length > 1 && (
                   <button
                     type="button"
