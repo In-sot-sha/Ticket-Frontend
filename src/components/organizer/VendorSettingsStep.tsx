@@ -1,7 +1,15 @@
 import React, { useState } from 'react';
 import { Plus, X, Edit2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '../ui/Button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
+import { cn } from '../../lib/utils';
 
 export interface VendorStallType {
   id: string;
@@ -24,47 +32,69 @@ interface VendorSettingsStepProps {
   onSettingsChange: (settings: VendorSettings) => void;
 }
 
-const VENDOR_ROLES = [
-  { id: 'catering', label: 'Catering' },
-  { id: 'photography', label: 'Photography/Videography' },
-  { id: 'decoration', label: 'Decoration' },
-  { id: 'transportation', label: 'Transportation' },
-  { id: 'security', label: 'Security' },
-  { id: 'sound_lighting', label: 'Sound & Lighting' },
-  { id: 'other', label: 'Other' },
-];
+interface StallForm {
+  id: string;
+  name: string;
+  price: string;
+  maxStalls: string;
+  description: string;
+}
+
+const inputClass =
+  'w-full h-10 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500';
 
 const VendorSettingsStep: React.FC<VendorSettingsStepProps> = ({ settings, onSettingsChange }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState<Partial<VendorStallType> | null>(null);
+  const [formData, setFormData] = useState<StallForm | null>(null);
   const [showForm, setShowForm] = useState(false);
+
+  const closeForm = () => {
+    setShowForm(false);
+    setFormData(null);
+    setEditingId(null);
+  };
 
   const handleAddStallType = () => {
     setEditingId(null);
-    setFormData({ id: `stall_${Date.now()}`, name: '', price: 0, maxStalls: 10, description: '' });
+    setFormData({ id: `stall_${Date.now()}`, name: '', price: '', maxStalls: '', description: '' });
     setShowForm(true);
   };
 
   const handleEditStallType = (stall: VendorStallType) => {
     setEditingId(stall.id);
-    setFormData({ ...stall });
+    setFormData({
+      id: stall.id,
+      name: stall.name,
+      price: stall.price === 0 ? '' : String(stall.price),
+      maxStalls: String(stall.maxStalls),
+      description: stall.description || '',
+    });
     setShowForm(true);
   };
 
   const handleSaveStallType = () => {
-    if (!formData || !formData.name || formData.price === undefined || formData.maxStalls === undefined) return;
+    if (!formData || !formData.name.trim()) return;
 
-    const updated = settings.stallTypes.map((s) =>
-      s.id === editingId ? (formData as VendorStallType) : s
-    );
+    const price = formData.price.trim() === '' ? 0 : Number(formData.price);
+    const maxStalls = formData.maxStalls.trim() === '' ? 10 : Number(formData.maxStalls);
+    if (Number.isNaN(price) || price < 0) return;
+    if (Number.isNaN(maxStalls) || maxStalls < 1) return;
 
-    if (editingId === null) {
-      updated.push(formData as VendorStallType);
-    }
+    const stall: VendorStallType = {
+      id: formData.id,
+      name: formData.name.trim(),
+      price,
+      maxStalls,
+      description: formData.description.trim() || undefined,
+    };
+
+    const updated =
+      editingId === null
+        ? [...settings.stallTypes, stall]
+        : settings.stallTypes.map((s) => (s.id === editingId ? stall : s));
 
     onSettingsChange({ ...settings, stallTypes: updated });
-    setShowForm(false);
-    setFormData(null);
+    closeForm();
   };
 
   const handleDeleteStallType = (id: string) => {
@@ -74,234 +104,190 @@ const VendorSettingsStep: React.FC<VendorSettingsStepProps> = ({ settings, onSet
     });
   };
 
-  const toggleRole = (roleId: string) => {
-    const updated = settings.allowedRoles.includes(roleId)
-      ? settings.allowedRoles.filter((r) => r !== roleId)
-      : [...settings.allowedRoles, roleId];
-    onSettingsChange({ ...settings, allowedRoles: updated });
-  };
+  if (!settings.allowVendors) return null;
 
-  if (!settings.allowVendors) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">
-          Enable vendor applications to configure vendor settings.
-        </p>
-      </div>
-    );
-  }
+  const approvalMode = settings.approvalMode === 'auto' ? 'auto' : 'manual';
+  const deadlineValue =
+    settings.applicationDeadline > 0 ? String(settings.applicationDeadline) : '';
 
   return (
-    <div className="space-y-6">
-      {/* Vendor Stall Types Section */}
-      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Vendor Stall Types</h3>
+    <>
+      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-neutral-200 dark:border-neutral-800">
+          <p className="text-sm font-semibold text-neutral-900 dark:text-white">Stall types</p>
           <button
             type="button"
             onClick={handleAddStallType}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-xs font-bold transition-colors"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-rose-500 hover:text-rose-600"
           >
-            <Plus className="h-3.5 w-3.5" /> Add Stall
+            <Plus className="h-3.5 w-3.5" /> Add stall
           </button>
         </div>
 
-        {/* Stall Types List */}
-        <div className="space-y-2">
-          {settings.stallTypes.map((stall) => (
-            <div
-              key={stall.id}
-              className="flex items-center justify-between p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/30"
-            >
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm text-neutral-900 dark:text-white">{stall.name}</p>
-                <p className="text-xs text-neutral-500">
-                  ₦{stall.price.toLocaleString()} · Max {stall.maxStalls} stalls
-                </p>
+        {settings.stallTypes.length === 0 ? (
+          <p className="px-4 py-8 text-center text-xs text-neutral-400">
+            Add a stall type so vendors know what they can apply for.
+          </p>
+        ) : (
+          <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
+            {settings.stallTypes.map((stall) => (
+              <div key={stall.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-neutral-900 dark:text-white truncate">{stall.name}</p>
+                  <p className="text-xs text-neutral-500">
+                    {stall.price > 0 ? `₦${stall.price.toLocaleString()}` : 'Free'} · Max {stall.maxStalls}
+                  </p>
+                </div>
+                <div className="flex items-center shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleEditStallType(stall)}
+                    className="p-2 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    aria-label={`Edit ${stall.name}`}
+                  >
+                    <Edit2 className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteStallType(stall.id)}
+                    className="p-2 rounded-lg text-neutral-500 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-950/30"
+                    aria-label={`Remove ${stall.name}`}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2 ml-2">
-                <button
-                  type="button"
-                  onClick={() => handleEditStallType(stall)}
-                  className="p-2 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-lg text-neutral-600 dark:text-neutral-400 transition-colors"
-                >
-                  <Edit2 className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteStallType(stall.id)}
-                  className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg text-red-600 dark:text-red-400 transition-colors"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          ))}
-
-          {settings.stallTypes.length === 0 && (
-            <p className="text-xs text-neutral-400 text-center py-4">No stall types yet. Add one to get started.</p>
-          )}
-        </div>
-      </div>
-
-      {/* Add/Edit Stall Form */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 p-4 space-y-3"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-bold text-sm text-neutral-900 dark:text-white">
-                {editingId ? 'Edit Stall Type' : 'Add New Stall Type'}
-              </h4>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForm(false);
-                  setFormData(null);
-                  setEditingId(null);
-                }}
-                className="p-1 hover:bg-rose-100 dark:hover:bg-rose-900/50 rounded text-neutral-500 transition-colors"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-
-            <input
-              type="text"
-              placeholder="e.g., Basic Booth"
-              value={formData?.name || ''}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20"
-            />
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wide block mb-1">
-                  Price (₦)
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  value={formData?.price || 0}
-                  onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
-                  className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wide block mb-1">
-                  Max Stalls
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  value={formData?.maxStalls || 10}
-                  onChange={(e) => setFormData({ ...formData, maxStalls: Number(e.target.value) })}
-                  className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20"
-                />
-              </div>
-            </div>
-
-            <textarea
-              placeholder="Description (optional)"
-              value={formData?.description || ''}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              rows={2}
-              className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 resize-none"
-            />
-
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setShowForm(false);
-                  setFormData(null);
-                  setEditingId(null);
-                }}
-                className="flex-1 text-xs"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSaveStallType}
-                className="flex-1 bg-rose-500 hover:bg-rose-600 text-white text-xs"
-              >
-                {editingId ? 'Update' : 'Add'}
-              </Button>
-            </div>
-          </motion.div>
+            ))}
+          </div>
         )}
-      </AnimatePresence>
 
-      {/* Allowed Vendor Roles */}
-      {/* <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
-        <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Allowed Vendor Roles</h3>
-        <p className="text-xs text-neutral-500">Select which vendor categories can apply</p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {VENDOR_ROLES.map((role) => (
-            <label key={role.id} className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-900/50">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-4 py-4 border-t border-neutral-200 dark:border-neutral-800">
+          <div>
+            <p className="text-xs font-medium text-neutral-600 dark:text-neutral-300 mb-1.5">Approval</p>
+            <div className="flex gap-2">
+              {(['auto', 'manual'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => onSettingsChange({ ...settings, approvalMode: mode })}
+                  className={cn(
+                    'flex-1 h-10 rounded-lg border text-sm font-semibold capitalize transition-colors',
+                    approvalMode === mode
+                      ? 'border-rose-500 bg-rose-500 text-white'
+                      : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-rose-300'
+                  )}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-neutral-600 dark:text-neutral-300 mb-1.5">Close applications</p>
+            <div className="relative">
               <input
-                type="checkbox"
-                checked={settings.allowedRoles.includes(role.id)}
-                onChange={() => toggleRole(role.id)}
-                className="rounded accent-rose-500"
+                type="number"
+                min={1}
+                value={deadlineValue}
+                onChange={(e) =>
+                  onSettingsChange({
+                    ...settings,
+                    applicationDeadline: e.target.value === '' ? 0 : Number(e.target.value),
+                  })
+                }
+                placeholder="5"
+                className={cn(inputClass, 'pr-32')}
               />
-              <span className="text-sm text-neutral-700 dark:text-neutral-300">{role.label}</span>
-            </label>
-          ))}
-        </div>
-      </div> */}
-
-      {/* Approval Flow */}
-      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
-        <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Approval Flow</h3>
-
-        <div className="space-y-2">
-          {['auto', 'manual', 'vetted'].map((mode) => (
-            <label
-              key={mode}
-              className="flex items-center gap-3 p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900/50"
-            >
-              <input
-                type="radio"
-                name="approvalMode"
-                value={mode}
-                checked={settings.approvalMode === mode}
-                onChange={(e) => onSettingsChange({ ...settings, approvalMode: e.target.value as any })}
-                className="accent-rose-500"
-              />
-              <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                {mode === 'auto' && 'Auto-approve all vendors'}
-                {mode === 'manual' && 'Manual review required'}
-                {mode === 'vetted' && 'Vetted vendors only'}
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-neutral-400">
+                days before event
               </span>
-            </label>
-          ))}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Application Deadline */}
-      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
-        <label className="text-sm font-bold text-neutral-900 dark:text-white block">
-          Application Deadline
-        </label>
-        <p className="text-xs text-neutral-500">Days before event to close vendor registration</p>
+      <Dialog open={showForm} onOpenChange={(open) => !open && closeForm()}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base">{editingId ? 'Edit stall' : 'Add stall'}</DialogTitle>
+            <DialogDescription className="text-xs">
+              Vendors will see this as a booth they can apply for.
+            </DialogDescription>
+          </DialogHeader>
 
-        <input
-          type="number"
-          min={1}
-          value={settings.applicationDeadline}
-          onChange={(e) => onSettingsChange({ ...settings, applicationDeadline: Number(e.target.value) })}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20"
-        />
-      </div>
-    </div>
+          {formData && (
+            <div className="space-y-3 py-1">
+              <div>
+                <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300 mb-1.5">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g. Basic Booth"
+                  className={inputClass}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300 mb-1.5">
+                    Price (₦)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    placeholder="0"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300 mb-1.5">
+                    Max stalls
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={formData.maxStalls}
+                    onChange={(e) => setFormData({ ...formData, maxStalls: e.target.value })}
+                    placeholder="10"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300 mb-1.5">
+                  Description <span className="font-normal text-neutral-400">(optional)</span>
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="What’s included with this stall"
+                  rows={2}
+                  className={cn(inputClass, 'h-auto py-2.5 resize-none')}
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={closeForm} className="rounded-lg text-sm">
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveStallType}
+              disabled={!formData?.name.trim()}
+              className="rounded-lg text-sm bg-rose-500 hover:bg-rose-600 text-white border-0"
+            >
+              {editingId ? 'Save' : 'Add stall'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

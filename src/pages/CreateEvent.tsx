@@ -13,6 +13,8 @@ import {
   X,
   Plus,
   Sparkles,
+  ChevronDown,
+  Clock,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
@@ -24,13 +26,12 @@ import {
   TICKET_ACCENTS,
   TICKET_LAYOUTS,
   encodeTicketStyle,
-  getLayoutPreset,
-  getAccentPreset,
   parseTicketStyle,
   suggestTicketDesign,
   isDefaultTicketStyle,
+  getAccentPreset,
 } from '../data/ticketDesigns';
-import { INCLUDED_SUGGESTIONS, TICKET_TYPE_PRESETS } from '../data/eventExtras';
+import { INCLUDED_SUGGESTIONS } from '../data/eventExtras';
 import EventTicketCard from '../components/tickets/EventTicketCard';
 import VendorSettingsStep, { VendorSettings } from '../components/organizer/VendorSettingsStep';
 import GoogleMapLocationPicker from '../components/organizer/GoogleMapLocationPicker';
@@ -48,7 +49,7 @@ import {
   splitTime12,
 } from '../lib/time12';
 
-type Step = 'details' | 'tickets' | 'vendors' | 'review';
+type Step = 'details' | 'tickets' | 'review';
 
 interface FormState {
   templateId: string;
@@ -72,10 +73,9 @@ interface FormState {
 }
 
 const STEPS: { key: Step; label: string; description: string }[] = [
-  { key: 'details', label: 'Details', description: 'Basic info & venue' },
-  { key: 'tickets', label: 'Tickets', description: 'Pricing & tiers' },
-  { key: 'vendors', label: 'Vendors', description: 'Stalls & applications' },
-  { key: 'review', label: 'Publish', description: 'Review & go live' },
+  { key: 'details', label: 'Event', description: 'What, when & where' },
+  { key: 'tickets', label: 'Tickets', description: 'Price & quantity' },
+  { key: 'review', label: 'Publish', description: 'Check and go live' },
 ];
 
 const defaultTicket = (): TicketDraft => ({
@@ -86,8 +86,9 @@ const defaultTicket = (): TicketDraft => ({
   ticketStyle: encodeTicketStyle('classic', 'rose'),
   badgeText: '',
   accentColor: '',
-  ticketHeadline: 'COME AND JOIN',
-  venueLabel: 'LIVE AT',
+  ticketHeadline: '',
+  venueLabel: '',
+  ticketSublabel: '',
   maxPerPerson: '5',
 });
 
@@ -112,7 +113,7 @@ const defaultForm = (): FormState => ({
     allowVendors: false,
     stallTypes: [],
     allowedRoles: [],
-    approvalMode: 'auto',
+    approvalMode: 'manual',
     applicationDeadline: 5,
   },
   category: 'Other',
@@ -176,7 +177,7 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
   }
 
   fd.append('isPublished', String(isPublished));
-  fd.append('category', form.category);
+  fd.append('category', form.category || 'Other');
   
   // Add latitude/longitude if physical event
   if (form.locationType === 'physical' && form.latitude != null && form.longitude != null) {
@@ -197,6 +198,7 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
         accentColor: t.accentColor || null,
         ticketHeadline: t.ticketHeadline || null,
         venueLabel: t.venueLabel || null,
+        ticketSublabel: t.ticketSublabel || null,
         maxPerPerson: t.maxPerPerson ? parseInt(t.maxPerPerson, 10) : 5,
         isPaused: !!t.isPaused,
       }))
@@ -236,11 +238,48 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
   return fd;
 }
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
+function FieldLabel({ children, optional }: { children: React.ReactNode; optional?: boolean }) {
   return (
     <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400 block mb-1.5">
       {children}
+      {optional && <span className="ml-1 font-normal text-neutral-400">optional</span>}
     </span>
+  );
+}
+
+function OptionalSection({
+  title,
+  hint,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800/40 transition-colors"
+      >
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-neutral-900 dark:text-white">{title}</p>
+          {hint && <p className="text-xs text-neutral-500 mt-0.5">{hint}</p>}
+        </div>
+        <ChevronDown
+          className={cn(
+            'h-4 w-4 text-neutral-400 shrink-0 transition-transform',
+            open && 'rotate-180'
+          )}
+        />
+      </button>
+      {open && <div className="px-4 pb-4 pt-1">{children}</div>}
+    </div>
   );
 }
 
@@ -249,30 +288,37 @@ function TimePicker12({
   value,
   onChange,
   hasError,
+  hideLabel,
+  bare,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   hasError?: boolean;
+  hideLabel?: boolean;
+  bare?: boolean;
 }) {
   const { hour, minute, period } = splitTime12(value);
   const update = (h: string, m: string, p: 'AM' | 'PM') => onChange(joinTime12(h, m, p));
   const selectClass =
-    'h-9 bg-transparent text-sm font-medium text-center focus:outline-none cursor-pointer appearance-none';
+    'h-8 bg-transparent text-sm font-medium text-center focus:outline-none cursor-pointer appearance-none';
 
   return (
-    <div>
-      <FieldLabel>{label}</FieldLabel>
+    <div className={hideLabel ? 'shrink-0' : undefined}>
+      {!hideLabel && <FieldLabel>{label}</FieldLabel>}
       <div className={cn(
-        "inline-flex items-center rounded-lg border bg-white dark:bg-neutral-900 px-2 py-1 gap-0.5 transition-colors",
-        hasError 
-          ? "border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/50 dark:bg-rose-950/20" 
-          : "border-neutral-200 dark:border-neutral-700"
+        "inline-flex items-center rounded-lg px-1.5 gap-0.5 transition-colors",
+        bare
+          ? "bg-neutral-100 dark:bg-neutral-800 h-9"
+          : "border bg-white dark:bg-neutral-900 h-[42px] px-2",
+        !bare && (hasError
+          ? "border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/50 dark:bg-rose-950/20"
+          : "border-neutral-200 dark:border-neutral-700")
       )}>
         <select
           value={hour}
           onChange={(e) => update(e.target.value, minute, period)}
-          className={cn(selectClass, 'w-9')}
+          className={cn(selectClass, 'w-8')}
           aria-label={`${label} hour`}
         >
           {HOURS_12.map((h) => (
@@ -283,7 +329,7 @@ function TimePicker12({
         <select
           value={minute}
           onChange={(e) => update(hour, e.target.value, period)}
-          className={cn(selectClass, 'w-9')}
+          className={cn(selectClass, 'w-8')}
           aria-label={`${label} minute`}
         >
           {MINUTES.map((m) => (
@@ -293,7 +339,7 @@ function TimePicker12({
         <select
           value={period}
           onChange={(e) => update(hour, minute, e.target.value as 'AM' | 'PM')}
-          className={cn(selectClass, 'w-11 text-rose-500 font-semibold')}
+          className={cn(selectClass, 'w-10 text-rose-500 font-semibold')}
           aria-label={`${label} AM or PM`}
         >
           {PERIODS.map((p) => (
@@ -301,6 +347,75 @@ function TimePicker12({
           ))}
         </select>
       </div>
+    </div>
+  );
+}
+
+function formatDateTimeTrigger(dateStr: string, time12: string) {
+  if (!dateStr) return '';
+  const d = new Date(`${dateStr}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return time12;
+  return `${d.toLocaleDateString('en-NG', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })} · ${time12}`;
+}
+
+function DateTimePicker({
+  label,
+  date,
+  time,
+  onDateChange,
+  onTimeChange,
+  minDate,
+  hasError,
+}: {
+  label: string;
+  date: string;
+  time: string;
+  onDateChange: (date: string) => void;
+  onTimeChange: (time: string) => void;
+  minDate?: Date;
+  hasError?: boolean;
+}) {
+  const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+  return (
+    <div>
+      <FieldLabel>{label}</FieldLabel>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              'w-full h-[42px] px-3 rounded-lg border bg-white dark:bg-neutral-900 text-sm text-left flex items-center gap-2.5 transition-colors',
+              hasError
+                ? 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/50 dark:bg-rose-950/20'
+                : 'border-neutral-200 dark:border-neutral-700 hover:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500',
+              date ? 'text-neutral-900 dark:text-white' : 'text-neutral-400'
+            )}
+          >
+            <Calendar className="h-4 w-4 text-neutral-400 shrink-0" />
+            <span className="flex-1 truncate">
+              {date ? formatDateTimeTrigger(date, time) : 'Select date & time'}
+            </span>
+            <Clock className="h-3.5 w-3.5 text-neutral-300 dark:text-neutral-600 shrink-0" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0 overflow-hidden" align="start">
+          <DateCalendar
+            mode="single"
+            selected={date ? new Date(`${date}T12:00:00`) : undefined}
+            onSelect={(d) => d && onDateChange(toLocalDateInput(d))}
+            disabled={(d) => d < (minDate ?? todayStart)}
+          />
+          <div className="flex items-center justify-between gap-3 border-t border-neutral-200 dark:border-neutral-800 px-3 py-2.5 bg-neutral-50/80 dark:bg-neutral-900">
+            <span className="text-xs font-medium text-neutral-500">Time</span>
+            <TimePicker12 hideLabel bare label={`${label} time`} value={time} onChange={onTimeChange} />
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
@@ -323,7 +438,7 @@ function StepActions({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="mt-8 pt-4 border-t border-neutral-200 dark:border-neutral-800 sticky bottom-0 md:bottom-0 z-10 -mx-4 px-4 pb-3 md:mx-0 md:px-0 md:pb-0 md:static bg-white/95 dark:bg-gray-900/95 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none">
+    <div className="mt-2 pt-5 border-t border-neutral-200 dark:border-neutral-800">
       {error && (
         <div className="mb-3 flex items-start gap-2 text-sm text-rose-600 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 rounded-lg">
           <p className="flex-1">{error}</p>
@@ -376,12 +491,15 @@ const CreateEvent: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTicketIndex, setActiveTicketIndex] = useState(0);
   const [customIncluded, setCustomIncluded] = useState('');
-  const [showTicketPresets, setShowTicketPresets] = useState(false);
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [showTemplateGrid, setShowTemplateGrid] = useState(false);
+  const [showExtras, setShowExtras] = useState(true);
 
   const stepIndex = STEPS.findIndex((s) => s.key === step);
   const isEditing = !!id;
+  const appliedTemplate = EVENT_TEMPLATES.find(
+    (t) => t.id === form.templateId && t.id !== 'custom'
+  );
   const hasUnlimitedTickets = form.tickets.some((t) => t.isUnlimited);
   const ticketQtyTotal = totalTicketQuantity(form.tickets);
 
@@ -428,16 +546,18 @@ const CreateEvent: React.FC = () => {
                 )
               )
             : 7;
-        const approvalRaw = vs?.approvalMode || event.vendorApprovalMode || 'auto';
-        const approvalMode =
-          approvalRaw === 'manual' || approvalRaw === 'vetted' ? approvalRaw : 'auto';
+        const approvalRaw = vs?.approvalMode || event.vendorApprovalMode || 'manual';
+        const approvalMode = approvalRaw === 'auto' ? 'auto' : 'manual';
 
+        const startInput = toLocalDateInput(start);
+        const endInput = toLocalDateInput(end);
+        setShowExtras(true);
         setForm({
           templateId: 'custom',
           title: event.title || '',
           description: event.description || '',
-          startDate: toLocalDateInput(start),
-          endDate: toLocalDateInput(end),
+          startDate: startInput,
+          endDate: endInput,
           startTime12: formatTime12(start),
           endTime12: formatTime12(end),
           locationType: event.locationType === 'online' ? 'online' : 'physical',
@@ -456,18 +576,21 @@ const CreateEvent: React.FC = () => {
                 accentColor?: string | null;
                 ticketHeadline?: string | null;
                 venueLabel?: string | null;
+                ticketSublabel?: string | null;
                 maxPerPerson?: number | null;
                 isPaused?: boolean;
               }) => ({
                 name: t.name,
                 price: String(t.price ?? 0),
-                quantity: t.quantity != null ? String(t.quantity) : capacityFallback,
+                isUnlimited: Number(t.quantity) === 0,
+                quantity: Number(t.quantity) === 0 ? '' : t.quantity != null ? String(t.quantity) : capacityFallback,
                 isFree: Number(t.price) === 0,
                 ticketStyle: t.ticketStyle || encodeTicketStyle('classic', 'rose'),
                 badgeText: t.badgeText || '',
                 accentColor: t.accentColor || '',
-                ticketHeadline: t.ticketHeadline || 'COME AND JOIN',
-                venueLabel: t.venueLabel || 'LIVE AT',
+                ticketHeadline: t.ticketHeadline || '',
+                venueLabel: t.venueLabel || '',
+                ticketSublabel: t.ticketSublabel || '',
                 maxPerPerson:
                   t.maxPerPerson != null ? String(t.maxPerPerson) : '5',
                 isPaused: !!t.isPaused,
@@ -532,7 +655,7 @@ const CreateEvent: React.FC = () => {
           i === 0 || isDefaultTicketStyle(t.ticketStyle)
             ? suggestion.styleId
             : encodeTicketStyle(suggestion.layout, accent);
-        return { ...t, ticketStyle: styleId, accentColor: '' };
+        return { ...t, ticketStyle: styleId, accentColor: '', isFree: false };
       }),
       imageUrl: template.image,
       includedItems: template.amenities ? [...template.amenities] : [],
@@ -542,7 +665,7 @@ const CreateEvent: React.FC = () => {
             allowVendors: false,
             stallTypes: [],
             allowedRoles: [],
-            approvalMode: 'auto',
+            approvalMode: 'manual',
             applicationDeadline: 5,
           },
       category,
@@ -584,48 +707,15 @@ const CreateEvent: React.FC = () => {
     });
   };
 
-  const updateTicketQuantity = (index: number, raw: string) => {
-    updateTicket(index, { quantity: raw });
-  };
-
-  const addTicketFromPreset = (preset: (typeof TICKET_TYPE_PRESETS)[number]) => {
-    const exists = form.tickets.some((t) => t.name === preset.name);
-    if (exists) {
-      setActiveTicketIndex(form.tickets.findIndex((t) => t.name === preset.name));
-      setShowTicketPresets(false);
-      return;
-    }
-    setForm((prev) => ({
-      ...prev,
-      tickets: [
-        ...prev.tickets,
-        {
-          name: preset.name,
-          price: preset.suggestedPrice || '',
-          quantity: '100',
-          isFree: preset.isFree ?? false,
-          ticketStyle: preset.ticketStyle,
-          badgeText: preset.badgeText,
-          accentColor: '',
-          ticketHeadline: preset.ticketHeadline || 'COME AND JOIN',
-          venueLabel: preset.venueLabel || 'LIVE AT',
-        },
-      ],
-    }));
-    setActiveTicketIndex(form.tickets.length);
-    setShowTicketPresets(false);
-  };
-
   const addBlankTicket = () => {
     setForm((prev) => ({
       ...prev,
       tickets: [
         ...prev.tickets,
-        { ...defaultTicket(), quantity: '100' },
+        { ...defaultTicket(), name: `Ticket ${prev.tickets.length + 1}`, quantity: '100' },
       ],
     }));
     setActiveTicketIndex(form.tickets.length);
-    setShowTicketPresets(false);
   };
 
   const removeTicket = (index: number) => {
@@ -639,20 +729,17 @@ const CreateEvent: React.FC = () => {
   const activeTicket = form.tickets[activeTicketIndex] ?? form.tickets[0];
 
   const validateDetails = (): string | null => {
-    if (!isEditing && !form.templateId) return 'Choose a template to get started.';
-    if (form.title.trim().length < 3) return 'Title must be at least 3 characters.';
-    if (!form.category) return 'Please select an event category.';
-    if (form.description.trim().length < 10) return 'Description must be at least 10 characters.';
-    if (!form.startDate) return 'Select a start date.';
-    if (!form.endDate) return 'Select an end date.';
+    if (form.title.trim().length < 3) return 'Give your event a title.';
+    if (form.description.trim().length < 3) return 'Add a short description.';
+    if (!form.startDate) return 'Pick a start date.';
+    const endDate = form.endDate || form.startDate;
     if (!form.startTime12 || !form.endTime12) return 'Set start and end times.';
     const start = combineDateAndTime12(form.startDate, form.startTime12);
-    const end = combineDateAndTime12(form.endDate, form.endTime12);
+    const end = combineDateAndTime12(endDate, form.endTime12);
     if (!start || !end) return 'Enter valid times.';
-    if (end <= start) return 'End date and time must be after the start.';
-    if (form.locationType === 'physical' && !form.location.trim()) return 'Enter a venue or address.';
-    if (form.locationType === 'online' && !form.onlineUrl.trim()) return 'Enter your meeting link.';
-    if (!coverImageSrc && !imageFile && !form.imageUrl) return 'Add a cover photo.';
+    if (end <= start) return 'End time must be after the start.';
+    if (form.locationType === 'physical' && !form.location.trim()) return 'Add a venue or address.';
+    if (form.locationType === 'online' && !form.onlineUrl.trim()) return 'Add a meeting link.';
     return null;
   };
 
@@ -675,14 +762,12 @@ const CreateEvent: React.FC = () => {
   const validateStep = (): string | null => {
     if (step === 'details') return validateDetails();
     if (step === 'tickets') return validateTickets();
-    if (step === 'vendors') return validateVendors();
     return null;
   };
 
   const validateStepKey = (key: Step): string | null => {
     if (key === 'details') return validateDetails();
     if (key === 'tickets') return validateTickets();
-    if (key === 'vendors') return validateVendors();
     return null;
   };
 
@@ -721,9 +806,16 @@ const CreateEvent: React.FC = () => {
   };
 
   const saveEvent = async (isPublished: boolean) => {
-    const validationError = validateStep();
+    const detailsErr = validateDetails();
+    const ticketsErr = validateTickets();
+    const vendorsErr = validateVendors();
+    const validationError = detailsErr ?? ticketsErr ?? vendorsErr;
     if (validationError) {
       setError(validationError);
+      if (detailsErr) setStep('details');
+      else if (ticketsErr) setStep('tickets');
+      else setStep('review');
+      scrollStepTop();
       return;
     }
     setSavingType(isPublished ? 'publish' : 'draft');
@@ -777,8 +869,7 @@ const CreateEvent: React.FC = () => {
     }
     setError(null);
     if (step === 'details') setStep('tickets');
-    else if (step === 'tickets') setStep('vendors');
-    else if (step === 'vendors') setStep('review');
+    else if (step === 'tickets') setStep('review');
     // Scroll the main scrollable container (or window) to top on mobile
     window.scrollTo({ top: 0, behavior: 'smooth' });
     document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -788,8 +879,7 @@ const CreateEvent: React.FC = () => {
     setError(null);
     if (step === 'details') navigate('/organizer/events');
     else if (step === 'tickets') setStep('details');
-    else if (step === 'vendors') setStep('tickets');
-    else if (step === 'review') setStep('vendors');
+    else if (step === 'review') setStep('tickets');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -941,70 +1031,31 @@ const CreateEvent: React.FC = () => {
       <div className="w-full max-w-full">
         <AnimatePresence mode="wait">
           {step === 'details' && (
-            <motion.div key="details" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3, ease: 'easeOut' }} className="space-y-6">
-              <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 sm:p-6 shadow-2xs space-y-6">
-                {/* ── Top-Positioned Template Selector ── */}
+            <motion.div key="details" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3, ease: 'easeOut' }} className="space-y-5">
+              <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 sm:p-6 shadow-2xs space-y-5">
                 {!isEditing && (
-                  <div className="pb-5 border-b border-neutral-100 dark:border-neutral-800">
-                    {form.templateId && form.templateId !== 'custom' && !showTemplateGrid ? (
-                      /* Collapsed State when Template Chosen */
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-neutral-200 dark:border-neutral-700">
-                            {EVENT_TEMPLATES.find((t) => t.id === form.templateId)?.image ? (
-                              <img
-                                src={EVENT_TEMPLATES.find((t) => t.id === form.templateId)?.image}
-                                alt=""
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full bg-rose-50 dark:bg-rose-950/20 flex items-center justify-center">
-                                <Sparkles className="h-5 w-5 text-rose-500" />
-                              </div>
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white truncate">
-                                {EVENT_TEMPLATES.find((t) => t.id === form.templateId)?.name}
-                              </p>
-                              <span className="text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 rounded-full px-2 py-0.5">
-                                Template applied
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-neutral-400 truncate mt-0.5">
-                              {EVENT_TEMPLATES.find((t) => t.id === form.templateId)?.tagline}
-                            </p>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => setShowTemplateGrid(true)}
-                          className="text-xs font-bold text-rose-500 hover:text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-950/50 px-3 py-1.5 rounded-full transition-colors shrink-0 cursor-pointer"
-                        >
-                          Change
-                        </button>
-                      </div>
-                    ) : (
-                      /* Expanded Horizontal Scrollable Carousel */
+                  <div>
+                    {showTemplateGrid ? (
                       <div>
                         <div className="flex items-center justify-between gap-2 mb-2.5">
                           <div>
-                            <h2 className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white">Choose a template</h2>
-                            <p className="text-[11px] text-neutral-500">Swipe or scroll horizontally to pick a pre-designed template or start blank.</p>
+                            <h2 className="text-sm font-semibold text-neutral-900 dark:text-white">
+                              {appliedTemplate ? 'Change template' : 'Templates'}
+                            </h2>
+                            <p className="text-[11px] text-neutral-500">
+                              {appliedTemplate
+                                ? `Currently using ${appliedTemplate.name}`
+                                : 'Pick one to pre-fill the form, or skip and write your own.'}
+                            </p>
                           </div>
-                          {form.templateId && form.templateId !== 'custom' && (
-                            <button
-                              type="button"
-                              onClick={() => setShowTemplateGrid(false)}
-                              className="text-xs font-bold text-neutral-500 hover:text-rose-500 cursor-pointer"
-                            >
-                              Collapse
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => setShowTemplateGrid(false)}
+                            className="text-xs font-semibold text-neutral-500 hover:text-rose-500"
+                          >
+                            Hide
+                          </button>
                         </div>
-
                         <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-thin snap-x max-w-full">
                           {EVENT_TEMPLATES.map((template) => {
                             const isSelected = form.templateId === template.id;
@@ -1058,40 +1109,68 @@ const CreateEvent: React.FC = () => {
                           })}
                         </div>
                       </div>
+                    ) : appliedTemplate ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs text-neutral-600 dark:text-neutral-400 min-w-0 truncate">
+                          Template: <span className="font-semibold text-neutral-900 dark:text-white">{appliedTemplate.name}</span>
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setShowTemplateGrid(true)}
+                          className="text-xs font-semibold text-rose-500 hover:text-rose-600 shrink-0"
+                        >
+                          Change template
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowTemplateGrid(true)}
+                        className="text-xs font-semibold text-rose-500 hover:text-rose-600 inline-flex items-center gap-1.5"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Start from a template
+                      </button>
                     )}
                   </div>
                 )}
 
-                {/* Event Basic Details */}
                 <div>
                   <FieldLabel>Cover photo</FieldLabel>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => fileRef.current?.click()}
-                    onKeyDown={(e) => e.key === 'Enter' && fileRef.current?.click()}
-                    className="relative aspect-[16/9] sm:aspect-[2.5/1] rounded-xl overflow-hidden border border-dashed border-neutral-300 dark:border-neutral-700 cursor-pointer group hover:border-rose-400 transition-colors"
-                  >
-                    {imagePreview ? (
-                      <>
-                        <img src={imagePreview} alt="Cover" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                          <Upload className="h-5 w-5 text-white" />
-                          <span className="text-sm font-medium text-white">Change cover</span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-full gap-1 text-neutral-400">
-                        <ImageIcon className="h-8 w-8" />
-                        <span className="text-xs">Upload cover photo</span>
+                  {imagePreview ? (
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => fileRef.current?.click()}
+                      onKeyDown={(e) => e.key === 'Enter' && fileRef.current?.click()}
+                      className="relative aspect-[16/9] sm:aspect-[2.5/1] rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-700 cursor-pointer group"
+                    >
+                      <img src={imagePreview} alt="Cover" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <Upload className="h-5 w-5 text-white" />
+                        <span className="text-sm font-medium text-white">Change cover</span>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => fileRef.current?.click()}
+                      className="w-full flex items-center gap-3 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 px-4 py-3 text-left hover:border-rose-400 hover:bg-rose-50/40 dark:hover:bg-rose-950/10 transition-colors"
+                    >
+                      <div className="h-10 w-10 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
+                        <ImageIcon className="h-5 w-5 text-neutral-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Add a cover photo</p>
+                        <p className="text-xs text-neutral-500">You can do this later</p>
+                      </div>
+                    </button>
+                  )}
                 </div>
                 <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleImage(e.target.files[0])} />
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+                  <div className="sm:col-span-3">
                     <FieldLabel>Event title</FieldLabel>
                     <input
                       value={form.title}
@@ -1100,10 +1179,10 @@ const CreateEvent: React.FC = () => {
                       className={getInputClass('title')}
                     />
                   </div>
-                  <div>
+                  <div className="sm:col-span-2">
                     <FieldLabel>Category</FieldLabel>
                     <select
-                      value={form.category}
+                      value={form.category || 'Other'}
                       onChange={(e) => {
                         const category = e.target.value;
                         const suggestion = suggestTicketDesign(category);
@@ -1119,8 +1198,7 @@ const CreateEvent: React.FC = () => {
                       }}
                       className={getInputClass('category')}
                     >
-                      <option value="">Select a category</option>
-                      {['Music', 'Festival', 'Nightlife', 'Wedding', 'Food', 'Business', 'Technology', 'Conference', 'Arts', 'Sports', 'Wellness', 'Fairs', 'Other'].map(c => (
+                      {['Music', 'Festival', 'Nightlife', 'Wedding', 'Food', 'Business', 'Technology', 'Conference', 'Arts', 'Sports', 'Wellness', 'Fairs', 'Other'].map((c) => (
                         <option key={c} value={c}>{c}</option>
                       ))}
                     </select>
@@ -1139,468 +1217,401 @@ const CreateEvent: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <FieldLabel>Start date</FieldLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button type="button" className={cn(getInputClass('start date'), 'text-left')}>
-                          {formatDateLabel(form.startDate)}
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <DateCalendar
-                          mode="single"
-                          selected={form.startDate ? new Date(form.startDate + 'T12:00:00') : undefined}
-                          onSelect={(d) => {
-                            if (!d) return;
-                            const dateStr = d.toISOString().split('T')[0];
-                            setForm((p) => ({
-                              ...p,
-                              startDate: dateStr,
-                              endDate: !p.endDate || p.endDate < dateStr ? dateStr : p.endDate,
-                            }));
-                          }}
-                          disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div>
-                    <FieldLabel>End date</FieldLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button type="button" className={cn(getInputClass('end date'), 'text-left')}>
-                          {formatDateLabel(form.endDate)}
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <DateCalendar
-                          mode="single"
-                          selected={form.endDate ? new Date(form.endDate + 'T12:00:00') : undefined}
-                          onSelect={(d) => d && setForm((p) => ({ ...p, endDate: d.toISOString().split('T')[0] }))}
-                          disabled={(d) => {
-                            const min = form.startDate ? new Date(form.startDate + 'T00:00:00') : new Date(new Date().setHours(0, 0, 0, 0));
-                            return d < min;
-                          }}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-2 gap-4">
-                  <TimePicker12
-                    label="Start time"
-                    value={form.startTime12}
-                    onChange={(v) => setForm((p) => ({ ...p, startTime12: v }))}
-                    hasError={hasError('time') || hasError('after the start')}
+                  <DateTimePicker
+                    label="Starts"
+                    date={form.startDate}
+                    time={form.startTime12}
+                    onDateChange={(dateStr) =>
+                      setForm((p) => ({
+                        ...p,
+                        startDate: dateStr,
+                        endDate: !p.endDate || p.endDate < dateStr ? dateStr : p.endDate,
+                      }))
+                    }
+                    onTimeChange={(v) => setForm((p) => ({ ...p, startTime12: v }))}
+                    hasError={hasError('start date') || hasError('time') || hasError('after the start')}
                   />
-                  <TimePicker12
-                    label="End time"
-                    value={form.endTime12}
-                    onChange={(v) => setForm((p) => ({ ...p, endTime12: v }))}
-                    hasError={hasError('time') || hasError('after the start')}
+                  <DateTimePicker
+                    label="Ends"
+                    date={form.endDate}
+                    time={form.endTime12}
+                    onDateChange={(dateStr) => setForm((p) => ({ ...p, endDate: dateStr }))}
+                    onTimeChange={(v) => setForm((p) => ({ ...p, endTime12: v }))}
+                    minDate={form.startDate ? new Date(`${form.startDate}T00:00:00`) : undefined}
+                    hasError={hasError('end date') || hasError('time') || hasError('after the start')}
                   />
                 </div>
 
                 <div>
-                  <FieldLabel>Event type</FieldLabel>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setForm((p) => ({ ...p, locationType: 'physical' }))}
-                      className={cn(
-                        'flex-1 py-2.5 rounded-lg border text-sm font-medium transition-colors flex items-center justify-center gap-2',
-                        form.locationType === 'physical' ? selectedChipClass : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300'
-                      )}
-                    >
-                      <MapPin className="h-4 w-4" /> Physical venue
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setForm((p) => ({ ...p, locationType: 'online' }))}
-                      className={cn(
-                        'flex-1 py-2.5 rounded-lg border text-sm font-medium transition-colors flex items-center justify-center gap-2',
-                        form.locationType === 'online' ? selectedChipClass : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300'
-                      )}
-                    >
-                      <Globe className="h-4 w-4" /> Online event
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <FieldLabel>{form.locationType === 'physical' ? 'Venue or address' : 'Meeting link'}</FieldLabel>
-                  {form.locationType === 'physical' ? (
-                    <>
-                    <VenueAutocomplete
-                      value={form.location}
-                      onChange={(location) => setForm((p) => ({ ...p, location }))}
-                      onSelect={(loc) =>
-                        setForm((p) => ({
-                          ...p,
-                          location: loc.address,
-                          ...(loc.latitude != null ? { latitude: loc.latitude } : {}),
-                          ...(loc.longitude != null ? { longitude: loc.longitude } : {}),
-                        }))
-                      }
-                      onOpenMapPicker={() => setShowMapPicker(true)}
-                      latitude={form.latitude}
-                      longitude={form.longitude}
-                      className={getInputClass('location')}
-                    />
-                    {form.latitude != null && form.longitude != null && (
-                      <div className="mt-3 rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800">
-                        <GoogleMapLocation
-                          location={form.location || 'Pinned venue'}
-                          latitude={form.latitude}
-                          longitude={form.longitude}
-                          eventTitle={form.title || 'Event location'}
-                        />
-                      </div>
+                  <FieldLabel>Location</FieldLabel>
+                  <div
+                    className={cn(
+                      'rounded-xl border overflow-hidden bg-white dark:bg-neutral-900',
+                      hasError('location') || hasError('link')
+                        ? 'border-rose-500 ring-2 ring-rose-500/20'
+                        : 'border-neutral-200 dark:border-neutral-700'
                     )}
-                    </>
-                  ) : (
-                    <input
-                      value={form.onlineUrl}
-                      onChange={(e) => setForm((p) => ({ ...p, onlineUrl: e.target.value }))}
-                      placeholder="e.g. https://zoom.us/j/... or https://youtube.com/live/..."
-                      className={getInputClass('link')}
-                    />
-                  )}
-                </div>
-
-                <div className="space-y-3 pt-2">
-                  <FieldLabel>What&apos;s included</FieldLabel>
-                  <p className="text-xs text-neutral-500 -mt-2">Pick suggestions or add custom features</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {includedChipOptions.map((item) => (
+                  >
+                    <div className="grid grid-cols-2">
                       <button
-                        key={item}
                         type="button"
-                        onClick={() => toggleIncluded(item)}
+                        onClick={() => setForm((p) => ({ ...p, locationType: 'physical' }))}
                         className={cn(
-                          'px-2.5 py-1 rounded-full text-xs border transition-colors cursor-pointer',
-                          form.includedItems.includes(item) ? selectedChipClass : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-rose-300'
+                          'h-11 text-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors',
+                          form.locationType === 'physical'
+                            ? 'bg-rose-500 text-white'
+                            : 'bg-neutral-50 dark:bg-neutral-800/70 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
                         )}
                       >
-                        {item}
+                        <MapPin className="h-4 w-4" />
+                        In person
                       </button>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      value={customIncluded}
-                      onChange={(e) => setCustomIncluded(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomIncluded())}
-                      placeholder="Type a custom item and press Enter..."
-                      className={cn(getInputClass(), 'flex-1')}
-                    />
-                    <Button type="button" variant="outline" onClick={addCustomIncluded} className="rounded-lg shrink-0 border-rose-200 text-rose-500 hover:bg-rose-50">
-                      <Plus className="h-4 w-4" />
-                    </Button>
+                      <button
+                        type="button"
+                        onClick={() => setForm((p) => ({ ...p, locationType: 'online' }))}
+                        className={cn(
+                          'h-11 text-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors border-l border-neutral-200 dark:border-neutral-700',
+                          form.locationType === 'online'
+                            ? 'bg-rose-500 text-white border-l-rose-500'
+                            : 'bg-neutral-50 dark:bg-neutral-800/70 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+                        )}
+                      >
+                        <Globe className="h-4 w-4" />
+                        Online
+                      </button>
+                    </div>
+                    <div className="p-3 border-t border-neutral-200 dark:border-neutral-800">
+                      {form.locationType === 'physical' ? (
+                        <>
+                          <VenueAutocomplete
+                            value={form.location}
+                            onChange={(location) => setForm((p) => ({ ...p, location }))}
+                            onSelect={(loc) =>
+                              setForm((p) => ({
+                                ...p,
+                                location: loc.address,
+                                ...(loc.latitude != null ? { latitude: loc.latitude } : {}),
+                                ...(loc.longitude != null ? { longitude: loc.longitude } : {}),
+                              }))
+                            }
+                            onOpenMapPicker={() => setShowMapPicker(true)}
+                            latitude={form.latitude}
+                            longitude={form.longitude}
+                            className="w-full px-3 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                          />
+                          {form.latitude != null && form.longitude != null && (
+                            <div className="mt-3 rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-800">
+                              <GoogleMapLocation
+                                location={form.location || 'Pinned venue'}
+                                latitude={form.latitude}
+                                longitude={form.longitude}
+                                eventTitle={form.title || 'Event location'}
+                              />
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <input
+                          value={form.onlineUrl}
+                          onChange={(e) => setForm((p) => ({ ...p, onlineUrl: e.target.value }))}
+                          placeholder="https://zoom.us/j/..."
+                          className="w-full px-3 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <StepActions onBack={() => navigate('/organizer/events')} onNext={goNext} backLabel="Cancel" error={error} onDismissError={clearError} />
+                <OptionalSection
+                  title="More options"
+                  hint="What’s included for guests"
+                  open={showExtras}
+                  onToggle={() => setShowExtras((v) => !v)}
+                >
+                  <div className="space-y-3">
+                    <FieldLabel>What’s included</FieldLabel>
+                      <div className="flex flex-wrap gap-1.5">
+                        {includedChipOptions.map((item) => (
+                          <button
+                            key={item}
+                            type="button"
+                            onClick={() => toggleIncluded(item)}
+                            className={cn(
+                              'px-2.5 py-1 rounded-full text-xs border transition-colors cursor-pointer',
+                              form.includedItems.includes(item) ? selectedChipClass : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-rose-300'
+                            )}
+                          >
+                            {item}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          value={customIncluded}
+                          onChange={(e) => setCustomIncluded(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomIncluded())}
+                          placeholder="Add a custom item..."
+                          className={cn(getInputClass(), 'flex-1')}
+                        />
+                        <Button type="button" variant="outline" onClick={addCustomIncluded} className="rounded-lg shrink-0 border-rose-200 text-rose-500 hover:bg-rose-50">
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                  </div>
+                </OptionalSection>
+
+                <StepActions onBack={() => navigate('/organizer/events')} onNext={goNext} backLabel="Cancel" error={error} onDismissError={clearError} />
+              </div>
             </motion.div>
           )}
 
           {step === 'tickets' && activeTicket && (
             <motion.div key="tickets" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-8">
-                <div className="space-y-5 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Ticket types</h2>
-                    <span className="text-xs text-neutral-500 font-medium">
-                      {hasUnlimitedTickets ? 'Unlimited capacity' : `${ticketQtyTotal} total tickets`}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-1.5">
-                    {form.tickets.map((ticket, i) => (
-                      <button
-                        key={`${ticket.name}-${i}`}
-                        type="button"
-                        onClick={() => setActiveTicketIndex(i)}
-                        className={cn(
-                          'px-3 py-1.5 rounded-full text-xs font-medium border transition-colors cursor-pointer',
-                          activeTicketIndex === i ? selectedChipClass : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-rose-300'
-                        )}
-                      >
-                        {ticket.name || `Ticket ${i + 1}`}
-                        <span className="ml-1 opacity-70">
-                          ({getLayoutPreset(ticket.ticketStyle).name} · {getAccentPreset(ticket.ticketStyle).name})
-                        </span>
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setShowTicketPresets(!showTicketPresets)}
-                      className="px-3 py-1.5 rounded-full text-xs text-rose-500 border border-dashed border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/20 flex items-center gap-1 cursor-pointer"
-                    >
-                      <Plus className="h-3 w-3" /> Add ticket
-                    </button>
-                  </div>
-
-                  {showTicketPresets && (
-                    <div className="rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 p-4 space-y-3">
-                      <p className="text-xs font-medium text-neutral-600">Choose a ticket type</p>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {TICKET_TYPE_PRESETS.map((preset) => (
-                          <button
-                            key={preset.name}
-                            type="button"
-                            onClick={() => addTicketFromPreset(preset)}
-                            className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-xs font-medium hover:border-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors text-left cursor-pointer"
-                          >
-                            {preset.name}
-                          </button>
-                        ))}
-                        <button type="button" onClick={addBlankTicket} className="px-3 py-2 rounded-lg border border-dashed border-neutral-300 text-xs text-neutral-500 hover:border-rose-300 cursor-pointer">
-                          Custom
+              <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 sm:p-6 shadow-2xs">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+                  <div className="space-y-4 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {form.tickets.map((ticket, i) => (
+                        <button
+                          key={`${ticket.name}-${i}`}
+                          type="button"
+                          onClick={() => setActiveTicketIndex(i)}
+                          className={cn(
+                            'px-3 py-1.5 rounded-full text-xs font-medium border transition-colors cursor-pointer',
+                            activeTicketIndex === i ? selectedChipClass : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-rose-300'
+                          )}
+                        >
+                          {ticket.name || `Ticket ${i + 1}`}
                         </button>
-                      </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={addBlankTicket}
+                        className="text-xs font-semibold text-rose-500 hover:text-rose-600 inline-flex items-center gap-0.5 px-1"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Add
+                      </button>
                     </div>
-                  )}
 
-                  <div className="space-y-4">
                     <div>
-                      <FieldLabel>Ticket name</FieldLabel>
-                      <input value={activeTicket.name} onChange={(e) => updateTicket(activeTicketIndex, { name: e.target.value })} placeholder="e.g. VIP" className={getInputClass('ticket needs a name')} />
+                      <FieldLabel>Name</FieldLabel>
+                      <input value={activeTicket.name} onChange={(e) => updateTicket(activeTicketIndex, { name: e.target.value })} placeholder="e.g. General Admission" className={getInputClass('ticket needs a name')} />
                     </div>
 
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-4 flex-wrap">
-                        <label className="flex items-center gap-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={activeTicket.isFree}
-                            onChange={(e) => updateTicket(activeTicketIndex, { isFree: e.target.checked })}
-                            className="rounded accent-rose-500 w-4 h-4"
-                          />
-                          Free ticket
-                        </label>
-                        <label className="flex items-center gap-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={activeTicket.isUnlimited ?? false}
-                            onChange={(e) => updateTicket(activeTicketIndex, { isUnlimited: e.target.checked, quantity: e.target.checked ? '' : (activeTicket.quantity || '100') })}
-                            className="rounded accent-rose-500 w-4 h-4"
-                          />
-                          Unlimited quantity
-                        </label>
-                        <label className="flex items-center gap-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={!!activeTicket.isPaused}
-                            onChange={(e) => updateTicket(activeTicketIndex, { isPaused: e.target.checked })}
-                            className="rounded accent-rose-500 w-4 h-4"
-                          />
-                          Pause sales
-                        </label>
-                      </div>
-
-                      <div className="flex gap-3 items-end flex-wrap">
-                        {!activeTicket.isFree && (
-                          <div className="flex-1 min-w-[130px]">
-                            <FieldLabel>Price (₦)</FieldLabel>
-                            <input
-                              type="number"
-                              min={0}
-                              value={activeTicket.price}
-                              onChange={(e) => updateTicket(activeTicketIndex, { price: e.target.value })}
-                              placeholder="5000"
-                              className={getInputClass('price')}
-                            />
-                          </div>
-                        )}
-                        {!activeTicket.isUnlimited && (
-                          <div className="flex-1 min-w-[130px]">
-                            <FieldLabel>Quantity available</FieldLabel>
-                            <input
-                              type="number"
-                              min={1}
-                              value={activeTicket.quantity}
-                              onChange={(e) => updateTicket(activeTicketIndex, { quantity: e.target.value })}
-                              placeholder="100"
-                              className={getInputClass('quantity')}
-                            />
-                          </div>
-                        )}
-                      </div>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 text-xs font-medium text-neutral-600 dark:text-neutral-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(activeTicket.isFree)}
+                          onChange={(e) =>
+                            updateTicket(activeTicketIndex, {
+                              isFree: e.target.checked,
+                              price: e.target.checked ? '0' : activeTicket.price === '0' ? '' : activeTicket.price,
+                            })
+                          }
+                          className="rounded accent-rose-500 w-4 h-4"
+                        />
+                        Free
+                      </label>
+                      <label className="flex items-center gap-2 text-xs font-medium text-neutral-600 dark:text-neutral-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={activeTicket.isUnlimited ?? false}
+                          onChange={(e) => updateTicket(activeTicketIndex, { isUnlimited: e.target.checked, quantity: e.target.checked ? '' : (activeTicket.quantity || '100') })}
+                          className="rounded accent-rose-500 w-4 h-4"
+                        />
+                        Unlimited
+                      </label>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                    <div className="grid grid-cols-2 gap-3">
+                      {!activeTicket.isFree && (
+                        <div>
+                          <FieldLabel>Price (₦)</FieldLabel>
+                          <input
+                            type="number"
+                            min={0}
+                            value={activeTicket.price}
+                            onChange={(e) => updateTicket(activeTicketIndex, { price: e.target.value })}
+                            placeholder="5000"
+                            className={getInputClass('price')}
+                          />
+                        </div>
+                      )}
+                      {!activeTicket.isUnlimited && (
+                        <div>
+                          <FieldLabel>Quantity</FieldLabel>
+                          <input
+                            type="number"
+                            min={1}
+                            value={activeTicket.quantity}
+                            onChange={(e) => updateTicket(activeTicketIndex, { quantity: e.target.value })}
+                            placeholder="100"
+                            className={getInputClass('quantity')}
+                          />
+                        </div>
+                      )}
                       <div>
-                        <FieldLabel>Max tickets per person</FieldLabel>
+                        <FieldLabel>Max per person</FieldLabel>
                         <input
                           type="number"
                           min={1}
-                          value={activeTicket.maxPerPerson || '5'}
+                          value={activeTicket.maxPerPerson ?? ''}
                           onChange={(e) => updateTicket(activeTicketIndex, { maxPerPerson: e.target.value })}
                           placeholder="5"
                           className={getInputClass()}
                         />
                       </div>
-                      <div>
-                        <FieldLabel>Stub badge label</FieldLabel>
-                        <input value={activeTicket.badgeText} onChange={(e) => updateTicket(activeTicketIndex, { badgeText: e.target.value })} placeholder="e.g. VIP ACCESS" className={getInputClass()} />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <FieldLabel>Ticket headline</FieldLabel>
-                        <input value={activeTicket.ticketHeadline} onChange={(e) => updateTicket(activeTicketIndex, { ticketHeadline: e.target.value })} placeholder="COME AND JOIN" className={getInputClass()} />
-                      </div>
-                      <div>
-                        <FieldLabel>Venue label</FieldLabel>
-                        <input value={activeTicket.venueLabel} onChange={(e) => updateTicket(activeTicketIndex, { venueLabel: e.target.value })} placeholder="LIVE AT" className={getInputClass()} />
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div>
-                        <FieldLabel>Ticket layout</FieldLabel>
-                        {form.category && (
-                          <p className="text-[10px] text-neutral-500 mb-2">
-                            Suggested for {form.category}: {suggestTicketDesign(form.category).reason}
-                          </p>
-                        )}
-                        <div className="grid grid-cols-3 gap-2">
-                          {TICKET_LAYOUTS.map((layout) => {
-                            const current = parseTicketStyle(activeTicket.ticketStyle);
-                            const selected = current.layout === layout.id;
-                            return (
-                              <button
-                                key={layout.id}
-                                type="button"
-                                onClick={() =>
-                                  updateTicket(activeTicketIndex, {
-                                    ticketStyle: encodeTicketStyle(layout.id, current.accent),
-                                    accentColor: '',
-                                  })
-                                }
-                                className={cn(
-                                  'p-2.5 rounded-lg border text-left transition-colors',
-                                  selected
-                                    ? 'border-rose-500 ring-1 ring-rose-500/30 bg-rose-50/50 dark:bg-rose-950/20'
-                                    : 'border-neutral-200 dark:border-neutral-700 hover:border-rose-300'
-                                )}
-                              >
-                                <p className="text-[11px] font-semibold leading-tight">{layout.name}</p>
-                                <p className="text-[9px] text-neutral-500 mt-0.5 leading-tight">{layout.description}</p>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div>
-                        <FieldLabel>Accent color</FieldLabel>
-                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                          {TICKET_ACCENTS.map((design) => {
-                            const current = parseTicketStyle(activeTicket.ticketStyle);
-                            const selected = current.accent === design.id;
-                            return (
-                              <button
-                                key={design.id}
-                                type="button"
-                                onClick={() =>
-                                  updateTicket(activeTicketIndex, {
-                                    ticketStyle: encodeTicketStyle(current.layout, design.id),
-                                    accentColor: '',
-                                  })
-                                }
-                                className={cn(
-                                  'p-2 rounded-lg border text-left transition-colors',
-                                  selected
-                                    ? 'border-rose-500 ring-1 ring-rose-500/30'
-                                    : 'border-neutral-200 dark:border-neutral-700 hover:border-rose-300'
-                                )}
-                              >
-                                <div className="w-full h-4 rounded mb-1" style={{ backgroundColor: design.accent }} />
-                                <span className="text-[10px] font-medium">{design.name}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
                     </div>
 
                     {form.tickets.length > 1 && (
-                      <button type="button" onClick={() => removeTicket(activeTicketIndex)} className="text-xs text-rose-500 hover:text-rose-600">
-                        Remove this ticket type
+                      <button type="button" onClick={() => removeTicket(activeTicketIndex)} className="text-xs text-neutral-400 hover:text-rose-500">
+                        Remove
                       </button>
                     )}
                   </div>
-                </div>
 
-                <div className="lg:sticky lg:top-4 lg:self-start min-w-0 overflow-x-auto">
-                  <p className="text-xs font-medium text-neutral-500 mb-3">Preview — {activeTicket.name || 'Ticket'}</p>
-                  <EventTicketCard
-                    key={`preview-${activeTicketIndex}-${activeTicket.ticketStyle}`}
-                    compact
-                    eventName={form.title || 'Your Event'}
-                    eventDate={previewDate}
-                    eventTime={form.startTime12}
-                    eventLocation={previewLocation}
-                    eventImageUrl={coverImageSrc || undefined}
-                    ticketType={{
-                      name: activeTicket.name,
-                      ticketStyle: activeTicket.ticketStyle,
-                      accentColor: activeTicket.accentColor || null,
-                      badgeText: activeTicket.badgeText || activeTicket.name,
-                      ticketHeadline: activeTicket.ticketHeadline,
-                      venueLabel: activeTicket.venueLabel,
-                    }}
-                    ticketSerial="PREVIEW"
-                  />
-                </div>
-              </div>
-
-              <StepActions onBack={goBack} onNext={goNext} error={error} onDismissError={clearError} />
-            </motion.div>
-          )}
-
-          {step === 'vendors' && (
-            <motion.div key="vendors" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
-              <div className="max-w-2xl">
-                <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-4">Vendor Settings</h2>
-                <p className="text-xs text-neutral-500 mb-6">
-                  Allow vendors to apply for booth spaces at your event with customizable stall types and pricing.
-                </p>
-
-                {/* Allow Vendors Toggle */}
-                <div className="mb-6 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
-                  <div>
-                    <p className="font-bold text-sm text-neutral-900 dark:text-white">Allow Vendor Applications</p>
-                    <p className="text-xs text-neutral-500 mt-1">Enable vendors to apply for booth spaces</p>
+                  <div className="space-y-4 min-w-0">
+                    <div className="min-w-0 overflow-x-auto">
+                      <EventTicketCard
+                        key={`preview-${activeTicketIndex}-${activeTicket.ticketStyle}`}
+                        compact
+                        editable
+                        onCopyChange={(patch) => updateTicket(activeTicketIndex, patch)}
+                        eventName={form.title || 'Your Event'}
+                        eventDate={previewDate}
+                        eventTime={form.startTime12}
+                        eventLocation={previewLocation}
+                        eventImageUrl={coverImageSrc || undefined}
+                        ticketType={{
+                          name: activeTicket.name,
+                          ticketStyle: activeTicket.ticketStyle,
+                          accentColor: activeTicket.accentColor || null,
+                          badgeText: activeTicket.badgeText,
+                          ticketHeadline: activeTicket.ticketHeadline,
+                          venueLabel: activeTicket.venueLabel,
+                          ticketSublabel: activeTicket.ticketSublabel,
+                        }}
+                        ticketSerial="PREVIEW"
+                      />
+                    </div>
+                    <div>
+                      <FieldLabel>Layout</FieldLabel>
+                      <div className="grid grid-cols-5 gap-1">
+                        {TICKET_LAYOUTS.map((layout) => {
+                          const current = parseTicketStyle(activeTicket.ticketStyle);
+                          const selected = current.layout === layout.id;
+                          return (
+                            <button
+                              key={layout.id}
+                              type="button"
+                              title={layout.description}
+                              onClick={() =>
+                                updateTicket(activeTicketIndex, {
+                                  ticketStyle: encodeTicketStyle(layout.id, current.accent),
+                                })
+                              }
+                              className={cn(
+                                'px-1 py-1.5 rounded-lg border text-center transition-colors',
+                                selected
+                                  ? 'border-rose-500 ring-1 ring-rose-500/30 bg-rose-50/50 dark:bg-rose-950/20'
+                                  : 'border-neutral-200 dark:border-neutral-700 hover:border-rose-300'
+                              )}
+                            >
+                              <p className="text-[10px] font-semibold leading-tight truncate">{layout.name}</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[11px] text-neutral-400 mt-2">Click any label on the ticket to type your own words.</p>
+                    </div>
+                    <div>
+                      <FieldLabel>Color</FieldLabel>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {TICKET_ACCENTS.map((design) => {
+                          const current = parseTicketStyle(activeTicket.ticketStyle);
+                          const selected = !activeTicket.accentColor && current.accent === design.id;
+                          return (
+                            <button
+                              key={design.id}
+                              type="button"
+                              title={design.name}
+                              onClick={() =>
+                                updateTicket(activeTicketIndex, {
+                                  ticketStyle: encodeTicketStyle(current.layout, design.id),
+                                  accentColor: '',
+                                })
+                              }
+                              className={cn(
+                                'h-7 w-7 rounded-full border-2 transition-transform',
+                                selected ? 'border-neutral-900 dark:border-white scale-110' : 'border-transparent hover:scale-105'
+                              )}
+                              style={{ backgroundColor: design.accent }}
+                            />
+                          );
+                        })}
+                        <label
+                          className={cn(
+                            'relative h-7 w-7 rounded-full overflow-hidden border-2 cursor-pointer shrink-0',
+                            activeTicket.accentColor ? 'border-neutral-900 dark:border-white scale-110' : 'border-neutral-300 dark:border-neutral-600'
+                          )}
+                          title="Pick any color"
+                        >
+                          <input
+                            type="color"
+                            value={activeTicket.accentColor || getAccentPreset(activeTicket.ticketStyle).accent}
+                            onChange={(e) => updateTicket(activeTicketIndex, { accentColor: e.target.value })}
+                            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                          />
+                          <span
+                            className="block h-full w-full"
+                            style={{
+                              background: activeTicket.accentColor
+                                ? activeTicket.accentColor
+                                : 'conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444)',
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <p className="text-[11px] text-neutral-400 mt-1.5">Use a preset, or tap the rainbow to pick your own.</p>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setForm(p => ({ ...p, vendorSettings: { ...p.vendorSettings, allowVendors: !p.vendorSettings.allowVendors } }))}
-                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
-                      form.vendorSettings.allowVendors ? 'bg-rose-500' : 'bg-neutral-300 dark:bg-neutral-700'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                        form.vendorSettings.allowVendors ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
                 </div>
 
-                {/* Vendor Settings Form */}
-                {form.vendorSettings.allowVendors && (
-                  <VendorSettingsStep
-                    settings={form.vendorSettings}
-                    onSettingsChange={(vendorSettings) => setForm(p => ({ ...p, vendorSettings }))}
-                  />
-                )}
-              </div>
+                <div className="mt-6 pt-5 border-t border-neutral-200 dark:border-neutral-800 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-neutral-900 dark:text-white">Vendor stalls</p>
+                      <p className="text-xs text-neutral-500 mt-0.5">Optional — let vendors apply for booths at this event</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setForm((p) => ({
+                        ...p,
+                        vendorSettings: { ...p.vendorSettings, allowVendors: !p.vendorSettings.allowVendors },
+                      }))}
+                      className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors shrink-0 ${
+                        form.vendorSettings.allowVendors ? 'bg-rose-500' : 'bg-neutral-300 dark:bg-neutral-700'
+                      }`}
+                      aria-label="Allow vendor applications"
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                          form.vendorSettings.allowVendors ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  {form.vendorSettings.allowVendors && (
+                    <VendorSettingsStep
+                      settings={form.vendorSettings}
+                      onSettingsChange={(vendorSettings) => setForm((p) => ({ ...p, vendorSettings }))}
+                    />
+                  )}
+                </div>
 
-              <StepActions onBack={goBack} onNext={goNext} error={error} onDismissError={clearError} />
+                <StepActions onBack={goBack} onNext={goNext} nextLabel="Review" error={error} onDismissError={clearError} />
+              </div>
             </motion.div>
           )}
 
@@ -1639,43 +1650,44 @@ const CreateEvent: React.FC = () => {
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold">Ticket types ({form.tickets.length})</h3>
                   {form.tickets.map((t, i) => (
-                    <div key={i} className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 space-y-1">
+                    <div key={i} className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">{t.name}</span>
                         <span className="text-sm text-neutral-500">
-                          {t.isFree ? 'Free' : `₦${Number(t.price).toLocaleString()}`} · {t.isUnlimited ? 'Unlimited qty' : `${t.quantity} qty`}
-                          {t.isPaused ? ' · Paused' : ''}
+                          {t.isFree ? 'Free' : `₦${Number(t.price).toLocaleString()}`} · {t.isUnlimited ? 'Unlimited' : `${t.quantity} qty`}
                         </span>
                       </div>
-                      <p className="text-[10px] text-neutral-400">
-                        Design: {getLayoutPreset(t.ticketStyle).name} · {getAccentPreset(t.ticketStyle).name} · {t.ticketHeadline} / {t.venueLabel}
-                      </p>
                     </div>
                   ))}
 
-                  {/* Vendor Settings Summary */}
-                  {form.vendorSettings.allowVendors && (
-                    <>
-                      <h3 className="text-sm font-semibold mt-6">Vendor Settings</h3>
-                      <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">Stall Types</span>
-                          <span className="text-sm text-neutral-500">{form.vendorSettings.stallTypes.length} types</span>
-                        </div>
-                        {form.vendorSettings.stallTypes.map((stall) => (
-                          <div key={stall.id} className="text-xs text-neutral-600 pl-3">
-                            {stall.name}: ₦{stall.price.toLocaleString()} · {stall.maxStalls} max stalls
-                          </div>
-                        ))}
-                        <div className="text-xs text-neutral-600 pt-1">
-                          Roles: {form.vendorSettings.allowedRoles.join(', ') || 'None selected'}
-                        </div>
-                        <div className="text-xs text-neutral-600">
-                          Approval: {form.vendorSettings.approvalMode === 'auto' ? 'Auto-approve' : form.vendorSettings.approvalMode === 'manual' ? 'Manual review' : 'Vetted only'}
-                        </div>
+                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-neutral-900 dark:text-white">Vendor stalls</p>
+                        <p className="text-xs text-neutral-500 mt-0.5">Optional — skip unless you want booth applications</p>
                       </div>
-                    </>
-                  )}
+                      <button
+                        type="button"
+                        onClick={() => setForm(p => ({ ...p, vendorSettings: { ...p.vendorSettings, allowVendors: !p.vendorSettings.allowVendors } }))}
+                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors shrink-0 ${
+                          form.vendorSettings.allowVendors ? 'bg-rose-500' : 'bg-neutral-300 dark:bg-neutral-700'
+                        }`}
+                        aria-label="Allow vendor applications"
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                            form.vendorSettings.allowVendors ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    {form.vendorSettings.allowVendors && (
+                      <VendorSettingsStep
+                        settings={form.vendorSettings}
+                        onSettingsChange={(vendorSettings) => setForm(p => ({ ...p, vendorSettings }))}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
 

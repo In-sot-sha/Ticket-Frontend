@@ -161,6 +161,7 @@ const RecoverTicketPage = () => {
           badgeText: t.ticketType?.badgeText,
           ticketHeadline: t.ticketType?.ticketHeadline,
           venueLabel: t.ticketType?.venueLabel,
+          ticketSublabel: t.ticketType?.ticketSublabel,
         },
         event: {
           id: t.event?.id,
