@@ -342,6 +342,10 @@ const GateScanner: React.FC<{
       let displayMessage: string;
       if (err?.code === 'ERR_NETWORK' || err?.code === 'ECONNABORTED') {
         displayMessage = 'Network error — check WiFi and try again.';
+      } else if (serverStatus === 'WRONG_DAY') {
+        displayMessage = serverMsg || 'This pass is not for today.';
+      } else if (serverStatus === 'ALREADY_IN_TODAY') {
+        displayMessage = serverMsg || 'Already checked in today.';
       } else if (serverStatus === 'USED' || /already.*used|already.*scanned|not valid/i.test(serverMsg)) {
         displayMessage = 'This ticket has already been scanned. Entry not permitted.';
       } else if (serverStatus === 'CANCELLED' || /cancel/i.test(serverMsg)) {

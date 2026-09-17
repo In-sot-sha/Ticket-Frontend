@@ -18,6 +18,10 @@ export interface TicketCopyPatch {
 export interface EventTicketCardProps {
   eventName: string;
   eventDate: string;
+  /** Overrides formatted date (e.g. Fri 17 – Sun 19 Sep). */
+  dateLabel?: string;
+  /** Line under the date, e.g. "Only valid Fri 17 Sep." */
+  validityNote?: string;
   eventTime?: string;
   eventLocation?: string;
   eventImageUrl?: string;
@@ -99,6 +103,19 @@ function formatPrettyDate(dateString: string) {
   } catch {
     return dateString;
   }
+}
+
+function shownDate(eventDate: string, dateLabel: string | undefined, fmt: (value: string) => string) {
+  return dateLabel || fmt(eventDate);
+}
+
+function ValidityNote({ note, className }: { note?: string; className?: string }) {
+  if (!note) return null;
+  return (
+    <p className={className || 'text-[9px] font-semibold opacity-70 mt-0.5 normal-case tracking-normal'}>
+      {note}
+    </p>
+  );
 }
 
 function formatBoardDate(dateString: string) {
@@ -356,6 +373,8 @@ function ClassicLayout(props: LayoutProps) {
   const {
     eventName,
     eventDate,
+    dateLabel,
+    validityNote,
     eventTime,
     eventLocation = 'Venue TBA',
     eventImageUrl,
@@ -376,7 +395,7 @@ function ClassicLayout(props: LayoutProps) {
   } = props;
   const isMobile = useIsMobile();
   const split = splitTitle(eventName);
-  const formattedDate = formatTicketDate(eventDate);
+  const formattedDate = shownDate(eventDate, dateLabel, formatTicketDate);
   const onAccent = inkOn(accent);
   const bannerImage =
     eventImageUrl ||
@@ -438,6 +457,7 @@ function ClassicLayout(props: LayoutProps) {
                 <div>
                   <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/45 font-mono">Date</p>
                   <p className="font-extrabold text-white uppercase font-mono mt-0.5">{formattedDate}</p>
+                  <ValidityNote note={validityNote} className="text-[8px] font-semibold text-white/55 mt-0.5 normal-case tracking-normal" />
                 </div>
                 {eventTime ? (
                   <div>
@@ -532,6 +552,7 @@ function ClassicLayout(props: LayoutProps) {
                   <div>
                     <p className="text-[11px] font-semibold text-white/50">Date</p>
                     <p className="mt-0.5 text-sm font-bold text-white">{formattedDate}</p>
+                    <ValidityNote note={validityNote} className="text-[10px] font-semibold text-white/55 mt-0.5 normal-case" />
                   </div>
                   {eventTime ? (
                     <div>
@@ -629,6 +650,7 @@ function ClassicLayout(props: LayoutProps) {
                     <p className="font-extrabold text-white uppercase mt-0.5 text-[11px] lg:text-xs">
                       {formattedDate}
                     </p>
+                    <ValidityNote note={validityNote} className="text-[9px] font-semibold text-white/55 mt-0.5 normal-case tracking-normal" />
                   </div>
                   {eventTime ? (
                     <div className="pl-4 border-l border-white/10 min-w-0">
@@ -686,6 +708,8 @@ function BoardingLayout(props: LayoutProps) {
   const {
     eventName,
     eventDate,
+    dateLabel,
+    validityNote,
     eventTime = '4:00 PM',
     eventLocation = 'Venue TBA',
     ticketType,
@@ -704,7 +728,7 @@ function BoardingLayout(props: LayoutProps) {
   const railInk = inkOn(accent);
   const qrSize = compact ? 86 : 102;
   const fields = [
-    { label: 'Date', value: formatBoardDate(eventDate) },
+    { label: 'Date', value: shownDate(eventDate, dateLabel, formatBoardDate), note: validityNote },
     { label: 'Time', value: eventTime },
     { label: copy.venueLabel, value: eventLocation, editableLabel: true as const },
   ];
@@ -764,6 +788,11 @@ function BoardingLayout(props: LayoutProps) {
                 <p data-ticket-text className="mt-1 text-xs font-semibold leading-snug break-words" style={{ color: ink }}>
                   {field.value}
                 </p>
+                {'note' in field && field.note ? (
+                  <p className="mt-0.5 text-[9px] font-medium normal-case tracking-normal" style={{ color: muted }}>
+                    {field.note}
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>
@@ -817,6 +846,8 @@ function StubLayout(props: LayoutProps) {
   const {
     eventName,
     eventDate,
+    dateLabel,
+    validityNote,
     eventTime,
     eventLocation = 'Venue TBA',
     eventImageUrl,
@@ -833,7 +864,7 @@ function StubLayout(props: LayoutProps) {
     organizerName,
   } = props;
   const split = splitTitle(eventName);
-  const shortDate = formatShortDate(eventDate);
+  const shortDate = shownDate(eventDate, dateLabel, formatShortDate);
   const onAccent = inkOn(accent);
   const bannerImage =
     eventImageUrl ||
@@ -904,6 +935,7 @@ function StubLayout(props: LayoutProps) {
                   <div className="min-w-0">
                     <p className="text-[10px] font-bold uppercase text-white/50">Date</p>
                     <p className="font-extrabold text-white mt-0.5 break-words">{shortDate}</p>
+                    <ValidityNote note={validityNote} className="text-[9px] font-semibold text-white/55 mt-0.5 normal-case tracking-normal" />
                   </div>
                   {eventTime ? (
                     <div className="min-w-0">
@@ -953,6 +985,8 @@ function CinemaLayout(props: LayoutProps) {
   const {
     eventName,
     eventDate,
+    dateLabel,
+    validityNote,
     eventTime = '7:00 PM',
     eventLocation = 'Venue TBA',
     qrValue = 'preview-ticket',
@@ -1002,7 +1036,8 @@ function CinemaLayout(props: LayoutProps) {
           <div className="mt-4 grid grid-cols-3 gap-3 border-y border-neutral-900/10 py-3">
             <div className="min-w-0">
               <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-neutral-500">Date</p>
-              <p className="mt-0.5 text-xs font-extrabold">{formatBoardDate(eventDate)}</p>
+              <p className="mt-0.5 text-xs font-extrabold">{shownDate(eventDate, dateLabel, formatBoardDate)}</p>
+              <ValidityNote note={validityNote} className="text-[9px] font-semibold text-neutral-500 mt-0.5 normal-case tracking-normal" />
             </div>
             <div className="min-w-0">
               <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-neutral-500">Showtime</p>
@@ -1054,6 +1089,8 @@ function FolioLayout(props: LayoutProps) {
   const {
     eventName,
     eventDate,
+    dateLabel,
+    validityNote,
     eventTime = '6:00 PM',
     eventLocation = 'Venue TBA',
     eventImageUrl,
@@ -1111,9 +1148,10 @@ function FolioLayout(props: LayoutProps) {
                     {eventName}
                   </h3>
                   <p className="mt-2 text-xs font-medium text-white/80">
-                    {formatPrettyDate(eventDate)}
+                    {shownDate(eventDate, dateLabel, formatPrettyDate)}
                     {eventTime ? ` · ${eventTime}` : ''}
                   </p>
+                  <ValidityNote note={validityNote} className="text-[10px] font-semibold text-white/55 mt-0.5 normal-case" />
                 </>
               }
               venueLabel={

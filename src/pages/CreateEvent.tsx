@@ -39,6 +39,8 @@ import VenueAutocomplete from '../components/organizer/VenueAutocomplete';
 import { GoogleMapLocation } from '../components/GoogleMapLocation';
 import { cn } from '../lib/utils';
 import { resolveImageUrl } from '../lib/media';
+import { ValidOnField } from '../components/organizer/ValidOnField';
+import { eventDayList, passDateAndNote, ticketValidityLine, ymdFromUnknown } from '../lib/ticketValidity';
 import {
   combineDateAndTime12,
   formatTime12,
@@ -90,6 +92,7 @@ const defaultTicket = (): TicketDraft => ({
   venueLabel: '',
   ticketSublabel: '',
   maxPerPerson: '5',
+  validOn: '',
 });
 
 const defaultForm = (): FormState => ({
@@ -188,7 +191,10 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
   fd.append(
     'ticketTypes',
     JSON.stringify(
-      form.tickets.map((t) => ({
+      form.tickets.map((t) => {
+        const days = eventDayList(form.startDate, form.endDate || form.startDate);
+        const day = t.validOn && days.includes(t.validOn) ? t.validOn : null;
+        return {
         name: t.name,
         price: t.isFree ? 0 : parseFloat(t.price || '0'),
         quantity: t.isUnlimited ? 0 : parseInt(t.quantity || '0', 10),
@@ -201,7 +207,9 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
         ticketSublabel: t.ticketSublabel || null,
         maxPerPerson: t.maxPerPerson ? parseInt(t.maxPerPerson, 10) : 5,
         isPaused: !!t.isPaused,
-      }))
+        validOn: day,
+      };
+      })
     )
   );
 
@@ -579,6 +587,7 @@ const CreateEvent: React.FC = () => {
                 ticketSublabel?: string | null;
                 maxPerPerson?: number | null;
                 isPaused?: boolean;
+                validOn?: string | null;
               }) => ({
                 name: t.name,
                 price: String(t.price ?? 0),
@@ -594,6 +603,7 @@ const CreateEvent: React.FC = () => {
                 maxPerPerson:
                   t.maxPerPerson != null ? String(t.maxPerPerson) : '5',
                 isPaused: !!t.isPaused,
+                validOn: ymdFromUnknown(t.validOn),
               }))
             : [defaultTicket()],
           imageUrl: event.imageUrl || '',
@@ -727,6 +737,11 @@ const CreateEvent: React.FC = () => {
   const previewDate = form.startDate ? `${form.startDate}T12:00:00` : new Date().toISOString();
   const previewLocation = form.locationType === 'online' ? 'Online Event' : form.location || 'Venue TBA';
   const activeTicket = form.tickets[activeTicketIndex] ?? form.tickets[0];
+  const previewPass = passDateAndNote({
+    validOn: activeTicket?.validOn,
+    eventStart: form.startDate,
+    eventEnd: form.endDate || form.startDate,
+  });
 
   const validateDetails = (): string | null => {
     if (form.title.trim().length < 3) return 'Give your event a title.';
@@ -1463,6 +1478,12 @@ const CreateEvent: React.FC = () => {
                         />
                       </div>
                     </div>
+                    <ValidOnField
+                      startDate={form.startDate}
+                      endDate={form.endDate || form.startDate}
+                      value={activeTicket.validOn}
+                      onChange={(next) => updateTicket(activeTicketIndex, { validOn: next })}
+                    />
 
                     {form.tickets.length > 1 && (
                       <button type="button" onClick={() => removeTicket(activeTicketIndex)} className="text-xs text-neutral-400 hover:text-rose-500">
@@ -1479,7 +1500,9 @@ const CreateEvent: React.FC = () => {
                         editable
                         onCopyChange={(patch) => updateTicket(activeTicketIndex, patch)}
                         eventName={form.title || 'Your Event'}
-                        eventDate={previewDate}
+                        eventDate={previewPass.dateIso || previewDate}
+                        dateLabel={previewPass.dateLabel}
+                        validityNote={previewPass.note}
                         eventTime={form.startTime12}
                         eventLocation={previewLocation}
                         eventImageUrl={coverImageSrc || undefined}
@@ -1657,6 +1680,11 @@ const CreateEvent: React.FC = () => {
                           {t.isFree ? 'Free' : `₦${Number(t.price).toLocaleString()}`} · {t.isUnlimited ? 'Unlimited' : `${t.quantity} qty`}
                         </span>
                       </div>
+                      {ticketValidityLine(t.validOn, form.startDate, form.endDate || form.startDate) ? (
+                        <p className="mt-1 text-[11px] text-neutral-400">
+                          {ticketValidityLine(t.validOn, form.startDate, form.endDate || form.startDate)}
+                        </p>
+                      ) : null}
                     </div>
                   ))}
 

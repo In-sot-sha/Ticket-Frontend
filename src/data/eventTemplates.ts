@@ -11,6 +11,8 @@ export interface TicketDraft {
   venueLabel: string;
   ticketSublabel: string;
   maxPerPerson?: string;
+  /** YYYY-MM-DD or empty for all event days */
+  validOn?: string;
   /** Organizer closed sales for this type. Existing tickets stay valid. */
   isPaused?: boolean;
 }

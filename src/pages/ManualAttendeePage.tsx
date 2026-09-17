@@ -21,6 +21,7 @@ import { api } from '../services/api';
 import { cn } from '../lib/utils';
 import { isValidEmail, isValidPhone, normalizePhone } from '../lib/phone';
 import { formatNaira } from '../lib/eventOrganizer';
+import { ticketValidityLine } from '../lib/ticketValidity';
 
 interface TicketType {
   id: number;
@@ -29,11 +30,14 @@ interface TicketType {
   quantity: number;
   maxPerPerson?: number | null;
   isPaused?: boolean;
+  validOn?: string | null;
 }
 
 interface EventInfo {
   id: number;
   title: string;
+  startDate?: string;
+  endDate?: string;
   ticketTypes: TicketType[];
 }
 
@@ -197,6 +201,8 @@ const ManualAttendeePage: React.FC = () => {
         setEvent({
           id: data.id,
           title: data.title,
+          startDate: data.startDate,
+          endDate: data.endDate,
           ticketTypes: data.ticketTypes || [],
         });
         const sellable = (data.ticketTypes || []).filter((tt: TicketType) => !tt.isPaused);
@@ -701,6 +707,11 @@ const ManualAttendeePage: React.FC = () => {
                       <p className={cn('text-[11px] font-semibold mt-0.5', selected ? 'text-rose-600' : 'text-neutral-500')}>
                         {tt.price === 0 ? 'Free' : formatNaira(tt.price)}
                       </p>
+                      {ticketValidityLine(tt.validOn, event?.startDate, event?.endDate) ? (
+                        <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">
+                          {ticketValidityLine(tt.validOn, event?.startDate, event?.endDate)}
+                        </p>
+                      ) : null}
                       {already && (
                         <p className="text-[10px] text-emerald-600 mt-0.5">Has this</p>
                       )}

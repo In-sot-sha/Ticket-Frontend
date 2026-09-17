@@ -4,6 +4,7 @@ import EventTicketCard from './tickets/EventTicketCard';
 import { downloadElementPng } from '../lib/capturePng';
 import { useIsMobile } from '../hooks/use-mobile';
 import { parseTicketStyle } from '../data/ticketDesigns';
+import { passDateAndNote } from '../lib/ticketValidity';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -20,6 +21,7 @@ export interface TicketCardTicket {
     ticketHeadline?: string | null;
     venueLabel?: string | null;
     ticketSublabel?: string | null;
+    validOn?: string | Date | null;
   };
   event?: {
     id?: number;
@@ -36,6 +38,7 @@ export interface TicketCardEventMeta {
   eventId?: number;
   eventName?: string;
   eventDate?: string;
+  eventEnd?: string;
   eventTime?: string;
   eventLocation?: string;
   eventImageUrl?: string;
@@ -181,10 +184,15 @@ const TicketCard: React.FC<TicketCardProps> = ({
   idPrefix = 'ticket-card',
 }) => {
   const eventName = eventMeta.eventName ?? ticket.event?.title ?? 'Event';
-  const eventDate = eventMeta.eventDate ?? ticket.event?.startDate ?? new Date().toISOString();
   const eventTime = eventMeta.eventTime ?? '';
   const eventLoc = eventMeta.eventLocation ?? ticket.event?.location ?? 'Venue TBA';
   const bannerImg = eventMeta.eventImageUrl ?? ticket.event?.imageUrl;
+  const pass = passDateAndNote({
+    validOn: ticket.ticketType?.validOn,
+    eventStart: ticket.event?.startDate ?? eventMeta.eventDate,
+    eventEnd: ticket.event?.endDate ?? eventMeta.eventEnd,
+  });
+  const eventDate = pass.dateIso || eventMeta.eventDate || ticket.event?.startDate || new Date().toISOString();
 
   const typeName = ticket.ticketType?.name ?? eventMeta.ticketType ?? 'General Admission';
   const serial = getTicketSerial(ticket, index, eventMeta.eventId);
@@ -200,6 +208,8 @@ const TicketCard: React.FC<TicketCardProps> = ({
   const shared = {
     eventName,
     eventDate,
+    dateLabel: pass.dateLabel,
+    validityNote: pass.note,
     eventTime: eventTime || undefined,
     eventLocation: eventLoc,
     eventImageUrl: bannerImg || undefined,

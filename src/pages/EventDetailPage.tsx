@@ -243,6 +243,7 @@ interface TicketType {
   price: number;
   quantity: number;
   isPaused?: boolean;
+  validOn?: string | null;
 }
 
 interface Organizer {

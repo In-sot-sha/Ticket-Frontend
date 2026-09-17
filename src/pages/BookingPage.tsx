@@ -22,6 +22,7 @@ import { useEventById } from '../hooks/queries/useEvents';
 import { CACHE_CONFIGS } from '../lib/queryClient';
 import { isValidEmail, isValidPhone } from '../lib/phone';
 import { calculateBuyerCheckout, platformFeeForUnit } from '../lib/fees';
+import { ticketValidityLine } from '../lib/ticketValidity';
 
 
 // Mock event fallback matching EventDetailPage
@@ -874,6 +875,11 @@ const BookingPage = () => {
                               <p className="font-extrabold text-sm text-neutral-900 dark:text-white truncate">
                                 {t.name}
                               </p>
+                              {ticketValidityLine(t.validOn, normalizedEventData.date, eventData?.endDate) ? (
+                                <p className="text-[11px] text-neutral-500 mt-0.5">
+                                  {ticketValidityLine(t.validOn, normalizedEventData.date, eventData?.endDate)}
+                                </p>
+                              ) : null}
                               <p className="text-xs font-bold text-rose-500 mt-0.5">
                                 {Number(t.price) === 0 ? 'Free' : `₦${t.price.toLocaleString()}`}
                               </p>
