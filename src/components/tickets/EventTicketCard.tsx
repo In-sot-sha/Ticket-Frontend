@@ -318,15 +318,17 @@ function CopyStack({
   venueLabel,
   venue,
   meta,
+  className = '',
 }: {
   kicker?: React.ReactNode;
   title: React.ReactNode;
   venueLabel?: React.ReactNode;
   venue?: React.ReactNode;
   meta?: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-3">
+    <div className={`flex min-w-0 flex-col gap-3 ${className}`}>
       {kicker}
       <div className="min-w-0">{title}</div>
       {venueLabel || venue ? (
@@ -393,8 +395,8 @@ function ClassicLayout(props: LayoutProps) {
         id={id}
         className={`relative w-full max-w-xl mx-auto rounded-2xl overflow-hidden shadow-xl border bg-neutral-900 group ${borderColor}`}
       >
-        <div className="flex flex-col sm:flex-row">
-          <div className="relative flex-1 min-w-0 p-4 overflow-hidden text-white">
+        <div className="flex flex-row items-stretch">
+          <div data-ticket-photo className="relative flex flex-1 min-w-0 flex-col items-start justify-start p-4 overflow-hidden text-white">
             <div className="absolute inset-0 z-0">
               <img
                 src={bannerImage}
@@ -406,7 +408,7 @@ function ClassicLayout(props: LayoutProps) {
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/40 z-10" />
             </div>
 
-            <div className="relative z-10">
+            <div className="relative z-10 w-full min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[9px] font-black tracking-[0.25em] text-neutral-400 uppercase font-mono">
                   <EditCopy value={copy.headline} field="ticketHeadline" enabled={editable} onCopyChange={onCopyChange} />
@@ -447,13 +449,8 @@ function ClassicLayout(props: LayoutProps) {
             </div>
           </div>
 
-          <div className="relative h-0 sm:h-auto sm:w-0 shrink-0" aria-hidden>
-            <div className="sm:hidden absolute left-0 right-0 top-1/2 -translate-y-1/2">
-              <div className="absolute left-0 -translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950" />
-              <div className="absolute right-0 translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950" />
-              <div className="mx-4 border-t-2 border-dashed border-white/25" />
-            </div>
-            <div className="hidden sm:block absolute inset-y-0 left-0">
+          <div className="relative w-0 shrink-0" aria-hidden>
+            <div className="absolute inset-y-0 left-0">
               <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950 z-20" />
               <div className="absolute inset-y-3 left-0 border-l-2 border-dashed border-white/25" />
               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950 z-20" />
@@ -461,7 +458,7 @@ function ClassicLayout(props: LayoutProps) {
           </div>
 
           <div
-            className="sm:w-[34%] sm:min-w-[120px] sm:max-w-[168px] p-4 flex flex-row sm:flex-col items-center justify-between gap-3 text-center relative shrink-0"
+            className="w-[34%] min-w-[120px] max-w-[168px] p-4 flex flex-col items-center justify-between gap-3 text-center relative shrink-0"
             style={{ backgroundColor: accent, color: onAccent }}
           >
             <div className="absolute inset-0 bg-black/5 pointer-events-none" />
@@ -582,7 +579,7 @@ function ClassicLayout(props: LayoutProps) {
       id={id}
       className={`relative w-full flex flex-row bg-neutral-900 ${borderColor} border rounded-[32px] overflow-hidden shadow-lg group`}
     >
-      <div className="relative flex-1 min-w-0 p-6 lg:p-8 flex flex-col justify-between overflow-hidden text-white min-h-[270px]">
+      <div data-ticket-photo className="relative flex-1 min-w-0 p-6 lg:p-8 flex flex-col items-start justify-start overflow-hidden text-white min-h-[270px]">
         <div className="absolute inset-0 z-0">
           <img
             src={bannerImage}
@@ -594,7 +591,7 @@ function ClassicLayout(props: LayoutProps) {
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/40 z-10" />
         </div>
 
-        <div className="relative z-20 flex flex-col justify-between h-full min-w-0 gap-4">
+        <div className="relative z-20 w-full min-w-0">
             <CopyStack
               kicker={
                 <div className="flex items-center justify-between gap-2">
@@ -850,8 +847,11 @@ function StubLayout(props: LayoutProps) {
     >
       <div className="h-1.5 w-full" style={{ backgroundColor: accent }} />
 
-      <div data-ticket-body className="flex flex-row items-stretch">
-        <div className={`relative flex flex-1 min-w-0 items-center ${compact ? 'p-4' : 'p-3.5 sm:p-6'} overflow-hidden`}>
+      <div data-ticket-body className="flex flex-row items-stretch min-h-[220px]">
+        <div
+          data-ticket-photo
+          className={`relative flex flex-1 min-w-0 flex-col items-start justify-start ${compact ? 'p-4' : 'p-3.5 sm:p-6'} overflow-hidden`}
+        >
           <div className="absolute inset-0 opacity-30">
             <img
               src={bannerImage}
@@ -862,16 +862,16 @@ function StubLayout(props: LayoutProps) {
             <div className="absolute inset-0 bg-gradient-to-br from-[#0b0b12] via-[#0b0b12]/92 to-[#0b0b12]/50" />
           </div>
 
-          <div className="relative z-10 min-w-0 w-full">
+          <div className="relative z-10 w-full min-w-0">
             <CopyStack
               kicker={
                 <div className="flex items-center justify-between gap-2">
-                  <span
-                    className="px-2 py-0.5 text-[10px] font-black uppercase rounded max-w-full truncate"
+                  <TicketBadge
+                    label={copy.headline}
                     style={{ backgroundColor: accent, color: onAccent }}
-                  >
-                    <EditCopy value={copy.headline} field="ticketHeadline" enabled={editable} onCopyChange={onCopyChange} />
-                  </span>
+                    editable={editable}
+                    onCommit={(v) => onCopyChange?.({ ticketHeadline: v })}
+                  />
                   <HostBadge logo={organizerLogo} name={organizerName} />
                 </div>
               }
@@ -919,7 +919,7 @@ function StubLayout(props: LayoutProps) {
 
         <div className="flex flex-col justify-between items-center py-3 relative bg-[#0b0b12] shrink-0" aria-hidden>
           <div className="w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950 -mt-5 z-20" />
-          <div className="border-l-2 border-dashed border-white/25 h-full my-0.5" />
+          <div className="border-l-2 border-dashed border-white/25 flex-1 my-0.5" />
           <div className="w-4 h-4 rounded-full bg-neutral-50 dark:bg-neutral-950 -mb-5 z-20" />
         </div>
 

@@ -1,4 +1,27 @@
-/** Rasterize a DOM node to PNG without CSS transform / tracking artifacts. */
+/** High-quality DOM → PNG. Prefer modern-screenshot (SVG foreignObject); html2canvas is fallback. */
+
+import { domToCanvas } from 'modern-screenshot';
+
+type CaptureOptions = {
+  backgroundColor?: string | null;
+  scale?: number;
+  sanitize?: boolean;
+  width?: number;
+  height?: number;
+};
+
+const SNAPSHOT_STYLE: Partial<CSSStyleDeclaration> = {
+  transform: 'none',
+  opacity: '1',
+  left: '0px',
+  top: '0px',
+  right: 'auto',
+  bottom: 'auto',
+  position: 'relative',
+  margin: '0px',
+  inset: 'auto',
+  clipPath: 'none',
+};
 
 function waitForImages(root: HTMLElement) {
   return Promise.all(
@@ -6,7 +29,7 @@ function waitForImages(root: HTMLElement) {
       if (img.complete) return Promise.resolve();
       return new Promise<void>((resolve) => {
         const done = () => resolve();
-        const timer = window.setTimeout(done, 4000);
+        const timer = window.setTimeout(done, 2500);
         const finish = () => {
           window.clearTimeout(timer);
           done();
@@ -18,7 +41,19 @@ function waitForImages(root: HTMLElement) {
   );
 }
 
-/** Pills only. Never replace in-flow labels — html2canvas then paints them over siblings. */
+function resetCloneBox(cloned: HTMLElement) {
+  cloned.style.position = 'relative';
+  cloned.style.left = '0';
+  cloned.style.top = '0';
+  cloned.style.right = 'auto';
+  cloned.style.bottom = 'auto';
+  cloned.style.opacity = '1';
+  cloned.style.transform = 'none';
+  cloned.style.inset = 'auto';
+  cloned.style.margin = '0';
+  cloned.style.clipPath = 'none';
+}
+
 function paintTicketBadge(el: HTMLElement) {
   const text = (el.textContent || '').replace(/\s+/g, ' ').trim().toUpperCase();
   if (!text) return;
@@ -75,16 +110,24 @@ function paintTicketBadge(el: HTMLElement) {
   img.style.display = 'block';
   img.style.width = `${width}px`;
   img.style.height = `${height}px`;
-  img.style.margin = '0 auto';
+  img.style.margin = '0';
   img.style.flexShrink = '0';
   el.replaceWith(img);
 }
 
 function sanitizeClone(cloned: HTMLElement) {
-  cloned.style.transform = 'none';
+  resetCloneBox(cloned);
   cloned.style.transformOrigin = 'top left';
   cloned.querySelectorAll<HTMLElement>('[data-ticket-badge]').forEach((el) => {
-    if (el instanceof HTMLElement) paintTicketBadge(el);
+    paintTicketBadge(el);
+  });
+  cloned.querySelectorAll<HTMLElement>('[data-ticket-photo]').forEach((el) => {
+    el.style.display = 'flex';
+    el.style.flexDirection = 'column';
+    el.style.justifyContent = 'flex-start';
+    el.style.alignItems = 'flex-start';
+    el.style.textAlign = 'left';
+    el.style.height = '100%';
   });
   cloned.querySelectorAll('*').forEach((node) => {
     if (!(node instanceof HTMLElement)) return;
@@ -99,14 +142,30 @@ function sanitizeClone(cloned: HTMLElement) {
   });
 }
 
-export async function captureElementPng(
-  element: HTMLElement,
-  options?: { backgroundColor?: string | null; scale?: number; sanitize?: boolean }
-): Promise<HTMLCanvasElement> {
-  if (document.fonts?.ready) await document.fonts.ready;
-  await waitForImages(element);
+async function captureWithModern(element: HTMLElement, options?: CaptureOptions) {
+  const canvas = await domToCanvas(element, {
+    scale: options?.scale ?? 2,
+    backgroundColor: options?.backgroundColor ?? '#ffffff',
+    width: options?.width,
+    height: options?.height,
+    style: SNAPSHOT_STYLE,
+    timeout: 10000,
+    fetch: {
+      requestInit: { mode: 'cors', credentials: 'omit' },
+      bypassingCache: true,
+    },
+  });
+  if (!canvas || canvas.width < 2 || canvas.height < 2) {
+    throw new Error('empty screenshot');
+  }
+  return canvas;
+}
 
+async function captureWithHtml2Canvas(element: HTMLElement, options?: CaptureOptions) {
   const html2canvas = (await import('html2canvas')).default;
+  const width = options?.width ?? Math.max(element.scrollWidth, element.offsetWidth, 1);
+  const height = options?.height ?? Math.max(element.scrollHeight, element.offsetHeight, 1);
+
   return html2canvas(element, {
     scale: options?.scale ?? 2,
     useCORS: true,
@@ -115,27 +174,55 @@ export async function captureElementPng(
     backgroundColor: options?.backgroundColor ?? '#ffffff',
     scrollX: 0,
     scrollY: 0,
-    windowWidth: Math.max(element.scrollWidth, element.offsetWidth, 1),
-    windowHeight: Math.max(element.scrollHeight, element.offsetHeight, 1),
+    width,
+    height,
+    windowWidth: width,
+    windowHeight: height,
     onclone: (_doc, cloned) => {
-      if (options?.sanitize === false) return;
       try {
-        sanitizeClone(cloned);
+        resetCloneBox(cloned);
+        if (options?.sanitize !== false) sanitizeClone(cloned);
       } catch {
-        /* flyer/ticket capture should still succeed */
+        /* still export */
       }
     },
   });
 }
 
+export async function captureElementPng(
+  element: HTMLElement,
+  options?: CaptureOptions
+): Promise<HTMLCanvasElement> {
+  if (document.fonts?.ready) await document.fonts.ready;
+  await waitForImages(element);
+
+  try {
+    return await captureWithModern(element, options);
+  } catch {
+    return captureWithHtml2Canvas(element, options);
+  }
+}
+
+export async function downloadCanvasPng(canvas: HTMLCanvasElement, filename: string) {
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob((next) => resolve(next), 'image/png')
+  );
+  const href = blob ? URL.createObjectURL(blob) : canvas.toDataURL('image/png');
+  const link = document.createElement('a');
+  link.href = href;
+  link.download = filename;
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  if (blob) window.setTimeout(() => URL.revokeObjectURL(href), 1500);
+}
+
 export async function downloadElementPng(
   element: HTMLElement,
   filename: string,
-  options?: { backgroundColor?: string | null; scale?: number; sanitize?: boolean }
+  options?: CaptureOptions
 ) {
   const canvas = await captureElementPng(element, options);
-  const link = document.createElement('a');
-  link.href = canvas.toDataURL('image/png');
-  link.download = filename;
-  link.click();
+  await downloadCanvasPng(canvas, filename);
 }
