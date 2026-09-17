@@ -22,6 +22,7 @@ import { useEventById } from '../hooks/queries/useEvents';
 import { CACHE_CONFIGS } from '../lib/queryClient';
 import { isValidEmail, isValidPhone } from '../lib/phone';
 import { calculateBuyerCheckout, platformFeeForUnit } from '../lib/fees';
+import { openPaystackCheckout } from '../lib/paystack';
 
 
 // Mock event fallback matching EventDetailPage
@@ -169,19 +170,6 @@ const BookingPage = () => {
     }
   }, [isAuthenticated, user, guestFirstName, guestLastName, guestEmail, guestPhone, bookMode]);
 
-  // Dynamically load Paystack script for Step 3
-  useEffect(() => {
-    if (step === 3) {
-      const script = document.createElement('script');
-      script.src = 'https://js.paystack.co/v1/inline.js';
-      script.async = true;
-      document.body.appendChild(script);
-      return () => {
-        document.body.removeChild(script);
-      };
-    }
-  }, [step]);
-
   // Derived state calculations
   const totalTicketsCount = Object.values(selectedTickets).reduce((acc, qty) => acc + qty, 0);
 
@@ -327,35 +315,26 @@ const BookingPage = () => {
     reference: string;
     accessCode?: string;
   }) => {
-    if (!(window as any).PaystackPop) {
-      showAlert('Paystack loading failed. Please refresh and try again.', 'Payment Error');
-      return;
+    try {
+      openPaystackCheckout({
+        accessCode: init.accessCode,
+        publicKey: init.publicKey,
+        email: init.email,
+        amountKobo: init.amountKobo,
+        reference: init.reference,
+        onSuccess: (reference) => {
+          void handlePaymentSuccess(reference);
+        },
+        onCancel: () => setIsPaying(false),
+        onError: (message) => {
+          setIsPaying(false);
+          showAlert(message, 'Payment Error');
+        },
+      });
+    } catch {
+      setIsPaying(false);
+      showAlert('Paystack could not open checkout. Please try again.', 'Payment Error');
     }
-
-    const publicKey =
-      init.publicKey ||
-      import.meta.env.VITE_PAYSTACK_PUBLIC_KEY ||
-      'pk_test_d3000676b7db0bc43f07a4a2fa44a8ad8d1b6ee8';
-
-    const setup: Record<string, unknown> = {
-      key: publicKey,
-      email: init.email,
-      amount: init.amountKobo,
-      currency: 'NGN',
-      ref: init.reference,
-      callback: function (response: any) {
-        handlePaymentSuccess(response.reference || init.reference);
-      },
-      onClose: function () {
-        console.log('[Paystack] Checkout popup closed by user.');
-      },
-    };
-    if (init.accessCode) {
-      setup.access_code = init.accessCode;
-    }
-
-    const handler = (window as any).PaystackPop.setup(setup);
-    handler.openIframe();
   };
 
   const handlePaystackPayment = async () => {
@@ -379,7 +358,6 @@ const BookingPage = () => {
           navigate(`/events/${normalizedEventData.slug || normalizedEventData.id}`);
           return;
         }
-        setIsPaying(false);
         openPaystackPopup({
           publicKey: init.publicKey,
           email: init.email,
@@ -393,6 +371,7 @@ const BookingPage = () => {
       const firstTicketEntry = Object.entries(selectedTickets).find(([_, qty]) => qty > 0);
       if (!firstTicketEntry) {
         showAlert('No tickets selected', 'Error');
+        setIsPaying(false);
         return;
       }
       const [ticketTypeId, quantity] = firstTicketEntry;
@@ -433,7 +412,6 @@ const BookingPage = () => {
         return;
       }
 
-      setIsPaying(false);
       openPaystackPopup({
         publicKey: init.publicKey,
         email: init.email,
@@ -444,7 +422,6 @@ const BookingPage = () => {
     } catch (err: any) {
       const data = err.response?.data;
       showAlert(data?.message || err.message || 'Could not start payment.', 'Payment Error');
-    } finally {
       setIsPaying(false);
     }
   };
@@ -491,7 +468,6 @@ const BookingPage = () => {
       }
     } catch (err: any) {
       showAlert('OPay checkout setup failed: ' + (err.response?.data?.message || err.message), 'Payment Error');
-    } finally {
       setIsPaying(false);
     }
   };

@@ -11,6 +11,7 @@ import {
   clearNeonOAuthPending,
   wasExplicitLogout,
   clearLoggedOutFlag,
+  waitForNeonJwt,
 } from '../lib/neonAuth';
 
 const Login = () => {
@@ -68,25 +69,22 @@ const Login = () => {
 
       setGoogleLoading(true);
       try {
-        const result = await client.getSession();
+        const jwt = await waitForNeonJwt(client);
         if (cancelled) return;
 
-        if (result.data?.session && result.data?.user) {
-          const success = await loginWithGoogle(result.data.session.token);
+        if (jwt) {
+          const success = await loginWithGoogle(jwt);
           if (cancelled) return;
           if (success) {
             redirectAfterAuth();
             return;
           }
-          clearNeonOAuthPending();
           setError('Google sign-in failed. Please try again.');
-        } else {
-          clearNeonOAuthPending();
         }
+        clearNeonOAuthPending();
       } catch {
         if (!cancelled) clearNeonOAuthPending();
       } finally {
-        // Always unlock — never leave the Google button stuck
         setGoogleLoading(false);
       }
     };
@@ -107,9 +105,14 @@ const Login = () => {
     setGoogleLoading(true);
     try {
       markNeonOAuthPending();
+      const redirect = searchParams.get('redirect');
+      const dest = redirect
+        ? `${window.location.origin}/login?redirect=${encodeURIComponent(redirect)}`
+        : `${window.location.origin}/`;
       await neonAuthClient.signIn.social({
         provider: 'google',
-        callbackURL: `${window.location.origin}/login`,
+        callbackURL: dest,
+        newUserCallbackURL: dest,
       });
       // SDK returned without navigating away — unlock so the user isn't stuck
       setGoogleLoading(false);

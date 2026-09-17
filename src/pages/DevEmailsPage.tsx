@@ -30,6 +30,10 @@ const TEMPLATE_META: Record<string, { label: string; blurb: string }> = {
   'support-received': { label: 'Support received', blurb: 'Ticket opened confirmation' },
   'support-reply': { label: 'Support reply', blurb: 'Admin reply to ticket' },
   'support-resolved': { label: 'Support resolved', blurb: 'Ticket closed notice' },
+  'host-received': { label: 'Host application received', blurb: 'After become-host request' },
+  'host-admin': { label: 'Host admin notice', blurb: 'New application for the team' },
+  'host-approved': { label: 'Host approved', blurb: 'Organization verified' },
+  'host-rejected': { label: 'Host rejected', blurb: 'Needs resubmit + reason' },
 };
 
 type PreviewPayload = {

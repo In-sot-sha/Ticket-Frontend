@@ -80,3 +80,58 @@ export function wasExplicitLogout(): boolean {
     return false;
   }
 }
+
+const isJwt = (value: unknown): value is string =>
+  typeof value === 'string' && value.split('.').length === 3;
+
+type NeonSessionBag = {
+  token?: unknown;
+  access_token?: unknown;
+  accessToken?: unknown;
+};
+
+/**
+ * Neon stores the JWKS-verifiable JWT on access_token (or via GET /token).
+ * session.token is often an opaque Better Auth cookie value and will fail backend verify.
+ */
+export async function getNeonJwt(
+  client: NonNullable<typeof neonAuthClient>
+): Promise<string | null> {
+  const result = await client.getSession();
+  const session = result.data?.session as NeonSessionBag | undefined;
+  if (!session) return null;
+
+  for (const candidate of [session.access_token, session.accessToken, session.token]) {
+    if (isJwt(candidate)) return candidate;
+  }
+
+  const tokenFn = (client as { token?: () => Promise<{ data?: { token?: string } }> }).token;
+  if (typeof tokenFn === 'function') {
+    try {
+      const tokenRes = await tokenFn();
+      const jwt = tokenRes?.data?.token;
+      if (isJwt(jwt)) return jwt;
+    } catch {
+      /* fall through */
+    }
+  }
+
+  return null;
+}
+
+export async function waitForNeonJwt(
+  client: NonNullable<typeof neonAuthClient>,
+  opts?: { attempts?: number; delayMs?: number }
+): Promise<string | null> {
+  const attempts = opts?.attempts ?? 10;
+  const delayMs = opts?.delayMs ?? 250;
+
+  for (let i = 0; i < attempts; i++) {
+    const jwt = await getNeonJwt(client);
+    if (jwt) return jwt;
+    if (i < attempts - 1) {
+      await new Promise((r) => window.setTimeout(r, delayMs));
+    }
+  }
+  return null;
+}

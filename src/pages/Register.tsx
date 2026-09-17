@@ -10,6 +10,7 @@ import {
   clearNeonOAuthPending,
   wasExplicitLogout,
   clearLoggedOutFlag,
+  waitForNeonJwt,
 } from '../lib/neonAuth';
 import { isValidEmail, isValidPhone } from '../lib/phone';
 import { getApiErrorMessage } from '../lib/apiError';
@@ -43,7 +44,9 @@ const Register = () => {
       markNeonOAuthPending();
       await neonAuthClient.signIn.social({
         provider: 'google',
-        callbackURL: `${window.location.origin}/register`,
+        callbackURL: `${window.location.origin}/`,
+        newUserCallbackURL: `${window.location.origin}/`,
+        requestSignUp: true,
       });
       setGoogleLoading(false);
     } catch (err: any) {
@@ -79,11 +82,11 @@ const Register = () => {
 
       setGoogleLoading(true);
       try {
-        const result = await client.getSession();
+        const jwt = await waitForNeonJwt(client);
         if (cancelled) return;
 
-        if (result.data?.session && result.data?.user) {
-          const success = await loginWithGoogle(result.data.session.token);
+        if (jwt) {
+          const success = await loginWithGoogle(jwt);
           if (cancelled) return;
           if (success) {
             clearLoggedOutFlag();
@@ -91,11 +94,9 @@ const Register = () => {
             navigate('/', { replace: true });
             return;
           }
-          clearNeonOAuthPending();
           setError('Google sign-up failed. Please try again.');
-        } else {
-          clearNeonOAuthPending();
         }
+        clearNeonOAuthPending();
       } catch {
         if (!cancelled) clearNeonOAuthPending();
       } finally {

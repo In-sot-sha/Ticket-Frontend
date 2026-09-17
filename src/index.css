@@ -112,3 +112,17 @@
     @apply bg-background text-foreground font-sans antialiased;
   }
 }
+
+/* Paystack InlineJS mounts two full-viewport iframes. Dark color-scheme
+   paints those iframes solid white, hiding the dim backdrop and close control. */
+iframe[id^='inline-background-'] {
+  color-scheme: light;
+  background: rgba(15, 23, 42, 0.58) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+iframe[id^='inline-checkout-'] {
+  color-scheme: light;
+  background: transparent !important;
+}

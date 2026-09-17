@@ -3,7 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import { queryKeys } from '../lib/queryKeys';
-import { neonAuthClient, markLoggedOut, clearLoggedOutFlag } from '../lib/neonAuth';
+import {
+  neonAuthClient,
+  markLoggedOut,
+  clearLoggedOutFlag,
+  wasExplicitLogout,
+  hasNeonOAuthPending,
+  clearNeonOAuthPending,
+  waitForNeonJwt,
+} from '../lib/neonAuth';
 import { isTokenExpired, getTokenTimeRemaining } from '../lib/tokenUtils';
 import { dismissAppBoot } from '../lib/appBoot';
 
@@ -292,8 +300,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } catch (error) {
           console.warn('[Auth] Token validation failed on startup:', error);
         }
+      } else if (
+        neonAuthClient &&
+        !wasExplicitLogout() &&
+        hasNeonOAuthPending()
+      ) {
+        // Returning from Google (often lands on / instead of /register or /login)
+        try {
+          const jwt = await waitForNeonJwt(neonAuthClient);
+          if (jwt) {
+            const response = await api.post<{ token: string; user: any }>('/users/google-login', {
+              credential: jwt,
+            });
+            if (response.data?.token && response.data?.user) {
+              const { token: newToken, user: userData } = response.data;
+              clearLoggedOutFlag();
+              clearNeonOAuthPending();
+              setToken(newToken);
+              setUser(userData);
+              localStorage.setItem('token', newToken);
+              localStorage.setItem('user', JSON.stringify(userData));
+              queryClient.setQueryData(queryKeys.auth.profile(), userData);
+              scheduleTokenRefresh(newToken);
+            }
+          }
+        } catch (error) {
+          console.error('[Auth] Google session exchange failed on startup:', error);
+        }
       }
-      
+
       setLoading(false);
     };
 
@@ -350,11 +385,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const loginWithGoogle = useCallback(async (credential: string): Promise<boolean> => {
     try {
-      const response = await api.post<{ token: string; user: any }>('/users/google-login', { credential });
+      const jwt =
+        credential.split('.').length === 3
+          ? credential
+          : neonAuthClient
+            ? await waitForNeonJwt(neonAuthClient)
+            : credential;
+
+      if (!jwt) {
+        console.error('Google login failed: No JWT from Neon Auth');
+        return false;
+      }
+
+      const response = await api.post<{ token: string; user: any }>('/users/google-login', {
+        credential: jwt,
+      });
 
       if (response.data) {
         const { token: newToken, user: userData } = response.data;
         clearLoggedOutFlag();
+        clearNeonOAuthPending();
         setToken(newToken);
         setUser(userData);
         localStorage.setItem('token', newToken);
@@ -400,15 +450,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         queryClient.setQueryData(queryKeys.auth.profile(), userData);
         scheduleTokenRefresh(newToken);
-        
-        try {
-          if (userData.email) {
-            await api.post('/emails/send-welcome', {});
-          }
-        } catch (emailErr) {
-          console.warn('Failed to send welcome email:', emailErr);
-        }
-        
+
         navigate('/');
         return true;
       } else {
