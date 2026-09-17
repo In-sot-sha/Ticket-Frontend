@@ -36,6 +36,7 @@ import { Button } from '@/components/ui/Button';
 import { VerifiedBadge } from '@/components/icons/VerifiedBadge';
 import { cn } from '@/lib/utils';
 import { eventHasUnlimitedTickets, getEventUrgencyBadges } from '@/lib/eventBadges';
+import { ticketUnitPrice } from '@/lib/ticketPrice';
 
 const formatDeadlineFriendly = (dateStr: string) => {
   try {
@@ -243,6 +244,7 @@ interface TicketType {
   price: number;
   quantity: number;
   isPaused?: boolean;
+  validOn?: string | null;
 }
 
 interface Organizer {
@@ -477,11 +479,12 @@ const EventDetailPage = () => {
   );
 
   const event: EventDetail = eventData ? mapApiEventToDetail(eventData) : fallbackEvent;
+  const notFound = isError && (error as any)?.response?.status === 404;
+  const loadFailed = isError && !eventData && !notFound;
 
   useEffect(() => {
     setActivePhotoIndex(0);
   }, [event.id, event.images?.[0]]);
-  const notFound = isError && (error as any)?.response?.status === 404;
 
   // Derived status flags
   const isEventDraft = !event.isPublished;
@@ -645,47 +648,53 @@ const EventDetailPage = () => {
 
   // Pricing Logic
   let displayPrice = '';
-  if (event.ticketTypes && event.ticketTypes.length > 0) {
-    const onSale = event.ticketTypes.filter((t) => !t.isPaused);
-    const priced = (onSale.length ? onSale : event.ticketTypes);
-    const prices = priced.map(t => Number(t.price));
+  const onSaleTypes = (event.ticketTypes || []).filter((t) => !t.isPaused);
+  const pricedTypes = onSaleTypes.length ? onSaleTypes : event.ticketTypes || [];
+  if (pricedTypes.length > 0) {
+    const prices = pricedTypes.map((t) => ticketUnitPrice(t.price));
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
-    
+
     if (minPrice === 0 && maxPrice === 0) {
       displayPrice = 'Free';
     } else if (minPrice === 0 && maxPrice > 0) {
       displayPrice = 'Free - Paid';
-    } else if (event.ticketTypes.length > 1 && minPrice < maxPrice) {
+    } else if (pricedTypes.length > 1 && minPrice < maxPrice) {
       displayPrice = `From ₦${minPrice.toLocaleString()}`;
     } else {
       displayPrice = `₦${minPrice.toLocaleString()}`;
     }
-  } else if (typeof event.price === 'number') {
-    displayPrice = event.price === 0 ? 'Free' : `₦${event.price.toLocaleString()}`;
-  } else if (event.price) {
-    displayPrice = String(event.price);
+  } else if (event.price !== undefined && event.price !== null) {
+    const n = ticketUnitPrice(event.price);
+    displayPrice = n === 0 ? 'Free' : `₦${n.toLocaleString()}`;
   }
+  const allFree =
+    pricedTypes.length > 0
+      ? pricedTypes.every((t) => ticketUnitPrice(t.price) === 0)
+      : ticketUnitPrice(event.price) === 0;
+  const priceEyebrow = displayPrice === 'Free' || displayPrice === 'Free - Paid' ? 'Tickets' : 'From';
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
 
       <Helmet>
-        <title>{event?.title || 'Event Details'} | PartyStorm</title>
-        <meta name="description" content={event?.description?.substring(0, 160) || 'Book tickets for amazing events in Nigeria.'} />
-        <meta property="og:title" content={event?.title || 'Event Details'} />
-        <meta property="og:description" content={event?.description?.substring(0, 160) || 'Book tickets for amazing events.'} />
+        <title>{eventData ? event.title : 'Event Details'} | PartyStorm</title>
+        <meta name="description" content={eventData ? event.description?.substring(0, 160) : 'Book tickets for amazing events in Nigeria.'} />
+        <meta property="og:title" content={eventData ? event.title : 'Event Details'} />
+        <meta property="og:description" content={eventData ? event.description?.substring(0, 160) : 'Book tickets for amazing events.'} />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content={event?.slug ? `https://partystorm.ng/events/${event.slug}` : `https://partystorm.ng/events/${event?.id || ''}`} />
-        {event?.images && event.images.length > 0 && <meta property="og:image" content={event.images[0]} />}
+        {eventData && (
+          <meta property="og:url" content={event.slug ? `https://partystorm.ng/events/${event.slug}` : `https://partystorm.ng/events/${event.id}`} />
+        )}
+        {eventData && event.images && event.images.length > 0 && <meta property="og:image" content={event.images[0]} />}
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={event?.title || 'Event Details'} />
-        <meta name="twitter:description" content={event?.description?.substring(0, 160) || 'Book tickets for amazing events.'} />
-        {event?.slug && <link rel="canonical" href={`https://partystorm.ng/events/${event.slug}`} />}
-        {event?.id && !event?.slug && (
+        <meta name="twitter:title" content={eventData ? event.title : 'Event Details'} />
+        <meta name="twitter:description" content={eventData ? event.description?.substring(0, 160) : 'Book tickets for amazing events.'} />
+        {eventData && event.slug && <link rel="canonical" href={`https://partystorm.ng/events/${event.slug}`} />}
+        {eventData && event.id && !event.slug && (
           <link rel="canonical" href={`https://partystorm.ng/events/${event.id}`} />
         )}
-        {event?.id && (
+        {eventData && (
           <script type="application/ld+json">
             {JSON.stringify(generateEventStructuredData(event))}
           </script>
@@ -778,8 +787,27 @@ const EventDetailPage = () => {
 
       )}
 
+      {!isLoading && loadFailed && (
+        <div className="min-h-[90vh] flex items-center justify-center px-4 py-6">
+          <div className="max-w-md w-full rounded-2xl border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-950/20 p-6 text-center">
+            <h1 className="text-lg font-bold text-red-700 dark:text-red-300 mb-2">
+              Unable to load this event
+            </h1>
+            <p className="text-sm text-red-600 dark:text-red-400 mb-6">
+              The server returned an error. Check your connection and try again.
+            </p>
+            <Button asChild variant="outline" className="rounded-full">
+              <Link to="/events" className="flex items-center justify-center gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Explore Events
+              </Link>
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* ─── Main Content (only when loaded and found) ─── */}
-      {!isLoading && !notFound && (<>
+      {!isLoading && !notFound && !loadFailed && (<>
 
       {/* ─── Content ─── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
@@ -1055,7 +1083,7 @@ const EventDetailPage = () => {
                 </p>
                 <div className="mt-2 flex items-end justify-between gap-3">
                   <p className="font-ticket text-3xl font-bold tracking-tight text-neutral-900 dark:text-white leading-none">
-                    {displayPrice}
+                    {displayPrice || '—'}
                   </p>
                   {event.reviewCount > 0 && (
                     <div className="flex items-center gap-1 text-xs text-neutral-500">
@@ -1109,12 +1137,12 @@ const EventDetailPage = () => {
                     <>
                       <button
                         type="button"
-                        onClick={handlePurchaseTicket}
+                        onClick={() => handlePurchaseTicket()}
                         className="group w-full rounded-xl bg-rose-500 px-4 py-3.5 text-white shadow-[0_8px_20px_-10px_rgba(244,63,94,0.65)] transition-[background-color,box-shadow,transform] duration-200 hover:bg-rose-600 hover:shadow-[0_12px_24px_-10px_rgba(244,63,94,0.55)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
                       >
                         <span className="flex items-center justify-center gap-2 font-ticket text-[15px] font-semibold uppercase tracking-[0.12em]">
                           <Ticket className="h-4 w-4 opacity-90" />
-                          Get tickets
+                          Get {allFree ? 'free tickets' : 'tickets'}
                           <motion.span
                             className="inline-flex"
                             animate={{ x: [0, 5, 0] }}
@@ -1166,7 +1194,7 @@ const EventDetailPage = () => {
                       )}
 
                       <p className="text-[11px] text-neutral-500 text-center mt-3">
-                        You won’t be charged yet
+                        {allFree ? 'You won’t be charged' : 'You won’t be charged yet'}
                       </p>
                     </>
                   )}
@@ -1606,13 +1634,13 @@ const EventDetailPage = () => {
       </>)}
 
       {/* ─── Sticky Bottom Bar (Mobile only, when not loading) ─── */}
-      {!isLoading && !notFound && (
+      {!isLoading && !notFound && !loadFailed && (
         <div className="lg:hidden fixed bottom-[3.6rem] left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-t border-neutral-200 dark:border-neutral-800 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
           {ticketingBlocked ? (
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[9px] font-ticket font-semibold uppercase tracking-[0.16em] text-neutral-400">
-                  From
+                  {priceEyebrow}
                 </p>
                 <span className="font-ticket text-lg font-bold tracking-tight text-neutral-900 dark:text-white">
                   {displayPrice}
@@ -1627,7 +1655,7 @@ const EventDetailPage = () => {
               <div className="flex items-end justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[9px] font-ticket font-semibold uppercase tracking-[0.16em] text-neutral-400">
-                    From
+                    {priceEyebrow}
                   </p>
                   <span className="font-ticket text-lg font-bold tracking-tight text-neutral-900 dark:text-white">
                     {displayPrice}
@@ -1647,12 +1675,12 @@ const EventDetailPage = () => {
               <div className="flex items-stretch gap-2">
                 <button
                   type="button"
-                  onClick={handlePurchaseTicket}
+                  onClick={() => handlePurchaseTicket()}
                   className="flex-[1.2] min-w-0 rounded-xl bg-rose-500 px-3 py-3 text-white shadow-[0_6px_16px_-8px_rgba(244,63,94,0.7)] transition-[background-color,box-shadow,transform] duration-200 active:scale-[0.99]"
                 >
                   <span className="flex items-center justify-center gap-1.5 font-ticket text-xs font-semibold uppercase tracking-wider">
                     <Ticket className="h-3.5 w-3.5 shrink-0" />
-                    Get tickets
+                    Get {allFree ? 'free tickets' : 'tickets'}
                   </span>
                 </button>
                 <button
@@ -1677,7 +1705,7 @@ const EventDetailPage = () => {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[9px] font-ticket font-semibold uppercase tracking-[0.16em] text-neutral-400">
-                  From
+                  {priceEyebrow}
                 </p>
                 <span className="font-ticket text-lg font-bold tracking-tight text-neutral-900 dark:text-white">
                   {displayPrice}
@@ -1685,10 +1713,10 @@ const EventDetailPage = () => {
               </div>
               <button
                 type="button"
-                onClick={handlePurchaseTicket}
+                onClick={() => handlePurchaseTicket()}
                 className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-ticket font-semibold uppercase tracking-wider px-6 py-3 shadow-[0_6px_16px_-8px_rgba(244,63,94,0.7)] transition-[background-color,box-shadow,transform] duration-200 active:scale-[0.99]"
               >
-                Get tickets
+                Get {allFree ? 'free tickets' : 'tickets'}
               </button>
             </div>
           )}

@@ -1,6 +1,6 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, 
   Calendar, 
@@ -14,6 +14,7 @@ import {
   ArrowRight,
   Store,
   Info,
+  CheckCircle,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,6 +24,9 @@ import { CACHE_CONFIGS } from '../lib/queryClient';
 import { isValidEmail, isValidPhone } from '../lib/phone';
 import { calculateBuyerCheckout, platformFeeForUnit } from '../lib/fees';
 import { openPaystackCheckout } from '../lib/paystack';
+import { ticketValidityLine } from '../lib/ticketValidity';
+import { formatTicketPrice, isFreeTicketPrice, ticketUnitPrice } from '../lib/ticketPrice';
+import { cn } from '../lib/utils';
 
 
 // Mock event fallback matching EventDetailPage
@@ -102,7 +106,15 @@ const BookingPage = () => {
   /** Owned counts from API keyed by ticketTypeId */
   const [ownedByType, setOwnedByType] = useState<Record<number, number>>({});
 
-  // Normalize event data from API
+  const ticketTypes = (eventData?.ticketTypes ?? (!eventId ? mockEvent.ticketTypes : [])).map((t: any) => ({
+    ...t,
+    id: Number(t.id),
+    price: ticketUnitPrice(t.price),
+    isPaused: Boolean(t.isPaused),
+    maxPerPerson: t.maxPerPerson == null || t.maxPerPerson === '' ? t.maxPerPerson : Number(t.maxPerPerson),
+  }));
+
+  // Normalize event data from API — never swap in mock paid tickets over a real event
   const normalizedEventData = eventData ? {
     ...eventData,
     date: eventData.startDate || eventData.date,
@@ -116,10 +128,10 @@ const BookingPage = () => {
       minute: '2-digit',
       hour12: true,
     }) : eventData.endTime || '06:00 PM',
-    ticketTypes: eventData.ticketTypes || mockEvent.ticketTypes,
+    ticketTypes,
     stallTypes: (eventData.vendorTypes && eventData.vendorTypes) ? eventData.vendorTypes : [],
     allowVendors: eventData.allowVendors === true,
-  } : mockEvent;
+  } : { ...mockEvent, ticketTypes };
 
   const hostBrand = {
     organizerName: (normalizedEventData as any).organization?.name || null,
@@ -130,19 +142,28 @@ const BookingPage = () => {
     setAlertDialog({ isOpen: true, message, title });
   };
 
-  // Initialize selectedTickets when event loads
+  // Keep a ticket selected so Free (and other types) show in the summary
   useEffect(() => {
-    if (eventData?.ticketTypes) {
-      const preselectedTypeId = Number(preselectedData.ticketTypeId);
-      const preselectedQty = Number(preselectedData.quantity) || 1;
-      const preselectedExists = eventData.ticketTypes.some(
-        (t: any) => Number(t.id) === preselectedTypeId && !t.isPaused
-      );
+    if (!ticketTypes.length) return;
+    const onSale = ticketTypes.filter((t: any) => !t.isPaused);
+    const pool = onSale.length ? onSale : ticketTypes;
+    const preselectedTypeId = Number(preselectedData.ticketTypeId);
+    const preselectedQty = Number(preselectedData.quantity) || 1;
+    const preselectedExists = pool.some((t: any) => Number(t.id) === preselectedTypeId && !t.isPaused);
 
-      if (preselectedExists) {
-        setSelectedTickets({ [preselectedTypeId]: preselectedQty });
-      }
+    if (preselectedExists) {
+      setSelectedTickets({ [preselectedTypeId]: preselectedQty });
+      return;
     }
+
+    const preferred =
+      pool.find((t: any) => isFreeTicketPrice(t.price) && !t.isPaused) ||
+      pool.find((t: any) => !t.isPaused) ||
+      pool[0];
+    if (preferred && !preferred.isPaused) {
+      setSelectedTickets({ [Number(preferred.id)]: 1 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventData?.ticketTypes, preselectedData.ticketTypeId, preselectedData.quantity]);
 
   // Pre-fill guest details from logged-in user
@@ -176,8 +197,8 @@ const BookingPage = () => {
   const subtotal = bookMode === 'vendor'
     ? (normalizedEventData.stallTypes?.find((s: any) => Number(s.id) === Number(selectedStallType))?.fee || 0)
     : (normalizedEventData.ticketTypes?.reduce((acc: number, t: any) => {
-        const qty = selectedTickets[t.id] || 0;
-        return acc + (t.price || 0) * qty;
+        const qty = selectedTickets[t.id] || selectedTickets[Number(t.id)] || 0;
+        return acc + ticketUnitPrice(t.price) * qty;
       }, 0) || 0);
 
   const absorbFee = !!normalizedEventData.organization?.absorbFee;
@@ -186,9 +207,10 @@ const BookingPage = () => {
     bookMode === 'vendor'
       ? platformFeeForUnit(subtotal)
       : (normalizedEventData.ticketTypes?.reduce((acc: number, t: any) => {
-          const qty = selectedTickets[t.id] || 0;
-          if (qty <= 0 || !(t.price > 0)) return acc;
-          return acc + platformFeeForUnit(t.price) * qty;
+          const qty = selectedTickets[t.id] || selectedTickets[Number(t.id)] || 0;
+          const unit = ticketUnitPrice(t.price);
+          if (qty <= 0 || unit <= 0) return acc;
+          return acc + platformFeeForUnit(unit) * qty;
         }, 0) || 0);
 
   const { fee: serviceFee, total: totalAmount } = calculateBuyerCheckout(
@@ -200,15 +222,52 @@ const BookingPage = () => {
   const formatDate = (dateString: string) => {
     try {
       return new Date(dateString).toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
       });
     } catch {
       return dateString;
     }
   };
+
+  const eventBackPath = normalizedEventData.slug
+    ? `/events/${normalizedEventData.slug}`
+    : eventId
+      ? `/events/${eventId}`
+      : '/';
+
+  const handleHeaderBack = () => {
+    if (isPaying) return;
+    if (step > 1) {
+      setStep(step - 1);
+      return;
+    }
+    navigate(eventBackPath);
+  };
+
+  const handleContinue = async () => {
+    if (isPaying) return;
+    if (step === 1) {
+      if (totalTicketsCount <= 0) {
+        showAlert('Please select at least one ticket.', 'No Tickets Selected');
+        return;
+      }
+      setStep(2);
+      return;
+    }
+    if (step === 2) {
+      if (!validateStep2()) return;
+      await refreshEligibility();
+      setStep(3);
+      return;
+    }
+    await executePayment();
+  };
+
+  const stepCardClass =
+    'border-0 bg-transparent p-0 shadow-none lg:rounded-2xl lg:border-2 lg:border-neutral-300 dark:lg:border-neutral-600 lg:bg-white dark:lg:bg-neutral-950 lg:p-5 lg:shadow-sm';
 
   const handlePaymentSuccess = async (paymentRef?: string) => {
     setIsPaying(true);
@@ -540,7 +599,7 @@ const BookingPage = () => {
 
   // Helper: Get max per person (free = always 1; paid uses maxPerPerson or 5)
   const getMaxPerPerson = (ticketType: any): number => {
-    if (Number(ticketType.price) === 0) {
+    if (isFreeTicketPrice(ticketType.price)) {
       return 1;
     }
     if (ticketType.maxPerPerson != null && ticketType.maxPerPerson > 0) {
@@ -662,7 +721,7 @@ const BookingPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 sm:py-10 py-2">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 py-2 lg:py-8">
       {/* Show loading state while fetching event */}
       {!eventData && eventId && (
         <div className="flex items-center justify-center min-h-[50vh]">
@@ -675,30 +734,36 @@ const BookingPage = () => {
 
       {/* Only show content when event data is loaded or using mock */}
       {(eventData || !eventId) && (
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-28 lg:pb-0">
         
         {/* Navigation & Header */}
-        <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-8">
-          <Link 
-            to={eventId ? `/events/${eventId}` : '/'} 
-            className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+        <div className="flex items-center gap-3 mb-3 lg:mb-4">
+          <button
+            type="button"
+            onClick={handleHeaderBack}
+            aria-label="Go back"
+            className="flex items-center justify-center w-9 h-9 rounded-full border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
           >
             <ArrowLeft className="h-4 w-4 text-neutral-800 dark:text-neutral-100" />
-          </Link>
+          </button>
           <div>
-            <h1 className="text-lg sm:text-2xl font-extrabold text-neutral-900 dark:text-white">
-              Confirm and Pay
+            <h1 className="text-lg lg:text-xl font-extrabold text-neutral-900 dark:text-white">
+              {bookMode === 'tickets' && totalAmount === 0 ? 'Get your free ticket' : 'Confirm and Pay'}
             </h1>
-            <p className="text-[11px] sm:text-xs text-neutral-500">Secure ticket reservation without login</p>
+            <p className="text-[11px] sm:text-xs text-neutral-500">
+              {bookMode === 'tickets' && totalAmount === 0
+                ? 'No payment needed — just your details'
+                : 'Secure ticket reservation without login'}
+            </p>
           </div>
         </div>
 
         {/* Stepper bar - only for ticket or vendor, not for choice */}
         {bookMode !== 'choice' && (
-          <div className="flex items-center justify-start gap-2 sm:gap-3 mb-5 sm:mb-10 overflow-x-auto py-1 sm:py-2">
+          <div className="flex items-center justify-start gap-2 mb-4 overflow-x-auto py-0.5">
             {bookMode === 'tickets' ? (
               <>
-                {['Review Tickets', 'Guest Details', 'Payment'].map((s, idx) => {
+                {['Review Tickets', 'Guest Details', totalAmount === 0 ? 'Confirm' : 'Payment'].map((s, idx) => {
                   const stepNum = idx + 1;
                   return (
                     <Fragment key={s}>
@@ -759,10 +824,10 @@ const BookingPage = () => {
         )}
 
         {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-8">
           
-          {/* Left panel: Stepper Content (8 Cols) */}
-          <div className="lg:col-span-8 space-y-4 sm:space-y-6">
+          {/* Left panel */}
+          <div className="lg:col-span-8">
             <AnimatePresence mode="wait">
               
               {/* Step 0: Vendor vs Ticket Choice */}
@@ -820,38 +885,76 @@ const BookingPage = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm"
+                  className={stepCardClass}
                 >
-                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Select your tickets</h2>
-                  <p className="text-xs text-neutral-500 mb-3 sm:mb-6">Select the quantity for each ticket type you want to order.</p>
+                  <p className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                    Tickets
+                  </p>
+                  <h2 className="mt-0.5 font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
+                    Choose your ticket
+                  </h2>
+                  <p className="mt-0.5 text-xs text-neutral-500 mb-3">
+                    Use + to pick a type. Free tickets are limited to one per person.
+                  </p>
                   
-                  <div className="space-y-3">
-                    {(normalizedEventData.ticketTypes || []).filter((t: any) => !t.isPaused).length === 0 && (
-                      <p className="text-sm text-neutral-500 rounded-xl border border-neutral-200 dark:border-neutral-700 px-4 py-6 text-center">
-                        Tickets are not on sale right now. The organizer has paused sales for this event.
+                  <div className="space-y-2.5">
+                    {(normalizedEventData.ticketTypes || []).length === 0 && (
+                      <p className="text-sm text-neutral-500 rounded-xl border-2 border-dashed border-neutral-200 dark:border-neutral-700 px-4 py-6 text-center">
+                        No ticket types are listed for this event yet.
                       </p>
                     )}
-                    {(normalizedEventData.ticketTypes || []).filter((t: any) => !t.isPaused).map((t: any) => {
-                      const qty = selectedTickets[t.id] || 0;
+                    {(normalizedEventData.ticketTypes || []).length > 0 &&
+                      (normalizedEventData.ticketTypes || []).every((t: any) => t.isPaused) && (
+                      <p className="text-sm text-neutral-500 rounded-xl border border-neutral-200 dark:border-neutral-700 px-4 py-4 text-center">
+                        Ticket sales are paused right now. You can still see the types below.
+                      </p>
+                    )}
+                    {(normalizedEventData.ticketTypes || []).map((t: any) => {
+                      const qty = selectedTickets[t.id] || selectedTickets[Number(t.id)] || 0;
                       const availableCount = getAvailableCount(t.id, t);
                       const previousBookings = getPreviousBookings(t.id);
                       const maxPerPerson = getMaxPerPerson(t);
                       const remaining = Math.max(0, availableCount - qty);
-                      const canBuyMore = remaining > 0 && totalTicketsCount < 10;
+                      const canBuyMore = remaining > 0 && totalTicketsCount < 10 && !t.isPaused;
                       const atLimit = availableCount <= 0 || (!canBuyMore && qty > 0);
+                      const selected = qty > 0;
 
                       return (
                         <div
                           key={t.id}
-                          className="rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/40 overflow-hidden"
+                          role="group"
+                          aria-label={t.name}
+                          className={cn(
+                            'w-full text-left rounded-2xl border-2 overflow-hidden transition-colors',
+                            t.isPaused
+                              ? 'border-neutral-200 dark:border-neutral-800 opacity-60'
+                              : selected
+                                ? 'border-rose-500 bg-rose-50/40 dark:bg-rose-950/20'
+                                : 'border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-950'
+                          )}
                         >
                           <div className="p-3.5 sm:p-4 flex items-center justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="font-extrabold text-sm text-neutral-900 dark:text-white truncate">
-                                {t.name}
-                              </p>
-                              <p className="text-xs font-bold text-rose-500 mt-0.5">
-                                {Number(t.price) === 0 ? 'Free' : `₦${t.price.toLocaleString()}`}
+                              <div className="flex items-center gap-2">
+                                {selected && !t.isPaused && (
+                                  <CheckCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                                )}
+                                <p className="font-ticket text-sm font-semibold uppercase tracking-wide text-neutral-900 dark:text-white truncate">
+                                  {t.name}
+                                </p>
+                                {t.isPaused && (
+                                  <span className="shrink-0 rounded-full bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-[10px] font-ticket font-semibold uppercase tracking-wider text-neutral-500">
+                                    Paused
+                                  </span>
+                                )}
+                              </div>
+                              {ticketValidityLine(t.validOn, normalizedEventData.date, eventData?.endDate) ? (
+                                <p className="text-[11px] text-neutral-500 mt-0.5">
+                                  {ticketValidityLine(t.validOn, normalizedEventData.date, eventData?.endDate)}
+                                </p>
+                              ) : null}
+                              <p className="font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white mt-1 leading-none">
+                                {formatTicketPrice(t.price)}
                               </p>
                             </div>
 
@@ -859,7 +962,7 @@ const BookingPage = () => {
                               <button
                                 type="button"
                                 onClick={() => updateTicketQty(t.id, -1)}
-                                disabled={qty <= 0}
+                                disabled={qty <= 0 || t.isPaused}
                                 aria-label={`Decrease ${t.name}`}
                                 className="h-9 w-9 inline-flex items-center justify-center rounded-full border border-neutral-300 dark:border-neutral-500 bg-neutral-100 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                               >
@@ -871,8 +974,9 @@ const BookingPage = () => {
                                 max={availableCount}
                                 value={qty}
                                 onChange={(e) => handleTicketQtyChange(t.id, e.target.value)}
+                                disabled={t.isPaused}
                                 aria-label={`${t.name} quantity`}
-                                className="w-12 h-9 text-center text-sm font-bold rounded-lg border border-neutral-300 dark:border-neutral-500 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white focus:ring-2 focus:ring-rose-500/40 focus:border-rose-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                className="w-12 h-9 text-center text-sm font-ticket font-bold rounded-lg border border-neutral-300 dark:border-neutral-500 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white focus:ring-2 focus:ring-rose-500/40 focus:border-rose-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
                               <button
                                 type="button"
@@ -886,45 +990,27 @@ const BookingPage = () => {
                             </div>
                           </div>
 
+                          {(t.isPaused || atLimit || previousBookings > 0) && (
                           <div className="px-3.5 sm:px-4 pb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
-                            {atLimit ? (
+                            {t.isPaused ? (
+                              <span className="text-neutral-500">Sales paused by the organizer</span>
+                            ) : atLimit ? (
                               <span className="inline-flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-300">
                                 <Shield className="h-3.5 w-3.5 shrink-0" />
                                 Limit reached · max {maxPerPerson} per person
                               </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 text-neutral-600 dark:text-neutral-300">
-                                <Ticket className="h-3.5 w-3.5 shrink-0 text-rose-400" />
-                                <span>
-                                  <span className="font-bold text-neutral-900 dark:text-white">{remaining}</span>
-                                  {' '}of {availableCount} left for you
-                                </span>
-                              </span>
-                            )}
+                            ) : null}
                             {previousBookings > 0 && (
                               <span className="text-neutral-400 dark:text-neutral-500">
-                                · already own {previousBookings}
+                                {atLimit || t.isPaused ? '· ' : ''}already own {previousBookings}
                               </span>
                             )}
                           </div>
+                          )}
                         </div>
                       );
                     })}
                   </div>
-
-                  <button
-                    onClick={() => {
-                      if (totalTicketsCount <= 0) {
-                        showAlert('Please select at least one ticket.', 'No Tickets Selected');
-                        return;
-                      }
-                      setStep(2);
-                    }}
-                    className="mt-8 flex items-center justify-center gap-2 h-12 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-xs font-extrabold px-6 shadow-md hover:shadow-lg transition-transform active:scale-98"
-                  >
-                    Continue to Details
-                    <ArrowRight className="h-4 w-4" />
-                  </button>
                 </motion.div>
               )}
 
@@ -1226,95 +1312,72 @@ const BookingPage = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm"
+                  className={stepCardClass}
                 >
-                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Guest Information</h2>
-                  <p className="text-xs text-neutral-500 mb-3 sm:mb-6">
-                    Enter your details. Email is required for payment and your ticket confirmation.
+                  <p className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                    Guest
+                  </p>
+                  <h2 className="mt-0.5 font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
+                    Your details
+                  </h2>
+                  <p className="mt-0.5 text-xs text-neutral-500 mb-3">
+                    Email is required for your ticket confirmation.
                   </p>
 
-                  <div className="space-y-4">
-                    <div className="rounded-2xl border border-neutral-300 dark:border-neutral-500 overflow-hidden shadow-sm bg-white dark:bg-neutral-800">
-                      
-                      {/* Name inputs */}
-                      <div className="grid grid-cols-2 border-b border-neutral-200 dark:border-neutral-600">
-                        <div className="relative border-r border-neutral-200 dark:border-neutral-600">
-                          <label className="absolute top-2.5 left-4 text-[9px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-                            First Name
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={guestFirstName}
-                            onChange={(e) => setGuestFirstName(e.target.value)}
-                            placeholder="John"
-                            className="w-full px-4 pt-6 pb-2 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-900 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500"
-                          />
-                        </div>
-                        <div className="relative">
-                          <label className="absolute top-2.5 left-4 text-[9px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-                            Last Name
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={guestLastName}
-                            onChange={(e) => setGuestLastName(e.target.value)}
-                            placeholder="Doe"
-                            className="w-full px-4 pt-6 pb-2 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-900 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500"
-                          />
-                        </div>
-                      </div>
-                      
-                      {/* Email address */}
-                      <div className="relative border-b border-neutral-200 dark:border-neutral-600">
-                        <label className="absolute top-2.5 left-4 text-[9px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-                          Email Address *
+                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 overflow-hidden">
+                    <div className="grid grid-cols-2 border-b border-neutral-200 dark:border-neutral-700">
+                      <div className="relative border-r border-neutral-200 dark:border-neutral-700">
+                        <label className="absolute top-2 left-3 font-ticket text-[9px] font-semibold uppercase tracking-wider text-neutral-400">
+                          First Name
                         </label>
                         <input
-                          type="email"
+                          type="text"
                           required
-                          value={guestEmail}
-                          onChange={(e) => setGuestEmail(e.target.value)}
-                          placeholder="johndoe@example.com"
-                          className="w-full px-4 pt-6 pb-2 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-900 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500"
+                          value={guestFirstName}
+                          onChange={(e) => setGuestFirstName(e.target.value)}
+                          placeholder="John"
+                          className="w-full px-3 pt-5 pb-1.5 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-900 dark:text-white placeholder:text-neutral-400"
                         />
                       </div>
-                      
-                      {/* Phone number */}
                       <div className="relative">
-                        <label className="absolute top-2.5 left-4 text-[9px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-                          Phone Number (Optional)
+                        <label className="absolute top-2 left-3 font-ticket text-[9px] font-semibold uppercase tracking-wider text-neutral-400">
+                          Last Name
                         </label>
                         <input
-                          type="tel"
-                          value={guestPhone}
-                          onChange={(e) => setGuestPhone(e.target.value)}
-                          placeholder="0803 000 0000"
-                          className="w-full px-4 pt-6 pb-2 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-900 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500"
+                          type="text"
+                          required
+                          value={guestLastName}
+                          onChange={(e) => setGuestLastName(e.target.value)}
+                          placeholder="Doe"
+                          className="w-full px-3 pt-5 pb-1.5 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-900 dark:text-white placeholder:text-neutral-400"
                         />
                       </div>
                     </div>
-                  </div>
-
-                  <div className="mt-4 sm:mt-8 flex gap-3 sm:gap-4">
-                    <button
-                      onClick={() => setStep(1)}
-                      className="border border-neutral-300 dark:border-neutral-500 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 rounded-xl text-xs font-extrabold px-6 h-12 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={async () => {
-                        if (!validateStep2()) return;
-                        await refreshEligibility();
-                        setStep(3);
-                      }}
-                      className="flex-1 flex items-center justify-center gap-2 h-12 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-xs font-extrabold px-6 shadow-md hover:shadow-lg transition-transform active:scale-98"
-                    >
-                      Continue
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
+                    <div className="relative border-b border-neutral-200 dark:border-neutral-700">
+                      <label className="absolute top-2 left-3 font-ticket text-[9px] font-semibold uppercase tracking-wider text-neutral-400">
+                        Email *
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={guestEmail}
+                        onChange={(e) => setGuestEmail(e.target.value)}
+                        placeholder="you@email.com"
+                        className="w-full px-3 pt-5 pb-1.5 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-900 dark:text-white placeholder:text-neutral-400"
+                      />
+                    </div>
+                    <div className="relative">
+                      <label className="absolute top-2 left-3 font-ticket text-[9px] font-semibold uppercase tracking-wider text-neutral-400">
+                        Phone (optional)
+                      </label>
+                      <input
+                        type="tel"
+                        value={guestPhone}
+                        onChange={(e) => setGuestPhone(e.target.value)}
+                        placeholder="0803 000 0000"
+                        className="w-full px-3 pt-5 pb-1.5 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-900 dark:text-white placeholder:text-neutral-400"
+                      />
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -1326,106 +1389,63 @@ const BookingPage = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm"
+                  className={stepCardClass}
                 >
-                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Select payment method</h2>
-                  <p className="text-xs text-neutral-500 mb-3 sm:mb-6">Choose how you'd like to pay securely</p>
+                  <p className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                    {totalAmount === 0 ? 'Confirm' : 'Payment'}
+                  </p>
+                  <h2 className="mt-0.5 font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
+                    {totalAmount === 0 ? 'Get your free ticket' : 'Pay securely'}
+                  </h2>
+                  <p className="mt-0.5 text-xs text-neutral-500 mb-3">
+                    {totalAmount === 0
+                      ? 'No payment needed — confirm to receive your ticket.'
+                      : 'Card, bank transfer, or USSD via Paystack.'}
+                  </p>
 
-                  <div className="grid grid-cols-1 sm:grid-cols- gap-4">
-                    {totalAmount === 0 ? (
-                      <div className="col-span-1 sm:col-span-2 p-6 rounded-2xl border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 flex items-center justify-center">
-                        <div className="text-center">
-                          <p className="text-sm font-extrabold text-emerald-700 dark:text-emerald-400">Free Registration</p>
-                          <p className="text-[11px] text-emerald-600 dark:text-emerald-500 mt-1">No payment is required for these tickets.</p>
+                  {totalAmount === 0 ? (
+                    <div className="rounded-2xl border-2 border-emerald-500/70 bg-emerald-50/80 dark:bg-emerald-950/20 px-4 py-3.5">
+                      <p className="font-ticket text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                        Free
+                      </p>
+                      <p className="text-xs text-emerald-700/80 dark:text-emerald-500 mt-0.5">
+                        You won’t be charged for this order.
+                      </p>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('paystack')}
+                      className={cn(
+                        'w-full rounded-2xl border-2 px-4 py-3 text-left transition-colors',
+                        paymentMethod === 'paystack'
+                          ? 'border-rose-500 bg-rose-50/40 dark:bg-rose-950/20'
+                          : 'border-neutral-300 dark:border-neutral-600'
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-ticket text-sm font-semibold uppercase tracking-wide text-neutral-900 dark:text-white">
+                            Paystack
+                          </p>
+                          <p className="text-xs text-neutral-500 mt-0.5">Card, bank transfer, USSD</p>
+                        </div>
+                        <div className={cn(
+                          'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0',
+                          paymentMethod === 'paystack' ? 'border-rose-500 bg-rose-500' : 'border-neutral-300'
+                        )}>
+                          {paymentMethod === 'paystack' && <div className="w-2 h-2 rounded-full bg-white" />}
                         </div>
                       </div>
-                    ) : (
-                      <>
-                        {/* Paystack gate selection */}
-                        <div 
-                          onClick={() => setPaymentMethod('paystack')}
-                          className={`cursor-pointer rounded-2xl border-2 p-5 flex flex-col justify-between h-36 transition-all ${
-                            paymentMethod === 'paystack'
-                              ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/10'
-                              : 'border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-extrabold text-sm text-neutral-800 dark:text-neutral-100">Paystack</span>
-                            <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${paymentMethod === 'paystack' ? 'border-rose-500 bg-rose-500 text-white' : 'border-neutral-300'}`}>
-                              {paymentMethod === 'paystack' && <div className="w-2 h-2 rounded-full bg-white" />}
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Card, Bank Transfer, USSD</p>
-                            <p className="text-[10px] text-neutral-400 mt-1">Instant ticket confirmation</p>
-                          </div>
-                        </div>
+                    </button>
+                  )}
 
-                        {/* OPay gate selection */}
-                        {/* <div 
-                          onClick={() => setPaymentMethod('opay')}
-                          className={`cursor-pointer rounded-2xl border-2 p-5 flex flex-col justify-between h-36 transition-all ${
-                            paymentMethod === 'opay'
-                              ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/10'
-                              : 'border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-extrabold text-sm text-neutral-800 dark:text-neutral-100">OPay Checkout</span>
-                            <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${paymentMethod === 'opay' ? 'border-rose-500 bg-rose-500 text-white' : 'border-neutral-300'}`}>
-                              {paymentMethod === 'opay' && <div className="w-2 h-2 rounded-full bg-white" />}
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-teal-600 dark:text-teal-400">OPay Wallet, Card, Bank</p>
-                            <p className="text-[10px] text-neutral-400 mt-1">Real-time payment clearance</p>
-                          </div>
-                        </div> */}
-                      </>
-                    )}
-                  </div>
-
-                  {/* Payment security indicator */}
-                  <div className="mt-6 p-4 rounded-xl border border-neutral-150 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/30 flex gap-3">
-                    <Shield className="h-5 w-5 text-neutral-500 shrink-0" />
-                    <div>
-                      <p className="text-[11px] font-bold text-neutral-850 dark:text-neutral-200">Secure Checkout Guarantee</p>
-                      <p className="text-[10px] text-neutral-450 dark:text-neutral-400 mt-0.5">Your payment is encrypted and processed directly by our secure gateway partners.</p>
+                  {totalAmount > 0 && (
+                    <div className="mt-3 flex items-start gap-2 text-neutral-500">
+                      <Shield className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <p className="text-[11px] leading-snug">Encrypted checkout. Fees are shown in your summary.</p>
                     </div>
-                  </div>
-
-                  <div className="mt-4 sm:mt-8 flex gap-3 sm:gap-4">
-                    <button
-                      onClick={() => setStep(2)}
-                      className="border border-neutral-300 dark:border-neutral-500 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 rounded-xl text-xs font-extrabold px-6 h-12 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-                      disabled={isPaying}
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={executePayment}
-                      disabled={isPaying}
-                      className="flex-1 flex items-center justify-center gap-2 h-12 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-extrabold px-6 shadow-md hover:shadow-lg transition-transform active:scale-98 disabled:opacity-50"
-                    >
-                      {isPaying ? (
-                        <>
-                          <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          Processing...
-                        </>
-                      ) : totalAmount === 0 ? (
-                        <>
-                          <Ticket className="h-4 w-4" />
-                          Get for Free
-                        </>
-                      ) : (
-                        <>
-                          <CreditCard className="h-4 w-4" />
-                          Pay ₦{totalAmount.toLocaleString()}
-                        </>
-                      )}
-                    </button>
-                  </div>
+                  )}
                 </motion.div>
               )}
 
@@ -1433,65 +1453,57 @@ const BookingPage = () => {
           </div>
 
           {/* Right panel: Event Info Sidebar (4 Cols) */}
-          <div className="lg:col-span-4">
-            <div className="bg-white dark:bg-gray-900 border border-neutral-205 dark:border-neutral-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm sticky top-24">
-              
-              {/* Event card header */}
-              <div className="flex gap-3 sm:gap-4 mb-4 sm:mb-6 pb-4 sm:pb-6 border-b border-neutral-100 dark:border-neutral-850">
-                <img 
-                  src={normalizedEventData.imageUrl} 
-                  alt={normalizedEventData.title} 
-                  className="w-20 h-20 object-cover rounded-xl shrink-0" 
-                />
-                <div>
-                  <h3 className="font-bold text-sm text-neutral-900 dark:text-white line-clamp-2">
-                    {normalizedEventData.title}
-                  </h3>
-                  <p className="text-[10px] text-neutral-450 mt-1 uppercase tracking-wider">Event Details</p>
+          <div className="hidden lg:block lg:col-span-4">
+            <div className="lg:sticky lg:top-24 rounded-2xl border-2 border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-950 p-4 lg:p-5 shadow-sm">
+              <p className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                Tickets
+              </p>
+              <div className="mt-2 flex items-end justify-between gap-3">
+                <p className="font-ticket text-2xl font-bold tracking-tight text-neutral-900 dark:text-white leading-none">
+                  {bookMode === 'tickets' && totalAmount === 0 && totalTicketsCount > 0
+                    ? 'Free'
+                    : totalTicketsCount > 0
+                      ? `₦${totalAmount.toLocaleString()}`
+                      : '—'}
+                </p>
+              </div>
+
+              <div className="mt-3 pb-3 border-b border-neutral-200 dark:border-neutral-800">
+                <h3 className="font-ticket text-sm font-semibold uppercase tracking-wide text-neutral-900 dark:text-white line-clamp-2">
+                  {normalizedEventData.title}
+                </h3>
+              </div>
+
+              <div className="mt-3 space-y-1.5 text-sm text-neutral-600 dark:text-neutral-400">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-3.5 w-3.5 text-neutral-400 shrink-0" />
+                  <span>{formatDate(normalizedEventData.date)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 text-neutral-400 shrink-0" />
+                  <span>{normalizedEventData.startTime} – {normalizedEventData.endTime}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <MapPin className="h-3.5 w-3.5 text-neutral-400 shrink-0 mt-0.5" />
+                  <span className="line-clamp-2">{normalizedEventData.location}</span>
                 </div>
               </div>
 
-              {/* Event Meta rows */}
-              <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6 pb-4 sm:pb-6 border-b border-neutral-100 dark:border-neutral-900 text-xs text-neutral-600 dark:text-neutral-400">
-                <div className="flex items-start gap-3">
-                  <Calendar className="h-4 w-4 text-neutral-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-bold text-neutral-900 dark:text-white">Date</p>
-                    <p>{formatDate(normalizedEventData.date)}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Clock className="h-4 w-4 text-neutral-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-bold text-neutral-900 dark:text-white">Time</p>
-                    <p>{normalizedEventData.startTime} – {normalizedEventData.endTime}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <MapPin className="h-4 w-4 text-neutral-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-bold text-neutral-900 dark:text-white">Location</p>
-                    <p className="line-clamp-2">{normalizedEventData.location}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Price Breakdown */}
-              <div className="space-y-3 pt-2">
-                <h4 className="text-xs font-bold text-neutral-900 dark:text-white">Price Details</h4>
-                
+              <div className="mt-3 space-y-2 pt-3 border-t border-neutral-200 dark:border-neutral-800">
                 {bookMode === 'tickets' ? (
                   <>
                     {normalizedEventData.ticketTypes?.map((t: any) => {
-                      const qty = selectedTickets[t.id] || 0;
+                      const qty = selectedTickets[t.id] || selectedTickets[Number(t.id)] || 0;
                       if (qty <= 0) return null;
+                      const unit = ticketUnitPrice(t.price);
+                      const free = unit === 0;
                       return (
-                        <div key={t.id} className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
+                        <div key={t.id} className="flex items-center justify-between text-sm text-neutral-600 dark:text-neutral-400">
                           <span>
-                            {t.name} (₦{t.price.toLocaleString()} × {qty})
+                            {t.name} × {qty}
                           </span>
-                          <span className="font-bold text-neutral-900 dark:text-white">
-                            ₦{(t.price * qty).toLocaleString()}
+                          <span className="font-ticket font-semibold text-neutral-900 dark:text-white">
+                            {free ? 'Free' : `₦${(unit * qty).toLocaleString()}`}
                           </span>
                         </div>
                       );
@@ -1501,71 +1513,86 @@ const BookingPage = () => {
                       <p className="text-xs text-neutral-400">No tickets selected</p>
                     )}
 
-                    <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
-                      <span className="inline-flex items-center gap-1">
-                        Fee
-                        <span className="group relative inline-flex">
-                          <button
-                            type="button"
-                            className="inline-flex text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 rounded-full"
-                            aria-label="PartyStorm fees are non-refundable"
-                          >
-                            <Info className="h-3.5 w-3.5" strokeWidth={2.25} />
-                          </button>
-                          <span
-                            role="tooltip"
-                            className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 w-44 -translate-x-1/2 rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[10px] font-medium leading-snug text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:bg-neutral-100 dark:text-neutral-900"
-                          >
-                            PartyStorm fees are non-refundable.
+                    {serviceFee > 0 && (
+                      <div className="flex items-center justify-between text-sm text-neutral-600 dark:text-neutral-400">
+                        <span className="inline-flex items-center gap-1">
+                          Fee
+                          <span className="group relative inline-flex">
+                            <button
+                              type="button"
+                              className="inline-flex text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 rounded-full"
+                              aria-label="PartyStorm fees are non-refundable"
+                            >
+                              <Info className="h-3.5 w-3.5" strokeWidth={2.25} />
+                            </button>
+                            <span
+                              role="tooltip"
+                              className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 w-44 -translate-x-1/2 rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[10px] font-medium leading-snug text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:bg-neutral-100 dark:text-neutral-900"
+                            >
+                              PartyStorm fees are non-refundable.
+                            </span>
                           </span>
                         </span>
-                      </span>
-                      <span className="font-bold text-neutral-900 dark:text-white">
-                        ₦{serviceFee.toLocaleString()}
-                      </span>
-                    </div>
+                        <span className="font-ticket font-semibold text-neutral-900 dark:text-white">
+                          ₦{serviceFee.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
 
-                    <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3 flex items-center justify-between text-sm font-extrabold text-neutral-900 dark:text-white">
-                      <span>Total (NGN)</span>
-                      <span>₦{totalAmount.toLocaleString()}</span>
+                    <div className="pt-2 flex items-center justify-between">
+                      <span className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                        Total
+                      </span>
+                      <span className="font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
+                        {totalAmount === 0 ? 'Free' : `₦${totalAmount.toLocaleString()}`}
+                      </span>
                     </div>
+                    {totalAmount === 0 && totalTicketsCount > 0 && (
+                      <p className="text-[11px] text-neutral-500 text-center">You won’t be charged</p>
+                    )}
                   </>
                 ) : (
                   <>
                     {selectedStallType && normalizedEventData.stallTypes && (
                       <>
-                        <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
+                        <div className="flex items-center justify-between text-sm text-neutral-600 dark:text-neutral-400">
                           <span>Booth Fee</span>
-                          <span className="font-bold text-neutral-900 dark:text-white">
+                          <span className="font-ticket font-semibold text-neutral-900 dark:text-white">
                             ₦{subtotal.toLocaleString()}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
-                          <span className="inline-flex items-center gap-1">
-                            Fee
-                            <span className="group relative inline-flex">
-                              <button
-                                type="button"
-                                className="inline-flex text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 rounded-full"
-                                aria-label="PartyStorm fees are non-refundable"
-                              >
-                                <Info className="h-3.5 w-3.5" strokeWidth={2.25} />
-                              </button>
-                              <span
-                                role="tooltip"
-                                className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 w-44 -translate-x-1/2 rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[10px] font-medium leading-snug text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:bg-neutral-100 dark:text-neutral-900"
-                              >
-                                PartyStorm fees are non-refundable.
+                        {serviceFee > 0 && (
+                          <div className="flex items-center justify-between text-sm text-neutral-600 dark:text-neutral-400">
+                            <span className="inline-flex items-center gap-1">
+                              Fee
+                              <span className="group relative inline-flex">
+                                <button
+                                  type="button"
+                                  className="inline-flex text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 rounded-full"
+                                  aria-label="PartyStorm fees are non-refundable"
+                                >
+                                  <Info className="h-3.5 w-3.5" strokeWidth={2.25} />
+                                </button>
+                                <span
+                                  role="tooltip"
+                                  className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 w-44 -translate-x-1/2 rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[10px] font-medium leading-snug text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:bg-neutral-100 dark:text-neutral-900"
+                                >
+                                  PartyStorm fees are non-refundable.
+                                </span>
                               </span>
                             </span>
+                            <span className="font-ticket font-semibold text-neutral-900 dark:text-white">
+                              ₦{serviceFee.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                        <div className="pt-2 flex items-center justify-between">
+                          <span className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                            Total
                           </span>
-                          <span className="font-bold text-neutral-900 dark:text-white">
-                            ₦{serviceFee.toLocaleString()}
+                          <span className="font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
+                            {totalAmount === 0 ? 'Free' : `₦${totalAmount.toLocaleString()}`}
                           </span>
-                        </div>
-                        <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3 flex items-center justify-between text-sm font-extrabold text-neutral-900 dark:text-white">
-                          <span>Total (NGN)</span>
-                          <span>₦{totalAmount.toLocaleString()}</span>
                         </div>
                       </>
                     )}
@@ -1573,9 +1600,70 @@ const BookingPage = () => {
                 )}
               </div>
 
+              {bookMode === 'tickets' && (
+                <button
+                  type="button"
+                  disabled={isPaying || (step === 1 && totalTicketsCount <= 0)}
+                  onClick={() => void handleContinue()}
+                  className="group mt-4 w-full rounded-xl bg-rose-500 px-4 py-3.5 text-white shadow-[0_8px_20px_-10px_rgba(244,63,94,0.65)] transition-[background-color,box-shadow,transform] duration-200 hover:bg-rose-600 hover:shadow-[0_12px_24px_-10px_rgba(244,63,94,0.55)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] disabled:opacity-50"
+                >
+                  <span className="flex items-center justify-center gap-2 font-ticket text-[15px] font-semibold uppercase tracking-[0.12em]">
+                    {isPaying ? (
+                      <>
+                        <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Processing
+                      </>
+                    ) : step < 3 ? (
+                      <>
+                        Continue
+                        <ArrowRight className="h-4 w-4 opacity-90" />
+                      </>
+                    ) : totalAmount === 0 ? (
+                      <>
+                        <Ticket className="h-4 w-4 opacity-90" />
+                        Get for free
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="h-4 w-4 opacity-90" />
+                        Pay ₦{totalAmount.toLocaleString()}
+                      </>
+                    )}
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         </div>
+        </div>
+      )}
+
+      {(eventData || !eventId) && bookMode === 'tickets' && (
+        <div className="lg:hidden fixed bottom-[3.6rem] left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-t border-neutral-200 dark:border-neutral-800 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[9px] font-ticket font-semibold uppercase tracking-[0.16em] text-neutral-400">
+                Total
+              </p>
+              <span className="font-ticket text-lg font-bold tracking-tight text-neutral-900 dark:text-white">
+                {totalAmount === 0 ? 'Free' : `₦${totalAmount.toLocaleString()}`}
+              </span>
+            </div>
+            <button
+              type="button"
+              disabled={isPaying || (step === 1 && totalTicketsCount <= 0)}
+              onClick={() => void handleContinue()}
+              className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-ticket font-semibold uppercase tracking-wider px-6 py-3 shadow-[0_6px_16px_-8px_rgba(244,63,94,0.7)] transition-[background-color,box-shadow,transform] duration-200 active:scale-[0.99] disabled:opacity-50"
+            >
+              {isPaying
+                ? 'Processing'
+                : step < 3
+                  ? 'Continue'
+                  : totalAmount === 0
+                    ? 'Get for free'
+                    : `Pay ₦${totalAmount.toLocaleString()}`}
+            </button>
+          </div>
         </div>
       )}
 

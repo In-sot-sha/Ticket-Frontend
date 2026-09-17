@@ -20,7 +20,7 @@ import { GoogleMapEvents } from '../components/GoogleMapEvents';
 import { useEvents } from '../hooks/queries/useEvents';
 import { CACHE_CONFIGS } from '../lib/queryClient';
 import { generateEventCollectionStructuredData } from '../lib/seo';
-import { mockEvents, mapApiEventToFrontendEvent } from '../data/mockEvents';
+import { mapApiEventToFrontendEvent } from '../data/mockEvents';
 import { cn } from '../lib/utils';
 
 const categories = [
@@ -94,25 +94,20 @@ const EventsPage = () => {
     [debouncedSearch, selectedCategory]
   );
 
-  const { data: eventsData = [], isLoading: eventsLoading } = useEvents(
-    listParams,
-    CACHE_CONFIGS.EVENTS_LIST
-  );
+  const {
+    data: eventsData,
+    isLoading: eventsLoading,
+    isError: eventsError,
+  } = useEvents(listParams, CACHE_CONFIGS.EVENTS_LIST);
 
   // Broader set for empty-state suggestions (ignore search)
-  const { data: suggestPool = [] } = useEvents(
+  const { data: suggestPool } = useEvents(
     { limit: 40, upcoming: 'true' },
     CACHE_CONFIGS.EVENTS_LIST
   );
 
   const events: Event[] = useMemo(() => {
-    const base: Event[] =
-      eventsData.length > 0
-        ? eventsData.map(mapApiEventToFrontendEvent)
-        : mockEvents.filter((e: Event) => {
-            if (!debouncedSearch) return true;
-            return scoreMatch(e, debouncedSearch) > 0;
-          });
+    const base: Event[] = (eventsData || []).map(mapApiEventToFrontendEvent);
 
     return base
       .filter((e: Event) => !isPastEvent(e))
@@ -129,10 +124,7 @@ const EventsPage = () => {
 
   const suggestions = useMemo(() => {
     if (events.length > 0 || !debouncedSearch) return [] as Event[];
-    const pool: Event[] =
-      suggestPool.length > 0
-        ? suggestPool.map(mapApiEventToFrontendEvent)
-        : mockEvents;
+    const pool: Event[] = (suggestPool || []).map(mapApiEventToFrontendEvent);
     const scored = pool
       .map((e: Event) => ({ e, score: scoreMatch(e, debouncedSearch) }))
       .filter((x: { e: Event; score: number }) => x.score > 0)
@@ -155,10 +147,7 @@ const EventsPage = () => {
 
   const relatedCategories = useMemo(() => {
     if (events.length > 0 || !debouncedSearch) return [] as string[];
-    const pool: Event[] =
-      suggestPool.length > 0
-        ? suggestPool.map(mapApiEventToFrontendEvent)
-        : mockEvents;
+    const pool: Event[] = (suggestPool || []).map(mapApiEventToFrontendEvent);
     const counts = new Map<string, number>();
     pool.forEach((e: Event) => {
       if (!e.category) return;
@@ -207,7 +196,7 @@ const EventsPage = () => {
         <link rel="canonical" href="https://partystorm.ng/events" />
         <script type="application/ld+json">
           {JSON.stringify(
-            generateEventCollectionStructuredData(eventsData, 'Browse All Events in Kano')
+            generateEventCollectionStructuredData(eventsData || [], 'Browse All Events in Kano')
           )}
         </script>
       </Helmet>
@@ -265,7 +254,9 @@ const EventsPage = () => {
                 {searchTerm ? `Results for "${searchTerm}"` : 'Upcoming events'}
               </h1>
               <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-                {events.length} {events.length === 1 ? 'event' : 'events'}
+                {eventsError
+                  ? 'Could not load events'
+                  : `${events.length} ${events.length === 1 ? 'event' : 'events'}`}
               </p>
             </div>
 
@@ -299,6 +290,13 @@ const EventsPage = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          ) : eventsError && !eventsData ? (
+            <div className="rounded-2xl border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-950/20 p-6">
+              <h3 className="font-bold text-red-700 dark:text-red-300 mb-2">Unable to load events</h3>
+              <p className="text-sm text-red-600 dark:text-red-400">
+                Check your connection and try again.
+              </p>
             </div>
           ) : events.length > 0 ? (
             <motion.div

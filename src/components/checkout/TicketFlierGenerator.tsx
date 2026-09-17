@@ -1,8 +1,8 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import QRCode from 'qrcode.react';
-import { Download, Share2, MapPin, Upload, Loader2 } from 'lucide-react';
+import { Download, Share2, Upload, Loader2 } from 'lucide-react';
 import { resolveImageUrl } from '../../lib/media';
-import { captureElementPng } from '../../lib/capturePng';
+import { captureElementPng, downloadCanvasPng } from '../../lib/capturePng';
 
 export interface FlierEvent {
   title: string;
@@ -129,8 +129,10 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
     if (!flierRef.current) return null;
     return captureElementPng(flierRef.current, {
       backgroundColor: '#0a0a0a',
-      scale: 2,
+      scale: 3,
       sanitize: false,
+      width: flierW,
+      height: flierH,
     });
   };
 
@@ -138,11 +140,8 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
     setBusy(true);
     try {
       const canvas = await capture();
-      if (!canvas) return;
-      const a = document.createElement('a');
-      a.download = `${event.title.replace(/\s+/g, '-').slice(0, 40)}-flier.png`;
-      a.href = canvas.toDataURL('image/png');
-      a.click();
+      if (!canvas) throw new Error('empty');
+      await downloadCanvasPng(canvas, `${event.title.replace(/\s+/g, '-').slice(0, 40)}-flier.png`);
     } catch (e) {
       console.error(e);
       alert('Could not download flier.');
@@ -243,15 +242,15 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
         src={imageSrc}
         alt=""
         crossOrigin="anonymous"
-        className="absolute inset-0 h-full w-full object-cover saturate-[1.15] brightness-90"
+        className="absolute inset-0 h-full w-full object-cover"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/25" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/30" />
       <div
         className={`relative z-10 flex h-full flex-col justify-between ${square ? 'px-5 py-4' : 'px-6 py-7'}`}
       >
         <BrandRow />
-        <div className="min-h-0">
-          <div className={`flex items-end gap-3 ${square ? 'mb-2' : 'mb-4'}`}>
+        <div className="rounded-2xl bg-black/75 p-3.5">
+          <div className={`flex items-end gap-3 ${square ? 'mb-2' : 'mb-3'}`}>
             {dateParts.day ? (
               <>
                 <span
@@ -262,7 +261,7 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
                 </span>
                 <div className={square ? 'mb-0.5' : 'mb-1.5'}>
                   <p className="text-[11px] font-extrabold text-rose-400">{dateParts.weekday}</p>
-                  <p className="text-[11px] font-bold text-white/80">{dateParts.monthYear}</p>
+                  <p className="text-[11px] font-bold text-white/90">{dateParts.monthYear}</p>
                   {timeLine ? <p className="mt-0.5 text-[12px] font-semibold text-white">{timeLine}</p> : null}
                 </div>
               </>
@@ -276,10 +275,7 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
           >
             {event.title}
           </h2>
-          <p className="mt-2 flex items-start gap-1.5 text-[11px] font-semibold leading-snug text-white/85">
-            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-400" />
-            <span>{event.location}</span>
-          </p>
+          <p className="mt-2 text-[12px] font-semibold leading-snug text-white/90">{event.location}</p>
           <div className={square ? 'mt-2.5' : 'mt-4'}>
             <ScanToBook compact={square} />
           </div>
@@ -290,28 +286,30 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
 
   const EditorialFace = () => (
     <div className="flex h-full w-full flex-col overflow-hidden bg-[#111114] text-white">
-      <div className={`relative ${square ? 'h-[42%]' : 'h-[50%]'}`}>
+      <div className={`relative shrink-0 ${square ? 'h-[42%]' : 'h-[48%]'}`}>
         <img src={imageSrc} alt="" crossOrigin="anonymous" className="absolute inset-0 h-full w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#111114] via-transparent to-black/20" />
         <div className="absolute inset-x-0 top-0 p-4">
           <BrandRow />
         </div>
       </div>
-      <div className={`flex flex-1 flex-col justify-between ${square ? 'px-4 pb-3.5 pt-1' : 'px-6 pb-6 pt-1'}`}>
-        <div className="min-h-0">
-          <p className="text-[10px] font-extrabold text-rose-400">
+      <div className={`flex flex-1 flex-col justify-between bg-[#111114] ${square ? 'px-4 pb-3.5 pt-3' : 'px-6 pb-6 pt-4'}`}>
+        <div>
+          <p className="text-[11px] font-extrabold text-rose-400">
             {dateParts.weekday} {dateParts.day} {dateParts.monthYear}
             {timeLine ? `  ·  ${timeLine}` : ''}
           </p>
           <h2
-            className={`mt-1.5 font-semibold leading-[1.05] ${square ? 'text-[1.25rem]' : 'text-[1.85rem]'}`}
+            className={`mt-1.5 font-semibold leading-[1.1] ${square ? 'text-[1.25rem]' : 'text-[1.85rem]'}`}
             style={{ fontFamily: '"Cormorant Garamond", "Plus Jakarta Sans", Georgia, serif' }}
           >
             {event.title}
           </h2>
-          <p className="mt-1.5 text-[11px] font-medium text-white/70">{event.location}</p>
+          <p className="mt-2 text-[12px] font-medium leading-snug text-white/80">{event.location}</p>
         </div>
-        <ScanToBook compact={square} />
+        <div className={square ? 'mt-3' : 'mt-5'}>
+          <ScanToBook compact={square} />
+        </div>
       </div>
     </div>
   );
@@ -322,9 +320,9 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
         src={imageSrc}
         alt=""
         crossOrigin="anonymous"
-        className="absolute inset-0 h-full w-full object-cover scale-110 blur-[2px] brightness-50"
+        className="absolute inset-0 h-full w-full object-cover brightness-50"
       />
-      <div className="absolute inset-0 bg-black/40" />
+      <div className="absolute inset-0 bg-black/55" />
       <div
         className={`relative z-10 flex h-full flex-col ${
           square ? 'justify-between px-4 py-3.5' : 'justify-between px-6 py-7'
@@ -332,7 +330,7 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
       >
         <BrandRow />
 
-        <div className={`flex min-h-0 flex-col items-center text-center ${square ? 'gap-1.5' : 'gap-3'}`}>
+        <div className={`flex min-h-0 flex-col items-center text-center ${square ? 'gap-2' : 'gap-3'}`}>
           <div
             className={`overflow-hidden rounded-full border-2 border-white shadow-xl ${
               square ? 'h-12 w-12' : 'h-[5.25rem] w-[5.25rem]'
@@ -352,43 +350,26 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
           >
             {tagline}
           </p>
-          <p className={`font-bold text-white/80 ${square ? 'text-[11px]' : 'text-sm'}`}>{userName}</p>
+          <p className={`font-bold text-white ${square ? 'text-[11px]' : 'text-sm'}`}>{userName}</p>
 
-          <div className="w-full overflow-hidden rounded-xl border border-white/20 bg-black/45 text-left">
-            <div className={`flex items-center ${square ? 'gap-3 p-2.5' : 'p-0'}`}>
-              {!square ? (
-                <div className="relative h-24 w-full overflow-hidden">
-                  <img src={imageSrc} alt="" crossOrigin="anonymous" className="h-full w-full object-cover" />
-                </div>
-              ) : (
-                <img
-                  src={imageSrc}
-                  alt=""
-                  crossOrigin="anonymous"
-                  className="h-16 w-16 shrink-0 rounded-lg object-cover"
-                />
-              )}
-              {square ? (
-                <div className="min-w-0">
-                  <h2 className="line-clamp-2 text-[14px] font-extrabold leading-tight">{event.title}</h2>
-                  <p className="mt-1 text-[11px] font-semibold text-white/75">
-                    {dateParts.line}
-                    {timeLine ? ` · ${timeLine}` : ''}
-                  </p>
-                  <p className="mt-0.5 line-clamp-1 text-[10px] text-white/55">{event.location}</p>
-                </div>
-              ) : null}
+          <div className="w-full overflow-hidden rounded-xl bg-neutral-950 text-left">
+            <div className="h-24 w-full overflow-hidden bg-neutral-900">
+              <img
+                src={imageSrc}
+                alt=""
+                crossOrigin="anonymous"
+                className="h-24 w-full object-cover"
+                style={{ height: 96, maxHeight: 96 }}
+              />
             </div>
-            {!square ? (
-              <div className="px-3.5 py-3">
-                <h2 className="line-clamp-2 text-[15px] font-extrabold leading-tight">{event.title}</h2>
-                <p className="mt-1 text-[11px] font-semibold text-white/70">
-                  {dateParts.line}
-                  {timeLine ? ` · ${timeLine}` : ''}
-                </p>
-                <p className="mt-0.5 line-clamp-1 text-[11px] text-white/55">{event.location}</p>
-              </div>
-            ) : null}
+            <div className="bg-neutral-950 px-3.5 py-3">
+              <h2 className="text-[15px] font-extrabold leading-tight text-white">{event.title}</h2>
+              <p className="mt-1 text-[11px] font-semibold text-white/80">
+                {dateParts.line}
+                {timeLine ? ` · ${timeLine}` : ''}
+              </p>
+              <p className="mt-0.5 text-[11px] text-white/70">{event.location}</p>
+            </div>
           </div>
         </div>
 
@@ -418,6 +399,7 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
             className="relative overflow-hidden rounded-xl shadow-2xl ring-1 ring-white/10"
           >
             <div
+              ref={flierRef}
               style={{
                 transform: `scale(${scale})`,
                 transformOrigin: 'top left',
@@ -430,15 +412,6 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
               </div>
             </div>
           </div>
-        </div>
-
-        <div
-          ref={flierRef}
-          aria-hidden
-          className="pointer-events-none fixed left-[-10000px] top-0 overflow-hidden"
-          style={{ width: flierW, height: flierH }}
-        >
-          <Face />
         </div>
 
         <div className="flex w-full shrink-0 flex-col justify-center space-y-4 p-4 lg:w-[280px] lg:border-l lg:border-neutral-200 dark:lg:border-neutral-800">

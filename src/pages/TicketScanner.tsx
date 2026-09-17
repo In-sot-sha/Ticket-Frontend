@@ -90,6 +90,10 @@ const TicketScanner: React.FC = () => {
 
       if (err?.code === 'ERR_NETWORK' || err?.code === 'ECONNABORTED') {
         displayMessage = 'Network error — check your WiFi or internet connection and try again.';
+      } else if (serverStatus === 'WRONG_DAY') {
+        displayMessage = serverMsg || 'This pass is not for today.';
+      } else if (serverStatus === 'ALREADY_IN_TODAY') {
+        displayMessage = serverMsg || 'Already checked in today.';
       } else if (serverStatus === 'USED' || /already.*used|already.*scanned|not valid/i.test(serverMsg)) {
         displayMessage = 'This ticket has already been scanned and used. Entry not permitted.';
       } else if (serverStatus === 'CANCELLED' || /cancel/i.test(serverMsg)) {

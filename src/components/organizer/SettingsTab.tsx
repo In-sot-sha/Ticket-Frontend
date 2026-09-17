@@ -22,6 +22,8 @@ import {
 import { Button } from '../ui/Button';
 import { api } from '../../services/api';
 import { OrganizerEvent } from '../../lib/eventOrganizer';
+import { ValidOnField } from './ValidOnField';
+import { eventDayList, ymdFromUnknown } from '../../lib/ticketValidity';
 
 interface SettingsTabProps {
   event: OrganizerEvent;
@@ -35,6 +37,7 @@ interface EditableTicket {
   quantity: number | string;
   isPaused?: boolean;
   isUnlimited?: boolean;
+  validOn?: string;
 }
 
 function formatDateInput(isoString?: string) {
@@ -102,6 +105,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
       isUnlimited: t.quantity === 0,
       quantity: t.quantity === 0 ? '' : t.quantity ?? 100,
       isPaused: !!t.isPaused,
+      validOn: ymdFromUnknown(t.validOn),
     })) || [{ name: 'Regular', price: 0, quantity: 100, isPaused: false }]
   );
 
@@ -220,6 +224,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
             price: Number(t.price) || 0,
             quantity: t.isUnlimited ? 0 : Number(t.quantity) || 0,
             isPaused: !!t.isPaused,
+            validOn:
+              t.validOn && eventDayList(startDate, endDate || startDate).includes(t.validOn)
+                ? t.validOn
+                : null,
           }))
         ),
       };
@@ -242,6 +250,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
             price: Number(t.price) || 0,
             quantity: t.isUnlimited ? 0 : Number(t.quantity) || 0,
             isPaused: !!t.isPaused,
+            validOn: t.validOn || null,
           })),
         });
       }
@@ -568,7 +577,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
                 <Ticket className="h-3.5 w-3.5 text-rose-500" />
                 Ticket Tiers & Pricing
               </label>
-              <p className="text-[11px] text-neutral-400">Adjust prices, quantity, or pause a day pass when it is over</p>
+              <p className="text-[11px] text-neutral-400">Adjust prices, quantity, or which day a pass works</p>
             </div>
             <button
               type="button"
@@ -678,6 +687,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
                     <X className="h-3.5 w-3.5" />
                   </button>
                 )}
+                <div className="w-full">
+                  <ValidOnField
+                    startDate={startDate}
+                    endDate={endDate || startDate}
+                    value={t.validOn}
+                    onChange={(next) => handleUpdateTicket(idx, 'validOn', next)}
+                  />
+                </div>
               </div>
             ))}
           </div>

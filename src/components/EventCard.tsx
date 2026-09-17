@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { LazyImage } from './LazyImage';
 import { eventHasUnlimitedTickets, getEventUrgencyBadges, isEventPast } from '../lib/eventBadges';
 import { cn } from '../lib/utils';
+import { ticketUnitPrice } from '../lib/ticketPrice';
 
 // Define the event type
 interface Event {
@@ -59,7 +60,7 @@ const EventCard: React.FC<EventCardProps> = ({
 }) => {
   let displayPrice = '';
   if (event.ticketTypes && event.ticketTypes.length > 0) {
-    const prices = event.ticketTypes.map((t) => Number(t.price));
+    const prices = event.ticketTypes.map((t) => ticketUnitPrice(t.price));
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
 
@@ -72,10 +73,9 @@ const EventCard: React.FC<EventCardProps> = ({
     } else {
       displayPrice = `₦${minPrice.toLocaleString()}`;
     }
-  } else if (typeof event.price === 'number') {
-    displayPrice = event.price === 0 ? 'Free' : `₦${event.price.toLocaleString()}`;
-  } else if (event.price) {
-    displayPrice = String(event.price);
+  } else if (event.price !== undefined && event.price !== null && event.price !== '') {
+    const n = ticketUnitPrice(event.price);
+    displayPrice = n === 0 ? 'Free' : `₦${n.toLocaleString()}`;
   }
 
   const shouldShowPrice = showPrice && displayPrice !== '';

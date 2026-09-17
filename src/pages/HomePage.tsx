@@ -19,9 +19,15 @@ import {
 import EventCard, { Event, EventCardSkeleton } from '../components/EventCard';
 import { EventLink } from '../components/EventLink';
 import { useEvents } from '../hooks/queries/useEvents';
-import { mockEvents, mapApiEventToFrontendEvent } from '../data/mockEvents';
+import { mapApiEventToFrontendEvent } from '../data/mockEvents';
 import { CACHE_CONFIGS } from '../lib/queryClient';
 import { generateEventCollectionStructuredData } from '../lib/seo';
+import {
+  clearHeroCarouselCache,
+  readHeroCarouselCache,
+  slidesFingerprint,
+  writeHeroCarouselCache,
+} from '../lib/heroCarouselCache';
 
 function isPastEvent(e: Event) {
   const end = new Date(e.endDate || e.date);
@@ -53,6 +59,7 @@ type HeroSlide = {
   link: string;
   image: string;
   tag: string;
+  expiresAt?: string;
 };
 
 const contactSlide: HeroSlide = {
@@ -82,6 +89,10 @@ const categories = [
 const HeroCarousel = ({ slides }: { slides: HeroSlide[] }) => {
   const [current, setCurrent] = useState(0);
   const total = slides.length;
+
+  useEffect(() => {
+    setCurrent((c) => (total === 0 ? 0 : Math.min(c, total - 1)));
+  }, [total]);
 
   const next = useCallback(() => setCurrent((c) => (c + 1) % total), [total]);
   const prev = useCallback(() => setCurrent((c) => (c - 1 + total) % total), [total]);
@@ -219,17 +230,17 @@ const HomePage = () => {
     CACHE_CONFIGS.HOMEPAGE_EVENTS
   );
 
-  // Fetch promoted events for carousel — only still-valid (upcoming/live)
-  const { data: promotedData } = useEvents(
+  const {
+    data: promotedData,
+    isSuccess: promotedSuccess,
+    isError: promotedError,
+  } = useEvents(
     { promoted: 'true', upcoming: 'true', limit: 5 },
-    CACHE_CONFIGS.HOMEPAGE_EVENTS
+    { ...CACHE_CONFIGS.HOMEPAGE_EVENTS, gcTime: 24 * 60 * 60 * 1000 }
   );
 
   const filteredEvents: Event[] = useMemo(() => {
-    const base =
-      eventsData && eventsData.length > 0
-        ? eventsData.map(mapApiEventToFrontendEvent)
-        : mockEvents;
+    const base = (eventsData || []).map(mapApiEventToFrontendEvent);
     const promoted: Event[] = (promotedData || [])
       .map(mapApiEventToFrontendEvent)
       .filter((e: Event) => e.isPromoted && !isPastEvent(e));
@@ -243,8 +254,8 @@ const HomePage = () => {
     return sortEventsUpcomingFirst([...promoted, ...upcoming, ...past]);
   }, [eventsData, promotedData]);
 
-  const dynamicSlides = useMemo(() => {
-    const upcomingPromoted = (promotedData || [])
+  const liveSlides = useMemo(() => {
+    return (promotedData || [])
       .map((raw: any) => {
         const e = mapApiEventToFrontendEvent(raw);
         const description =
@@ -263,17 +274,49 @@ const HomePage = () => {
             : raw.location || e.location || 'Featured on PartyStorm',
           cta: 'Get Tickets',
           link: `/events/${raw.slug || e.slug || e.id}`,
-          image:
-            raw.imageUrl ||
-            e.image ||
-            'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
+          image: raw.imageUrl || e.image || '',
           tag: raw.category || e.category || 'Featured',
+          expiresAt: e.endDate || e.date || raw.endDate || raw.startDate || undefined,
         };
       })
-      .filter(Boolean) as HeroSlide[];
-
-    return upcomingPromoted.length > 0 ? upcomingPromoted : [contactSlide];
+      .filter((s: HeroSlide) => {
+        if (!s.image) return false;
+        if (!s.expiresAt) return true;
+        const t = new Date(s.expiresAt).getTime();
+        return Number.isNaN(t) || t > Date.now();
+      });
   }, [promotedData]);
+
+  const [cachedSlides, setCachedSlides] = useState<HeroSlide[]>(() => readHeroCarouselCache());
+
+  useEffect(() => {
+    if (!promotedSuccess || promotedError) return;
+    if (liveSlides.length === 0) {
+      clearHeroCarouselCache();
+      setCachedSlides([]);
+      return;
+    }
+    if (slidesFingerprint(liveSlides) !== slidesFingerprint(cachedSlides)) {
+      writeHeroCarouselCache(liveSlides);
+      setCachedSlides(liveSlides);
+    }
+  }, [promotedSuccess, promotedError, liveSlides, cachedSlides]);
+
+  const dynamicSlides = useMemo(() => {
+    const now = Date.now();
+    const notExpired = (s: HeroSlide) => {
+      if (!s.expiresAt) return true;
+      const t = new Date(s.expiresAt).getTime();
+      return Number.isNaN(t) || t > now;
+    };
+    if (promotedSuccess) {
+      const live = liveSlides.filter(notExpired);
+      return live.length > 0 ? live : [contactSlide];
+    }
+    const cached = cachedSlides.filter(notExpired);
+    if (cached.length > 0) return cached;
+    return [contactSlide];
+  }, [promotedSuccess, liveSlides, cachedSlides]);
 
   return (
     <div className="bg-white dark:bg-gray-950 min-h-[calc(100vh-80px)] flex flex-col relative">
@@ -324,31 +367,19 @@ const HomePage = () => {
           </Link>
         </div>
 
-        {isLoading ? (
+        {isLoading && !eventsData ? (
           <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-6 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <EventCardSkeleton key={i} />
             ))}
           </div>
-        ) : error ? (
-          <>
-            <div className="rounded-2xl border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-950/20 p-6 mb-6">
-              <h3 className="font-bold text-red-700 dark:text-red-300 mb-2">Unable to load events</h3>
-              <p className="text-sm text-red-600 dark:text-red-400 mb-4">
-                {error instanceof Error ? error.message : 'An error occurred while fetching events. Please try again.'}
-              </p>
-              <p className="text-xs text-red-600 dark:text-red-400">
-                Showing offline events for now. Check your connection and refresh to see live listings.
-              </p>
-            </div>
-            <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-6 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
-              {mockEvents.filter((e) => !isPastEvent(e)).map((event) => (
-                <EventLink key={event.id} eventId={event.id}>
-                  <EventCard event={event} />
-                </EventLink>
-              ))}
-            </div>
-          </>
+        ) : error && !eventsData ? (
+          <div className="rounded-2xl border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-950/20 p-6">
+            <h3 className="font-bold text-red-700 dark:text-red-300 mb-2">Unable to load events</h3>
+            <p className="text-sm text-red-600 dark:text-red-400">
+              Check your connection and try again.
+            </p>
+          </div>
         ) : filteredEvents.length > 0 ? (
           <>
             <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-6 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
