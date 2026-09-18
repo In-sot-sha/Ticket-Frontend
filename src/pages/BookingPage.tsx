@@ -192,7 +192,11 @@ const BookingPage = () => {
   }, [isAuthenticated, user, guestFirstName, guestLastName, guestEmail, guestPhone, bookMode]);
 
   // Derived state calculations
-  const totalTicketsCount = Object.values(selectedTickets).reduce((acc, qty) => acc + qty, 0);
+  const selectedTicketItems = Object.entries(selectedTickets)
+    .filter(([, qty]) => Number(qty) > 0)
+    .map(([id, qty]) => ({ ticketTypeId: Number(id), quantity: Number(qty) }));
+
+  const totalTicketsCount = selectedTicketItems.reduce((acc, item) => acc + item.quantity, 0);
 
   const subtotal = bookMode === 'vendor'
     ? (normalizedEventData.stallTypes?.find((s: any) => Number(s.id) === Number(selectedStallType))?.fee || 0)
@@ -205,11 +209,11 @@ const BookingPage = () => {
 
   const platformFee =
     bookMode === 'vendor'
-      ? platformFeeForUnit(subtotal)
+      ? (subtotal > 0 ? platformFeeForUnit(subtotal) : 0)
       : (normalizedEventData.ticketTypes?.reduce((acc: number, t: any) => {
           const qty = selectedTickets[t.id] || selectedTickets[Number(t.id)] || 0;
+          if (qty <= 0) return acc;
           const unit = ticketUnitPrice(t.price);
-          if (qty <= 0 || unit <= 0) return acc;
           return acc + platformFeeForUnit(unit) * qty;
         }, 0) || 0);
 
@@ -218,6 +222,14 @@ const BookingPage = () => {
     platformFee,
     absorbFee,
   );
+
+  const hasCheckoutSelection =
+    bookMode === 'vendor' ? Boolean(selectedStallType) : totalTicketsCount > 0;
+  const displayTotal = !hasCheckoutSelection
+    ? '—'
+    : totalAmount === 0
+      ? 'Free'
+      : `₦${totalAmount.toLocaleString()}`;
 
   const formatDate = (dateString: string) => {
     try {
@@ -249,6 +261,36 @@ const BookingPage = () => {
 
   const handleContinue = async () => {
     if (isPaying) return;
+
+    if (bookMode === 'vendor') {
+      if (step === 1) {
+        if (!selectedStallType) {
+          showAlert('Please select a stall type.', 'Missing Information');
+          return;
+        }
+        setStep(2);
+        return;
+      }
+      if (step === 2) {
+        if (!businessName.trim() || !businessEmail.trim() || !businessPhone.trim() || !description.trim() || !vendorRole) {
+          showAlert('Please fill in all required fields', 'Missing Information');
+          return;
+        }
+        if (!isValidEmail(businessEmail.trim())) {
+          showAlert('Please enter a valid email address.', 'Invalid Email');
+          return;
+        }
+        setStep(3);
+        return;
+      }
+      if (step === 3) {
+        setStep(4);
+        return;
+      }
+      await executePayment();
+      return;
+    }
+
     if (step === 1) {
       if (totalTicketsCount <= 0) {
         showAlert('Please select at least one ticket.', 'No Tickets Selected');
@@ -265,6 +307,21 @@ const BookingPage = () => {
     }
     await executePayment();
   };
+
+  const lastStep = bookMode === 'vendor' ? 4 : 3;
+  const continueDisabled =
+    isPaying ||
+    (bookMode === 'tickets' && step === 1 && totalTicketsCount <= 0) ||
+    (bookMode === 'vendor' && step === 1 && !selectedStallType);
+  const continueLabel = isPaying
+    ? 'Processing'
+    : step < lastStep
+      ? 'Continue'
+      : totalAmount === 0
+        ? bookMode === 'vendor'
+          ? 'Submit application'
+          : 'Get for free'
+        : `Pay ₦${totalAmount.toLocaleString()}`;
 
   const stepCardClass =
     'border-0 bg-transparent p-0 shadow-none lg:rounded-2xl lg:border-2 lg:border-neutral-300 dark:lg:border-neutral-600 lg:bg-white dark:lg:bg-neutral-950 lg:p-5 lg:shadow-sm';
@@ -319,19 +376,13 @@ const BookingPage = () => {
       }
 
       // Free path (no payment ref): use guest checkout
-      const firstTicketEntry = Object.entries(selectedTickets).find(([_, qty]) => qty > 0);
-      if (!firstTicketEntry) {
-        throw new Error('No tickets selected');
-      }
-      const [ticketTypeId, quantity] = firstTicketEntry;
       const checkoutRes = await api.post<any>('/tickets/checkout/guest', {
         firstName: guestFirstName,
         lastName: guestLastName,
         email: guestEmail.trim(),
         phone: guestPhone.trim() || undefined,
         eventId: Number(normalizedEventData.id),
-        ticketTypeId: Number(ticketTypeId),
-        quantity: Number(quantity),
+        items: selectedTicketItems,
       });
 
       if (checkoutRes.status === 201) {
@@ -427,13 +478,11 @@ const BookingPage = () => {
         return;
       }
 
-      const firstTicketEntry = Object.entries(selectedTickets).find(([_, qty]) => qty > 0);
-      if (!firstTicketEntry) {
+      if (selectedTicketItems.length === 0) {
         showAlert('No tickets selected', 'Error');
         setIsPaying(false);
         return;
       }
-      const [ticketTypeId, quantity] = firstTicketEntry;
 
       const initRes = await api.post<any>('/payments/paystack/initialize', {
         kind: 'TICKET',
@@ -442,8 +491,7 @@ const BookingPage = () => {
         email: guestEmail.trim(),
         phone: guestPhone.trim() || undefined,
         eventId: Number(normalizedEventData.id),
-        ticketTypeId: Number(ticketTypeId),
-        quantity: Number(quantity),
+        items: selectedTicketItems,
       });
       const init = initRes.data;
 
@@ -490,9 +538,7 @@ const BookingPage = () => {
     try {
       const orderId = `OPAY_${Date.now()}_${normalizedEventData.id}`;
       
-      const items = Object.entries(selectedTickets)
-        .filter(([_, qty]) => qty > 0)
-        .map(([id, qty]) => ({ ticketTypeId: Number(id), quantity: qty }));
+      const items = selectedTicketItems;
 
       // Store checkout metadata in localstorage so we can complete checkout when returning
       localStorage.setItem(`opay_order_${orderId}`, JSON.stringify({
@@ -748,10 +794,10 @@ const BookingPage = () => {
           </button>
           <div>
             <h1 className="text-lg lg:text-xl font-extrabold text-neutral-900 dark:text-white">
-              {bookMode === 'tickets' && totalAmount === 0 ? 'Get your free ticket' : 'Confirm and Pay'}
+              {bookMode === 'tickets' && hasCheckoutSelection && totalAmount === 0 ? 'Get your free ticket' : 'Confirm and Pay'}
             </h1>
             <p className="text-[11px] sm:text-xs text-neutral-500">
-              {bookMode === 'tickets' && totalAmount === 0
+              {bookMode === 'tickets' && hasCheckoutSelection && totalAmount === 0
                 ? 'No payment needed — just your details'
                 : 'Secure ticket reservation without login'}
             </p>
@@ -763,7 +809,7 @@ const BookingPage = () => {
           <div className="flex items-center justify-start gap-2 mb-4 overflow-x-auto py-0.5">
             {bookMode === 'tickets' ? (
               <>
-                {['Review Tickets', 'Guest Details', totalAmount === 0 ? 'Confirm' : 'Payment'].map((s, idx) => {
+                {['Review Tickets', 'Guest Details', hasCheckoutSelection && totalAmount === 0 ? 'Confirm' : 'Payment'].map((s, idx) => {
                   const stepNum = idx + 1;
                   return (
                     <Fragment key={s}>
@@ -1021,21 +1067,33 @@ const BookingPage = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm"
+                  className={stepCardClass}
                 >
-                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Select Stall Type</h2>
-                  <p className="text-xs text-neutral-500 mb-3 sm:mb-6">Choose the vendor booth space you'd like to apply for</p>
+                  <p className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                    Booth
+                  </p>
+                  <h2 className="mt-0.5 font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
+                    Select stall type
+                  </h2>
+                  <p className="mt-0.5 text-xs text-neutral-500 mb-3">
+                    Choose the vendor booth space you’d like to apply for.
+                  </p>
                   
                   {normalizedEventData.stallTypes && normalizedEventData.stallTypes.length > 0 ? (
                     <div className="space-y-3">
-                      {normalizedEventData.stallTypes.map((stall: any) => (
+                      {normalizedEventData.stallTypes.map((stall: any) => {
+                        const selected = String(selectedStallType) === String(stall.id);
+                        return (
                         <button
                           key={stall.id}
-                          onClick={() => {
-                            setSelectedStallType(stall.id);
-                            setStep(2);
-                          }}
-                          className="w-full p-4 rounded-2xl border-2 border-neutral-200 dark:border-neutral-800 hover:border-rose-300 dark:hover:border-rose-700 transition-all text-left space-y-2 hover:bg-rose-50/50 dark:hover:bg-rose-950/10"
+                          type="button"
+                          onClick={() => setSelectedStallType(stall.id)}
+                          className={cn(
+                            'w-full p-4 rounded-2xl border-2 transition-all text-left space-y-2',
+                            selected
+                              ? 'border-rose-500 bg-rose-50/40 dark:bg-rose-950/20'
+                              : 'border-neutral-200 dark:border-neutral-800 hover:border-rose-300 dark:hover:border-rose-700 hover:bg-rose-50/50 dark:hover:bg-rose-950/10'
+                          )}
                         >
                           <div className="flex items-start justify-between">
                             <div>
@@ -1045,27 +1103,21 @@ const BookingPage = () => {
                               )}
                             </div>
                             <div className="text-right">
-                              <p className="font-bold text-sm text-rose-500">₦{stall.fee.toLocaleString()}</p>
+                              <p className="font-bold text-sm text-rose-500">
+                                {Number(stall.fee) === 0 ? 'Free' : `₦${Number(stall.fee).toLocaleString()}`}
+                              </p>
                               <p className="text-xs text-neutral-500 mt-0.5">Max {stall.maxStalls} stalls</p>
                             </div>
                           </div>
                         </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="p-4 rounded-2xl bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900/50">
                       <p className="text-xs text-yellow-800 dark:text-yellow-200">No stall types available for this event</p>
                     </div>
                   )}
-
-                  <div className="mt-4 sm:mt-8 flex gap-3 sm:gap-4">
-                    <button
-                      onClick={() => setBookMode('choice')}
-                      className="border border-neutral-300 dark:border-neutral-500 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 rounded-xl text-xs font-extrabold px-6 h-12 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-                    >
-                      Back
-                    </button>
-                  </div>
                 </motion.div>
               )}
 
@@ -1076,10 +1128,17 @@ const BookingPage = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm"
+                  className={stepCardClass}
                 >
-                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Business Information</h2>
-                  <p className="text-xs text-neutral-500 mb-3 sm:mb-6">Tell us about your business</p>
+                  <p className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                    Business
+                  </p>
+                  <h2 className="mt-0.5 font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
+                    Business information
+                  </h2>
+                  <p className="mt-0.5 text-xs text-neutral-500 mb-3">
+                    Tell us about your business.
+                  </p>
 
                   <div className="space-y-4">
                     <div>
@@ -1157,28 +1216,6 @@ const BookingPage = () => {
                       </select>
                     </div>
                   </div>
-
-                  <div className="mt-4 sm:mt-8 flex gap-3 sm:gap-4">
-                    <button
-                      onClick={() => setStep(1)}
-                      className="border border-neutral-300 dark:border-neutral-500 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 rounded-xl text-xs font-extrabold px-6 h-12 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (!businessName.trim() || !businessEmail.trim() || !businessPhone.trim() || !description.trim() || !vendorRole) {
-                          showAlert('Please fill in all required fields', 'Missing Information');
-                          return;
-                        }
-                        setStep(3);
-                      }}
-                      className="flex-1 flex items-center justify-center gap-2 h-12 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-xs font-extrabold px-6 shadow-md hover:shadow-lg transition-transform active:scale-98"
-                    >
-                      Continue
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  </div>
                 </motion.div>
               )}
 
@@ -1189,10 +1226,17 @@ const BookingPage = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm"
+                  className={stepCardClass}
                 >
-                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Review Your Application</h2>
-                  <p className="text-xs text-neutral-500 mb-3 sm:mb-6">Please review your details before proceeding to payment</p>
+                  <p className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                    Review
+                  </p>
+                  <h2 className="mt-0.5 font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
+                    Review your application
+                  </h2>
+                  <p className="mt-0.5 text-xs text-neutral-500 mb-3">
+                    Check your details before payment.
+                  </p>
 
                   <div className="space-y-4 mb-6">
                     <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-800 space-y-2">
@@ -1215,22 +1259,6 @@ const BookingPage = () => {
                       </div>
                     )}
                   </div>
-
-                  <div className="mt-4 sm:mt-8 flex gap-3 sm:gap-4">
-                    <button
-                      onClick={() => setStep(2)}
-                      className="border border-neutral-300 dark:border-neutral-500 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 rounded-xl text-xs font-extrabold px-6 h-12 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={() => setStep(4)}
-                      className="flex-1 flex items-center justify-center gap-2 h-12 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-xl text-xs font-extrabold px-6 shadow-md hover:shadow-lg transition-transform active:scale-98"
-                    >
-                      Continue to Payment
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  </div>
                 </motion.div>
               )}
 
@@ -1241,67 +1269,63 @@ const BookingPage = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm"
+                  className={stepCardClass}
                 >
-                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Select Payment Method</h2>
-                  <p className="text-xs text-neutral-500 mb-3 sm:mb-6">Choose how you'd like to pay for your vendor booth</p>
+                  <p className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                    {totalAmount === 0 ? 'Confirm' : 'Payment'}
+                  </p>
+                  <h2 className="mt-0.5 font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
+                    {totalAmount === 0 ? 'Submit application' : 'Pay securely'}
+                  </h2>
+                  <p className="mt-0.5 text-xs text-neutral-500 mb-3">
+                    {totalAmount === 0
+                      ? 'No payment needed — confirm to send your application.'
+                      : 'Card, bank transfer, or USSD via Paystack.'}
+                  </p>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                  {totalAmount === 0 ? (
+                    <div className="rounded-2xl border-2 border-emerald-500/70 bg-emerald-50/80 dark:bg-emerald-950/20 px-4 py-3.5">
+                      <p className="font-ticket text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                        Free
+                      </p>
+                      <p className="text-xs text-emerald-700/80 dark:text-emerald-500 mt-0.5">
+                        You won’t be charged for this application.
+                      </p>
+                    </div>
+                  ) : (
                     <button
+                      type="button"
                       onClick={() => setPaymentMethod('paystack')}
-                      className={`cursor-pointer rounded-2xl border-2 p-5 flex flex-col justify-between h-36 transition-all ${
+                      className={cn(
+                        'w-full rounded-2xl border-2 px-4 py-3 text-left transition-colors',
                         paymentMethod === 'paystack'
-                          ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/10'
-                          : 'border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900'
-                      }`}
+                          ? 'border-rose-500 bg-rose-50/40 dark:bg-rose-950/20'
+                          : 'border-neutral-300 dark:border-neutral-600'
+                      )}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-sm text-neutral-800 dark:text-neutral-100">Paystack</span>
-                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${paymentMethod === 'paystack' ? 'border-rose-500 bg-rose-500 text-white' : 'border-neutral-300'}`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-ticket text-sm font-semibold uppercase tracking-wide text-neutral-900 dark:text-white">
+                            Paystack
+                          </p>
+                          <p className="text-xs text-neutral-500 mt-0.5">Card, bank transfer, USSD</p>
+                        </div>
+                        <div className={cn(
+                          'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0',
+                          paymentMethod === 'paystack' ? 'border-rose-500 bg-rose-500' : 'border-neutral-300'
+                        )}>
                           {paymentMethod === 'paystack' && <div className="w-2 h-2 rounded-full bg-white" />}
                         </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Card, Bank Transfer, USSD</p>
-                        <p className="text-[10px] text-neutral-400 mt-1">Instant confirmation</p>
-                      </div>
                     </button>
-                  </div>
+                  )}
 
-                  <div className="p-4 rounded-xl border border-neutral-150 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/30 flex gap-3 mb-6">
-                    <Shield className="h-5 w-5 text-neutral-500 shrink-0" />
-                    <div>
-                      <p className="text-[11px] font-bold text-neutral-850 dark:text-neutral-200">Secure Checkout</p>
-                      <p className="text-[10px] text-neutral-450 dark:text-neutral-400 mt-0.5">Your payment is encrypted and processed securely.</p>
+                  {totalAmount > 0 && (
+                    <div className="mt-3 flex items-start gap-2 text-neutral-500">
+                      <Shield className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <p className="text-[11px] leading-snug">Encrypted checkout. Fees are shown in your summary.</p>
                     </div>
-                  </div>
-
-                  <div className="mt-4 sm:mt-8 flex gap-3 sm:gap-4">
-                    <button
-                      onClick={() => setStep(3)}
-                      className="border border-neutral-300 dark:border-neutral-500 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 rounded-xl text-xs font-extrabold px-6 h-12 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-                      disabled={isPaying}
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={executePayment}
-                      disabled={isPaying}
-                      className="flex-1 flex items-center justify-center gap-2 h-12 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-extrabold px-6 shadow-md hover:shadow-lg transition-transform active:scale-98 disabled:opacity-50"
-                    >
-                      {isPaying ? (
-                        <>
-                          <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          <CreditCard className="h-4 w-4" />
-                          Complete Application
-                        </>
-                      )}
-                    </button>
-                  </div>
+                  )}
                 </motion.div>
               )}
 
@@ -1456,15 +1480,11 @@ const BookingPage = () => {
           <div className="hidden lg:block lg:col-span-4">
             <div className="lg:sticky lg:top-24 rounded-2xl border-2 border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-950 p-4 lg:p-5 shadow-sm">
               <p className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
-                Tickets
+                {bookMode === 'vendor' ? 'Booth' : 'Tickets'}
               </p>
               <div className="mt-2 flex items-end justify-between gap-3">
                 <p className="font-ticket text-2xl font-bold tracking-tight text-neutral-900 dark:text-white leading-none">
-                  {bookMode === 'tickets' && totalAmount === 0 && totalTicketsCount > 0
-                    ? 'Free'
-                    : totalTicketsCount > 0
-                      ? `₦${totalAmount.toLocaleString()}`
-                      : '—'}
+                  {displayTotal}
                 </p>
               </div>
 
@@ -1544,7 +1564,7 @@ const BookingPage = () => {
                         Total
                       </span>
                       <span className="font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
-                        {totalAmount === 0 ? 'Free' : `₦${totalAmount.toLocaleString()}`}
+                        {displayTotal}
                       </span>
                     </div>
                     {totalAmount === 0 && totalTicketsCount > 0 && (
@@ -1591,7 +1611,7 @@ const BookingPage = () => {
                             Total
                           </span>
                           <span className="font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
-                            {totalAmount === 0 ? 'Free' : `₦${totalAmount.toLocaleString()}`}
+                            {displayTotal}
                           </span>
                         </div>
                       </>
@@ -1600,10 +1620,10 @@ const BookingPage = () => {
                 )}
               </div>
 
-              {bookMode === 'tickets' && (
+              {bookMode !== 'choice' && (
                 <button
                   type="button"
-                  disabled={isPaying || (step === 1 && totalTicketsCount <= 0)}
+                  disabled={continueDisabled}
                   onClick={() => void handleContinue()}
                   className="group mt-4 w-full rounded-xl bg-rose-500 px-4 py-3.5 text-white shadow-[0_8px_20px_-10px_rgba(244,63,94,0.65)] transition-[background-color,box-shadow,transform] duration-200 hover:bg-rose-600 hover:shadow-[0_12px_24px_-10px_rgba(244,63,94,0.55)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] disabled:opacity-50"
                 >
@@ -1613,16 +1633,20 @@ const BookingPage = () => {
                         <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         Processing
                       </>
-                    ) : step < 3 ? (
+                    ) : step < lastStep ? (
                       <>
                         Continue
                         <ArrowRight className="h-4 w-4 opacity-90" />
                       </>
                     ) : totalAmount === 0 ? (
-                      <>
-                        <Ticket className="h-4 w-4 opacity-90" />
-                        Get for free
-                      </>
+                      bookMode === 'vendor' ? (
+                        <>Submit application</>
+                      ) : (
+                        <>
+                          <Ticket className="h-4 w-4 opacity-90" />
+                          Get for free
+                        </>
+                      )
                     ) : (
                       <>
                         <CreditCard className="h-4 w-4 opacity-90" />
@@ -1638,30 +1662,24 @@ const BookingPage = () => {
         </div>
       )}
 
-      {(eventData || !eventId) && bookMode === 'tickets' && (
+      {(eventData || !eventId) && bookMode !== 'choice' && (
         <div className="lg:hidden fixed bottom-[3.6rem] left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-t border-neutral-200 dark:border-neutral-800 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
           <div className="flex items-center justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <p className="text-[9px] font-ticket font-semibold uppercase tracking-[0.16em] text-neutral-400">
                 Total
               </p>
               <span className="font-ticket text-lg font-bold tracking-tight text-neutral-900 dark:text-white">
-                {totalAmount === 0 ? 'Free' : `₦${totalAmount.toLocaleString()}`}
+                {displayTotal}
               </span>
             </div>
             <button
               type="button"
-              disabled={isPaying || (step === 1 && totalTicketsCount <= 0)}
+              disabled={continueDisabled}
               onClick={() => void handleContinue()}
-              className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-ticket font-semibold uppercase tracking-wider px-6 py-3 shadow-[0_6px_16px_-8px_rgba(244,63,94,0.7)] transition-[background-color,box-shadow,transform] duration-200 active:scale-[0.99] disabled:opacity-50"
+              className="shrink-0 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-ticket font-semibold uppercase tracking-wider px-5 py-3 shadow-[0_6px_16px_-8px_rgba(244,63,94,0.7)] transition-[background-color,box-shadow,transform] duration-200 active:scale-[0.99] disabled:opacity-50"
             >
-              {isPaying
-                ? 'Processing'
-                : step < 3
-                  ? 'Continue'
-                  : totalAmount === 0
-                    ? 'Get for free'
-                    : `Pay ₦${totalAmount.toLocaleString()}`}
+              {continueLabel}
             </button>
           </div>
         </div>

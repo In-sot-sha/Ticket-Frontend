@@ -1,7 +1,10 @@
-/** PartyStorm platform fee: 6% per ticket/booth, min ₦100, max ₦2,000. */
+/** PartyStorm platform fee: 6% per paid ticket/booth, min ₦100, max ₦2,000. */
 export const PLATFORM_FEE_RATE = 0.06;
 export const PLATFORM_FEE_MIN = 100;
 export const PLATFORM_FEE_MAX = 2000;
+
+/** Free / RSVP: 5% of the ₦2,000 cap per unit (₦100), never above the cap. */
+export const FREE_PLATFORM_FEE_RATE = 0.05;
 
 /** Paystack local: 1.5% + ₦100 (flat waived under ₦2,500), capped at ₦2,000. */
 export const PAYSTACK_RATE = 0.015;
@@ -10,7 +13,9 @@ export const PAYSTACK_FLAT_WAIVE_BELOW = 2500;
 export const PAYSTACK_LOCAL_CAP = 2000;
 
 export function platformFeeForUnit(price: number): number {
-  if (price <= 0) return 0;
+  if (price <= 0) {
+    return Math.min(PLATFORM_FEE_MAX, Math.round(PLATFORM_FEE_MAX * FREE_PLATFORM_FEE_RATE));
+  }
   return Math.min(
     PLATFORM_FEE_MAX,
     Math.max(PLATFORM_FEE_MIN, Math.round(price * PLATFORM_FEE_RATE)),
@@ -35,36 +40,39 @@ export type CheckoutFees = {
  * Buyer checkout totals.
  * Pass-through: Fee = PartyStorm + Paystack (bundled); buyer pays subtotal + Fee.
  * Absorb: Fee = 0; buyer pays subtotal only (organizer bears both fees later).
+ * Free tickets still charge the 5% cap fee — absorb does not apply with ₦0 face value.
  */
 export function calculateBuyerCheckout(
   subtotal: number,
   platformFee: number,
   absorbFee: boolean,
 ): CheckoutFees {
-  if (subtotal <= 0) {
+  const safeSubtotal = Math.round(subtotal);
+  const safePlatform = Math.round(platformFee);
+  if (safeSubtotal <= 0 && safePlatform <= 0) {
     return { platformFee: 0, processingFee: 0, fee: 0, total: 0 };
   }
 
-  if (absorbFee) {
+  if (absorbFee && safeSubtotal > 0) {
     return {
-      platformFee,
-      processingFee: Math.round(paystackLocalFee(subtotal)),
+      platformFee: safePlatform,
+      processingFee: Math.round(paystackLocalFee(safeSubtotal)),
       fee: 0,
-      total: Math.round(subtotal),
+      total: safeSubtotal,
     };
   }
 
-  const base = subtotal + platformFee;
+  const base = safeSubtotal + safePlatform;
   let total = base;
   for (let i = 0; i < 5; i++) {
     total = base + paystackLocalFee(total);
   }
   total = Math.round(total);
-  const fee = total - Math.round(subtotal);
-  const processingFee = total - Math.round(base);
+  const fee = total - safeSubtotal;
+  const processingFee = total - base;
 
   return {
-    platformFee: Math.round(platformFee),
+    platformFee: safePlatform,
     processingFee: Math.max(0, Math.round(processingFee)),
     fee,
     total,

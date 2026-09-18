@@ -210,7 +210,7 @@ const OrganizerPage: React.FC = () => {
             <ul className="mt-3 space-y-2 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
               <li>Creating an event is free.</li>
               <li>Paid tickets: 6% of the price. At least ₦100. At most ₦2,000.</li>
-              <li>Free tickets cost nothing.</li>
+              <li>Free tickets: 5% of the ₦2,000 cap (₦100 each). At most ₦2,000.</li>
               <li>Door staff is priced per event. Ask us.</li>
             </ul>
           </div>
@@ -264,7 +264,7 @@ const OrganizerPage: React.FC = () => {
             What it costs
           </h2>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
-            It is free to create an event. We only charge when a paid ticket or booth sells.
+            It is free to create an event. Paid tickets are 6% (min ₦100, max ₦2,000). Free tickets are 5% of the ₦2,000 cap.
           </p>
 
           <div className="grid items-start gap-10 lg:grid-cols-12">
@@ -295,7 +295,9 @@ const OrganizerPage: React.FC = () => {
                       <td className="px-4 py-3.5 text-neutral-800 dark:text-neutral-200">
                         Free tickets
                       </td>
-                      <td className="px-4 py-3.5 font-semibold text-neutral-900 dark:text-white">Nothing</td>
+                      <td className="px-4 py-3.5 font-semibold text-neutral-900 dark:text-white">
+                        5%. At most ₦2,000.
+                      </td>
                     </tr>
                     <tr>
                       <td className="px-4 py-3.5 text-neutral-800 dark:text-neutral-200">
@@ -310,7 +312,7 @@ const OrganizerPage: React.FC = () => {
                         Creating an event
                       </td>
                       <td className="px-4 py-3.5 font-semibold text-neutral-900 dark:text-white">
-                        Nothing
+                        5%. At most ₦2,000.
                       </td>
                     </tr>
                     <tr>
