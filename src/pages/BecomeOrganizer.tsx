@@ -45,10 +45,17 @@ const HOST_PERKS = [
 
 const CHECKLIST = [
   'Business or brand name',
-  'Website or portfolio link',
   'Short brand description',
   'At least 2 social profiles',
+  'Website (optional)',
 ];
+
+function normalizeWebsite(raw: string): string | undefined {
+  const v = raw.trim();
+  if (!v) return undefined;
+  if (/^https?:\/\//i.test(v)) return v;
+  return `https://${v.replace(/^\/+/, '')}`;
+}
 
 const countFilledSocials = (links: OrgSocialLinks) =>
   Object.values(links).filter((v) => v?.trim()).length;
@@ -179,10 +186,6 @@ const BecomeOrganizer = () => {
       setError('Description is required.');
       return;
     }
-    if (!contactInfo.trim()) {
-      setError('A website or portfolio link is required for verification.');
-      return;
-    }
     if (countFilledSocials(socialLinks) < 2) {
       setError('Please add at least 2 social profiles.');
       return;
@@ -194,7 +197,7 @@ const BecomeOrganizer = () => {
       const response = await api.userRoles.becomeOrganizer({
         businessName,
         description,
-        contactInfo,
+        contactInfo: normalizeWebsite(contactInfo) || '',
         logo,
         socials: serializeOrgSocials(socialLinks),
       });
@@ -436,15 +439,17 @@ const BecomeOrganizer = () => {
 
                   <div>
                     <label htmlFor="contactInfo" className={labelClass}>
-                      Website or portfolio
+                      Website or portfolio{' '}
+                      <span className="font-medium text-neutral-400">(optional)</span>
                     </label>
                     <input
                       id="contactInfo"
-                      type="url"
-                      required
+                      type="text"
+                      inputMode="url"
+                      autoComplete="url"
                       value={contactInfo}
                       onChange={(e) => setContactInfo(e.target.value)}
-                      placeholder="https://yourwebsite.com"
+                      placeholder="yourwebsite.com"
                       className={inputClass}
                     />
                   </div>
