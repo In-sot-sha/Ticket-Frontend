@@ -293,14 +293,15 @@ const HomePage = () => {
     if (!promotedSuccess || promotedError) return;
     if (liveSlides.length === 0) {
       clearHeroCarouselCache();
-      setCachedSlides([]);
+      setCachedSlides((prev) => (prev.length === 0 ? prev : []));
       return;
     }
-    if (slidesFingerprint(liveSlides) !== slidesFingerprint(cachedSlides)) {
+    setCachedSlides((prev) => {
+      if (slidesFingerprint(liveSlides) === slidesFingerprint(prev)) return prev;
       writeHeroCarouselCache(liveSlides);
-      setCachedSlides(liveSlides);
-    }
-  }, [promotedSuccess, promotedError, liveSlides, cachedSlides]);
+      return liveSlides;
+    });
+  }, [promotedSuccess, promotedError, liveSlides]);
 
   const dynamicSlides = useMemo(() => {
     const now = Date.now();

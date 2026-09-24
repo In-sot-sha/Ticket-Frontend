@@ -1,50 +1,44 @@
 import React, { useCallback } from 'react';
-import { Link, LinkProps } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../lib/queryKeys';
 import { api } from '../services/api';
 
-interface EventLinkProps extends Omit<LinkProps, 'to'> {
+interface EventLinkProps {
   eventId: number;
   children: React.ReactNode;
+  className?: string;
+  onMouseEnter?: React.MouseEventHandler<HTMLDivElement>;
 }
 
 /**
- * EventLink component with automatic prefetch on hover
- * Prefetches event data when user hovers over link
- * Dramatically improves perceived performance
+ * Hover wrapper that prefetches event data.
+ * Does not render its own link — EventCard already links to the event.
  */
 export const EventLink: React.FC<EventLinkProps> = ({
   eventId,
   children,
+  className,
   onMouseEnter,
-  ...props
 }) => {
   const queryClient = useQueryClient();
 
   const handleMouseEnter = useCallback(
-    (e: React.MouseEvent<HTMLAnchorElement>) => {
-      // Prefetch event data when user hovers over link
+    (e: React.MouseEvent<HTMLDivElement>) => {
       queryClient.prefetchQuery({
         queryKey: queryKeys.events.detail(eventId),
         queryFn: () => api.events.getById(eventId).then(res => res.data),
-        staleTime: 5 * 60 * 1000, // 5 minutes
+        staleTime: 5 * 60 * 1000,
       });
 
-      // Call original handler if provided
       onMouseEnter?.(e);
     },
     [eventId, queryClient, onMouseEnter]
   );
 
   return (
-    <Link
-      to={`/events/${eventId}`}
-      onMouseEnter={handleMouseEnter}
-      {...props}
-    >
+    <div className={className} onMouseEnter={handleMouseEnter}>
       {children}
-    </Link>
+    </div>
   );
 };
 
