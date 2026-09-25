@@ -15,7 +15,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import EventCard, { Event } from '../components/EventCard';
+import EventCard, { Event, EventCardSkeleton } from '../components/EventCard';
 import { GoogleMapEvents } from '../components/GoogleMapEvents';
 import { useEvents } from '../hooks/queries/useEvents';
 import { CACHE_CONFIGS } from '../lib/queryClient';
@@ -281,14 +281,7 @@ const EventsPage = () => {
               }`}
             >
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="animate-pulse">
-                  <div className="aspect-square rounded-2xl bg-neutral-200 dark:bg-neutral-800" />
-                  <div className="mt-3 space-y-2">
-                    <div className="h-4 bg-neutral-200 dark:bg-neutral-800 rounded w-3/4" />
-                    <div className="h-3 bg-neutral-200 dark:bg-neutral-800 rounded w-1/2" />
-                    <div className="h-3 bg-neutral-200 dark:bg-neutral-800 rounded w-1/3" />
-                  </div>
-                </div>
+                <EventCardSkeleton key={i} />
               ))}
             </div>
           ) : eventsError && !eventsData ? (

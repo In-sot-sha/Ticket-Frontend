@@ -71,10 +71,18 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
           ticketTypeCounts: new Map<string, number>(),
           tickets: [],
           checkedInCount: 0,
+          acceptedTerms: false,
+          acceptedMarketing: false,
+          termsAcceptedAt: null as string | null,
         });
       }
       const group = map.get(key);
       group.tickets.push(ticket);
+      if (ticket.order?.acceptedTerms) group.acceptedTerms = true;
+      if (ticket.order?.acceptedMarketing) group.acceptedMarketing = true;
+      if (ticket.order?.termsAcceptedAt && !group.termsAcceptedAt) {
+        group.termsAcceptedAt = ticket.order.termsAcceptedAt;
+      }
       const typeName = ticket.ticketType?.name || 'Ticket';
       group.ticketTypeCounts.set(typeName, (group.ticketTypeCounts.get(typeName) || 0) + 1);
       if (ticket.status === 'USED') {
@@ -121,9 +129,11 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
           ? 'All Checked In'
           : 'Partially Checked In'
         : 'Registered',
+      a.acceptedTerms ? 'Yes' : 'No',
+      a.termsAcceptedAt ? new Date(a.termsAcceptedAt).toLocaleString() : '—',
     ]);
     downloadCSV(
-      ['Name', 'Email', 'Phone', 'Ticket Types', 'Tickets Count', 'Status'],
+      ['Name', 'Email', 'Phone', 'Ticket Types', 'Tickets Count', 'Status', 'Terms Agreed', 'Agreed At'],
       rows,
       `attendees_${eventId || 'event'}.csv`
     );
@@ -244,6 +254,11 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug }
                     <p className="text-neutral-400">—</p>
                   )}
                   {a.phone && <p className="text-xs text-neutral-500 mt-0.5">{a.phone}</p>}
+                  {a.acceptedTerms && (
+                    <p className="text-[10px] text-neutral-400 mt-0.5 font-medium">
+                      ✓ Terms agreed {a.termsAcceptedAt ? `(${new Date(a.termsAcceptedAt).toLocaleDateString()})` : ''}
+                    </p>
+                  )}
                 </div>
               ),
             },

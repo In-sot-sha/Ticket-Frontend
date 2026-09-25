@@ -72,6 +72,8 @@ interface FormState {
   includedItems: string[];
   vendorSettings: VendorSettings;
   category: string;
+  termsEnabled: boolean;
+  organizerTerms: string;
 }
 
 const STEPS: { key: Step; label: string; description: string }[] = [
@@ -120,6 +122,8 @@ const defaultForm = (): FormState => ({
     applicationDeadline: 5,
   },
   category: 'Other',
+  termsEnabled: false,
+  organizerTerms: '',
 });
 
 function parseJsonField<T>(value: unknown, fallback: T): T {
@@ -181,6 +185,7 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
 
   fd.append('isPublished', String(isPublished));
   fd.append('category', form.category || 'Other');
+  fd.append('organizerTerms', form.termsEnabled ? form.organizerTerms.trim() : '');
   
   // Add latitude/longitude if physical event
   if (form.locationType === 'physical' && form.latitude != null && form.longitude != null) {
@@ -633,6 +638,8 @@ const CreateEvent: React.FC = () => {
             applicationDeadline: deadlineDays,
           },
           category: event.category || '',
+          termsEnabled: Boolean(event.organizerTerms),
+          organizerTerms: event.organizerTerms || '',
         });
         const resolvedCover = resolveImageUrl(event.imageUrl);
         if (resolvedCover) setImagePreview(resolvedCover);
@@ -680,6 +687,8 @@ const CreateEvent: React.FC = () => {
             applicationDeadline: 5,
           },
       category,
+      termsEnabled: false,
+      organizerTerms: '',
     });
     setImagePreview(template.image);
     setImageFile(null);
@@ -1232,6 +1241,59 @@ const CreateEvent: React.FC = () => {
                   />
                 </div>
 
+                <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                          Event terms & consent
+                        </span>
+                        <span className="text-[10px] uppercase font-bold text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">
+                          Optional
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+                        Require buyers to agree to terms, refund policy, or marketing consent before checkout.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={form.termsEnabled}
+                      onClick={() =>
+                        setForm((p) => ({
+                          ...p,
+                          termsEnabled: !p.termsEnabled,
+                        }))
+                      }
+                      className={cn(
+                        'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
+                        form.termsEnabled ? 'bg-rose-500' : 'bg-neutral-300 dark:bg-neutral-700'
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                          form.termsEnabled ? 'translate-x-5' : 'translate-x-0'
+                        )}
+                      />
+                    </button>
+                  </div>
+
+                  {form.termsEnabled && (
+                    <div className="pt-2 border-t border-neutral-200/60 dark:border-neutral-800/60 space-y-1.5">
+                      <FieldLabel>Terms & consent message</FieldLabel>
+                      <textarea
+                        value={form.organizerTerms}
+                        onChange={(e) => setForm((p) => ({ ...p, organizerTerms: e.target.value }))}
+                        placeholder="e.g. All ticket sales are final and non-refundable. Guests must be 18+ with valid ID. By purchasing, you agree to receive event updates from this organizer."
+                        rows={3}
+                        className={cn(getInputClass('organizerTerms'), 'resize-none')}
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <DateTimePicker
                     label="Starts"
@@ -1666,6 +1728,16 @@ const CreateEvent: React.FC = () => {
                         {form.includedItems.map((a) => (
                           <span key={a} className="text-[10px] px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/30 text-rose-600">{a}</span>
                         ))}
+                      </div>
+                    )}
+                    {form.termsEnabled && form.organizerTerms.trim() && (
+                      <div className="pt-2 border-t border-neutral-200/80 dark:border-neutral-800/80 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block mb-0.5">
+                          Event Terms & Consent
+                        </span>
+                        <p className="text-xs text-neutral-600 dark:text-neutral-300 line-clamp-3">
+                          {form.organizerTerms}
+                        </p>
                       </div>
                     )}
                   </div>

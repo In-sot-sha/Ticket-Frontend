@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, Fragment, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -19,6 +19,13 @@ import {
 import { api } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CustomAlertDialog } from '../components/ui/CustomAlertDialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '../components/ui/dialog';
 import { useEventById } from '../hooks/queries/useEvents';
 import { CACHE_CONFIGS } from '../lib/queryClient';
 import { isValidEmail, isValidPhone } from '../lib/phone';
@@ -106,6 +113,11 @@ const BookingPage = () => {
   /** Owned counts from API keyed by ticketTypeId */
   const [ownedByType, setOwnedByType] = useState<Record<number, number>>({});
 
+  // Agreement state
+  const [acceptedAgreement, setAcceptedAgreement] = useState(false);
+  const [agreementError, setAgreementError] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+
   const ticketTypes = (eventData?.ticketTypes ?? (!eventId ? mockEvent.ticketTypes : [])).map((t: any) => ({
     ...t,
     id: Number(t.id),
@@ -138,30 +150,29 @@ const BookingPage = () => {
     organizerLogo: (normalizedEventData as any).organization?.logo || null,
   };
 
+  const organizerTerms = String((normalizedEventData as any)?.organizerTerms || '').trim();
+  const hasTerms = Boolean(organizerTerms);
+  const hasAgreement = hasTerms;
+  const agreementLabel = "I agree to the organizer’s terms.";
+
   const showAlert = (message: string, title?: string) => {
     setAlertDialog({ isOpen: true, message, title });
   };
 
-  // Keep a ticket selected so Free (and other types) show in the summary
+  // Preselect a ticket ONLY if explicitly passed from navigation state
   useEffect(() => {
     if (!ticketTypes.length) return;
     const onSale = ticketTypes.filter((t: any) => !t.isPaused);
     const pool = onSale.length ? onSale : ticketTypes;
     const preselectedTypeId = Number(preselectedData.ticketTypeId);
     const preselectedQty = Number(preselectedData.quantity) || 1;
-    const preselectedExists = pool.some((t: any) => Number(t.id) === preselectedTypeId && !t.isPaused);
+    const preselectedTicket = pool.find((t: any) => Number(t.id) === preselectedTypeId && !t.isPaused);
 
-    if (preselectedExists) {
-      setSelectedTickets({ [preselectedTypeId]: preselectedQty });
-      return;
-    }
-
-    const preferred =
-      pool.find((t: any) => isFreeTicketPrice(t.price) && !t.isPaused) ||
-      pool.find((t: any) => !t.isPaused) ||
-      pool[0];
-    if (preferred && !preferred.isPaused) {
-      setSelectedTickets({ [Number(preferred.id)]: 1 });
+    if (preselectedTicket) {
+      const avail = getAvailableCount(preselectedTypeId, preselectedTicket);
+      if (avail > 0) {
+        setSelectedTickets({ [preselectedTypeId]: Math.min(preselectedQty, avail) });
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventData?.ticketTypes, preselectedData.ticketTypeId, preselectedData.quantity]);
@@ -296,12 +307,61 @@ const BookingPage = () => {
         showAlert('Please select at least one ticket.', 'No Tickets Selected');
         return;
       }
+      for (const [idStr, qty] of Object.entries(selectedTickets)) {
+        const id = Number(idStr);
+        if (qty > 0) {
+          const tt = normalizedEventData.ticketTypes?.find((t: any) => t.id === id);
+          if (tt) {
+            const avail = getAvailableCount(id, tt);
+            const maxPerPerson = getMaxPerPerson(tt);
+            if (qty > avail) {
+              showAlert(
+                avail <= 0
+                  ? `You have reached the maximum limit of ${maxPerPerson} ${tt.name} ticket(s) per person.`
+                  : `You can only select up to ${avail} more ${tt.name} ticket(s) (maximum ${maxPerPerson} per person).`,
+                'Ticket Limit Reached'
+              );
+              return;
+            }
+          }
+        }
+      }
       setStep(2);
       return;
     }
     if (step === 2) {
       if (!validateStep2()) return;
-      await refreshEligibility();
+      const latestOwned = await refreshEligibility();
+      for (const [idStr, qty] of Object.entries(selectedTickets)) {
+        const id = Number(idStr);
+        if (qty > 0) {
+          const tt = normalizedEventData.ticketTypes?.find((t: any) => t.id === id);
+          if (tt) {
+            const maxPerPerson = getMaxPerPerson(tt);
+            const owned = latestOwned[id] ?? 0;
+            const available = Math.max(0, maxPerPerson - owned);
+            if (qty > available) {
+              setSelectedTickets((prev) => {
+                const copy = { ...prev };
+                if (available > 0) {
+                  copy[id] = available;
+                } else {
+                  delete copy[id];
+                }
+                return copy;
+              });
+              showAlert(
+                available <= 0
+                  ? `You have already reached the maximum limit of ${maxPerPerson} ${tt.name} ticket(s) per person.`
+                  : `You can only claim ${available} more ${tt.name} ticket(s) (maximum ${maxPerPerson} per person).`,
+                'Limit Reached'
+              );
+              setStep(1);
+              return;
+            }
+          }
+        }
+      }
       setStep(3);
       return;
     }
@@ -383,6 +443,7 @@ const BookingPage = () => {
         phone: guestPhone.trim() || undefined,
         eventId: Number(normalizedEventData.id),
         items: selectedTicketItems,
+        acceptedTerms: hasTerms ? acceptedAgreement : false,
       });
 
       if (checkoutRes.status === 201) {
@@ -492,6 +553,7 @@ const BookingPage = () => {
         phone: guestPhone.trim() || undefined,
         eventId: Number(normalizedEventData.id),
         items: selectedTicketItems,
+        acceptedTerms: hasTerms ? acceptedAgreement : false,
       });
       const init = initRes.data;
 
@@ -556,7 +618,8 @@ const BookingPage = () => {
         organizerName: hostBrand.organizerName,
         organizerLogo: hostBrand.organizerLogo,
         items,
-        totalAmount: totalAmount
+        totalAmount: totalAmount,
+        acceptedTerms: hasTerms ? acceptedAgreement : false,
       }));
 
       const res = await api.post<any>('/payments/opay/create', {
@@ -608,15 +671,23 @@ const BookingPage = () => {
       showAlert('Please enter a valid Nigerian phone number (e.g. 0803… or +234…).', 'Invalid Phone');
       return false;
     }
+    if (hasAgreement && !acceptedAgreement) {
+      setAgreementError(true);
+      showAlert(
+        'Please agree to the organizer’s terms before continuing.',
+        'Agreement Required'
+      );
+      return false;
+    }
     return true;
   };
 
-  const refreshEligibility = async () => {
+  const refreshEligibility = async (): Promise<Record<number, number>> => {
     const email = guestEmail.trim();
     const phone = guestPhone.trim();
-    if ((!email && !phone) || !normalizedEventData?.id) return;
-    if (email && !isValidEmail(email)) return;
-    if (phone && !isValidPhone(phone)) return;
+    if ((!email && !phone) || !normalizedEventData?.id) return ownedByType;
+    if (email && !isValidEmail(email)) return ownedByType;
+    if (phone && !isValidPhone(phone)) return ownedByType;
 
     const types = (normalizedEventData.ticketTypes || []) as Array<{ id: number }>;
     const next: Record<number, number> = {};
@@ -636,6 +707,34 @@ const BookingPage = () => {
       })
     );
     setOwnedByType(next);
+
+    // Auto-clamp any selected tickets if the limit is exceeded
+    setSelectedTickets((prev) => {
+      let changed = false;
+      const copy = { ...prev };
+      for (const [idStr, qty] of Object.entries(prev)) {
+        const id = Number(idStr);
+        if (qty > 0) {
+          const tt = normalizedEventData.ticketTypes?.find((item: any) => item.id === id);
+          if (tt) {
+            const maxPerPerson = getMaxPerPerson(tt);
+            const owned = next[id] ?? 0;
+            const available = Math.max(0, maxPerPerson - owned);
+            if (qty > available) {
+              changed = true;
+              if (available > 0) {
+                copy[id] = available;
+              } else {
+                delete copy[id];
+              }
+            }
+          }
+        }
+      }
+      return changed ? copy : prev;
+    });
+
+    return next;
   };
 
   // Helper: Get previous bookings for a ticket type (from eligibility API)
@@ -687,15 +786,14 @@ const BookingPage = () => {
 
       // Check per-ticket-type limit
       if (newQty > availableCount) {
-        const previousBookings = getPreviousBookings(id);
-        if (previousBookings > 0) {
+        if (availableCount <= 0) {
           showAlert(
-            `You can buy ${availableCount} more ${ticketType.name} ticket(s).\nYou already have ${previousBookings} from previous bookings.`,
-            'Per-Person Limit Reached'
+            `You have reached the maximum limit of ${maxPerPerson} ${ticketType.name} ticket(s) per person.`,
+            'Limit Reached'
           );
         } else {
           showAlert(
-            `Maximum ${maxPerPerson} ${ticketType.name} ticket(s) per person.`,
+            `You can only select up to ${availableCount} more ${ticketType.name} ticket(s) (maximum ${maxPerPerson} per person).`,
             'Ticket Limit'
           );
         }
@@ -732,15 +830,14 @@ const BookingPage = () => {
 
     if (newQty > availableCount) {
       const maxPerPerson = getMaxPerPerson(ticketType);
-      const previousBookings = getPreviousBookings(id);
-      if (previousBookings > 0) {
+      if (availableCount <= 0) {
         showAlert(
-          `You can buy ${availableCount} more ${ticketType.name} ticket(s).\nYou already have ${previousBookings} from previous bookings.`,
-          'Per-Person Limit Reached'
+          `You have reached the maximum limit of ${maxPerPerson} ${ticketType.name} ticket(s) per person.`,
+          'Limit Reached'
         );
       } else {
         showAlert(
-          `Maximum ${maxPerPerson} ${ticketType.name} ticket(s) per person.`,
+          `You can only select up to ${availableCount} more ${ticketType.name} ticket(s) (maximum ${maxPerPerson} per person).`,
           'Ticket Limit'
         );
       }
@@ -1020,7 +1117,7 @@ const BookingPage = () => {
                                 max={availableCount}
                                 value={qty}
                                 onChange={(e) => handleTicketQtyChange(t.id, e.target.value)}
-                                disabled={t.isPaused}
+                                disabled={t.isPaused || availableCount <= 0}
                                 aria-label={`${t.name} quantity`}
                                 className="w-12 h-9 text-center text-sm font-ticket font-bold rounded-lg border border-neutral-300 dark:border-neutral-500 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white focus:ring-2 focus:ring-rose-500/40 focus:border-rose-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
@@ -1036,22 +1133,17 @@ const BookingPage = () => {
                             </div>
                           </div>
 
-                          {(t.isPaused || atLimit || previousBookings > 0) && (
-                          <div className="px-3.5 sm:px-4 pb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
-                            {t.isPaused ? (
-                              <span className="text-neutral-500">Sales paused by the organizer</span>
-                            ) : atLimit ? (
-                              <span className="inline-flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-300">
-                                <Shield className="h-3.5 w-3.5 shrink-0" />
-                                Limit reached · max {maxPerPerson} per person
-                              </span>
-                            ) : null}
-                            {previousBookings > 0 && (
-                              <span className="text-neutral-400 dark:text-neutral-500">
-                                {atLimit || t.isPaused ? '· ' : ''}already own {previousBookings}
-                              </span>
-                            )}
-                          </div>
+                          {(t.isPaused || atLimit) && (
+                            <div className="px-3.5 sm:px-4 pb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+                              {t.isPaused ? (
+                                <span className="text-neutral-500">Sales paused by the organizer</span>
+                              ) : atLimit ? (
+                                <span className="inline-flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-300">
+                                  <Shield className="h-3.5 w-3.5 shrink-0" />
+                                  Limit reached · max {maxPerPerson} per person
+                                </span>
+                              ) : null}
+                            </div>
                           )}
                         </div>
                       );
@@ -1288,9 +1380,9 @@ const BookingPage = () => {
                       <p className="font-ticket text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
                         Free
                       </p>
-                      <p className="text-xs text-emerald-700/80 dark:text-emerald-500 mt-0.5">
+                      {/* <p className="text-xs text-emerald-700/80 dark:text-emerald-500 mt-0.5">
                         You won’t be charged for this application.
-                      </p>
+                      </p> */}
                     </div>
                   ) : (
                     <button
@@ -1403,6 +1495,53 @@ const BookingPage = () => {
                       />
                     </div>
                   </div>
+
+                  {/* Required Terms & Marketing Agreement (shown only when event has terms or marketing consent) */}
+                  {hasAgreement && (
+                    <div className="mt-3.5">
+                      <div
+                        className={cn(
+                          'flex items-start gap-3 p-3.5 rounded-xl border transition-all duration-200',
+                          agreementError && !acceptedAgreement
+                            ? 'border-rose-300 bg-rose-50/70 dark:border-rose-900/50 dark:bg-rose-950/20 ring-1 ring-rose-400/40'
+                            : 'border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/50'
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          id="order-terms-agreement"
+                          checked={acceptedAgreement}
+                          onChange={(e) => {
+                            setAcceptedAgreement(e.target.checked);
+                            if (e.target.checked) setAgreementError(false);
+                          }}
+                          className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 text-rose-500 focus:ring-rose-500 dark:border-neutral-700 dark:bg-neutral-800 cursor-pointer"
+                        />
+                        <label
+                          htmlFor="order-terms-agreement"
+                          className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed cursor-pointer select-none"
+                        >
+                          <span>{agreementLabel}</span>{' '}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setShowTermsModal(true);
+                            }}
+                            className="inline font-semibold text-rose-500 hover:text-rose-600 underline underline-offset-2 ml-1"
+                          >
+                            Read terms
+                          </button>
+                        </label>
+                      </div>
+                      {agreementError && !acceptedAgreement && (
+                        <p className="mt-1.5 text-[11px] font-medium text-rose-500">
+                          Please agree to the organizer’s terms before continuing.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </motion.div>
               )}
 
@@ -1432,9 +1571,9 @@ const BookingPage = () => {
                       <p className="font-ticket text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
                         Free
                       </p>
-                      <p className="text-xs text-emerald-700/80 dark:text-emerald-500 mt-0.5">
+                      {/* <p className="text-xs text-emerald-700/80 dark:text-emerald-500 mt-0.5">
                         You won’t be charged for this order.
-                      </p>
+                      </p> */}
                     </div>
                   ) : (
                     <button
@@ -1567,9 +1706,9 @@ const BookingPage = () => {
                         {displayTotal}
                       </span>
                     </div>
-                    {totalAmount === 0 && totalTicketsCount > 0 && (
+                    {/* {totalAmount === 0 && totalTicketsCount > 0 && (
                       <p className="text-[11px] text-neutral-500 text-center">You won’t be charged</p>
-                    )}
+                    )} */}
                   </>
                 ) : (
                   <>
@@ -1691,6 +1830,34 @@ const BookingPage = () => {
         description={alertDialog.message}
         onClose={() => setAlertDialog(prev => ({ ...prev, isOpen: false }))}
       />
+
+      {/* Terms Modal */}
+      <Dialog open={showTermsModal} onOpenChange={setShowTermsModal}>
+        <DialogContent className="w-[92vw] max-w-[420px] rounded-2xl p-4 sm:p-5 gap-3 bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 shadow-xl">
+          <DialogHeader className="pr-6 text-left">
+            <DialogTitle className="text-base font-bold font-ticket text-neutral-900 dark:text-white">
+              Organizer Terms
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Organizer terms and event policies
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[50vh] overflow-y-auto rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/70 dark:border-neutral-700/60 p-3 text-xs leading-relaxed text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap break-words">
+            {organizerTerms}
+          </div>
+
+          <div className="flex justify-end pt-1">
+            <button
+              type="button"
+              className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-rose-500 hover:bg-rose-600 text-white transition-colors"
+              onClick={() => setShowTermsModal(false)}
+            >
+              Done
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

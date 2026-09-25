@@ -1193,9 +1193,9 @@ const EventDetailPage = () => {
                         </p>
                       )}
 
-                      <p className="text-[11px] text-neutral-500 text-center mt-3">
+                      {/* <p className="text-[11px] text-neutral-500 text-center mt-3">
                         {allFree ? 'You won’t be charged' : 'You won’t be charged yet'}
-                      </p>
+                      </p> */}
                     </>
                   )}
                 </div>
