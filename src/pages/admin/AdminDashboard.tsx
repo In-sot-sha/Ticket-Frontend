@@ -8,7 +8,8 @@ import {
   Wallet,
   LifeBuoy,
   Sparkles,
-  FolderKanban,
+  CreditCard,
+  UserCog,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useAdminStats, useHostApplications } from '../../hooks/queries/useAdmin';
@@ -18,130 +19,50 @@ import { formatNaira } from '../../lib/eventOrganizer';
 
 const STAT_META = [
   { label: 'Platform earnings', icon: Wallet, color: 'text-rose-500' },
+  { label: 'Total Events', icon: Sparkles, color: 'text-purple-500' },
   { label: 'Total Users', icon: Users, color: 'text-blue-500' },
   { label: 'Pending Hosts', icon: Clock, color: 'text-amber-500' },
-  { label: 'Ops requests', icon: FolderKanban, color: 'text-amber-500' },
-  { label: 'Open requests', icon: LifeBuoy, color: 'text-rose-500' },
+  { label: 'Open Support', icon: LifeBuoy, color: 'text-rose-500' },
 ] as const;
 
 function AdminDashboardSkeleton() {
   return (
     <>
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-3.5 mb-6">
         {STAT_META.map((stat) => {
           const Icon = stat.icon;
           return (
             <div
               key={stat.label}
-              className="border border-neutral-150 dark:border-neutral-900 rounded-2xl p-3 sm:p-5 bg-white dark:bg-neutral-900 shadow-sm"
+              className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3.5 sm:p-4 bg-white dark:bg-neutral-900 shadow-sm"
             >
-              <div className="flex justify-between items-center text-neutral-400 dark:text-neutral-500 mb-1.5 sm:mb-2">
-                <span className="text-[9px] sm:text-xs font-bold uppercase tracking-wider leading-tight">
+              <div className="flex justify-between items-center text-neutral-400 dark:text-neutral-500 mb-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider leading-tight">
                   {stat.label}
                 </span>
                 <Icon className={`h-4 w-4 ${stat.color}`} />
               </div>
-              <Skeleton className="h-8 w-20 rounded-lg" />
+              <Skeleton className="h-7 w-20 rounded-lg" />
             </div>
           );
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="border border-neutral-150 dark:border-neutral-900 rounded-2xl bg-white dark:bg-neutral-900 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 dark:border-neutral-800">
-            <h2 className="text-lg font-extrabold tracking-tight">Pending Host Applications</h2>
-            <Link
-              to="/admin/organizations"
-              className="text-xs font-bold text-rose-500 hover:underline flex items-center gap-1"
-            >
-              View all <ChevronRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-          <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="px-5 py-4 flex items-center justify-between gap-3">
-                <div className="min-w-0 flex-1 space-y-2">
-                  <Skeleton className="h-4 w-2/3 rounded-md" />
-                  <Skeleton className="h-3 w-1/2 rounded-md" />
-                </div>
-                <Skeleton className="h-6 w-16 rounded-full shrink-0" />
-              </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl bg-white dark:bg-neutral-900 shadow-sm overflow-hidden p-4">
+          <Skeleton className="h-6 w-1/3 mb-4 rounded-md" />
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-12 w-full rounded-xl" />
             ))}
           </div>
         </div>
-
-        <div className="border border-neutral-150 dark:border-neutral-900 rounded-2xl bg-white dark:bg-neutral-900 shadow-sm p-5">
-          <h2 className="text-lg font-extrabold tracking-tight mb-4">Quick Actions</h2>
+        <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl bg-white dark:bg-neutral-900 shadow-sm p-4">
+          <Skeleton className="h-6 w-1/3 mb-4 rounded-md" />
           <div className="space-y-3">
-            {(
-              [
-                {
-                  to: '/admin/ops?status=REQUESTED',
-                  icon: FolderKanban,
-                  wrap: 'bg-amber-50 dark:bg-amber-950/30',
-                  iconColor: 'text-amber-600',
-                  title: 'Ops request inbox',
-                },
-                {
-                  to: '/admin/organizations',
-                  icon: Building2,
-                  wrap: 'bg-amber-50 dark:bg-amber-950/30',
-                  iconColor: 'text-amber-600',
-                  title: 'Review Host Applications',
-                },
-                {
-                  to: '/admin/staff',
-                  icon: Users,
-                  wrap: 'bg-blue-50 dark:bg-blue-950/30',
-                  iconColor: 'text-blue-600',
-                  title: 'Staff roster',
-                  sub: 'Create or promote staff',
-                },
-                {
-                  to: '/admin/support',
-                  icon: LifeBuoy,
-                  wrap: 'bg-rose-50 dark:bg-rose-950/30',
-                  iconColor: 'text-rose-600',
-                  title: 'Support',
-                  sub: 'Read requests and email them',
-                },
-                {
-                  to: '/admin/events',
-                  icon: Sparkles,
-                  wrap: 'bg-amber-50 dark:bg-amber-950/30',
-                  iconColor: 'text-amber-600',
-                  title: 'Events & promotions',
-                  sub: 'Promote carousel · transfer orgs',
-                },
-              ] as const
-            ).map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className="flex items-center justify-between p-4 rounded-xl border border-neutral-100 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${item.wrap}`}
-                    >
-                      <Icon className={`h-5 w-5 ${item.iconColor}`} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold">{item.title}</p>
-                      {'sub' in item && item.sub ? (
-                        <p className="text-xs text-neutral-500">{item.sub}</p>
-                      ) : (
-                        <Skeleton className="h-3 w-28 mt-1 rounded-md" />
-                      )}
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-neutral-400 shrink-0" />
-                </Link>
-              );
-            })}
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-12 w-full rounded-xl" />
+            ))}
           </div>
         </div>
       </div>
@@ -154,180 +75,200 @@ const AdminDashboard = () => {
   const { data: stats, isLoading } = useAdminStats();
   const { data: pendingHosts = [] } = useHostApplications('pending');
 
-  const pendingOps = stats?.pendingOpsRequests ?? 0;
-
   const statCards = [
-    { label: 'Platform earnings', value: formatNaira(stats?.platformRevenue ?? 0), icon: Wallet, color: 'text-rose-500' },
-    { label: 'Total Users', value: stats?.totalUsers ?? 0, icon: Users, color: 'text-blue-500' },
-    { label: 'Pending Hosts', value: stats?.pendingHosts ?? 0, icon: Clock, color: 'text-amber-500' },
-    { label: 'Ops requests', value: pendingOps, icon: FolderKanban, color: 'text-amber-500' },
-    { label: 'Open requests', value: stats?.openSupportTickets ?? 0, icon: LifeBuoy, color: 'text-rose-500' },
+    {
+      label: 'Platform earnings',
+      value: formatNaira(stats?.platformRevenue ?? 0),
+      sub: `${stats?.totalOrders ?? 0} paid orders`,
+      icon: Wallet,
+      color: 'text-rose-500',
+    },
+    {
+      label: 'Total Events',
+      value: stats?.totalEvents ?? 0,
+      sub: 'Platform catalog',
+      icon: Sparkles,
+      color: 'text-purple-500',
+    },
+    {
+      label: 'Total Users',
+      value: stats?.totalUsers ?? 0,
+      sub: 'Registered accounts',
+      icon: Users,
+      color: 'text-blue-500',
+    },
+    {
+      label: 'Pending Hosts',
+      value: stats?.pendingHosts ?? 0,
+      sub: `${stats?.verifiedHosts ?? 0} verified`,
+      icon: Clock,
+      color: 'text-amber-500',
+    },
+    {
+      label: 'Open Support',
+      value: stats?.openSupportTickets ?? 0,
+      sub: 'Awaiting resolution',
+      icon: LifeBuoy,
+      color: 'text-rose-500',
+    },
+  ];
+
+  const quickActions = [
+    {
+      to: '/admin/organizations',
+      icon: Building2,
+      wrap: 'bg-amber-50 dark:bg-amber-950/30 text-amber-600',
+      title: 'Review Host Applications',
+      sub: `${stats?.pendingHosts ?? 0} waiting for approval`,
+    },
+    {
+      to: '/admin/staff',
+      icon: UserCog,
+      wrap: 'bg-blue-50 dark:bg-blue-950/30 text-blue-600',
+      title: 'Staff Roster',
+      sub: 'Manage ground staff and permissions',
+    },
+    {
+      to: '/admin/events',
+      icon: Sparkles,
+      wrap: 'bg-purple-50 dark:bg-purple-950/30 text-purple-600',
+      title: 'Events & Promotions',
+      sub: 'View events, ticket tiers & carousel',
+    },
+    {
+      to: '/admin/transactions',
+      icon: CreditCard,
+      wrap: 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600',
+      title: 'Transactions & Revenue',
+      sub: 'Order history, payouts & references',
+    },
+    {
+      to: '/admin/support',
+      icon: LifeBuoy,
+      wrap: 'bg-rose-50 dark:bg-rose-950/30 text-rose-600',
+      title: 'Customer Support',
+      sub: `${stats?.openSupportTickets ?? 0} open tickets`,
+    },
   ];
 
   return (
-    <div className="py-4 px-2 sm:py-2 sm:px-2 max-w-7xl mx-auto text-neutral-900 dark:text-neutral-100 pb-6">
+    <div className="py-3 px-2 sm:px-3 max-w-7xl mx-auto text-neutral-900 dark:text-neutral-100 pb-8">
       <PageHeader
         title="Admin"
         accent="Dashboard"
-        description={`Welcome, ${user?.firstName}. Review host applications, ops requests, and manage the platform.`}
+        description={`Welcome, ${user?.firstName}. Overview of platform activity, host approvals, and system controls.`}
       />
 
       {isLoading ? (
         <AdminDashboardSkeleton />
       ) : (
         <>
-          {pendingOps > 0 && (
-            <Link
-              to="/admin/ops?status=REQUESTED"
-              className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/80 dark:bg-amber-950/20 px-4 py-3 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="h-10 w-10 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0">
-                  <FolderKanban className="h-5 w-5 text-amber-600" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-amber-900 dark:text-amber-100">
-                    {pendingOps} ops request{pendingOps === 1 ? '' : 's'} waiting
-                  </p>
-                  <p className="text-xs text-amber-700/80 dark:text-amber-300/80">
-                    Organizers asked for PartyStorm gate coverage — review and assign staff.
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-amber-500 shrink-0" />
-            </Link>
-          )}
-
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-8">
+          {/* Compact Stat Cards Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3.5 mb-5">
             {statCards.map((stat) => {
               const Icon = stat.icon;
               return (
                 <div
                   key={stat.label}
-                  className="border border-neutral-150 dark:border-neutral-900 rounded-2xl p-3 sm:p-5 bg-white dark:bg-neutral-900 shadow-sm"
+                  className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 sm:p-4 bg-white dark:bg-neutral-900 shadow-sm transition-all hover:border-neutral-300 dark:hover:border-neutral-700"
                 >
-                  <div className="flex justify-between items-center text-neutral-400 dark:text-neutral-500 mb-1.5 sm:mb-2">
-                    <span className="text-[9px] sm:text-xs font-bold uppercase tracking-wider leading-tight">
+                  <div className="flex justify-between items-center text-neutral-400 dark:text-neutral-500 mb-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider truncate">
                       {stat.label}
                     </span>
-                    <Icon className={`h-4 w-4 ${stat.color}`} />
+                    <Icon className={`h-3.5 w-3.5 shrink-0 ${stat.color}`} />
                   </div>
-                  <p className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight">{stat.value}</p>
+                  <p className="text-lg sm:text-xl font-black tracking-tight">{stat.value}</p>
+                  <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5 truncate">
+                    {stat.sub}
+                  </p>
                 </div>
               );
             })}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="border border-neutral-150 dark:border-neutral-900 rounded-2xl bg-white dark:bg-neutral-900 shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 dark:border-neutral-800">
-                <h2 className="text-lg font-extrabold tracking-tight">Pending Host Applications</h2>
+          {/* Main 2-column layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
+            {/* Pending Host Applications */}
+            <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl bg-white dark:bg-neutral-900 shadow-sm overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 dark:border-neutral-800">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-amber-500" />
+                  <h2 className="text-sm font-extrabold tracking-tight">Pending Host Applications</h2>
+                  {pendingHosts.length > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/40 text-amber-600">
+                      {pendingHosts.length}
+                    </span>
+                  )}
+                </div>
                 <Link
                   to="/admin/organizations"
-                  className="text-xs font-bold text-rose-500 hover:underline flex items-center gap-1"
+                  className="text-xs font-bold text-rose-500 hover:text-rose-600 flex items-center gap-0.5 transition-colors"
                 >
-                  View all <ChevronRight className="h-3.5 w-3.5" />
+                  View all <ChevronRight className="h-3 w-3" />
                 </Link>
               </div>
-              <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+
+              <div className="divide-y divide-neutral-100 dark:divide-neutral-800 flex-1">
                 {pendingHosts.length === 0 ? (
-                  <p className="px-5 py-8 text-sm text-neutral-500 text-center">No pending applications</p>
+                  <div className="p-8 text-center">
+                    <p className="text-xs text-neutral-400">All host applications have been reviewed</p>
+                  </div>
                 ) : (
                   pendingHosts.slice(0, 5).map((org: any) => (
-                    <div key={org.id} className="px-5 py-4 flex items-center justify-between gap-3">
+                    <div
+                      key={org.id}
+                      className="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-neutral-50/50 dark:hover:bg-neutral-800/30 transition-colors"
+                    >
                       <div className="min-w-0">
-                        <p className="text-sm font-bold truncate">{org.name}</p>
-                        <p className="text-xs text-neutral-500 truncate">
+                        <p className="text-xs font-bold truncate text-neutral-800 dark:text-neutral-100">
+                          {org.name}
+                        </p>
+                        <p className="text-[11px] text-neutral-400 truncate">
                           {org.owner?.firstName} {org.owner?.lastName} · {org.owner?.email}
                         </p>
                       </div>
-                      <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-600">
-                        Pending
-                      </span>
+                      <Link
+                        to="/admin/organizations"
+                        className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/40 text-amber-600 transition-colors"
+                      >
+                        Review
+                      </Link>
                     </div>
                   ))
                 )}
               </div>
             </div>
 
-            <div className="border border-neutral-150 dark:border-neutral-900 rounded-2xl bg-white dark:bg-neutral-900 shadow-sm p-5">
-              <h2 className="text-lg font-extrabold tracking-tight mb-4">Quick Actions</h2>
-              <div className="space-y-3">
-                <Link
-                  to="/admin/ops?status=REQUESTED"
-                  className="flex items-center justify-between p-4 rounded-xl border border-neutral-100 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center">
-                      <FolderKanban className="h-5 w-5 text-amber-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold">Ops request inbox</p>
-                      <p className="text-xs text-neutral-500">{pendingOps} waiting for review</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-neutral-400" />
-                </Link>
-                <Link
-                  to="/admin/organizations"
-                  className="flex items-center justify-between p-4 rounded-xl border border-neutral-100 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center">
-                      <Building2 className="h-5 w-5 text-amber-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold">Review Host Applications</p>
-                      <p className="text-xs text-neutral-500">{stats?.pendingHosts ?? 0} waiting for approval</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-neutral-400" />
-                </Link>
-                <Link
-                  to="/admin/staff"
-                  className="flex items-center justify-between p-4 rounded-xl border border-neutral-100 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center">
-                      <Users className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold">Staff roster</p>
-                      <p className="text-xs text-neutral-500">Create or promote staff</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-neutral-400" />
-                </Link>
-                <Link
-                  to="/admin/support"
-                  className="flex items-center justify-between p-4 rounded-xl border border-neutral-100 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-rose-50 dark:bg-rose-950/30 flex items-center justify-center">
-                      <LifeBuoy className="h-5 w-5 text-rose-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold">Support</p>
-                      <p className="text-xs text-neutral-500">{stats?.openSupportTickets ?? 0} open requests</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-neutral-400" />
-                </Link>
-                <Link
-                  to="/admin/events"
-                  className="flex items-center justify-between p-4 rounded-xl border border-neutral-100 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center">
-                      <Sparkles className="h-5 w-5 text-amber-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold">Events & promotions</p>
-                      <p className="text-xs text-neutral-500">Promote carousel · transfer orgs</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-neutral-400" />
-                </Link>
+            {/* Quick Actions */}
+            <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl bg-white dark:bg-neutral-900 shadow-sm p-4">
+              <h2 className="text-sm font-extrabold tracking-tight mb-3">Quick Actions</h2>
+              <div className="space-y-2">
+                {quickActions.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl border border-neutral-100 dark:border-neutral-800/80 hover:bg-neutral-50 dark:hover:bg-neutral-800/40 hover:border-neutral-200 dark:hover:border-neutral-700 transition-all group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${item.wrap}`}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-neutral-900 dark:text-white group-hover:text-rose-500 transition-colors">
+                            {item.title}
+                          </p>
+                          <p className="text-[11px] text-neutral-400 truncate">{item.sub}</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-3.5 w-3.5 text-neutral-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           </div>

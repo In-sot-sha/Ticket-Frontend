@@ -58,7 +58,8 @@ export default defineConfig({
       },
 
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}'],
+        maximumFileSizeToCacheInBytes: 15 * 1024 * 1024, // 15MB: ensures main bundle and all assets are precached
         importScripts: ['/sw-update.js'],
         cleanupOutdatedCaches: true,
         runtimeCaching: [
@@ -101,6 +102,20 @@ export default defineConfig({
       },
     }),
   ],
+
+  build: {
+    chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-query': ['@tanstack/react-query'],
+          'vendor-framer': ['framer-motion'],
+          'vendor-icons': ['lucide-react'],
+        },
+      },
+    },
+  },
 
   server: {
     host:  true,   // 0.0.0.0 — LAN devices can reach the dev server

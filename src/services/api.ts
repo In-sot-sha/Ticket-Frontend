@@ -267,6 +267,12 @@ export const api = {
     getMyVendorApplications: () => apiRequest<any[]>('GET', '/user-roles/my-vendor-applications'),
 
     getBanks: () => apiRequest<{ banks: Array<{ name: string; code: string }> }>('GET', '/user-roles/banks'),
+
+    resolveBankAccount: (params: { accountNumber: string; bankCode?: string; bankName?: string }) =>
+      apiRequest<{ success: boolean; accountName: string; accountNumber: string }>(
+        'GET',
+        `/user-roles/resolve-bank-account?accountNumber=${encodeURIComponent(params.accountNumber)}${params.bankCode ? `&bankCode=${encodeURIComponent(params.bankCode)}` : ''}${params.bankName ? `&bankName=${encodeURIComponent(params.bankName)}` : ''}`
+      ),
   },
 
   // Event endpoints

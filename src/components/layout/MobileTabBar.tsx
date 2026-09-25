@@ -9,7 +9,7 @@ import {
   Home,
   HomeIcon,
   ScanLine,
-  FolderKanban,
+  Building2,
   LifeBuoy,
   LayoutDashboard,
 } from 'lucide-react';
@@ -62,7 +62,7 @@ const MobileTabBar: React.FC = () => {
   const staffTabs = [
     { label: 'Home', icon: LayoutDashboard, path: '/staff', exact: true },
     { label: 'Scan', icon: ScanLine, path: '/staff/scan', exact: false },
-    { label: 'Projects', icon: FolderKanban, path: '/staff/projects', exact: false },
+    { label: 'Orgs', icon: Building2, path: '/staff/orgs', exact: false },
     { label: 'Support', icon: LifeBuoy, path: '/staff/support', exact: false },
   ];
 

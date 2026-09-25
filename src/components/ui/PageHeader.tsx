@@ -18,25 +18,25 @@ export function PageHeader({ title, accent, description, actions, className }: P
   return (
     <div
       className={cn(
-        'mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-neutral-100 dark:border-neutral-900 pb-4',
+        'mb-3.5 sm:mb-4 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-neutral-200/80 dark:border-neutral-800/80 pb-2.5 sm:pb-3',
         className
       )}
     >
       <div className="min-w-0">
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-neutral-100">
+        <h1 className="text-lg sm:text-xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100 leading-snug">
           {typeof title === 'string' && accent ? (
             <>
-              {title} <span className="text-rose-500">{accent}</span>
+              {title} <span className="text-rose-500 font-extrabold">{accent}</span>
             </>
           ) : (
             title
           )}
         </h1>
         {description ? (
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1 max-w-2xl">{description}</p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 max-w-2xl leading-normal">{description}</p>
         ) : null}
       </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div> : null}
+      {actions ? <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">{actions}</div> : null}
     </div>
   );
 }

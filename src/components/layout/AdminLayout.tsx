@@ -17,7 +17,7 @@ const AdminLayout: React.FC = () => {
       </div>
 
       <div className="flex flex-1 min-h-0">
-        <div className="md:hidden absolute top-24 left-4 z-40">
+        <div className="md:hidden absolute top-16 left-3.5 z-40">
           <Button variant="outline" size="icon" onClick={toggleSidebar}>
             <Menu className="h-5 w-5" />
           </Button>

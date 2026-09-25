@@ -1,13 +1,13 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FolderKanban, Calendar, Users, LifeBuoy } from 'lucide-react';
+import { LayoutDashboard, UserCog, Calendar, Users, LifeBuoy } from 'lucide-react';
 
 const AdminMobileTabBar: React.FC = () => {
   const location = useLocation();
 
   const tabs = [
     { label: 'Overview', icon: LayoutDashboard, path: '/admin', exact: true },
-    { label: 'Ops', icon: FolderKanban, path: '/admin/ops', exact: true },
+    { label: 'Staff', icon: UserCog, path: '/admin/staff', exact: true },
     { label: 'Events', icon: Calendar, path: '/admin/events', exact: true },
     { label: 'Users', icon: Users, path: '/admin/users', exact: true },
     { label: 'Support', icon: LifeBuoy, path: '/admin/support', exact: true },

@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   ScanLine,
   Building2,
-  FolderKanban,
   LifeBuoy,
   X,
   Shield,
@@ -24,7 +23,6 @@ const NAV_ITEMS: NavItem[] = [
   { title: 'Staff home', icon: LayoutDashboard, href: '/staff', exact: true },
   { title: 'Gate scan', icon: ScanLine, href: '/staff/scan' },
   { title: 'Org coverage', icon: Building2, href: '/staff/orgs' },
-  { title: 'Ops projects', icon: FolderKanban, href: '/staff/projects' },
   { title: 'Support', icon: LifeBuoy, href: '/staff/support' },
 ];
 

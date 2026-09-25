@@ -5,10 +5,10 @@ import { Button } from '../ui/Button';
 import { ModeToggle } from './ModeToggle';
 import { useAuth } from '../../context/AuthContext';
 import { useRole } from '../../context/RoleContext';
-import { 
-  Menu, 
+import {
+  Menu,
   // Search, 
-  Ticket, 
+  Ticket,
   UserCircle,
   Settings,
   LogOut,
@@ -21,6 +21,7 @@ import {
   BarChart3,
   Shield,
   HardHat,
+  CreditCard,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -38,7 +39,7 @@ const Header = () => {
           setIsUserMenuOpen(false);
         }
       };
-      
+
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
@@ -107,13 +108,30 @@ const Header = () => {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-100 dark:border-gray-800 bg-white/90 dark:bg-gray-950/90 backdrop-blur-md transition-all duration-300 pt-safe">
-      <div className="container mx-auto px-4 md:px-8 h-20 relative flex items-center justify-between gap-4">
-        
+      <div
+        className={cn(
+          'container mx-auto relative flex items-center justify-between gap-4 transition-all duration-200',
+          isAdminContext || isStaffContext
+            ? 'px-3 sm:px-6 h-20'
+            : 'px-4 md:px-8 h-20'
+        )}
+      >
+
         {/* Logo */}
         <div className="flex items-center min-w-0 shrink-0">
           <Link to="/" className="flex items-center gap-1.5 group">
-            <Ticket className="h-8 w-8 text-rose-500 transform transition-transform group-hover:rotate-12 duration-200" />
-            <span className="text-rose-500 font-extrabold text-xl tracking-tight hidden sm:block">
+            <Ticket
+              className={cn(
+                'text-rose-500 transform transition-transform group-hover:rotate-12 duration-200',
+                isAdminContext || isStaffContext ? 'h-6 w-6' : 'h-8 w-8'
+              )}
+            />
+            <span
+              className={cn(
+                'text-rose-500 font-extrabold tracking-tight hidden sm:block',
+                isAdminContext || isStaffContext ? 'text-lg' : 'text-xl'
+              )}
+            >
               partystorm
             </span>
           </Link>
@@ -145,26 +163,9 @@ const Header = () => {
           </nav>
         )}
 
-        {/* Center Search Pill — commented out; Find events covers this */}
-        {/* {shouldShowSearch() && (
-          <div className="hidden xl:block animate-in fade-in zoom-in-95 duration-200 shrink-0">
-            <div 
-              onClick={() => navigate('/events')}
-              className="flex w-[280px] justify-between items-center border border-gray-200 dark:border-gray-800 rounded-full py-2 pr-2 shadow-sm hover:shadow-md transition-all cursor-pointer bg-white dark:bg-gray-900 duration-200"
-            >
-              <div className="text-xs text-neutral-500 dark:text-neutral-400 pl-4 pr-2 flex w-full items-center justify-between gap-3">
-               Browse events
-                <div className="bg-rose-500 p-2  rounded-full text-white hover:bg-rose-600 transition-colors">
-                  <Search className="h-3 w-3 stroke-[3]" />
-                </div>
-              </div>
-            </div>
-          </div>
-        )} */}
-
         {/* Right side controls */}
-        <div className="flex items-center gap-3 shrink-0">
-          
+        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+
           {/* Role switch — one button, same style throughout */}
           {isAuthenticated && (
             <button
@@ -175,30 +176,26 @@ const Header = () => {
                     ? handleSwitchToAdmin
                     : handleSwitchRole
               }
-              className="hidden xl:block text-xs font-semibold px-4 py-2.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 transition-colors"
+              className={cn(
+                'hidden xl:block text-xs font-semibold rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 transition-colors',
+                isAdminContext || isStaffContext ? 'px-3 py-2.5' : 'px-4 py-2.5'
+              )}
             >
               {roleSwitchLabel()}
             </button>
           )}
 
-          {/* Create event shortcut for organizers */}
-          {/* isAuthenticated && (user?.role === 'ORGANIZER' || location.pathname.startsWith('/organizer')) && (
-            <Link to="/organizer/events/create" className="hidden sm:block">
-              <button className="flex items-center gap-1 text-xs font-semibold px-4 py-2.5 rounded-full border border-gray-200 dark:border-gray-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
-                <Plus className="h-3.5 w-3.5" />
-                Host Event
-              </button>
-            </Link>
-          ) */}
-
           {/* Theme Mode Toggle */}
           <ModeToggle />
-          
+
           {/* User profile dropdown button container */}
           <div className="relative user-menu-container">
             <button
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-              className="flex items-center gap-3 border border-gray-200 dark:border-gray-800 rounded-full p-2.5 hover:shadow-md transition-shadow bg-white dark:bg-gray-900"
+              className={cn(
+                'flex items-center border border-gray-200 dark:border-gray-800 rounded-full hover:shadow-md transition-shadow bg-white dark:bg-gray-900',
+                isAdminContext || isStaffContext ? 'p-1.5 px-2.5 gap-2' : 'p-2.5 gap-3'
+              )}
               aria-expanded={isUserMenuOpen}
             >
               <Menu className="h-4 w-4 text-gray-500" />
@@ -230,15 +227,15 @@ const Header = () => {
                         {user?.firstName} {user?.lastName}
                       </p>
                     </div>
-                    
+
                     <div className="py-1">
                       {isAdminContext ? (
                         <>
                           <Link to="/admin" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
                             <LayoutDashboard className="h-4 w-4 mr-3 text-gray-400" />Overview
                           </Link>
-                          <Link to="/admin/ops" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
-                            <Building className="h-4 w-4 mr-3 text-gray-400" />Ops projects
+                          <Link to="/admin/transactions" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <CreditCard className="h-4 w-4 mr-3 text-gray-400" />Transactions
                           </Link>
                           <Link to="/admin/staff" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
                             <HardHat className="h-4 w-4 mr-3 text-gray-400" />Staff
@@ -333,11 +330,11 @@ const Header = () => {
                           <User className="h-4 w-4 mr-3 text-rose-500" />Switch to Guest Mode
                         </button>
                       )}
-                   
+
                     </div>
 
                     <div className="border-t border-gray-100 dark:border-gray-850 my-1" />
-                    
+
                     <div className="py-1">
                       <button
                         onClick={() => { logout(); setIsUserMenuOpen(false); }}
@@ -351,34 +348,34 @@ const Header = () => {
                 ) : (
                   <>
                     <div className="py-1.5">
-                      <Link 
-                        to="/register" 
+                      <Link
+                        to="/register"
                         className="w-full text-left px-4 py-3 text-xs font-bold text-neutral-900 dark:text-white flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                         onClick={() => setIsUserMenuOpen(false)}
                       >
                         Sign up
                       </Link>
-                      <Link 
-                        to="/login" 
+                      <Link
+                        to="/login"
                         className="w-full text-left px-4 py-3 text-xs font-medium text-neutral-600 dark:text-neutral-300 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                         onClick={() => setIsUserMenuOpen(false)}
                       >
                         Log in
                       </Link>
                     </div>
-                    
+
                     <div className="border-t border-gray-100 dark:border-gray-850 my-1"></div>
-                    
+
                     <div className="py-1">
-                      <Link 
-                        to="/become-organizer" 
+                      <Link
+                        to="/become-organizer"
                         className="w-full text-left px-4 py-3 text-xs font-medium text-neutral-600 dark:text-neutral-300 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                         onClick={() => setIsUserMenuOpen(false)}
                       >
                         Host your event
                       </Link>
-                      <Link 
-                        to="/help" 
+                      <Link
+                        to="/help"
                         className="w-full text-left px-4 py-3 text-xs font-medium text-neutral-600 dark:text-neutral-300 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                         onClick={() => setIsUserMenuOpen(false)}
                       >

@@ -16,9 +16,9 @@ const StaffLayout: React.FC = () => {
       </div>
 
       <div className="flex flex-1 min-h-0">
-        <div className="md:hidden absolute top-24 left-4 z-40">
-          <Button variant="outline" size="icon" onClick={() => setSidebarOpen((o) => !o)}>
-            <Menu className="h-5 w-5" />
+        <div className="md:hidden absolute top-12 left-3 z-40">
+          <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg bg-white/90 dark:bg-neutral-900/90 shadow-2xs" onClick={() => setSidebarOpen((o) => !o)}>
+            <Menu className="h-3.5 w-3.5" />
           </Button>
         </div>
 

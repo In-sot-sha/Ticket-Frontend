@@ -10,7 +10,6 @@ import {
   LifeBuoy,
   Phone,
   Ticket,
-  FolderKanban,
   Calendar,
   UserCog,
 } from 'lucide-react';
@@ -24,12 +23,11 @@ interface NavItem {
   icon: React.ElementType;
   href: string;
   exact: boolean;
-  badgeKey?: 'pendingOpsRequests' | 'openSupportTickets' | 'pendingHosts';
+  badgeKey?: 'openSupportTickets' | 'pendingHosts';
 }
 
 const NAV_ITEMS: NavItem[] = [
   { title: 'Overview', icon: LayoutDashboard, href: '/admin', exact: true },
-  { title: 'Ops projects', icon: FolderKanban, href: '/admin/ops', exact: true, badgeKey: 'pendingOpsRequests' },
   { title: 'Staff', icon: UserCog, href: '/admin/staff', exact: true },
   { title: 'Events', icon: Calendar, href: '/admin/events', exact: true },
   { title: 'Tickets', icon: Ticket, href: '/admin/tickets', exact: true },
@@ -80,7 +78,7 @@ const AdminSidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = (
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        <div className="flex items-center justify-between px-5 py-5 border-b border-gray-100 dark:border-gray-700/80">
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-gray-100 dark:border-gray-700/80">
           <Link to="/admin" className="flex items-center gap-2.5 group">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-500 group-hover:bg-rose-100 dark:group-hover:bg-rose-950/50 transition-colors">
               <Shield className="h-5 w-5" />
@@ -108,11 +106,7 @@ const AdminSidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = (
               return (
                 <li key={item.href}>
                   <Link
-                    to={
-                      item.href === '/admin/ops' && badgeFor(item) > 0
-                        ? '/admin/ops?status=REQUESTED'
-                        : item.href
-                    }
+                    to={item.href}
                     onClick={() => window.innerWidth < 768 && toggleSidebar()}
                     className={cn(
                       'group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',

@@ -366,7 +366,7 @@ const AppRoutes: React.FC = () => {
         },
         {
           path: "projects",
-          element: <StaffProjectsPage />,
+          element: <Navigate to="/staff" replace />,
         },
         {
           path: "events/:id/walk-in",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Building2,
   Globe,
@@ -13,6 +13,13 @@ import {
   XCircle,
   MessageSquare,
   Percent,
+  Search,
+  Copy,
+  ArrowLeft,
+  Share2,
+  ShieldCheck,
+  AlertCircle,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -28,13 +35,6 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../../components/ui/select';
-import {
   useHostApplications,
   useVerifyHost,
   useRejectHost,
@@ -44,7 +44,7 @@ import { cn } from '../../lib/utils';
 
 type FilterStatus = 'all' | 'pending' | 'rejected' | 'verified';
 
-function getApplicationStatus(org: { isVerified: boolean; rejectedAt?: string | null }) {
+function getApplicationStatus(org: { isVerified: boolean; rejectedAt?: string | null }): 'verified' | 'pending' | 'rejected' {
   if (org.isVerified) return 'verified';
   if (org.rejectedAt) return 'rejected';
   return 'pending';
@@ -53,61 +53,30 @@ function getApplicationStatus(org: { isVerified: boolean; rejectedAt?: string | 
 const STATUS_CONFIG = {
   verified: {
     label: 'Verified',
-    className: 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 border border-emerald-250',
+    badge: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60',
+    dot: 'bg-emerald-500',
     icon: CheckCircle,
-    iconClass: 'text-emerald-500',
   },
   pending: {
     label: 'Pending Review',
-    className: 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 border border-amber-250',
+    badge: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60',
+    dot: 'bg-amber-500',
     icon: Clock,
-    iconClass: 'text-amber-500',
   },
   rejected: {
     label: 'Rejected',
-    className: 'bg-red-50 dark:bg-red-950/30 text-red-600 border border-red-250',
+    badge: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800/60',
+    dot: 'bg-red-500',
     icon: XCircle,
-    iconClass: 'text-red-500',
   },
 };
 
-const MaskedField: React.FC<{ value: string; label: string; icon: React.ElementType }> = ({ value, label, icon: Icon }) => {
-  const [hovered, setHovered] = useState(false);
-
-  const getMaskedValue = (val: string) => {
-    if (!val) return '—';
-    if (val.includes('@')) {
-      const [local, domain] = val.split('@');
-      if (local.length <= 2) return `${local[0]}*@${domain}`;
-      return `${local.substring(0, 2)}***${local.substring(local.length - 1)}@${domain}`;
-    }
-    if (val.length <= 4) return '****';
-    return `${val.substring(0, 3)}******${val.substring(val.length - 3)}`;
-  };
-
-  return (
-    <div 
-      className="flex items-start gap-3 cursor-help group select-none"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      title="Hover to reveal contact detail"
-    >
-      <div className="h-8 w-8 rounded-lg bg-neutral-50 dark:bg-neutral-800 flex items-center justify-center shrink-0 transition-colors group-hover:bg-rose-50 dark:group-hover:bg-rose-950/20">
-        <Icon className="h-4 w-4 text-neutral-400 group-hover:text-rose-500 transition-colors" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{label}</p>
-        <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 truncate">
-          {hovered ? value : getMaskedValue(value)}
-        </p>
-      </div>
-    </div>
-  );
-};
-
-const OrganizationsPage = () => {
+const OrganizationsPage: React.FC = () => {
   const [filter, setFilter] = useState<FilterStatus>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [showListOnMobile, setShowListOnMobile] = useState(true);
+
   const [rejectDialog, setRejectDialog] = useState<{ open: boolean; id: number | null }>({
     open: false,
     id: null,
@@ -117,45 +86,83 @@ const OrganizationsPage = () => {
     open: false,
     id: null,
   });
-  
-  // Fee absorb toggle (platform rate is fixed: 6% · ₦100–₦2,000)
+
+  // Fee absorb toggle
   const [editingFee, setEditingFee] = useState(false);
   const [absorbFee, setAbsorbFee] = useState<boolean>(false);
 
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
+  const [copiedItem, setCopiedItem] = useState<string | null>(null);
 
+  // Queries
+  const { data: allApplications = [] } = useHostApplications('all');
   const { data: applications = [], isLoading, isFetching, refetch } = useHostApplications(filter);
   const verifyMutation = useVerifyHost();
   const rejectMutation = useRejectHost();
   const updateFeeMutation = useUpdateOrganizationFee();
 
-  const selected =
-    selectedId != null
-      ? applications.find((a: { id: number }) => a.id === selectedId) ?? null
-      : null;
+  // Summary counts
+  const counts = useMemo(() => {
+    let pending = 0;
+    let verified = 0;
+    let rejected = 0;
+    allApplications.forEach((org: any) => {
+      const s = getApplicationStatus(org);
+      if (s === 'pending') pending++;
+      else if (s === 'verified') verified++;
+      else if (s === 'rejected') rejected++;
+    });
+    return { all: allApplications.length, pending, verified, rejected };
+  }, [allApplications]);
+
+  // Filter & Search
+  const filteredList = useMemo(() => {
+    let list = applications;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter((org: any) => {
+        const name = (org.name || '').toLowerCase();
+        const owner = `${org.owner?.firstName || ''} ${org.owner?.lastName || ''}`.toLowerCase();
+        const email = (org.owner?.email || '').toLowerCase();
+        const website = (org.website || '').toLowerCase();
+        const id = `#${org.id}`;
+        return name.includes(q) || owner.includes(q) || email.includes(q) || website.includes(q) || id.includes(q);
+      });
+    }
+    return list;
+  }, [applications, searchQuery]);
+
+  const selected = useMemo(() => {
+    if (selectedId == null) return null;
+    return applications.find((a: any) => a.id === selectedId) ?? null;
+  }, [selectedId, applications]);
 
   const selectedStatus = selected ? getApplicationStatus(selected) : null;
 
   useEffect(() => {
-    if (applications.length === 0) {
-      setSelectedId(null);
+    if (filteredList.length === 0) {
+      if (!searchQuery) setSelectedId(null);
       return;
     }
-    const stillInList =
-      selectedId != null && applications.some((a: { id: number }) => a.id === selectedId);
+    const stillInList = selectedId != null && filteredList.some((a: any) => a.id === selectedId);
     if (!stillInList) {
-      setSelectedId(applications[0].id);
+      setSelectedId(filteredList[0].id);
     }
-  }, [applications]);
+  }, [filteredList, selectedId, searchQuery]);
 
-  // Sync fee inputs when organization selection changes
   useEffect(() => {
     if (selected) {
       setAbsorbFee(selected.absorbFee ?? false);
       setEditingFee(false);
     }
   }, [selectedId, selected]);
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedItem(label);
+    setTimeout(() => setCopiedItem(null), 2000);
+  };
 
   const refreshList = useCallback(async () => {
     const { data } = await refetch();
@@ -168,18 +175,17 @@ const OrganizationsPage = () => {
     setActionError('');
     setActionSuccess('');
     setApproveDialog({ open: false, id: null });
-    setSelectedId(null);
 
     try {
       await verifyMutation.mutateAsync(processedId);
       const fresh = await refreshList();
       if (filter === 'pending') {
-        const next = fresh.find((a: { id: number }) => a.id !== processedId);
+        const next = fresh.find((a: any) => a.id !== processedId);
         setSelectedId(next?.id ?? fresh[0]?.id ?? null);
       } else {
-        setSelectedId(fresh.find((a: { id: number }) => a.id === processedId)?.id ?? fresh[0]?.id ?? null);
+        setSelectedId(fresh.find((a: any) => a.id === processedId)?.id ?? fresh[0]?.id ?? null);
       }
-      setActionSuccess('Host application approved successfully.');
+      setActionSuccess('Host application verified and approved successfully.');
     } catch (err: any) {
       setActionError(err.response?.data?.message || 'Failed to approve application.');
       await refreshList();
@@ -194,13 +200,12 @@ const OrganizationsPage = () => {
     setActionSuccess('');
     setRejectDialog({ open: false, id: null });
     setRejectReason('');
-    setSelectedId(null);
 
     try {
       await rejectMutation.mutateAsync({ id: processedId, reason });
       const fresh = await refreshList();
       setSelectedId(fresh[0]?.id ?? null);
-      setActionSuccess('Application rejected. The applicant has been notified.');
+      setActionSuccess('Application rejected. Feedback sent to applicant.');
     } catch (err: any) {
       setActionError(err.response?.data?.message || 'Failed to reject application.');
       await refreshList();
@@ -218,335 +223,647 @@ const OrganizationsPage = () => {
       });
       await refreshList();
       setEditingFee(false);
-      setActionSuccess('Organization fee settings updated successfully.');
+      setActionSuccess('Organization checkout fee settings updated successfully.');
     } catch (err: any) {
       setActionError(err.response?.data?.message || 'Failed to update fee settings.');
     }
   };
 
-  const filters: { key: FilterStatus; label: string }[] = [
-    { key: 'all', label: 'All Hosts' },
-    { key: 'pending', label: 'Pending Review' },
-    { key: 'verified', label: 'Verified / Active' },
-    { key: 'rejected', label: 'Rejected' },
-  ];
-
   const isBusy = verifyMutation.isPending || rejectMutation.isPending || updateFeeMutation.isPending;
 
+  const filtersList: { key: FilterStatus; label: string; count: number; color: string }[] = [
+    { key: 'all', label: 'All Organizers', count: counts.all, color: 'text-neutral-500' },
+    { key: 'pending', label: 'Pending Review', count: counts.pending, color: 'text-amber-500' },
+    { key: 'verified', label: 'Verified Active', count: counts.verified, color: 'text-emerald-500' },
+    { key: 'rejected', label: 'Rejected', count: counts.rejected, color: 'text-red-500' },
+  ];
+
   return (
-    <div className="py-4 px-2 sm:px-2 max-w-7xl mx-auto text-neutral-900 dark:text-neutral-100 pb-6">
+    <div className="mx-auto max-w-7xl pb-12 pt-2 text-neutral-900 dark:text-neutral-100 md:pt-4">
+      {/* Page Header */}
       <PageHeader
-        title="Organization"
-        accent="Management"
-        description="Verify host organizations, manage fee absorb settings, and audit details."
+        title="Host"
+        accent="Organizers"
+        description="Verify host applications, review business credentials, and configure fee absorb settings."
         actions={
-          <Select
-            value={filter}
-            onValueChange={(v) => {
-              setFilter(v as FilterStatus);
-              setSelectedId(null);
-              setActionError('');
-              setActionSuccess('');
-            }}
-          >
-            <SelectTrigger className="w-[180px] h-10 rounded-xl">
-              <SelectValue placeholder="Filter" />
-            </SelectTrigger>
-            <SelectContent>
-              {filters.map((f) => (
-                <SelectItem key={f.key} value={f.key}>
-                  {f.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          counts.pending > 0 ? (
+            <span className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+              <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+              {counts.pending} pending review
+            </span>
+          ) : null
         }
       />
 
+      {/* Compact Status KPI Filter Bar */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {filtersList.map((item) => {
+          const isActive = filter === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => {
+                setFilter(item.key);
+                setSelectedId(null);
+                setShowListOnMobile(true);
+                setActionError('');
+                setActionSuccess('');
+              }}
+              className={cn(
+                'flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer shadow-2xs',
+                isActive
+                  ? 'border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900'
+                  : 'border-neutral-200/80 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800'
+              )}
+            >
+              <span className={cn('h-2 w-2 rounded-full', item.color.replace('text-', 'bg-'))} />
+              <span>{item.label}</span>
+              <span
+                className={cn(
+                  'rounded-full px-1.5 py-0.2 text-[10px] font-bold',
+                  isActive
+                    ? 'bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900'
+                    : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
+                )}
+              >
+                {item.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Action Messages */}
       {actionError && (
-        <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/30 text-red-600 text-sm font-medium">
-          {actionError}
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{actionError}</span>
+          </div>
+          <button type="button" onClick={() => setActionError('')} className="text-xs opacity-70 hover:opacity-100 font-bold">
+            Dismiss
+          </button>
         </div>
       )}
       {actionSuccess && (
-        <div className="mb-4 px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 text-sm font-medium">
-          {actionSuccess}
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 shrink-0" />
+            <span>{actionSuccess}</span>
+          </div>
+          <button type="button" onClick={() => setActionSuccess('')} className="text-xs opacity-70 hover:opacity-100 font-bold">
+            Dismiss
+          </button>
         </div>
       )}
 
-      {isLoading || (isFetching && applications.length === 0) ? (
-        <OrganizationsBodySkeleton />
-      ) : applications.length === 0 ? (
-        <div className="text-center py-16 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl bg-neutral-50/20 dark:bg-neutral-900/5">
-          <Building2 className="h-12 w-12 text-neutral-300 mx-auto mb-3" />
-          <p className="text-sm font-semibold text-neutral-500">No organizations match this category</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6">
-          {/* Organization list */}
-          <div className="lg:col-span-2 space-y-2 max-h-[60vh] lg:max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
-            {isFetching && (
-              <p className="text-[10px] text-neutral-400 font-medium px-1 animate-pulse">Refreshing…</p>
+      {/* Main Split-Pane Container */}
+      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xs dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] min-h-[640px]">
+          {/* LEFT COLUMN: Organization List */}
+          <div
+            className={cn(
+              'flex flex-col border-r border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50',
+              !showListOnMobile && 'hidden lg:flex'
             )}
-            {applications.map((org: any) => {
-              const status = getApplicationStatus(org);
-              const cfg = STATUS_CONFIG[status];
-              const StatusIcon = cfg.icon;
-              return (
-                <button
-                  key={org.id}
-                  onClick={() => setSelectedId(org.id)}
-                  className={cn(
-                    'w-full text-left p-4 rounded-xl border transition-all cursor-pointer',
-                    selected?.id === org.id
-                      ? 'border-rose-300 dark:border-rose-700 bg-rose-50/50 dark:bg-rose-950/10 shadow-sm'
-                      : 'border-neutral-150 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-250 dark:hover:border-neutral-700'
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-3 min-w-0">
-                      {org.logo ? (
-                        <img src={org.logo} alt="" className="h-10 w-10 rounded-lg object-cover border border-neutral-100 shrink-0" />
-                      ) : (
-                        <div className="h-10 w-10 rounded-lg bg-neutral-105 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-                          <Building2 className="h-4 w-4 text-neutral-400" />
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold truncate text-neutral-900 dark:text-white leading-snug">{org.name}</p>
-                        <p className="text-xs text-neutral-500 mt-0.5 truncate font-medium">
-                          {org.owner?.firstName} {org.owner?.lastName}
-                        </p>
+          >
+            {/* Search Input Box */}
+            <div className="p-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
+                <input
+                  type="text"
+                  placeholder="Search organizer, owner, email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full rounded-lg border border-neutral-200 bg-neutral-50 py-1.5 pl-8 pr-3 text-xs text-neutral-900 placeholder-neutral-400 focus:border-rose-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-rose-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white dark:focus:bg-neutral-900"
+                />
+              </div>
+            </div>
+
+            {/* Organizations List */}
+            <div className="flex-1 overflow-y-auto max-h-[680px] divide-y divide-neutral-100 dark:divide-neutral-800/60">
+              {isLoading || (isFetching && applications.length === 0) ? (
+                <div className="space-y-3 p-4">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="flex gap-3">
+                      <Skeleton className="h-10 w-10 rounded-xl shrink-0" />
+                      <div className="flex-1 space-y-1.5">
+                        <Skeleton className="h-4 w-3/4 rounded" />
+                        <Skeleton className="h-3 w-1/2 rounded" />
                       </div>
                     </div>
-                    <span className="flex items-center gap-1 mt-0.5 shrink-0 text-[10px] font-bold text-neutral-450 uppercase">
-                      {org.absorbFee ? 'Absorbs fee' : 'Buyer pays fee'}
-                    </span>
+                  ))}
+                </div>
+              ) : filteredList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center p-8 text-center text-neutral-500 dark:text-neutral-400">
+                  <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800">
+                    <Building2 className="h-5 w-5 text-neutral-400" />
                   </div>
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-850 text-[10px] text-neutral-400">
-                    <span>Applied {new Date(org.createdAt).toLocaleDateString('en-NG')}</span>
-                    <span className={cn('px-2 py-0.5 rounded-full font-bold', cfg.className)}>
-                      {cfg.label}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
+                  <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    {searchQuery ? 'No organizers match your search' : 'No organizers in this category'}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-neutral-400">
+                    {searchQuery ? 'Try adjusting your search terms' : 'New applications will appear here automatically'}
+                  </p>
+                </div>
+              ) : (
+                filteredList.map((org: any) => {
+                  const active = selectedId === org.id;
+                  const status = getApplicationStatus(org);
+                  const cfg = STATUS_CONFIG[status];
+                  const ownerName = `${org.owner?.firstName || ''} ${org.owner?.lastName || ''}`.trim() || 'Owner';
+
+                  return (
+                    <button
+                      key={org.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedId(org.id);
+                        setShowListOnMobile(false);
+                      }}
+                      className={cn(
+                        'w-full p-3.5 text-left transition-all relative flex flex-col gap-1.5 cursor-pointer',
+                        active
+                          ? 'bg-rose-50/70 border-l-4 border-l-rose-500 dark:bg-rose-950/20'
+                          : 'border-l-4 border-l-transparent hover:bg-neutral-100/70 dark:hover:bg-neutral-800/40'
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        {org.logo ? (
+                          <img
+                            src={org.logo}
+                            alt=""
+                            className="h-10 w-10 rounded-xl object-cover border border-neutral-200/80 dark:border-neutral-700 shrink-0"
+                          />
+                        ) : (
+                          <div className="h-10 w-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0 text-neutral-500 font-bold text-sm">
+                            {org.name?.charAt(0)?.toUpperCase() || 'O'}
+                          </div>
+                        )}
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <p className="truncate text-xs font-bold text-neutral-900 dark:text-white">
+                              {org.name}
+                            </p>
+                            <span
+                              className={cn(
+                                'inline-flex items-center gap-1 rounded-full border px-1.5 py-0.2 text-[9px] font-semibold shrink-0',
+                                cfg.badge
+                              )}
+                            >
+                              <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dot)} />
+                              {cfg.label}
+                            </span>
+                          </div>
+                          <p className="truncate text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                            {ownerName} · {org.owner?.email}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] text-neutral-400 mt-1 pt-1.5 border-t border-neutral-100 dark:border-neutral-800/60">
+                        <span>Applied {new Date(org.createdAt).toLocaleDateString()}</span>
+                        <span className="font-semibold text-neutral-500 dark:text-neutral-400">
+                          {org.absorbFee ? 'Absorbs Fee' : 'Buyer Pays Fee'}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
           </div>
 
-          {/* Details Panel */}
-          {selected ? (
-            <div
-              key={`${selected.id}-${selected.isVerified}-${selected.rejectedAt}`}
-              className="lg:col-span-3 border border-neutral-200 dark:border-neutral-800 rounded-2xl bg-white dark:bg-neutral-900 shadow-sm overflow-hidden"
-            >
-              <div className="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between gap-3 bg-neutral-50/50 dark:bg-neutral-950/20">
-                <div className="flex items-center gap-3">
-                  {selected.logo ? (
-                    <img src={selected.logo} alt="" className="h-12 w-12 rounded-xl object-cover border border-neutral-100" />
-                  ) : (
-                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center">
-                      <Building2 className="h-5 w-5 text-white" />
-                    </div>
-                  )}
-                  <div>
-                    <h2 className="text-base font-extrabold text-neutral-950 dark:text-white leading-tight">{selected.name}</h2>
-                    {selectedStatus && (
-                      <span className={cn('inline-block mt-1 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full', STATUS_CONFIG[selectedStatus].className)}>
-                        {STATUS_CONFIG[selectedStatus].label}
-                      </span>
-                    )}
+          {/* RIGHT COLUMN: Detail Inspector & Actions */}
+          <div
+            className={cn(
+              'flex flex-col bg-white dark:bg-neutral-900 min-h-[640px]',
+              showListOnMobile && 'hidden lg:flex'
+            )}
+          >
+            {/* Mobile Back Button */}
+            <div className="border-b border-neutral-200 p-3 lg:hidden dark:border-neutral-800">
+              <button
+                type="button"
+                onClick={() => setShowListOnMobile(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-700 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to organizer list
+              </button>
+            </div>
+
+            {!selected ? (
+              <div className="flex flex-1 flex-col items-center justify-center p-12 text-center">
+                <div className="max-w-xs space-y-2">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-neutral-100 text-neutral-400 dark:bg-neutral-800">
+                    <Building2 className="h-6 w-6" />
                   </div>
+                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                    No organizer selected
+                  </h3>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Select a host organizer from the left list to review credentials, set fees, and approve or reject.
+                  </p>
                 </div>
               </div>
-
-              <div className="p-5 space-y-5">
-                {selectedStatus === 'rejected' && selected.rejectionReason && (
-                  <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <MessageSquare className="h-4 w-4 text-red-500" />
-                      <p className="text-xs font-bold uppercase tracking-wider text-red-600">Rejection reason</p>
-                    </div>
-                    <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed whitespace-pre-wrap">
-                      {selected.rejectionReason}
-                    </p>
-                  </div>
-                )}
-
-                {/* FEE SETTINGS FOR VERIFIED ORGANIZATIONS */}
-                {selectedStatus === 'verified' && (
-                  <div className="border border-neutral-200 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/10 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center gap-2 border-b border-neutral-150 dark:border-neutral-805 pb-2">
-                      <Percent className="h-4 w-4 text-rose-500" />
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
-                        Checkout fees
-                      </h4>
-                    </div>
-
-                    {editingFee ? (
-                      <div className="space-y-4 pt-1">
-                        <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                          Platform fee is fixed at <strong>6%</strong> (min ₦100 / max ₦2,000 per ticket or booth),
-                          plus payment processing. Buyers pay a bundled Fee unless the host absorbs fees.
-                        </p>
-
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            id="absorbFeeInput"
-                            checked={absorbFee}
-                            onChange={(e) => setAbsorbFee(e.target.checked)}
-                            className="rounded text-rose-500 focus:ring-rose-500 h-4 w-4"
+            ) : (
+              <div className="flex flex-1 flex-col justify-between">
+                <div>
+                  {/* Hero Header */}
+                  <div className="border-b border-neutral-200 p-4 sm:p-5 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/30">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        {selected.logo ? (
+                          <img
+                            src={selected.logo}
+                            alt=""
+                            className="h-14 w-14 rounded-2xl object-cover border border-neutral-200 dark:border-neutral-700 shadow-2xs shrink-0"
                           />
-                          <label htmlFor="absorbFeeInput" className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 cursor-pointer">
-                            Absorb fees (buyers pay ticket/booth price only)
-                          </label>
-                        </div>
-
-                        <div className="flex items-center gap-2 pt-1">
-                          <button
-                            onClick={handleSaveFeeSettings}
-                            disabled={isBusy}
-                            className="px-3 py-1.5 text-xs font-bold bg-rose-500 text-white rounded-lg hover:bg-rose-600 cursor-pointer disabled:opacity-40"
-                          >
-                            Save
-                          </button>
-                          <button
-                            onClick={() => {
-                              setAbsorbFee(selected.absorbFee ?? false);
-                              setEditingFee(false);
-                            }}
-                            className="px-3 py-1.5 text-xs font-bold border border-neutral-200 dark:border-neutral-700 rounded-lg text-neutral-600 hover:bg-neutral-100 cursor-pointer"
-                          >
-                            Cancel
-                          </button>
+                        ) : (
+                          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 text-white font-extrabold text-xl shadow-2xs shrink-0">
+                            {selected.name?.charAt(0)?.toUpperCase() || 'O'}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h2 className="text-base sm:text-lg font-bold tracking-tight text-neutral-900 dark:text-white truncate">
+                              {selected.name}
+                            </h2>
+                            {selectedStatus && (
+                              <span
+                                className={cn(
+                                  'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold',
+                                  STATUS_CONFIG[selectedStatus].badge
+                                )}
+                              >
+                                <span className={cn('h-1.5 w-1.5 rounded-full', STATUS_CONFIG[selectedStatus].dot)} />
+                                {STATUS_CONFIG[selectedStatus].label}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                            ID: #{selected.id} · Applied {new Date(selected.createdAt).toLocaleDateString()}
+                          </p>
                         </div>
                       </div>
-                    ) : (
-                      <div className="flex items-center justify-between pt-1">
+
+                      {/* Header Quick Actions for Pending */}
+                      {selectedStatus === 'pending' && (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            type="button"
+                            onClick={() => setApproveDialog({ open: true, id: selected.id })}
+                            disabled={isBusy}
+                            className="h-8.5 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 shadow-xs"
+                          >
+                            <Check className="mr-1.5 h-3.5 w-3.5" />
+                            Approve
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            onClick={() => {
+                              setRejectReason('');
+                              setRejectDialog({ open: true, id: selected.id });
+                            }}
+                            disabled={isBusy}
+                            className="h-8.5 rounded-lg px-3 text-xs font-semibold shadow-xs"
+                          >
+                            <X className="mr-1.5 h-3.5 w-3.5" />
+                            Reject
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Body Content */}
+                  <div className="p-4 sm:p-6 space-y-5">
+                    {/* Rejection notice if rejected */}
+                    {selectedStatus === 'rejected' && selected.rejectionReason && (
+                      <div className="rounded-xl border border-red-200/80 bg-red-50/60 p-4 dark:border-red-900/40 dark:bg-red-950/20">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <MessageSquare className="h-4 w-4 text-red-500" />
+                          <span className="text-xs font-bold uppercase tracking-wider text-red-700 dark:text-red-400">
+                            Rejection Feedback
+                          </span>
+                        </div>
+                        <p className="text-xs sm:text-sm text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap leading-relaxed">
+                          {selected.rejectionReason}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Pending alert banner */}
+                    {selectedStatus === 'pending' && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5 dark:border-amber-900/40 dark:bg-amber-950/20 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2.5">
+                        <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                         <div>
-                          <p className="text-sm font-bold text-neutral-900 dark:text-white">
-                            6% · min ₦100 · max ₦2,000
-                          </p>
-                          <p className="text-[11px] text-neutral-500">
-                            {selected.absorbFee
-                              ? 'Absorbed by organizer — buyers pay face price only'
-                              : 'Buyer pays Fee at checkout (platform + processing)'}
+                          <p className="font-semibold">Awaiting Verification Review</p>
+                          <p className="text-amber-700/90 dark:text-amber-300/80 mt-0.5">
+                            Verify the business credentials, contact identity, and social links before approving access to create live public events.
                           </p>
                         </div>
-                        <button
-                          onClick={() => setEditingFee(true)}
-                          className="px-3 py-1.5 text-xs font-bold border border-neutral-250 dark:border-neutral-700 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 cursor-pointer"
-                        >
-                          Edit absorb
-                        </button>
+                      </div>
+                    )}
+
+                    {/* Fee Absorb Settings Card */}
+                    <div className="rounded-xl border border-neutral-200/90 bg-neutral-50/40 p-4 dark:border-neutral-800 dark:bg-neutral-850/40 space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-neutral-200/70 dark:border-neutral-800">
+                        <div className="flex items-center gap-2">
+                          <Percent className="h-4 w-4 text-rose-500" />
+                          <span className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+                            Ticket Checkout Fees
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-medium text-neutral-500">
+                          Fixed: 6% · ₦100–₦2,000
+                        </span>
+                      </div>
+
+                      {editingFee ? (
+                        <div className="space-y-3 pt-1">
+                          <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                            Choose who absorbs the platform & processing fee at checkout for this organizer's ticket sales:
+                          </p>
+                          <label className="flex items-center gap-2.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={absorbFee}
+                              onChange={(e) => setAbsorbFee(e.target.checked)}
+                              className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-500"
+                            />
+                            <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                              Organizer absorbs fee (attendees pay face ticket price only)
+                            </span>
+                          </label>
+
+                          <div className="flex items-center gap-2 pt-1">
+                            <Button
+                              type="button"
+                              onClick={handleSaveFeeSettings}
+                              disabled={isBusy}
+                              className="h-8 rounded-lg bg-rose-500 px-3 text-xs font-semibold text-white hover:bg-rose-600 shadow-xs"
+                            >
+                              Save Settings
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                setAbsorbFee(selected.absorbFee ?? false);
+                                setEditingFee(false);
+                              }}
+                              className="h-8 rounded-lg px-3 text-xs font-semibold"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between pt-0.5">
+                          <div>
+                            <p className="text-xs font-bold text-neutral-900 dark:text-white">
+                              {selected.absorbFee ? 'Organizer Absorbs Fees' : 'Buyer Pays Checkout Fee'}
+                            </p>
+                            <p className="text-[11px] text-neutral-500 mt-0.5">
+                              {selected.absorbFee
+                                ? 'Attendees pay nominal face ticket price; fee deducted from host payout.'
+                                : 'A bundled platform & processing fee is added to buyer checkout.'}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setEditingFee(true)}
+                            className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 shadow-2xs"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* About Description */}
+                    {selected.description && (
+                      <div>
+                        <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
+                          About the Organizer
+                        </h4>
+                        <p className="rounded-xl border border-neutral-200/80 bg-white p-3 text-xs sm:text-sm leading-relaxed text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 whitespace-pre-wrap">
+                          {selected.description}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Contact Credentials Cards */}
+                    <div>
+                      <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-2">
+                        Account & Contact Credentials
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Owner Name */}
+                        <div className="flex items-center gap-3 rounded-xl border border-neutral-200/80 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900 shadow-2xs">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+                            <User className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                              Applicant Owner
+                            </p>
+                            <p className="truncate text-xs font-bold text-neutral-900 dark:text-white">
+                              {selected.owner?.firstName} {selected.owner?.lastName}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Owner Email */}
+                        <div className="flex items-center justify-between gap-2 rounded-xl border border-neutral-200/80 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900 shadow-2xs">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+                              <Mail className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                                Email Address
+                              </p>
+                              <p className="truncate text-xs font-bold text-neutral-900 dark:text-white">
+                                {selected.owner?.email || '—'}
+                              </p>
+                            </div>
+                          </div>
+                          {selected.owner?.email && (
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(selected.owner.email, 'email')}
+                              className="text-neutral-400 hover:text-neutral-700 dark:hover:text-white shrink-0 p-1"
+                              title="Copy email"
+                            >
+                              {copiedItem === 'email' ? (
+                                <Check className="h-3.5 w-3.5 text-emerald-500" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Owner Phone */}
+                        <div className="flex items-center justify-between gap-2 rounded-xl border border-neutral-200/80 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900 shadow-2xs">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+                              <Phone className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                                Phone Number
+                              </p>
+                              <p className="truncate text-xs font-bold text-neutral-900 dark:text-white">
+                                {selected.owner?.phone || 'Not provided'}
+                              </p>
+                            </div>
+                          </div>
+                          {selected.owner?.phone && (
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(selected.owner.phone, 'phone')}
+                              className="text-neutral-400 hover:text-neutral-700 dark:hover:text-white shrink-0 p-1"
+                              title="Copy phone"
+                            >
+                              {copiedItem === 'phone' ? (
+                                <Check className="h-3.5 w-3.5 text-emerald-500" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Website */}
+                        <div className="flex items-center gap-3 rounded-xl border border-neutral-200/80 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900 shadow-2xs">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+                            <Globe className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                              Website
+                            </p>
+                            {selected.website ? (
+                              <a
+                                href={selected.website.startsWith('http') ? selected.website : `https://${selected.website}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs font-bold text-rose-500 hover:underline truncate"
+                              >
+                                {selected.website}
+                                <ExternalLink className="h-3 w-3 shrink-0" />
+                              </a>
+                            ) : (
+                              <p className="text-xs text-neutral-400">Not provided</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Social Media Channels */}
+                    {selected.socials && (
+                      <div>
+                        <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-2">
+                          Social Channels & Links
+                        </h4>
+                        {(() => {
+                          const links = parseOrgSocials(selected.socials);
+                          if (!hasAnySocial(links)) {
+                            return (
+                              <div className="rounded-xl border border-neutral-200/80 bg-white p-3 text-xs text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900">
+                                {selected.socials}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="flex flex-wrap gap-2">
+                              {links.instagram && (
+                                <a
+                                  href={buildSocialUrl('instagram', links.instagram)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 shadow-2xs"
+                                >
+                                  <ExternalLink className="h-3 w-3 text-pink-500" />
+                                  <span>Instagram: @{links.instagram}</span>
+                                </a>
+                              )}
+                              {links.twitter && (
+                                <a
+                                  href={buildSocialUrl('twitter', links.twitter)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 shadow-2xs"
+                                >
+                                  <ExternalLink className="h-3 w-3 text-sky-500" />
+                                  <span>X: @{links.twitter}</span>
+                                </a>
+                              )}
+                              {links.facebook && (
+                                <a
+                                  href={buildSocialUrl('facebook', links.facebook)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 shadow-2xs"
+                                >
+                                  <ExternalLink className="h-3 w-3 text-blue-600" />
+                                  <span>Facebook: {links.facebook}</span>
+                                </a>
+                              )}
+                              {links.tiktok && (
+                                <a
+                                  href={buildSocialUrl('tiktok', links.tiktok)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 shadow-2xs"
+                                >
+                                  <ExternalLink className="h-3 w-3 text-neutral-900 dark:text-white" />
+                                  <span>TikTok: @{links.tiktok}</span>
+                                </a>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
-                )}
-
-                {selected.description && (
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1">About</p>
-                    <p className="text-xs text-neutral-750 dark:text-neutral-300 leading-relaxed">
-                      {selected.description}
-                    </p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-neutral-50/30 dark:bg-neutral-905/30 p-4 rounded-xl border border-neutral-100 dark:border-neutral-850">
-                  <MaskedField icon={User} label="Applicant Owner" value={`${selected.owner?.firstName} ${selected.owner?.lastName}`} />
-                  <MaskedField icon={Mail} label="Email Address" value={selected.owner?.email} />
-                  <MaskedField icon={Phone} label="Phone Number" value={selected.owner?.phone || '—'} />
-                  {selected.website && (
-                    <DetailRow
-                      icon={Globe}
-                      label="Website"
-                      value={selected.website}
-                      link={selected.website.startsWith('http') ? selected.website : `https://${selected.website}`}
-                    />
-                  )}
-                  {selected.socials && (() => {
-                    const links = parseOrgSocials(selected.socials);
-                    if (!hasAnySocial(links)) {
-                      return (
-                        <DetailRow icon={ExternalLink} label="Social Channels" value={selected.socials} />
-                      );
-                    }
-                    return (
-                      <>
-                        {links.instagram && (
-                          <DetailRow icon={ExternalLink} label="Instagram" value={links.instagram} link={buildSocialUrl('instagram', links.instagram)} />
-                        )}
-                        {links.twitter && (
-                          <DetailRow icon={ExternalLink} label="X (Twitter)" value={links.twitter} link={buildSocialUrl('twitter', links.twitter)} />
-                        )}
-                        {links.facebook && (
-                          <DetailRow icon={ExternalLink} label="Facebook" value={links.facebook} link={buildSocialUrl('facebook', links.facebook)} />
-                        )}
-                        {links.tiktok && (
-                          <DetailRow icon={ExternalLink} label="TikTok" value={links.tiktok} link={buildSocialUrl('tiktok', links.tiktok)} />
-                        )}
-                      </>
-                    );
-                  })()}
                 </div>
 
-                {selectedStatus === 'pending' ? (
-                  <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-neutral-100 dark:border-neutral-800">
-                    <Button
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                      onClick={() => setApproveDialog({ open: true, id: selected.id })}
-                      disabled={isBusy}
-                    >
-                      <Check className="h-4 w-4 mr-1" />
-                      Approve Host
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      className="flex-1"
-                      onClick={() => {
-                        setRejectReason('');
-                        setRejectDialog({ open: true, id: selected.id });
-                      }}
-                      disabled={isBusy}
-                    >
-                      <X className="h-4 w-4 mr-1" />
-                      Reject with Feedback
-                    </Button>
+                {/* Bottom Action Footer for Non-Pending */}
+                {selectedStatus === 'verified' ? (
+                  <div className="border-t border-neutral-200 bg-emerald-50/30 p-4 text-xs font-medium text-emerald-700 dark:border-neutral-800 dark:bg-emerald-950/10 dark:text-emerald-300 flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>This organization is active and verified. The organizer has full privileges to publish events.</span>
                   </div>
-                ) : selectedStatus === 'verified' ? (
-                  <div className="pt-4 border-t border-neutral-150 dark:border-neutral-850 text-xs text-neutral-500">
-                    <p className="flex items-center gap-1.5 font-medium text-emerald-600">
-                      <CheckCircle className="h-4 w-4 shrink-0" />
-                      Host status is Verified. They have full access to create events.
-                    </p>
+                ) : selectedStatus === 'rejected' ? (
+                  <div className="border-t border-neutral-200 bg-neutral-50/60 p-4 text-xs text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/60 flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-neutral-400 shrink-0" />
+                    <span>Rejection feedback has been dispatched. Awaiting profile update and re-submission from applicant.</span>
                   </div>
-                ) : (
-                  <div className="pt-4 border-t border-neutral-150 dark:border-neutral-850 text-xs text-neutral-500">
-                    <p className="flex items-center gap-1.5">
-                      <Clock className="h-4 w-4 text-neutral-400 shrink-0" />
-                      Rejection feedback has been sent. Waiting for resubmission.
-                    </p>
-                  </div>
-                )}
+                ) : null}
               </div>
-            </div>
-          ) : (
-            <div className="lg:col-span-3 hidden lg:flex items-center justify-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl min-h-[300px]">
-              <p className="text-sm text-neutral-400">Select an organization to review and configure settings</p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      )}
+      </div>
 
+      {/* Confirmation & Rejection Modals */}
       <CustomAlertDialog
         isOpen={approveDialog.open}
         onClose={() => setApproveDialog({ open: false, id: null })}
-        title="Approve host application?"
-        description="This will verify the organization and allow the user to access the host dashboard and create events."
+        title="Approve Host Application?"
+        description="This will verify the organization profile and grant the user full permissions to create and publish events."
         onConfirm={handleApprove}
-        confirmText="Approve"
+        confirmText="Approve Host"
         cancelText="Cancel"
       />
 
@@ -561,21 +878,21 @@ const OrganizationsPage = () => {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Reject application</DialogTitle>
+            <DialogTitle>Reject Host Application</DialogTitle>
             <DialogDescription>
-              Provide clear feedback so the applicant knows what to fix. They can update and resubmit.
+              Provide specific feedback so the applicant understands what information or verification is missing.
             </DialogDescription>
           </DialogHeader>
           <div className="py-2">
             <label className="text-xs font-bold text-neutral-500 uppercase tracking-wider">
-              Rejection reason <span className="text-red-500">*</span>
+              Feedback Reason <span className="text-red-500">*</span>
             </label>
             <textarea
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="e.g. Please provide a valid business website or social media profile with event history…"
+              placeholder="e.g. Please link a valid business website or an active social media profile with event history..."
               rows={4}
-              className="mt-2 w-full px-4 py-3 text-sm border border-neutral-200 dark:border-neutral-700 rounded-xl bg-transparent focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 resize-none"
+              className="mt-2 w-full px-3.5 py-2.5 text-xs sm:text-sm border border-neutral-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 resize-none"
               autoFocus
             />
             <p className="text-[10px] text-neutral-400 mt-1.5">{rejectReason.length}/500 characters</p>
@@ -595,7 +912,7 @@ const OrganizationsPage = () => {
               onClick={handleReject}
               disabled={!rejectReason.trim() || rejectMutation.isPending}
             >
-              {rejectMutation.isPending ? 'Rejecting…' : 'Send rejection'}
+              {rejectMutation.isPending ? 'Rejecting…' : 'Send Rejection'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -603,74 +920,5 @@ const OrganizationsPage = () => {
     </div>
   );
 };
-
-function DetailRow({
-  icon: Icon,
-  label,
-  value,
-  link,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  link?: string;
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="h-8 w-8 rounded-lg bg-neutral-50 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-        <Icon className="h-4 w-4 text-neutral-400" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{label}</p>
-        {link ? (
-          <a href={link} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-rose-500 hover:underline truncate block">
-            {value}
-          </a>
-        ) : (
-          <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 truncate">{value}</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function OrganizationsBodySkeleton() {
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6">
-      <div className="lg:col-span-2 space-y-2">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div
-            key={i}
-            className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 py-3.5 space-y-2"
-          >
-            <div className="flex items-center gap-3">
-              <Skeleton className="h-10 w-10 rounded-xl shrink-0" />
-              <div className="flex-1 space-y-1.5 min-w-0">
-                <Skeleton className="h-4 w-2/3 rounded-md" />
-                <Skeleton className="h-3 w-1/2 rounded-md" />
-              </div>
-              <Skeleton className="h-5 w-16 rounded-full shrink-0" />
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="lg:col-span-3 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 space-y-4 min-h-[50vh]">
-        <div className="flex items-start gap-3">
-          <Skeleton className="h-12 w-12 rounded-2xl shrink-0" />
-          <div className="flex-1 space-y-2">
-            <Skeleton className="h-6 w-1/2 rounded-lg" />
-            <Skeleton className="h-3 w-1/3 rounded-md" />
-          </div>
-        </div>
-        <Skeleton className="h-20 w-full rounded-xl" />
-        <div className="grid grid-cols-2 gap-3">
-          <Skeleton className="h-16 rounded-xl" />
-          <Skeleton className="h-16 rounded-xl" />
-        </div>
-        <Skeleton className="h-10 w-36 rounded-xl" />
-      </div>
-    </div>
-  );
-}
 
 export default OrganizationsPage;

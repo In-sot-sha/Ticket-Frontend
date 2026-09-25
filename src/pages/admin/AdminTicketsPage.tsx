@@ -32,6 +32,7 @@ const paymentLabel = (method?: string | null) => {
 const AdminTicketsPage = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [eventFilter, setEventFilter] = useState<string>('all');
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const { data: tickets = [], isLoading } = useAdminTickets();
 
@@ -42,18 +43,35 @@ const AdminTicketsPage = () => {
       .catch(() => setAuditLogs([]));
   }, []);
 
+  const eventsList = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const t of tickets) {
+      if (t.eventId && t.event?.title) {
+        map.set(t.eventId, t.event.title);
+      }
+    }
+    return Array.from(map.entries())
+      .map(([id, title]) => ({ id, title }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [tickets]);
+
   const filteredTickets = useMemo(() => {
     return tickets.filter((t: any) => {
       const buyerName = (t.user ? `${t.user.firstName} ${t.user.lastName}` : t.buyerName || '').toLowerCase();
       const buyerEmail = (t.user?.email || t.buyerEmail || '').toLowerCase();
       const eventTitle = (t.event?.title || '').toLowerCase();
+      const qrCode = (t.qrCode || '').toLowerCase();
       const query = search.toLowerCase();
       const matchesSearch =
-        buyerName.includes(query) || buyerEmail.includes(query) || eventTitle.includes(query);
+        buyerName.includes(query) ||
+        buyerEmail.includes(query) ||
+        eventTitle.includes(query) ||
+        qrCode.includes(query);
       const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      const matchesEvent = eventFilter === 'all' || String(t.eventId) === eventFilter;
+      return matchesSearch && matchesStatus && matchesEvent;
     });
-  }, [tickets, search, statusFilter]);
+  }, [tickets, search, statusFilter, eventFilter]);
 
   const collections = useMemo(() => {
     const sums = { CASH: 0, POS: 0, TRANSFER: 0 };
@@ -212,27 +230,27 @@ const AdminTicketsPage = () => {
         }
       />
 
-      <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3">
-          <div className="flex items-center justify-between mb-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Cash</span>
-            <Banknote className="h-3.5 w-3.5 text-emerald-500" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 shadow-xs">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Cash Collections</span>
+            <Banknote className="h-4 w-4 text-emerald-500" />
           </div>
-          <p className="text-sm sm:text-lg font-bold tabular-nums">{formatNaira(collections.CASH)}</p>
+          <p className="text-base sm:text-xl font-extrabold tabular-nums text-neutral-900 dark:text-white">{formatNaira(collections.CASH)}</p>
         </div>
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3">
-          <div className="flex items-center justify-between mb-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">POS</span>
-            <CreditCard className="h-3.5 w-3.5 text-sky-500" />
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 shadow-xs">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">POS Collections</span>
+            <CreditCard className="h-4 w-4 text-sky-500" />
           </div>
-          <p className="text-sm sm:text-lg font-bold tabular-nums">{formatNaira(collections.POS)}</p>
+          <p className="text-base sm:text-xl font-extrabold tabular-nums text-neutral-900 dark:text-white">{formatNaira(collections.POS)}</p>
         </div>
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3">
-          <div className="flex items-center justify-between mb-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Transfer</span>
-            <ArrowLeftRight className="h-3.5 w-3.5 text-violet-500" />
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 shadow-xs">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Transfer Collections</span>
+            <ArrowLeftRight className="h-4 w-4 text-violet-500" />
           </div>
-          <p className="text-sm sm:text-lg font-bold tabular-nums">{formatNaira(collections.TRANSFER)}</p>
+          <p className="text-base sm:text-xl font-extrabold tabular-nums text-neutral-900 dark:text-white">{formatNaira(collections.TRANSFER)}</p>
         </div>
       </div>
 
@@ -296,22 +314,52 @@ const AdminTicketsPage = () => {
           getRowId={(t) => t.id}
           searchValue={search}
           onSearchChange={setSearch}
-          searchPlaceholder="Search buyer, email, or event…"
+          searchPlaceholder="Search buyer, email, event, or QR code…"
           pageSize={12}
           toolbar={
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[160px] h-10 rounded-xl">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                <SelectItem value="VALID">VALID</SelectItem>
-                <SelectItem value="USED">USED</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <Select value={eventFilter} onValueChange={setEventFilter}>
+                <SelectTrigger className="w-full sm:w-[210px] h-9 text-xs rounded-xl">
+                  <SelectValue placeholder="All events" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  <SelectItem value="all">All Events ({eventsList.length})</SelectItem>
+                  {eventsList.map((ev) => (
+                    <SelectItem key={ev.id} value={String(ev.id)}>
+                      {ev.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[130px] h-9 text-xs rounded-xl">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="VALID">VALID</SelectItem>
+                  <SelectItem value="USED">USED</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {(eventFilter !== 'all' || statusFilter !== 'all') && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 px-2 text-xs font-semibold text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+                  onClick={() => {
+                    setEventFilter('all');
+                    setStatusFilter('all');
+                  }}
+                >
+                  Reset
+                </Button>
+              )}
+            </div>
           }
           emptyTitle="No tickets found"
-          emptyDescription="Try another search or status filter."
+          emptyDescription="Try another search, event, or status filter."
         />
       )}
     </div>

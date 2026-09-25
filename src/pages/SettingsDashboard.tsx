@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   User,
@@ -22,7 +22,6 @@ import {
   X,
   Search,
   Zap,
-  ShieldCheck,
   RefreshCw,
   Banknote,
   Camera,
@@ -381,12 +380,48 @@ const PayoutsPanel = () => {
 
   const [banksList, setBanksList] = useState<Array<{ name: string; code: string }>>([]);
   const [bankQuery, setBankQuery] = useState(org?.payoutBankName ?? '');
+  const [selectedBankCode, setSelectedBankCode] = useState('');
   const [showBankDropdown, setShowBankDropdown] = useState(false);
   const [loadingBanks, setLoadingBanks] = useState(false);
+
+  const [verifyingAccount, setVerifyingAccount] = useState(false);
+  const [accountVerified, setAccountVerified] = useState(Boolean(org?.payoutAccountName && org?.payoutAccountNumber));
+  const [verificationError, setVerificationError] = useState('');
+
+  // Track if user explicitly edited so we NEVER verify automatically on initial page load
+  const userEditedRef = useRef(false);
+  // Track last verified key so we don't spam duplicate calls
+  const lastResolvedKeyRef = useRef(
+    org?.payoutAccountNumber && org?.payoutAccountName
+      ? `${org.payoutAccountNumber}-${org.payoutBankName || ''}`
+      : ''
+  );
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+
+  // Sync if org loads asynchronously after initial mount
+  useEffect(() => {
+    if (org && !userEditedRef.current) {
+      setForm((p) => ({
+        ...p,
+        payoutBankName: org.payoutBankName ?? p.payoutBankName,
+        payoutAccountNumber: org.payoutAccountNumber ?? p.payoutAccountNumber,
+        payoutAccountName: org.payoutAccountName ?? p.payoutAccountName,
+        payoutSchedule: org.payoutSchedule ?? p.payoutSchedule,
+        taxId: org.taxId ?? p.taxId,
+        vatNumber: org.vatNumber ?? p.vatNumber,
+        businessAddress: org.businessAddress ?? p.businessAddress,
+        absorbFee: org.absorbFee ?? p.absorbFee,
+      }));
+      if (org.payoutBankName) setBankQuery(org.payoutBankName);
+      if (org.payoutAccountNumber && org.payoutAccountName) {
+        setAccountVerified(true);
+        lastResolvedKeyRef.current = `${org.payoutAccountNumber}-${org.payoutBankName || ''}`;
+      }
+    }
+  }, [org]);
 
   useEffect(() => {
     let isMounted = true;
@@ -406,15 +441,92 @@ const PayoutsPanel = () => {
     return () => { isMounted = false; };
   }, []);
 
+  // Match initial bank code from bank name if present
+  useEffect(() => {
+    if (banksList.length > 0 && form.payoutBankName && !selectedBankCode) {
+      const match = banksList.find(
+        (b) => b.name.toLowerCase() === form.payoutBankName.toLowerCase()
+      );
+      if (match) setSelectedBankCode(match.code);
+    }
+  }, [banksList, form.payoutBankName, selectedBankCode]);
+
   const filteredBanks = banksList.filter(
     (b) => b.name.toLowerCase().includes(bankQuery.toLowerCase()) || b.code.includes(bankQuery)
   );
 
-  const handleSelectBank = (bankName: string) => {
+  const handleSelectBank = (bankName: string, bankCode: string) => {
+    userEditedRef.current = true;
     setForm((p) => ({ ...p, payoutBankName: bankName }));
     setBankQuery(bankName);
+    setSelectedBankCode(bankCode);
     setShowBankDropdown(false);
+    setAccountVerified(false);
+    setVerificationError('');
   };
+
+  // Perform resolution (100% Free of charge with Paystack NUBAN resolve)
+  const resolveAccount = useCallback(async (accountNum?: string, bankCd?: string, bankNm?: string) => {
+    const cleanNum = (accountNum ?? form.payoutAccountNumber).trim().replace(/\D/g, '');
+    const code = bankCd ?? selectedBankCode;
+    const name = bankNm ?? form.payoutBankName ?? bankQuery;
+
+    // Must be exactly 10 digits before sending
+    if (cleanNum.length !== 10) return;
+    if (!code && !name) return;
+
+    const resolveKey = `${cleanNum}-${code || name}`;
+    if (resolveKey === lastResolvedKeyRef.current && accountVerified) {
+      return;
+    }
+
+    setVerifyingAccount(true);
+    setVerificationError('');
+    try {
+      const res = await api.userRoles.resolveBankAccount({
+        accountNumber: cleanNum,
+        bankCode: code || undefined,
+        bankName: name || undefined,
+      });
+      if (res.data?.accountName) {
+        setForm((p) => ({ ...p, payoutAccountName: res.data.accountName }));
+        setAccountVerified(true);
+        setVerificationError('');
+        lastResolvedKeyRef.current = resolveKey;
+      }
+    } catch (err: any) {
+      setAccountVerified(false);
+      setVerificationError(
+        err?.response?.data?.message || 'Could not verify account name with this bank.'
+      );
+    } finally {
+      setVerifyingAccount(false);
+    }
+  }, [form.payoutAccountNumber, selectedBankCode, form.payoutBankName, bankQuery, accountVerified]);
+
+  // Debounced auto-resolve: ONLY triggers if user actively edited AND number has reached 10 digits
+  useEffect(() => {
+    if (!userEditedRef.current) return;
+
+    const cleanNum = form.payoutAccountNumber.trim().replace(/\D/g, '');
+    const bankNameOrCode = selectedBankCode || form.payoutBankName || bankQuery;
+
+    // Do NOT send until we have 10 digits and a bank
+    if (cleanNum.length !== 10 || !bankNameOrCode) {
+      return;
+    }
+
+    const resolveKey = `${cleanNum}-${bankNameOrCode}`;
+    if (resolveKey === lastResolvedKeyRef.current) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      resolveAccount(cleanNum, selectedBankCode, form.payoutBankName || bankQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [form.payoutAccountNumber, selectedBankCode, form.payoutBankName, bankQuery, resolveAccount]);
 
   const handleSave = async () => {
     if (!org) return;
@@ -441,6 +553,8 @@ const PayoutsPanel = () => {
       if (profileRes.data) {
         updateUser(profileRes.data);
       }
+      userEditedRef.current = false;
+      lastResolvedKeyRef.current = `${form.payoutAccountNumber}-${form.payoutBankName || bankQuery}`;
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e: any) {
@@ -449,8 +563,6 @@ const PayoutsPanel = () => {
       setSaving(false);
     }
   };
-
-  const hasSubaccount = Boolean(org?.paystackSubaccountCode);
 
   // Live example calculation (₦10,000 ticket)
   const examplePrice = 10000;
@@ -461,261 +573,271 @@ const PayoutsPanel = () => {
   const buyerPays = form.absorbFee ? examplePrice : examplePrice + totalFees;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-extrabold text-neutral-900 dark:text-white flex items-center gap-2">
-            Payouts & Payment Split
-          </h2>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Configure settlement bank details, automatic Paystack splits, and checkout fee settings.
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="pb-2 border-b border-neutral-200 dark:border-neutral-800">
+        <h2 className="text-base font-extrabold text-neutral-900 dark:text-white flex items-center gap-2">
+          Payouts & Settlement
+        </h2>
+        <p className="text-xs text-neutral-500 mt-0.5">
+          Connect your Nigerian bank account to receive automatic split settlements after ticket sales.
+        </p>
+      </div>
+
+      {/* Compact Settlement Bank Form */}
+      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 sm:p-5 space-y-3.5">
+        <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-2.5">
+          <p className="text-xs font-bold text-neutral-900 dark:text-white uppercase tracking-wider">
+            Settlement Bank Account
           </p>
+          <span className="text-[11px] text-neutral-400">
+            Automated direct payout via Paystack
+          </span>
         </div>
-        <div className="flex items-center gap-2">
-          <span
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-              hasSubaccount
-                ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 border border-emerald-200 dark:border-emerald-800'
-                : 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 border border-amber-200 dark:border-amber-800'
-            }`}
-          >
-            <ShieldCheck className="h-3.5 w-3.5" />
-            {hasSubaccount ? 'Paystack Split Active' : 'Platform Ledger Mode'}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          {/* Bank selector */}
+          <div className="relative">
+            <label className={labelCls}>Bank Name</label>
+            <div className="relative">
+              <input
+                type="text"
+                className={inputCls}
+                value={bankQuery}
+                onChange={(e) => {
+                  userEditedRef.current = true;
+                  setBankQuery(e.target.value);
+                  setForm((p) => ({ ...p, payoutBankName: e.target.value }));
+                  setSelectedBankCode('');
+                  setShowBankDropdown(true);
+                  setAccountVerified(false);
+                  setVerificationError('');
+                }}
+                onFocus={() => setShowBankDropdown(true)}
+                placeholder="Search bank (e.g. GTBank, Zenith, Kuda)"
+              />
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 pointer-events-none" />
+            </div>
+
+            {showBankDropdown && (
+              <div className="absolute left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl z-50 divide-y divide-neutral-100 dark:divide-neutral-800">
+                {loadingBanks ? (
+                  <div className="p-3 text-center text-xs text-neutral-400 flex items-center justify-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-500" /> Loading banks...
+                  </div>
+                ) : filteredBanks.length === 0 ? (
+                  <div className="p-3 text-xs text-neutral-500">
+                    No matching bank found. You can type your bank name manually.
+                  </div>
+                ) : (
+                  filteredBanks.slice(0, 30).map((b) => (
+                    <button
+                      key={b.code}
+                      type="button"
+                      onClick={() => handleSelectBank(b.name, b.code)}
+                      className="w-full text-left px-3.5 py-2 text-xs hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors flex items-center justify-between group"
+                    >
+                      <span className="font-semibold text-neutral-800 dark:text-neutral-200 group-hover:text-rose-500">
+                        {b.name}
+                      </span>
+                      <span className="font-mono text-[10px] font-bold text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">
+                        {b.code}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Account Number */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                10-Digit NUBAN Account Number
+              </label>
+              {form.payoutAccountNumber.length > 0 && form.payoutAccountNumber.length < 10 && (
+                <span className="text-[11px] font-mono text-neutral-400">
+                  {form.payoutAccountNumber.length}/10 digits
+                </span>
+              )}
+            </div>
+            <div className="relative">
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                className={`${inputCls} pr-24 font-mono tracking-wide`}
+                value={form.payoutAccountNumber}
+                onChange={(e) => {
+                  userEditedRef.current = true;
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                  setForm((p) => ({ ...p, payoutAccountNumber: val }));
+                  if (val !== form.payoutAccountNumber) {
+                    setAccountVerified(false);
+                    setVerificationError('');
+                  }
+                }}
+                placeholder="0123456789"
+                maxLength={10}
+              />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+                {verifyingAccount ? (
+                  <div className="flex items-center gap-1.5 px-2 py-1 text-xs text-rose-500 font-medium">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Verifying...</span>
+                  </div>
+                ) : accountVerified ? (
+                  <div className="flex items-center gap-1 px-2 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Verified</span>
+                  </div>
+                ) : form.payoutAccountNumber.length === 10 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      userEditedRef.current = true;
+                      resolveAccount(form.payoutAccountNumber, selectedBankCode, form.payoutBankName || bankQuery);
+                    }}
+                    className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 rounded-lg transition-colors"
+                  >
+                    Verify
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {/* Account Name (Auto-resolved, read-only) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                Account Name
+              </label>
+              {verifyingAccount ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-500">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Checking bank...
+                </span>
+              ) : accountVerified ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Verified by Paystack
+                </span>
+              ) : null}
+            </div>
+            <input
+              type="text"
+              readOnly
+              className={`${inputCls} cursor-default select-none ${
+                accountVerified
+                  ? 'border-emerald-500/60 dark:border-emerald-500/60 bg-emerald-50/20 dark:bg-emerald-950/10 font-semibold text-neutral-900 dark:text-white'
+                  : 'bg-neutral-50 dark:bg-neutral-800/40 text-neutral-400 dark:text-neutral-500'
+              }`}
+              value={form.payoutAccountName}
+              placeholder={
+                verifyingAccount
+                  ? 'Resolving account holder name...'
+                  : 'Auto-resolved after entering 10 digits'
+              }
+            />
+            {verificationError && (
+              <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3 shrink-0" /> {verificationError}
+              </p>
+            )}
+          </div>
+
+          {/* Payout Schedule */}
+          <div>
+            <label className={labelCls}>Payout Schedule</label>
+            <select
+              className={inputCls}
+              value={form.payoutSchedule}
+              onChange={(e) => setForm((p) => ({ ...p, payoutSchedule: e.target.value }))}
+            >
+              <option value="After each event">After each event (Paystack Direct Split)</option>
+              <option value="Weekly">Weekly Digest Settlement</option>
+              <option value="Monthly">Monthly Settlement</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Fee Split Settings & Compact Live Calculation */}
+      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 sm:p-5 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-100 dark:border-neutral-800 pb-2.5">
+          <div>
+            <p className="text-xs font-bold text-neutral-900 dark:text-white uppercase tracking-wider">
+              Fee Allocation
+            </p>
+            <p className="text-[11px] text-neutral-500">
+              PartyStorm fee: 6% (min ₦100, max ₦2,000) · Paystack gateway: 1.5% + ₦100
+            </p>
+          </div>
+          <span className="text-[11px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-0.5 rounded-full border border-rose-200/60 dark:border-rose-900/40 self-start sm:self-auto">
+            {form.absorbFee ? 'Host Absorbs Fees' : 'Buyer Pays Fees'}
+          </span>
+        </div>
+
+        <label className="flex items-start gap-3 p-3 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/60 cursor-pointer hover:bg-neutral-100/50 transition-colors">
+          <input
+            type="checkbox"
+            checked={form.absorbFee}
+            onChange={(e) => setForm((p) => ({ ...p, absorbFee: e.target.checked }))}
+            className="mt-0.5 rounded text-rose-500 focus:ring-rose-500 h-4 w-4 shrink-0"
+          />
+          <div className="text-xs">
+            <span className="font-semibold text-neutral-900 dark:text-white">
+              Absorb ticket platform & processing fees
+            </span>
+            <p className="text-neutral-500 text-[11px] mt-0.5">
+              When checked, buyers pay exact ticket price. Fees are subtracted from your direct payout.
+            </p>
+          </div>
+        </label>
+
+        {/* Compact Simulation Pill */}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/40 text-xs">
+          <span className="text-neutral-600 dark:text-neutral-400 text-[11px]">
+            Example ₦10,000 ticket: Buyer pays <strong className="text-neutral-900 dark:text-white">₦{buyerPays.toLocaleString()}</strong>
+          </span>
+          <span className="text-rose-600 dark:text-rose-400 font-bold text-xs">
+            You receive ₦{hostReceives.toLocaleString()} direct to bank
           </span>
         </div>
       </div>
 
-      {/* Paystack Split Account Info Card */}
-      <div className="p-4 sm:p-5 rounded-2xl border border-rose-200 dark:border-rose-900/40 bg-gradient-to-r from-rose-50/50 via-white to-pink-50/30 dark:from-rose-950/20 dark:via-neutral-900 dark:to-neutral-900">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="p-2.5 rounded-xl bg-rose-500 text-white shrink-0 shadow-sm mt-0.5">
-              <Zap className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
-                Paystack Direct Split Settlement
-              </h3>
-              <p className="text-xs text-neutral-600 dark:text-neutral-300 mt-1 leading-relaxed max-w-xl">
-                When your Nigerian settlement bank account is verified, ticket revenue is automatically split by Paystack directly to your bank account after every online transaction.
-              </p>
-              {org?.paystackSubaccountCode && (
-                <div className="mt-2.5 inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-xs font-mono">
-                  <span className="text-neutral-400 font-sans">Subaccount Code:</span>
-                  <span className="font-bold text-rose-500">{org.paystackSubaccountCode}</span>
-                </div>
-              )}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-800 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors shrink-0"
-          >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            Sync Split Setup
-          </button>
-        </div>
-      </div>
-
-      {/* Payout Bank Account Details */}
-      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-100 dark:divide-neutral-800 bg-white dark:bg-neutral-900">
-        <div className="p-4 sm:p-5">
-          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-4">
-            Settlement Bank Account
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Searchable Bank Selector */}
-            <div className="relative">
-              <label className={labelCls}>Settlement Bank</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  className={inputCls}
-                  value={bankQuery}
-                  onChange={(e) => {
-                    setBankQuery(e.target.value);
-                    setForm((p) => ({ ...p, payoutBankName: e.target.value }));
-                    setShowBankDropdown(true);
-                  }}
-                  onFocus={() => setShowBankDropdown(true)}
-                  placeholder="Type or select bank (e.g. GTBank, Zenith, Kuda)"
-                />
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 pointer-events-none" />
-              </div>
-
-              {/* Bank Autocomplete Dropdown */}
-              {showBankDropdown && (
-                <div className="absolute left-0 right-0 top-full mt-1 max-h-56 overflow-y-auto rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl z-50 divide-y divide-neutral-100 dark:divide-neutral-800">
-                  {loadingBanks ? (
-                    <div className="p-3 text-center text-xs text-neutral-400 flex items-center justify-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin text-rose-500" /> Fetching banks from Paystack…
-                    </div>
-                  ) : filteredBanks.length === 0 ? (
-                    <div className="p-3 text-xs text-neutral-500">
-                      No matching bank found. You can type your bank name manually above.
-                    </div>
-                  ) : (
-                    filteredBanks.map((b) => (
-                      <button
-                        key={b.code}
-                        type="button"
-                        onClick={() => handleSelectBank(b.name)}
-                        className="w-full text-left px-3.5 py-2.5 text-xs hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors flex items-center justify-between group"
-                      >
-                        <span className="font-semibold text-neutral-800 dark:text-neutral-200 group-hover:text-rose-500">
-                          {b.name}
-                        </span>
-                        <span className="font-mono text-[10px] font-bold text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">
-                          {b.code}
-                        </span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className={labelCls}>NUBAN Account Number</label>
-              <input
-                className={inputCls}
-                value={form.payoutAccountNumber}
-                onChange={(e) => setForm((p) => ({ ...p, payoutAccountNumber: e.target.value.replace(/\D/g, '') }))}
-                placeholder="10-digit NUBAN number"
-                maxLength={10}
-              />
-            </div>
-
-            <div>
-              <label className={labelCls}>Account Name</label>
-              <input
-                className={inputCls}
-                value={form.payoutAccountName}
-                onChange={(e) => setForm((p) => ({ ...p, payoutAccountName: e.target.value }))}
-                placeholder="Account name exactly as registered with bank"
-              />
-            </div>
-
-            <div>
-              <label className={labelCls}>Payout Schedule</label>
-              <select
-                className={inputCls}
-                value={form.payoutSchedule}
-                onChange={(e) => setForm((p) => ({ ...p, payoutSchedule: e.target.value }))}
-              >
-                <option value="After each event">After each event (Paystack Direct Split)</option>
-                <option value="Weekly">Weekly Digest Settlement</option>
-                <option value="Monthly">Monthly Settlement</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Tax Details */}
-        <div className="p-4 sm:p-5">
-          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">Tax Information</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className={labelCls}>Tax ID / TIN</label>
-              <input
-                className={inputCls}
-                value={form.taxId}
-                onChange={(e) => setForm((p) => ({ ...p, taxId: e.target.value }))}
-                placeholder="Nigeria Tax ID or CAC RC number"
-              />
-            </div>
-            <div>
-              <label className={labelCls}>VAT Number (if registered)</label>
-              <input
-                className={inputCls}
-                value={form.vatNumber}
-                onChange={(e) => setForm((p) => ({ ...p, vatNumber: e.target.value }))}
-                placeholder="Optional VAT registration"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className={labelCls}>Business Address (for receipts)</label>
-              <textarea
-                className={`${inputCls} resize-none`}
-                rows={2}
-                value={form.businessAddress}
-                onChange={(e) => setForm((p) => ({ ...p, businessAddress: e.target.value }))}
-                placeholder="Full address printed on attendee tax receipts"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Fee Split Settings & Live Simulator */}
-        <div className="p-4 sm:p-5 space-y-4">
-          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
-            Checkout Fee Allocation & Breakdown
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-800">
-              <span className="text-[10px] font-bold uppercase text-neutral-400">PartyStorm Fee</span>
-              <p className="text-sm font-bold mt-0.5">6% per sale</p>
-              <p className="text-[10px] text-neutral-500">Min ₦100 · Max ₦2,000</p>
-            </div>
-            <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-800">
-              <span className="text-[10px] font-bold uppercase text-neutral-400">Paystack Processing</span>
-              <p className="text-sm font-bold mt-0.5">1.5% + ₦100</p>
-              <p className="text-[10px] text-neutral-500">Standard gateway rate</p>
-            </div>
-            <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-800">
-              <span className="text-[10px] font-bold uppercase text-neutral-400">Selected Mode</span>
-              <p className="text-sm font-extrabold text-rose-500 mt-0.5">
-                {form.absorbFee ? 'Host Absorbs Fees' : 'Buyer Pays Fees'}
-              </p>
-              <p className="text-[10px] text-neutral-500">
-                {form.absorbFee ? 'Buyer pays face value' : 'Fee added at checkout'}
-              </p>
-            </div>
-          </div>
-
-          {/* Interactive Toggle */}
-          <label className="flex items-start gap-3 p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 cursor-pointer hover:bg-neutral-100/50 transition-colors">
+      {/* Compact Tax Details */}
+      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 sm:p-5 space-y-3">
+        <p className="text-xs font-bold text-neutral-900 dark:text-white uppercase tracking-wider border-b border-neutral-100 dark:border-neutral-800 pb-2">
+          Tax & Billing Info <span className="font-normal text-neutral-400 lowercase">(optional)</span>
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className={labelCls}>Tax ID / TIN</label>
             <input
-              type="checkbox"
-              checked={form.absorbFee}
-              onChange={(e) => setForm((p) => ({ ...p, absorbFee: e.target.checked }))}
-              className="mt-1 rounded text-rose-500 focus:ring-rose-500 h-4 w-4 shrink-0"
+              className={inputCls}
+              value={form.taxId}
+              onChange={(e) => setForm((p) => ({ ...p, taxId: e.target.value }))}
+              placeholder="Tax ID or CAC RC number"
             />
-            <div>
-              <span className="text-xs font-bold text-neutral-900 dark:text-white">
-                Absorb Platform & Processing Fees
-              </span>
-              <p className="text-xs text-neutral-500 mt-0.5 leading-relaxed">
-                When enabled, buyers pay only the ticket face price. Platform (6%) and processing fees are deducted from your payout. PartyStorm fees are non-refundable.
-              </p>
-            </div>
-          </label>
-
-          {/* Example Calculator */}
-          <div className="p-3.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/40 text-xs space-y-2">
-            <div className="flex items-center justify-between font-semibold text-rose-900 dark:text-rose-200">
-              <span>Example ₦10,000 Ticket Sale</span>
-              <span className="text-[10px] uppercase tracking-wide font-bold bg-rose-200/60 dark:bg-rose-900/60 px-2 py-0.5 rounded">
-                Live Simulation
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-4 text-neutral-600 dark:text-neutral-400 pt-1 border-t border-rose-100 dark:border-rose-900/40">
-              <div>
-                <span className="block text-[10px] uppercase font-bold text-neutral-400">Buyer Pays at Checkout</span>
-                <span className="text-sm font-extrabold text-neutral-900 dark:text-white">
-                  ₦{buyerPays.toLocaleString()}
-                </span>
-              </div>
-              <div>
-                <span className="block text-[10px] uppercase font-bold text-neutral-400">Host Receives to Bank</span>
-                <span className="text-sm font-extrabold text-rose-500">
-                  ₦{hostReceives.toLocaleString()}
-                </span>
-              </div>
-            </div>
+          </div>
+          <div>
+            <label className={labelCls}>VAT Number</label>
+            <input
+              className={inputCls}
+              value={form.vatNumber}
+              onChange={(e) => setForm((p) => ({ ...p, vatNumber: e.target.value }))}
+              placeholder="Optional VAT registration"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Business Address</label>
+            <input
+              className={inputCls}
+              value={form.businessAddress}
+              onChange={(e) => setForm((p) => ({ ...p, businessAddress: e.target.value }))}
+              placeholder="Address printed on attendee receipts"
+            />
           </div>
         </div>
       </div>
@@ -726,8 +848,8 @@ const PayoutsPanel = () => {
         </div>
       )}
 
-      <div className="flex justify-end">
-        <SaveButton saving={saving} saved={saved} onClick={handleSave} label="Save Payout & Split Settings" />
+      <div className="flex justify-end pt-1">
+        <SaveButton saving={saving} saved={saved} onClick={handleSave} label="Save Settlement Details" />
       </div>
     </div>
   );

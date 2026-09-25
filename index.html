@@ -102,139 +102,283 @@
     </script>
 
     <style>
-      #app-boot {
+      /* Dedicated Offline Screen: Hidden by default (0ms impact on online users) */
+      #offline-screen {
+        display: none;
         position: fixed;
         inset: 0;
         z-index: 99999;
         background: #fafafa;
-        font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-        transition: opacity 0.2s ease, visibility 0.2s ease;
+        color: #0f172a;
+        font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        text-align: center;
+        box-sizing: border-box;
       }
-      html.dark #app-boot { background: #0a0a0a; }
-      #app-boot.app-boot--hide {
-        opacity: 0;
-        visibility: hidden;
-        pointer-events: none;
+      html.dark #offline-screen {
+        background: #09090b;
+        color: #f8fafc;
       }
-      #app-boot .ab-logo {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
+      #offline-screen .os-card {
+        max-width: 400px;
+        width: 100%;
+        background: #ffffff;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 24px;
+        padding: 36px 28px;
+        box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.07);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        box-sizing: border-box;
+      }
+      html.dark #offline-screen .os-card {
+        background: #141417;
+        border-color: rgba(255, 255, 255, 0.08);
+        box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+      }
+      #offline-screen .os-icon-wrap {
         width: 72px;
         height: 72px;
         border-radius: 20px;
-        background: #f43f5e;
-        color: #fff;
+        background: rgba(244, 63, 94, 0.1);
+        color: #f43f5e;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 32px;
-        font-weight: 800;
-        letter-spacing: -0.03em;
-
+        margin-bottom: 20px;
       }
-      #app-boot .ab-footer {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        padding: 28px 24px calc(28px + env(safe-area-inset-bottom, 0px));
-        text-align: center;
-      }
-      #app-boot .ab-title {
-        margin: 0;
-        font-size: 12px;
+      #offline-screen .os-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        border-radius: 9999px;
+        font-size: 11px;
         font-weight: 700;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.05em;
         text-transform: uppercase;
-        color: #a3a3a3;
+        background: rgba(244, 63, 94, 0.12);
+        color: #e11d48;
+        margin-bottom: 12px;
       }
-      #app-boot .ab-tip {
-        margin: 8px auto 0;
-        max-width: 320px;
+      html.dark #offline-screen .os-badge {
+        background: rgba(244, 63, 94, 0.2);
+        color: #fb7185;
+      }
+      #offline-screen .os-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #f43f5e;
+        animation: os-pulse 2s infinite ease-in-out;
+      }
+      @keyframes os-pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.35; transform: scale(0.85); }
+      }
+      #offline-screen .os-title {
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: -0.025em;
+        margin: 0 0 10px;
+        line-height: 1.25;
+        color: #0f172a;
+      }
+      html.dark #offline-screen .os-title {
+        color: #f8fafc;
+      }
+      #offline-screen .os-desc {
+        font-size: 13.5px;
+        line-height: 1.55;
+        color: #64748b;
+        margin: 0 0 24px;
+      }
+      html.dark #offline-screen .os-desc {
+        color: #94a3b8;
+      }
+      #offline-screen .os-btn {
+        width: 100%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        background: #f43f5e;
+        color: #ffffff;
+        border: none;
+        border-radius: 14px;
+        padding: 13px 20px;
         font-size: 14px;
-        font-weight: 500;
-        line-height: 1.45;
-        color: #525252;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.18s ease;
+        box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35);
+        font-family: inherit;
       }
-      html.dark #app-boot .ab-tip { color: #d4d4d4; }
-      @keyframes ab-breathe {
-        0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-        50% { transform: translate(-50%, -50%) scale(0.94); opacity: 0.85; }
+      #offline-screen .os-btn:hover {
+        background: #e11d48;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(244, 63, 94, 0.4);
+      }
+      #offline-screen .os-btn:active {
+        transform: translateY(0);
+      }
+      #offline-screen .os-btn[disabled] {
+        opacity: 0.65;
+        cursor: not-allowed;
+        transform: none;
+      }
+      #offline-screen .os-msg {
+        font-size: 12px;
+        color: #94a3b8;
+        margin: 14px 0 0;
       }
     </style>
   </head>
   <body>
-    <!-- Shows before JS/CSS bundles load; dismissed by dismissAppBoot() after auth ready -->
-    <!-- <div id="app-boot" role="status" aria-live="polite" aria-label="Loading PartyStorm">
-      <div class="ab-logo" aria-hidden="true"><img src="/icons/icon.svg" alt="PartyStorm" width="72" height="72" /></div>
-      <div class="ab-footer">
-        <p class="ab-title">Did you know</p>
-        <p class="ab-tip" id="app-boot-tip">You can scan tickets at the gate without a PIN when signed in as staff.</p>
+    <!-- Dedicated Offline Screen: Hidden by default. Only appears when offline -->
+    <div id="offline-screen" role="alert" aria-live="assertive">
+      <div class="os-card">
+        <div class="os-icon-wrap" aria-hidden="true">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+            <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path>
+            <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path>
+            <path d="M10.71 5.05A16 16 0 0 1 22.58 9"></path>
+            <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+            <line x1="12" y1="20" x2="12.01" y2="20"></line>
+          </svg>
+        </div>
+        <div class="os-badge">
+          <span class="os-dot"></span>
+          <span>No Connection</span>
+        </div>
+        <h1 class="os-title">You're Offline</h1>
+        <p class="os-desc">
+          Please check your internet or Wi-Fi to browse events and access your tickets.
+        </p>
+        <button id="os-retry-btn" class="os-btn" type="button" onclick="handleOfflineRetry()">
+          <svg id="os-btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+          </svg>
+          <span id="os-btn-text">Retry Connection</span>
+        </button>
+        <p id="os-status-msg" class="os-msg">Auto-reconnecting as soon as network returns...</p>
       </div>
     </div>
     <script>
       (function () {
-        var tips = [
-          'You can scan tickets at the gate without a PIN when signed in as staff.',
-          'Save events you love — find them later in your guest dashboard.',
-          'Need help? Open Support anytime — guests can message without an account.',
-          'Walk-in registration is available from your staff home for today’s gates.',
-        ];
-        try {
-          var el = document.getElementById('app-boot-tip');
-          if (el) el.textContent = tips[Math.floor(Math.random() * tips.length)];
-        } catch (e) {}
+        var screen = document.getElementById('offline-screen');
+        var btn = document.getElementById('os-retry-btn');
+        var btnText = document.getElementById('os-btn-text');
+        var statusMsg = document.getElementById('os-status-msg');
+
+        function showOfflineScreen() {
+          if (screen) screen.style.display = 'flex';
+        }
+
+        function hideOfflineScreen() {
+          if (screen) screen.style.display = 'none';
+        }
+
+        // Only show if the user is actually offline! Never covers online users.
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          showOfflineScreen();
+        }
+
+        window.addEventListener('offline', function () {
+          // If the page had an error or is booting offline
+          showOfflineScreen();
+        });
+
+        window.addEventListener('online', function () {
+          hideOfflineScreen();
+          window.location.reload();
+        });
+
+        window.handleOfflineRetry = function () {
+          if (!btn || !btnText) return;
+          btn.setAttribute('disabled', 'true');
+          btnText.textContent = 'Checking connection...';
+
+          if (navigator.onLine) {
+            hideOfflineScreen();
+            window.location.reload();
+            return;
+          }
+
+          fetch('/favicon.ico?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
+            .then(function () {
+              hideOfflineScreen();
+              window.location.reload();
+            })
+            .catch(function () {
+              btnText.textContent = 'Still Offline';
+              if (statusMsg) statusMsg.textContent = 'Network is unavailable. Please check your data or Wi-Fi.';
+              setTimeout(function () {
+                btn.removeAttribute('disabled');
+                btnText.textContent = 'Retry Connection';
+              }, 1500);
+            });
+        };
       })();
-    </script> -->
+    </script>
 
     <div id="root"></div>
     <script>
       (function () {
-        if (!('serviceWorker' in navigator)) return
+        if (!('serviceWorker' in navigator)) return;
 
-        var hadController = !!navigator.serviceWorker.controller
-        var reloading = false
+        var hadController = !!navigator.serviceWorker.controller;
+        var reloading = false;
         function reloadOnce(key) {
-          if (reloading) return
+          if (reloading) return;
+          if (!navigator.onLine) return; // Never reload into offline state
           try {
-            if (sessionStorage.getItem(key)) return
-            sessionStorage.setItem(key, '1')
+            if (sessionStorage.getItem(key)) return;
+            sessionStorage.setItem(key, '1');
           } catch (e) {}
-          reloading = true
-          window.location.reload()
+          reloading = true;
+          window.location.reload();
         }
 
         navigator.serviceWorker.addEventListener('controllerchange', function () {
-          if (!hadController) return
-          reloadOnce('pwa-sw-reload')
-        })
+          if (!hadController) return;
+          reloadOnce('pwa-sw-reload');
+        });
 
         window.addEventListener('vite:preloadError', function (event) {
-          event.preventDefault()
-          reloadOnce('pwa-preload-reload')
-        })
+          event.preventDefault();
+          if (!navigator.onLine) {
+            console.warn('[PWA] Chunk preload offline. Retaining current view.');
+            return;
+          }
+          reloadOnce('pwa-preload-reload');
+        });
 
         function checkForUpdate() {
           navigator.serviceWorker.getRegistration().then(function (reg) {
-            if (!reg) return
-            if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' })
-            reg.update().catch(function () {})
-          }).catch(function () {})
+            if (!reg) return;
+            if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            if (navigator.onLine) reg.update().catch(function () {});
+          }).catch(function () {});
         }
 
         window.addEventListener('load', function () {
           try {
-            sessionStorage.removeItem('pwa-preload-reload')
-            sessionStorage.removeItem('pwa-sw-reload')
+            sessionStorage.removeItem('pwa-preload-reload');
+            sessionStorage.removeItem('pwa-sw-reload');
           } catch (e) {}
-          checkForUpdate()
-        })
+          checkForUpdate();
+        });
         document.addEventListener('visibilitychange', function () {
-          if (document.visibilityState === 'visible') checkForUpdate()
-        })
-      })()
+          if (document.visibilityState === 'visible') checkForUpdate();
+        });
+      })();
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
