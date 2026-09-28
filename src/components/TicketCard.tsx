@@ -202,7 +202,7 @@ const TicketCard: React.FC<TicketCardProps> = ({
   const cardId = `${idPrefix}-${serial}`;
   const isMobile = useIsMobile();
   const layout = parseTicketStyle(ticket.ticketType?.ticketStyle ?? eventMeta.ticketStyle).layout;
-  const keepLandscape = layout === 'stub' || layout === 'folio' || layout === 'classic';
+  const keepLandscape = layout === 'stub' || layout === 'folio' ;
   const captureLandscape = forceLandscape || keepLandscape || !isMobile;
 
   const shared = {

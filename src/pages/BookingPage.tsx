@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment, useMemo } from 'react';
+import { useState, useEffect, Fragment, useMemo, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -90,11 +90,11 @@ const BookingPage = () => {
   // Booking details state
   const [selectedTickets, setSelectedTickets] = useState<Record<number, number>>({});
 
-  // Guest details state
-  const [guestFirstName, setGuestFirstName] = useState('');
-  const [guestLastName, setGuestLastName] = useState('');
-  const [guestEmail, setGuestEmail] = useState('');
-  const [guestPhone, setGuestPhone] = useState('');
+  // Guest details state (initialized from user if logged in)
+  const [guestFirstName, setGuestFirstName] = useState(() => user?.firstName || '');
+  const [guestLastName, setGuestLastName] = useState(() => user?.lastName || '');
+  const [guestEmail, setGuestEmail] = useState(() => user?.email || '');
+  const [guestPhone, setGuestPhone] = useState(() => user?.phone || '');
 
   // Vendor details state
   const [selectedStallType, setSelectedStallType] = useState<string>(stallTypeId || '');
@@ -177,30 +177,42 @@ const BookingPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventData?.ticketTypes, preselectedData.ticketTypeId, preselectedData.quantity]);
 
-  // Pre-fill guest details from logged-in user
+  // Pre-fill guest and vendor details once when user data is loaded.
+  // Using user ID ref guard ensures that if the user edits or clears any field,
+  // it will NEVER bounce back or overwrite their changes.
+  const prefilledGuestUserIdRef = useRef<number | string | null>(user?.id ?? null);
+  const prefilledVendorUserIdRef = useRef<number | string | null>(null);
+
   useEffect(() => {
     if (isAuthenticated && user) {
-      if (user.firstName && !guestFirstName) setGuestFirstName(user.firstName);
-      if (user.lastName && !guestLastName) setGuestLastName(user.lastName);
-      if (user.email && !guestEmail) setGuestEmail(user.email);
-      if (user.phone && !guestPhone) setGuestPhone(user.phone);
-      
-      // Also pre-fill vendor business details from user's saved vendorProfile card
-      if (bookMode === 'vendor') {
+      if (prefilledGuestUserIdRef.current !== user.id) {
+        prefilledGuestUserIdRef.current = user.id;
+        setGuestFirstName((prev) => prev || user.firstName || '');
+        setGuestLastName((prev) => prev || user.lastName || '');
+        setGuestEmail((prev) => prev || user.email || '');
+        setGuestPhone((prev) => prev || user.phone || '');
+      }
+    }
+  }, [isAuthenticated, user]);
+
+  useEffect(() => {
+    if (isAuthenticated && user && bookMode === 'vendor') {
+      if (prefilledVendorUserIdRef.current !== user.id) {
+        prefilledVendorUserIdRef.current = user.id;
         const vp = (user as any).vendorProfile;
         if (vp) {
-          if (vp.businessName && !businessName) setBusinessName(vp.businessName);
-          if (vp.contactEmail && !businessEmail) setBusinessEmail(vp.contactEmail);
-          if (vp.contactPhone && !businessPhone) setBusinessPhone(vp.contactPhone);
-          if (vp.description && !description) setDescription(vp.description);
-          if (vp.category && !vendorRole) setVendorRole(vp.category);
+          setBusinessName((prev) => prev || vp.businessName || '');
+          setBusinessEmail((prev) => prev || vp.contactEmail || '');
+          setBusinessPhone((prev) => prev || vp.contactPhone || '');
+          setDescription((prev) => prev || vp.description || '');
+          setVendorRole((prev) => prev || vp.category || '');
         } else {
-          if (user.email && !businessEmail) setBusinessEmail(user.email);
-          if (user.phone && !businessPhone) setBusinessPhone(user.phone);
+          setBusinessEmail((prev) => prev || user.email || '');
+          setBusinessPhone((prev) => prev || user.phone || '');
         }
       }
     }
-  }, [isAuthenticated, user, guestFirstName, guestLastName, guestEmail, guestPhone, bookMode]);
+  }, [isAuthenticated, user, bookMode]);
 
   // Derived state calculations
   const selectedTicketItems = Object.entries(selectedTickets)
@@ -1222,15 +1234,59 @@ const BookingPage = () => {
                   exit={{ opacity: 0, y: -12 }}
                   className={stepCardClass}
                 >
-                  <p className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
-                    Business
-                  </p>
-                  <h2 className="mt-0.5 font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
-                    Business information
-                  </h2>
-                  <p className="mt-0.5 text-xs text-neutral-500 mb-3">
-                    Tell us about your business.
-                  </p>
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div>
+                      <p className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                        Business
+                      </p>
+                      <h2 className="mt-0.5 font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
+                        Business information
+                      </h2>
+                      <p className="mt-0.5 text-xs text-neutral-500">
+                        Tell us about your business.
+                      </p>
+                    </div>
+                    {isAuthenticated && user && (
+                      <div className="flex items-center gap-2 pt-1 shrink-0">
+                        {(businessName || businessEmail || businessPhone || description) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBusinessName('');
+                              setBusinessEmail('');
+                              setBusinessPhone('');
+                              setDescription('');
+                              setVendorRole('');
+                            }}
+                            className="text-xs text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 font-medium transition-colors"
+                          >
+                            Clear
+                          </button>
+                        )}
+                        {businessEmail !== (user.email || '') && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const vp = (user as any).vendorProfile;
+                              if (vp) {
+                                setBusinessName(vp.businessName || '');
+                                setBusinessEmail(vp.contactEmail || user.email || '');
+                                setBusinessPhone(vp.contactPhone || user.phone || '');
+                                setDescription(vp.description || '');
+                                setVendorRole(vp.category || '');
+                              } else {
+                                setBusinessEmail(user.email || '');
+                                setBusinessPhone(user.phone || '');
+                              }
+                            }}
+                            className="text-xs text-rose-500 hover:text-rose-600 font-semibold transition-colors"
+                          >
+                            Use my profile
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                   <div className="space-y-4">
                     <div>
@@ -1430,15 +1486,54 @@ const BookingPage = () => {
                   exit={{ opacity: 0, y: -12 }}
                   className={stepCardClass}
                 >
-                  <p className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
-                    Guest
-                  </p>
-                  <h2 className="mt-0.5 font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
-                    Your details
-                  </h2>
-                  <p className="mt-0.5 text-xs text-neutral-500 mb-3">
-                    Email is required for your ticket confirmation.
-                  </p>
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div>
+                      <p className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                        Guest
+                      </p>
+                      <h2 className="mt-0.5 font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
+                        Your details
+                      </h2>
+                      <p className="mt-0.5 text-xs text-neutral-500">
+                        Email is required for your ticket confirmation.
+                      </p>
+                    </div>
+                    {isAuthenticated && user && (
+                      <div className="flex items-center gap-2 pt-1 shrink-0">
+                        {(guestFirstName || guestLastName || guestEmail || guestPhone) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setGuestFirstName('');
+                              setGuestLastName('');
+                              setGuestEmail('');
+                              setGuestPhone('');
+                            }}
+                            className="text-xs text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 font-medium transition-colors"
+                          >
+                            Clear
+                          </button>
+                        )}
+                        {(guestFirstName !== (user.firstName || '') ||
+                          guestLastName !== (user.lastName || '') ||
+                          guestEmail !== (user.email || '') ||
+                          guestPhone !== (user.phone || '')) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setGuestFirstName(user.firstName || '');
+                              setGuestLastName(user.lastName || '');
+                              setGuestEmail(user.email || '');
+                              setGuestPhone(user.phone || '');
+                            }}
+                            className="text-xs text-rose-500 hover:text-rose-600 font-semibold transition-colors"
+                          >
+                            Use my profile
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                   <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 overflow-hidden">
                     <div className="grid grid-cols-2 border-b border-neutral-200 dark:border-neutral-700">
