@@ -307,7 +307,7 @@ const OrganizerEventPage: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="attendees" className="mt-0">
-            <AttendeesTab eventId={event.id} eventSlug={event.slug} />
+            <AttendeesTab eventId={event.id} eventSlug={event.slug} event={event} />
           </TabsContent>
 
           <TabsContent value="marketing" className="mt-0">

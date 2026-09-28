@@ -62,7 +62,6 @@ const MobileTabBar: React.FC = () => {
   const staffTabs = [
     { label: 'Home', icon: LayoutDashboard, path: '/staff', exact: true },
     { label: 'Scan', icon: ScanLine, path: '/staff/scan', exact: false },
-    { label: 'Orgs', icon: Building2, path: '/staff/orgs', exact: false },
     { label: 'Support', icon: LifeBuoy, path: '/staff/support', exact: false },
   ];
 

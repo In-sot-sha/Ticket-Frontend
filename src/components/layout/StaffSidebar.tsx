@@ -3,7 +3,6 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   ScanLine,
-  Building2,
   LifeBuoy,
   X,
   Shield,
@@ -22,7 +21,6 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { title: 'Staff home', icon: LayoutDashboard, href: '/staff', exact: true },
   { title: 'Gate scan', icon: ScanLine, href: '/staff/scan' },
-  { title: 'Org coverage', icon: Building2, href: '/staff/orgs' },
   { title: 'Support', icon: LifeBuoy, href: '/staff/support' },
 ];
 

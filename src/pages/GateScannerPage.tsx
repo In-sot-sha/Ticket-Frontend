@@ -688,37 +688,37 @@ const GateScanner: React.FC<{
 
       {/* Event selector if none is locked */}
       {!selectedEventId && (
-        <div className="flex-1 max-w-lg mx-auto w-full px-4 py-6 pb-24">
-          <div className="bg-white dark:bg-gray-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-sm p-6 mb-6">
-            <h2 className="text-base font-extrabold text-neutral-900 dark:text-white mb-1">Select Event</h2>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-6">
-              Today's upcoming events for your organization.
+        <div className="flex-1 max-w-md mx-auto w-full px-3 py-4 pb-16">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs p-4 sm:p-5 mb-4">
+            <h2 className="text-sm font-extrabold text-neutral-900 dark:text-white mb-0.5">Select Event</h2>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-4">
+              Select an assigned event to begin ticket check-in.
             </p>
 
             {loadingEvents ? (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-16 bg-neutral-100 dark:bg-neutral-850 rounded-2xl animate-pulse" />
+                  <div key={i} className="h-14 bg-neutral-100 dark:bg-neutral-800 rounded-xl animate-pulse" />
                 ))}
               </div>
             ) : eventsList.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">No events today</p>
-                <p className="text-xs text-neutral-500 mt-1">There are no upcoming events scheduled for today.</p>
+              <div className="text-center py-6">
+                <p className="text-xs font-bold text-neutral-700 dark:text-neutral-300">No events today</p>
+                <p className="text-[11px] text-neutral-500 mt-1">There are no upcoming assigned events scheduled for today.</p>
               </div>
             ) : (
-              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-0.5">
                 {eventsList.map((e) => (
                   <button
                     key={e.id}
                     onClick={() => handleSelectEvent(e.id, e.title)}
-                    className="w-full text-left p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-rose-300 dark:hover:border-rose-700 transition-colors flex items-center justify-between gap-3 group"
+                    className="w-full text-left p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-rose-300 dark:hover:border-rose-700 transition-colors flex items-center justify-between gap-3 group"
                   >
                     <div className="min-w-0">
-                      <h3 className="font-extrabold text-sm text-neutral-900 dark:text-white group-hover:text-rose-500 transition-colors truncate">
+                      <h3 className="font-extrabold text-xs text-neutral-900 dark:text-white group-hover:text-rose-500 transition-colors truncate">
                         {e.title}
                       </h3>
-                      <p className="text-xs text-neutral-500 mt-1">
+                      <p className="text-[11px] text-neutral-500 mt-0.5">
                         {new Date(e.startDate).toLocaleString('en-US', {
                           month: 'short',
                           day: 'numeric',
@@ -738,58 +738,58 @@ const GateScanner: React.FC<{
 
       {/* Result screen */}
       {selectedEventId && showResult && (
-        <div className="flex-1 flex flex-col items-center justify-center px-5 py-8 pb-12">
+        <div className="flex-1 flex flex-col items-center justify-center px-4 py-4 pb-8 max-w-sm mx-auto w-full">
           {scanStatus === 'loading' && (
-            <div className="flex flex-col items-center gap-4">
-              <div className="w-20 h-20 rounded-full bg-rose-50 dark:bg-rose-950/20 flex items-center justify-center">
-                <Loader2 className="h-10 w-10 text-rose-500 animate-spin" />
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-14 h-14 rounded-full bg-rose-50 dark:bg-rose-950/20 flex items-center justify-center">
+                <Loader2 className="h-7 w-7 text-rose-500 animate-spin" />
               </div>
-              <p className="text-sm font-bold text-neutral-700 dark:text-neutral-300">Verifying ticket…</p>
+              <p className="text-xs font-bold text-neutral-700 dark:text-neutral-300">Verifying ticket…</p>
             </div>
           )}
 
           {scanStatus === 'success' && ticketData && (
-            <div className="w-full max-w-sm">
-              <div className="flex flex-col items-center mb-6">
-                <div className="w-24 h-24 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-4">
-                  <CheckCircle className="h-12 w-12 text-emerald-600 dark:text-emerald-400" strokeWidth={1.75} />
+            <div className="w-full">
+              <div className="flex flex-col items-center mb-4 text-center">
+                <div className="w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-2">
+                  <CheckCircle className="h-8 w-8 text-emerald-600 dark:text-emerald-400" strokeWidth={2} />
                 </div>
-                <h2 className="text-2xl font-extrabold text-emerald-700 dark:text-emerald-400">Access Granted</h2>
-                <p className="text-xs text-emerald-600/80 mt-1">{message}</p>
+                <h2 className="text-xl font-extrabold text-emerald-700 dark:text-emerald-400 leading-tight">Access Granted</h2>
+                <p className="text-xs text-emerald-600/80 mt-0.5">{message}</p>
               </div>
-              <div className="bg-white dark:bg-gray-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 overflow-hidden shadow-sm mb-5 divide-y divide-neutral-100 dark:divide-neutral-800">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden shadow-xs mb-3.5 divide-y divide-neutral-100 dark:divide-neutral-800">
                 {[
-                  { icon: <User className="h-4 w-4 text-rose-500" />,        label: 'Name',      value: `${ticketData.user?.firstName ?? ''} ${ticketData.user?.lastName ?? ''}`.trim() || '—' },
-                  { icon: <CalendarDays className="h-4 w-4 text-rose-500" />, label: 'Event',     value: ticketData.event?.title ?? '—' },
-                  ...(ticketData.event?.location ? [{ icon: <MapPin className="h-4 w-4 text-rose-500" />,  label: 'Location', value: ticketData.event.location }] : []),
-                  { icon: <Hash className="h-4 w-4 text-rose-500" />,         label: 'Ticket ID', value: `#${ticketData.id}` },
+                  { icon: <User className="h-3.5 w-3.5 text-rose-500" />,        label: 'Name',      value: `${ticketData.user?.firstName ?? ''} ${ticketData.user?.lastName ?? ''}`.trim() || '—' },
+                  { icon: <CalendarDays className="h-3.5 w-3.5 text-rose-500" />, label: 'Event',     value: ticketData.event?.title ?? '—' },
+                  ...(ticketData.event?.location ? [{ icon: <MapPin className="h-3.5 w-3.5 text-rose-500" />,  label: 'Location', value: ticketData.event.location }] : []),
+                  { icon: <Hash className="h-3.5 w-3.5 text-rose-500" />,         label: 'Ticket ID', value: `#${ticketData.id}` },
                 ].map(row => (
-                  <div key={row.label} className="flex items-center gap-3 px-5 py-3.5">
-                    <div className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-950/30 flex items-center justify-center shrink-0">{row.icon}</div>
-                    <div>
-                      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider leading-none mb-0.5">{row.label}</p>
-                      <p className="text-sm font-bold text-neutral-900 dark:text-white">{row.value}</p>
+                  <div key={row.label} className="flex items-center gap-2.5 px-3.5 py-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-950/30 flex items-center justify-center shrink-0">{row.icon}</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider leading-none mb-0.5">{row.label}</p>
+                      <p className="text-xs font-bold text-neutral-900 dark:text-white truncate">{row.value}</p>
                     </div>
                   </div>
                 ))}
               </div>
-              <button onClick={resetScanner} className="w-full py-4 rounded-2xl text-sm font-extrabold bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white shadow-lg active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
-                <RefreshCw className="h-4 w-4" /> Scan Next Ticket
+              <button onClick={resetScanner} className="w-full py-3 rounded-xl text-xs font-extrabold bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white shadow-xs active:scale-[0.98] transition-transform flex items-center justify-center gap-1.5">
+                <RefreshCw className="h-3.5 w-3.5" /> Scan Next Ticket
               </button>
             </div>
           )}
 
           {scanStatus === 'error' && (
-            <div className="w-full max-w-sm flex flex-col items-center">
-              <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-4 ${errorMeta.bg}`}>
+            <div className="w-full flex flex-col items-center text-center">
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-2 ${errorMeta.bg}`}>
                 {/not started|too early/i.test(message)
-                  ? <Clock className={`h-12 w-12 ${errorMeta.icon}`} strokeWidth={1.75} />
-                  : <AlertTriangle className={`h-12 w-12 ${errorMeta.icon}`} strokeWidth={1.75} />}
+                  ? <Clock className={`h-8 w-8 ${errorMeta.icon}`} strokeWidth={2} />
+                  : <AlertTriangle className={`h-8 w-8 ${errorMeta.icon}`} strokeWidth={2} />}
               </div>
-              <h2 className={`text-2xl font-extrabold mb-2 ${errorMeta.heading}`}>{errorMeta.title}</h2>
-              <p className="text-sm text-neutral-700 dark:text-neutral-300 text-center mb-1 leading-snug font-medium">{message}</p>
-              <button onClick={resetScanner} className="mt-8 w-full py-4 rounded-2xl text-sm font-extrabold bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
-                <RefreshCw className="h-4 w-4" /> Scan Another
+              <h2 className={`text-xl font-extrabold mb-1 ${errorMeta.heading}`}>{errorMeta.title}</h2>
+              <p className="text-xs text-neutral-700 dark:text-neutral-300 text-center mb-3 leading-snug font-medium">{message}</p>
+              <button onClick={resetScanner} className="w-full py-3 rounded-xl text-xs font-extrabold bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 active:scale-[0.98] transition-transform flex items-center justify-center gap-1.5">
+                <RefreshCw className="h-3.5 w-3.5" /> Scan Another
               </button>
             </div>
           )}
@@ -802,7 +802,7 @@ const GateScanner: React.FC<{
           <div className="flex bg-white dark:bg-gray-900 border-b border-neutral-100 dark:border-neutral-800 shrink-0">
             {(['camera', 'manual'] as const).map((t) => (
               <button key={t} onClick={() => setTab(t)}
-                className={`flex-1 py-3.5 text-xs font-bold border-b-2 transition-colors ${tab === t ? 'border-rose-500 text-rose-500' : 'border-transparent text-neutral-400'}`}
+                className={`flex-1 py-2.5 text-xs font-bold border-b-2 transition-colors ${tab === t ? 'border-rose-500 text-rose-500' : 'border-transparent text-neutral-400'}`}
               >
                 {t === 'camera'
                   ? <span className="flex items-center justify-center gap-1.5"><Camera className="h-3.5 w-3.5" /> Camera</span>
@@ -813,49 +813,55 @@ const GateScanner: React.FC<{
 
           {/* Camera — MUST stay in DOM */}
           <div className={tab === 'camera' ? 'flex flex-col flex-1' : 'hidden'}>
-            <div className="flex-1 flex flex-col max-w-lg mx-auto w-full px-4 pt-4 pb-12 gap-4">
-              <div className="bg-black rounded-3xl overflow-hidden shadow-lg relative">
-                <div className="relative w-full" style={{ paddingBottom: '100%' }}>
+            <div className="flex-1 flex flex-col max-w-md mx-auto w-full px-3 pt-3 pb-8 gap-3">
+              <div className="bg-black rounded-2xl overflow-hidden shadow-md relative">
+                <div className="relative w-full aspect-[4/3] max-h-[300px] sm:max-h-[340px]">
                   <div className="absolute inset-0">
                     <div id={SCANNER_DIV_ID} className="w-full h-full" />
                     {cameraActive && (
                       <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                        <div className="absolute inset-0 bg-black/50" style={{ clipPath: 'polygon(0% 0%,100% 0%,100% 100%,0% 100%,0% 0%,calc(50% - 110px) calc(50% - 110px),calc(50% - 110px) calc(50% + 110px),calc(50% + 110px) calc(50% + 110px),calc(50% + 110px) calc(50% - 110px),calc(50% - 110px) calc(50% - 110px))' }} />
-                        <div className="relative" style={{ width: 220, height: 220 }}>
-                          <span className="absolute top-0 left-0 w-8 h-8 border-t-[3px] border-l-[3px] border-rose-500 rounded-tl-xl" />
-                          <span className="absolute top-0 right-0 w-8 h-8 border-t-[3px] border-r-[3px] border-rose-500 rounded-tr-xl" />
-                          <span className="absolute bottom-0 left-0 w-8 h-8 border-b-[3px] border-l-[3px] border-rose-500 rounded-bl-xl" />
-                          <span className="absolute bottom-0 right-0 w-8 h-8 border-b-[3px] border-r-[3px] border-rose-500 rounded-br-xl" />
-                          <span className="absolute left-3 right-3 h-0.5 bg-rose-400/80 rounded-full gate-scanline" />
+                        <div
+                          className="absolute inset-0 bg-black/50"
+                          style={{
+                            clipPath:
+                              'polygon(0% 0%,100% 0%,100% 100%,0% 100%,0% 0%,calc(50% - 95px) calc(50% - 95px),calc(50% - 95px) calc(50% + 95px),calc(50% + 95px) calc(50% + 95px),calc(50% + 95px) calc(50% - 95px),calc(50% - 95px) calc(50% - 95px))',
+                          }}
+                        />
+                        <div className="relative w-[190px] h-[190px]">
+                          <span className="absolute top-0 left-0 w-7 h-7 border-t-[3px] border-l-[3px] border-rose-500 rounded-tl-xl" />
+                          <span className="absolute top-0 right-0 w-7 h-7 border-t-[3px] border-r-[3px] border-rose-500 rounded-tr-xl" />
+                          <span className="absolute bottom-0 left-0 w-7 h-7 border-b-[3px] border-l-[3px] border-rose-500 rounded-bl-xl" />
+                          <span className="absolute bottom-0 right-0 w-7 h-7 border-b-[3px] border-r-[3px] border-rose-500 rounded-br-xl" />
+                          <span className="absolute left-2 right-2 h-0.5 bg-rose-400/90 rounded-full gate-scanline" />
                         </div>
                       </div>
                     )}
                     {cameraError && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-950/98 text-white text-center px-6 gap-4">
-                        <XCircle className="h-12 w-12 text-red-400" strokeWidth={1.5} />
-                        <p className="text-sm font-medium leading-snug">{cameraError}</p>
-                        <button onClick={startCamera} className="flex items-center gap-2 bg-rose-500 text-white rounded-full px-5 py-2.5 text-xs font-bold"><RefreshCw className="h-3.5 w-3.5" /> Try again</button>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-950/98 text-white text-center px-4 gap-3">
+                        <XCircle className="h-10 w-10 text-red-400" strokeWidth={1.5} />
+                        <p className="text-xs font-medium leading-snug">{cameraError}</p>
+                        <button onClick={startCamera} className="flex items-center gap-1.5 bg-rose-500 text-white rounded-full px-4 py-2 text-xs font-bold"><RefreshCw className="h-3 w-3" /> Try again</button>
                       </div>
                     )}
                     {!cameraActive && !cameraError && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-950 text-white gap-5">
-                        <div className="w-20 h-20 rounded-full bg-neutral-800 flex items-center justify-center">
-                          <Camera className="h-10 w-10 text-neutral-400" strokeWidth={1.5} />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-950 text-white gap-3.5">
+                        <div className="w-14 h-14 rounded-full bg-neutral-800 flex items-center justify-center">
+                          <Camera className="h-7 w-7 text-neutral-400" strokeWidth={1.5} />
                         </div>
-                        <button onClick={startCamera} className="bg-rose-500 text-white rounded-full px-6 py-3 text-sm font-bold shadow-xl">Enable Camera</button>
+                        <button onClick={startCamera} className="bg-rose-500 text-white rounded-full px-5 py-2.5 text-xs font-bold shadow-md">Enable Camera</button>
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="absolute bottom-6 left-0 right-0 text-center z-10">
-                  <p className="text-[10px] uppercase font-bold tracking-widest text-neutral-300 drop-shadow">
+                <div className="absolute bottom-3 left-0 right-0 text-center z-10">
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-neutral-300 drop-shadow">
                     {cameraActive ? 'Hold QR code inside the frame' : 'Tap to start'}
                   </p>
                 </div>
               </div>
               {cameraActive && (
-                <div className="flex items-center justify-center gap-2 text-xs text-neutral-400">
+                <div className="flex items-center justify-center gap-1.5 text-[11px] text-neutral-400">
                   <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
                   Scanner active
                 </div>
@@ -865,18 +871,18 @@ const GateScanner: React.FC<{
 
           {/* Manual */}
           <div className={tab === 'manual' ? 'flex flex-col flex-1' : 'hidden'}>
-            <div className="max-w-lg mx-auto w-full px-4 pt-6 pb-12 space-y-4">
-              <div className="bg-white dark:bg-gray-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-sm p-5">
-                <h3 className="text-sm font-extrabold text-neutral-900 dark:text-white mb-1">Enter Ticket Code</h3>
-                <p className="text-xs text-neutral-500 mb-4">Type the ticket ID or QR code shown on the pass.</p>
-                <form onSubmit={e => { e.preventDefault(); const code = manualCode.trim(); if (code && !isVerifyingRef.current) { isVerifyingRef.current = true; handleVerification(code); }}} className="space-y-3">
+            <div className="max-w-md mx-auto w-full px-3 pt-3 pb-8 space-y-3">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs p-4">
+                <h3 className="text-xs font-extrabold text-neutral-900 dark:text-white mb-0.5">Enter Ticket Code</h3>
+                <p className="text-[11px] text-neutral-500 mb-3">Type the ticket ID or QR code shown on the pass.</p>
+                <form onSubmit={e => { e.preventDefault(); const code = manualCode.trim(); if (code && !isVerifyingRef.current) { isVerifyingRef.current = true; handleVerification(code); }}} className="space-y-2.5">
                   <div className="relative">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                    <input type="text" value={manualCode} onChange={e => setManualCode(e.target.value)} placeholder="e.g. QR-105-31"
-                       className="w-full pl-10 pr-4 py-4 bg-neutral-50 dark:bg-gray-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                    <input type="text" value={manualCode} onChange={e => setManualCode(e.target.value)} placeholder="e.g. TKT-105-31"
+                       className="w-full pl-9 pr-3 py-2.5 bg-neutral-50 dark:bg-gray-950 border border-neutral-200 dark:border-neutral-800 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent"
                        autoCapitalize="characters" autoCorrect="off" spellCheck={false} />
                   </div>
-                  <button type="submit" disabled={!manualCode.trim()} className="w-full py-4 rounded-2xl text-sm font-extrabold bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white shadow-md disabled:opacity-40 transition-all active:scale-[0.98]">
+                  <button type="submit" disabled={!manualCode.trim()} className="w-full py-2.5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white shadow-xs disabled:opacity-40 transition-all active:scale-[0.98]">
                     Verify Ticket
                   </button>
                 </form>
@@ -1065,14 +1071,14 @@ function GateScannerBootSkeleton({ embedded }: { embedded: boolean }) {
           </div>
         </div>
       )}
-      <div className="flex-1 max-w-lg w-full mx-auto px-4 py-8 space-y-5">
-        <div className="space-y-2">
+      <div className="flex-1 max-w-md w-full mx-auto px-4 py-6 space-y-4">
+        <div className="space-y-1.5">
           <p className="text-[11px] font-bold uppercase tracking-wider text-rose-500">Gate scan</p>
-          <h1 className="text-2xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
+          <h1 className="text-xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
             Select event
           </h1>
-          <p className="text-sm text-neutral-500">
-            Today&apos;s covered events will appear here.
+          <p className="text-xs text-neutral-500">
+            Today&apos;s assigned events will appear here.
           </p>
         </div>
         <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-800">

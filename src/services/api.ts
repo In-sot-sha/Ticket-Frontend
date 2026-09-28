@@ -596,6 +596,9 @@ export const api = {
       password?: string;
       capabilities?: string[];
       active?: boolean;
+      eventId?: number | string;
+      eventIds?: number[] | string;
+      assignAllEvents?: boolean;
       organizationIds?: number[];
       sendInvite?: boolean;
     }) => apiRequest<any>('POST', '/admin/staff', data),
@@ -607,6 +610,19 @@ export const api = {
       userId: number,
       data: { isStaff?: boolean; capabilities?: string[]; active?: boolean }
     ) => apiRequest<any>('PUT', `/admin/staff/${userId}`, data),
+
+    assignStaffEvent: (
+      userId: number,
+      data: {
+        eventId?: number | string;
+        eventIds?: number[] | string;
+        assignAllEvents?: boolean;
+        capabilitiesOverride?: string[];
+      }
+    ) => apiRequest<any>('POST', `/admin/staff/${userId}/events`, data),
+
+    removeStaffEvent: (userId: number, eventId: number) =>
+      apiRequest<any>('DELETE', `/admin/staff/${userId}/events/${eventId}`),
 
     addStaffOrgCoverage: (
       userId: number,

@@ -58,7 +58,6 @@ import AdminUsersPage from '../pages/admin/AdminUsersPage';
 import AdminTransactionsPage from '../pages/admin/AdminTransactionsPage';
 import AdminSupportPage from '../pages/admin/AdminSupportPage';
 import AdminStaffPage from '../pages/admin/AdminStaffPage';
-import AdminOpsProjectsPage from '../pages/admin/AdminOpsProjectsPage';
 import AdminEventsPage from '../pages/admin/AdminEventsPage';
 import AdminWhatsAppPage from '../pages/admin/AdminWhatsAppPage';
 import StaffHomePage from '../pages/StaffHomePage';
@@ -336,7 +335,7 @@ const AppRoutes: React.FC = () => {
         },
         {
           path: "ops",
-          element: <AdminOpsProjectsPage />,
+          element: <Navigate to="/admin/staff" replace />,
         },
         {
           path: "events",

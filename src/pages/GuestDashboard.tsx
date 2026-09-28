@@ -8,6 +8,8 @@ import {
   ArrowRight,
   Calendar,
   MapPin,
+  ChevronRight,
+  Store,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
@@ -109,92 +111,65 @@ const TicketsDashboard = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-white via-neutral-50 to-neutral-100 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 flex items-center justify-center px-4 py-8">
-        <div className="w-full max-w-lg">
-          <div className="p-5 backdrop-blur rounded-3xl sm:p-10">
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-center text-neutral-900 dark:text-white mb-3 leading-tight">
-              Find Your Tickets
-            </h1>
-            <p className="text-center text-neutral-500 dark:text-neutral-400 text-sm mb-10 leading-relaxed max-w-sm mx-auto">
-              You&apos;re not logged in yet. Choose how you want to get to your tickets.
-            </p>
-
-            <div className="space-y-5 mb-8">
-              <div>
-                <Button
-                  onClick={() => navigate('/login')}
-                  className="w-full h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-full text-sm font-bold shadow-lg hover:shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2.5 group relative overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <LogIn className="h-4.5 w-4.5 group-hover:scale-110 transition-transform" />
-                  <span>Login to My Account</span>
-                </Button>
-               
-              </div>
-
-              <div>
-                <Button
-                  variant="outline"
-                  onClick={() => navigate('/recover-ticket')}
-                  className="w-full h-11 border-2 border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-full text-sm font-bold hover:border-rose-400 dark:hover:border-rose-600 hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2.5 group"
-                >
-                  <Search className="h-4.5 w-4.5 group-hover:text-rose-500 transition-colors" />
-                  <span className="group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
-                    Recover My Tickets
-                  </span>
-                </Button>
-                <p className="mt-2 text-center text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed px-2">
-                  Bought without logging in? Look up your passes with email or phone.
-                </p>
-              </div>
+      <div className="min-h-[calc(100vh-8rem)] bg-white dark:bg-neutral-950">
+        <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 sm:pt-8 pb-24 md:pb-10">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 text-center sm:text-left">
+            <div className="mx-auto sm:mx-0 h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center shadow-sm shrink-0">
+              <Ticket className="h-7 w-7 sm:h-8 sm:w-8 text-neutral-300 dark:text-neutral-600" strokeWidth={1.5} />
             </div>
-
-            <div className="relative mb-8">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-neutral-200 dark:border-neutral-700" />
-              </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="px-3 bg-white dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400">
-                  or
-                </span>
-              </div>
-            </div>
-
-            <div className="text-center">
-              <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-2">
-                Don&apos;t have an account?
-              </p>
-              <Link
-                to="/register"
-                className="inline-flex items-center gap-1.5 text-sm font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors group"
-              >
-                Create one now
-                <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-              </Link>
-              <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-xs mx-auto">
-                Sign up with email or phone so your tickets stay linked to you.
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
+                Your tickets
+              </h1>
+              <p className="mt-1 text-sm text-neutral-500 sm:max-w-xl">
+                Sign in to view your passes, scan barcodes at the gate, or download tickets.
               </p>
             </div>
           </div>
 
-          <div className="mt-12 text-center">
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-4">
-              Trusted by thousands of event attendees
-            </p>
-            <div className="flex items-center justify-center gap-6 flex-wrap">
-              <div className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
-                <CheckCircle className="h-4 w-4 text-emerald-500" />
-                <span>Secure Access</span>
+          <div className="mt-5 sm:mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+            <Link
+              to="/login"
+              className="flex w-full items-center justify-center gap-2 h-11 sm:h-12 rounded-full bg-rose-500 hover:bg-rose-600 text-white text-sm font-bold transition-colors active:scale-[0.98]"
+            >
+              <LogIn className="h-4 w-4" />
+              Log in
+            </Link>
+            <Link
+              to="/register"
+              className="flex w-full items-center justify-center h-11 sm:h-12 rounded-full border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white text-sm font-bold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+            >
+              Create account
+            </Link>
+          </div>
+
+          <div className="mt-5 sm:mt-6 rounded-2xl border border-neutral-150 dark:border-neutral-900 overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-900 sm:grid sm:grid-cols-2 sm:divide-y-0 sm:gap-0">
+            <Link
+              to="/recover-ticket"
+              className="flex items-center gap-3 px-4 py-3 sm:py-4 hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors sm:border-r sm:border-neutral-100 dark:sm:border-neutral-900"
+            >
+              <div className="h-9 w-9 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center shrink-0">
+                <Search className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
-                <CheckCircle className="h-4 w-4 text-emerald-500" />
-                <span>Quick Recovery</span>
+              <div className="flex-1 text-left min-w-0">
+                <p className="text-sm font-bold text-neutral-900 dark:text-white">Recover ticket</p>
+                <p className="text-[11px] text-neutral-500">Bought without logging in? Find passes by email or phone</p>
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
-                <CheckCircle className="h-4 w-4 text-emerald-500" />
-                <span>Instant Access</span>
+              <ChevronRight className="h-4 w-4 text-neutral-300 shrink-0" />
+            </Link>
+            <Link
+              to="/events"
+              className="flex items-center gap-3 px-4 py-3 sm:py-4 hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors border-t border-neutral-100 dark:border-neutral-900 sm:border-t-0"
+            >
+              <div className="h-9 w-9 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center shrink-0">
+                <Store className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
               </div>
-            </div>
+              <div className="flex-1 text-left min-w-0">
+                <p className="text-sm font-bold text-neutral-900 dark:text-white">Explore events</p>
+                <p className="text-[11px] text-neutral-500">Browse upcoming concerts, parties & shows</p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-neutral-300 shrink-0" />
+            </Link>
           </div>
         </div>
       </div>

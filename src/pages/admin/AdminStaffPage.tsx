@@ -7,10 +7,9 @@ import {
   Check,
   Search,
   Users,
-  Building2,
+  Calendar,
   Key,
   Mail,
-  ShieldCheck,
   CheckCircle2,
   AlertCircle,
   QrCode,
@@ -21,6 +20,7 @@ import {
   UserPlus,
   Phone,
   Shield,
+  Trash2,
 } from 'lucide-react';
 import api from '../../services/api';
 import { queryKeys } from '../../lib/queryKeys';
@@ -42,7 +42,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
-import { useHostApplications } from '../../hooks/queries/useAdmin';
 import { cn } from '../../lib/utils';
 
 const CAPS = ['SCAN', 'WALK_IN_SALE', 'CHECK_IN', 'GATE_MANAGE', 'SUPPORT'] as const;
@@ -96,6 +95,17 @@ function parseCaps(raw: unknown): string[] {
   return [];
 }
 
+function formatEventDate(iso?: string) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 const AdminStaffPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -103,7 +113,7 @@ const AdminStaffPage: React.FC = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [promoteOpen, setPromoteOpen] = useState(false);
   const [manageId, setManageId] = useState<number | null>(null);
-  const [manageTab, setManageTab] = useState<'caps' | 'coverage' | 'access'>('caps');
+  const [manageTab, setManageTab] = useState<'caps' | 'events' | 'access'>('caps');
 
   const [form, setForm] = useState({
     firstName: '',
@@ -111,8 +121,9 @@ const AdminStaffPage: React.FC = () => {
     email: '',
     phone: '',
     password: '',
-    capabilities: [...CAPS.slice(0, 3)] as string[],
-    organizationId: '',
+    capabilities: [...CAPS] as string[],
+    eventId: '',
+    assignAllEvents: false,
   });
 
   const [createdCred, setCreatedCred] = useState<{
@@ -123,14 +134,15 @@ const AdminStaffPage: React.FC = () => {
   } | null>(null);
   const [copied, setCopied] = useState(false);
   const [editingCaps, setEditingCaps] = useState<string[]>([]);
-  const [coverageOrgId, setCoverageOrgId] = useState('');
+  const [selectedEventId, setSelectedEventId] = useState('');
   const [manageMsg, setManageMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   const [userSearch, setUserSearch] = useState('');
   const [debouncedUserSearch, setDebouncedUserSearch] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [promoteCaps, setPromoteCaps] = useState<string[]>([...CAPS.slice(0, 3)]);
-  const [promoteOrgId, setPromoteOrgId] = useState('');
+  const [promoteCaps, setPromoteCaps] = useState<string[]>([...CAPS]);
+  const [promoteEventId, setPromoteEventId] = useState('');
+  const [promoteAssignAll, setPromoteAssignAll] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedUserSearch(userSearch.trim()), 250);
@@ -147,7 +159,15 @@ const AdminStaffPage: React.FC = () => {
     refetchOnMount: 'always' as const,
   });
 
-  const { data: orgs = [] } = useHostApplications('all');
+  const { data: adminEvents = [] } = useQuery({
+    queryKey: [...queryKeys.admin.all, 'events'],
+    queryFn: async () => {
+      const res = await api.admin.getEvents();
+      return (res.data as any[]) || [];
+    },
+    staleTime: 60 * 1000,
+  });
+
   const staff = staffRes || [];
   const staffIds = useMemo(() => new Set(staff.map((s: any) => s.id)), [staff]);
 
@@ -188,13 +208,25 @@ const AdminStaffPage: React.FC = () => {
     () => staff.filter((s: any) => s.staffProfile?.active !== false).length,
     [staff]
   );
-  const coveredOrgsCount = useMemo(() => {
-    const orgSet = new Set<number>();
-    staff.forEach((s: any) => {
-      (s.staffOrgCoverages || []).forEach((c: any) => orgSet.add(c.organizationId));
-    });
-    return orgSet.size;
+
+  const assignedStaffCount = useMemo(() => {
+    return staff.filter((s: any) =>
+      (s.staffProjectAssignments || []).some((a: any) => a.project?.event)
+    ).length;
   }, [staff]);
+
+  const manageStaffAssignedEvents = useMemo(() => {
+    if (!manageStaff) return [];
+    return (manageStaff.staffProjectAssignments || [])
+      .map((a: any) => a.project?.event)
+      .filter(Boolean);
+  }, [manageStaff]);
+
+  const unassignedEvents = useMemo(() => {
+    return adminEvents.filter(
+      (ev: any) => !manageStaffAssignedEvents.some((assigned: any) => assigned.id === ev.id)
+    );
+  }, [adminEvents, manageStaffAssignedEvents]);
 
   const upsert = useMutation({
     mutationFn: (data: {
@@ -223,34 +255,38 @@ const AdminStaffPage: React.FC = () => {
     },
   });
 
-  const addCoverage = useMutation({
-    mutationFn: ({ userId, organizationId }: { userId: number; organizationId: number }) =>
-      api.admin.addStaffOrgCoverage(userId, { organizationId }),
+  const assignEvent = useMutation({
+    mutationFn: ({ userId, eventId }: { userId: number; eventId: number | string }) =>
+      api.admin.assignStaffEvent(userId, {
+        eventId: eventId === 'all' ? 'all' : Number(eventId),
+        assignAllEvents: eventId === 'all',
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.staff() });
-      setManageMsg({ type: 'ok', text: 'Organization coverage added.' });
+      setManageMsg({ type: 'ok', text: 'Staff assigned to event(s) successfully.' });
+      setSelectedEventId('');
       setTimeout(() => setManageMsg(null), 3000);
     },
     onError: (err: any) => {
       setManageMsg({
         type: 'err',
-        text: err?.response?.data?.message || 'Failed to add org coverage.',
+        text: err?.response?.data?.message || 'Failed to assign event.',
       });
     },
   });
 
-  const removeCoverage = useMutation({
-    mutationFn: ({ userId, organizationId }: { userId: number; organizationId: number }) =>
-      api.admin.removeStaffOrgCoverage(userId, organizationId),
+  const removeEvent = useMutation({
+    mutationFn: ({ userId, eventId }: { userId: number; eventId: number }) =>
+      api.admin.removeStaffEvent(userId, eventId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.staff() });
-      setManageMsg({ type: 'ok', text: 'Organization coverage removed.' });
+      setManageMsg({ type: 'ok', text: 'Event assignment removed.' });
       setTimeout(() => setManageMsg(null), 3000);
     },
     onError: (err: any) => {
       setManageMsg({
         type: 'err',
-        text: err?.response?.data?.message || 'Failed to remove org coverage.',
+        text: err?.response?.data?.message || 'Failed to remove event assignment.',
       });
     },
   });
@@ -263,9 +299,14 @@ const AdminStaffPage: React.FC = () => {
         capabilities: promoteCaps,
         active: true,
       });
-      if (promoteOrgId) {
-        await api.admin.addStaffOrgCoverage(selectedUserId, {
-          organizationId: Number(promoteOrgId),
+      if (promoteAssignAll || promoteEventId === 'all') {
+        await api.admin.assignStaffEvent(selectedUserId, {
+          assignAllEvents: true,
+          eventId: 'all',
+        });
+      } else if (promoteEventId && promoteEventId !== 'none') {
+        await api.admin.assignStaffEvent(selectedUserId, {
+          eventId: Number(promoteEventId),
         });
       }
     },
@@ -276,8 +317,9 @@ const AdminStaffPage: React.FC = () => {
       setUserSearch('');
       setDebouncedUserSearch('');
       setSelectedUserId(null);
-      setPromoteCaps([...CAPS.slice(0, 3)]);
-      setPromoteOrgId('');
+      setPromoteCaps([...CAPS]);
+      setPromoteEventId('');
+      setPromoteAssignAll(false);
     },
   });
 
@@ -290,7 +332,13 @@ const AdminStaffPage: React.FC = () => {
         phone: form.phone.trim() || undefined,
         password: form.password.trim() || undefined,
         capabilities: form.capabilities,
-        organizationIds: form.organizationId ? [Number(form.organizationId)] : undefined,
+        eventId:
+          form.assignAllEvents || form.eventId === 'all'
+            ? 'all'
+            : form.eventId && form.eventId !== 'none'
+            ? Number(form.eventId)
+            : undefined,
+        assignAllEvents: Boolean(form.assignAllEvents || form.eventId === 'all'),
         sendInvite: true,
       }),
     onSuccess: (res) => {
@@ -316,8 +364,9 @@ const AdminStaffPage: React.FC = () => {
       email: '',
       phone: '',
       password: '',
-      capabilities: [...CAPS.slice(0, 3)],
-      organizationId: '',
+      capabilities: [...CAPS],
+      eventId: '',
+      assignAllEvents: false,
     });
     setCreatedCred(null);
   };
@@ -329,7 +378,7 @@ const AdminStaffPage: React.FC = () => {
   const openManage = (s: any) => {
     setManageId(s.id);
     setEditingCaps(parseCaps(s.staffProfile?.capabilities));
-    setCoverageOrgId('');
+    setSelectedEventId('');
     setManageMsg(null);
     setManageTab('caps');
   };
@@ -339,32 +388,33 @@ const AdminStaffPage: React.FC = () => {
   };
 
   return (
-    <div className="py-3 px-2 sm:px-3 max-w-7xl mx-auto pb-10 text-neutral-900 dark:text-neutral-100">
+    <div className="py-2.5 sm:py-3 px-2 sm:px-3 max-w-7xl mx-auto pb-10 text-neutral-900 dark:text-neutral-100">
       <PageHeader
         title="Staff"
-        accent="Roster"
-        description="Ground personnel, gate ticket scanners, walk-in sellers, and organization assignments."
+        accent="Management"
+        description="Ground personnel, gate ticket scanners, and door check-in staff assigned to your events."
         actions={
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              className="rounded-xl h-9 text-xs font-semibold"
+              className="rounded-xl  sm:h-9 text-xs font-semibold"
               onClick={() => {
                 setUserSearch('');
                 setDebouncedUserSearch('');
                 setSelectedUserId(null);
-                setPromoteCaps([...CAPS.slice(0, 3)]);
-                setPromoteOrgId('');
+                setPromoteCaps([...CAPS]);
+                setPromoteEventId('');
+                setPromoteAssignAll(false);
                 setPromoteOpen(true);
               }}
             >
-              <Search className="h-3.5 w-3.5 mr-1 text-neutral-400" />
+              <UserCheck className="h-3.5 w-3.5 mr-1 text-neutral-400" />
               Promote User
             </Button>
             <Button
               size="sm"
-              className="bg-rose-500 hover:bg-rose-600 text-white border-0 rounded-xl h-9 text-xs font-bold shadow-sm shadow-rose-500/20"
+              className="bg-rose-500 hover:bg-rose-600 text-white border-0 rounded-xl  sm:h-9 text-xs font-bold shadow-xs shadow-rose-500/20"
               onClick={() => {
                 resetForm();
                 setCreateOpen(true);
@@ -377,42 +427,42 @@ const AdminStaffPage: React.FC = () => {
         }
       />
 
-      {/* Compact Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3.5 mb-4">
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 sm:p-3.5 bg-white dark:bg-neutral-900 shadow-sm">
-          <div className="flex items-center justify-between text-neutral-400 mb-1">
+      {/* Responsive Stat Cards: Clean 3-col on laptop, 2-col on mobile */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 mb-3.5 sm:mb-4">
+        <div className="border border-neutral-200/80 dark:border-neutral-800 rounded-xl p-2.5 sm:p-3 bg-white dark:bg-neutral-900 shadow-2xs">
+          <div className="flex items-center justify-between text-neutral-400 mb-0.5">
             <span className="text-[10px] font-bold uppercase tracking-wider">Total Staff</span>
             <Users className="h-3.5 w-3.5 text-blue-500" />
           </div>
-          <p className="text-lg sm:text-xl font-black tracking-tight">{staff.length}</p>
+          <p className="text-base sm:text-xl font-extrabold tracking-tight">{staff.length}</p>
         </div>
 
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 sm:p-3.5 bg-white dark:bg-neutral-900 shadow-sm">
-          <div className="flex items-center justify-between text-neutral-400 mb-1">
+        <div className="border border-neutral-200/80 dark:border-neutral-800 rounded-xl p-2.5 sm:p-3 bg-white dark:bg-neutral-900 shadow-2xs">
+          <div className="flex items-center justify-between text-neutral-400 mb-0.5">
             <span className="text-[10px] font-bold uppercase tracking-wider">Active Staff</span>
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
           </div>
-          <p className="text-lg sm:text-xl font-black tracking-tight">{activeStaffCount}</p>
+          <p className="text-base sm:text-xl font-extrabold tracking-tight">{activeStaffCount}</p>
         </div>
 
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 sm:p-3.5 bg-white dark:bg-neutral-900 shadow-sm">
-          <div className="flex items-center justify-between text-neutral-400 mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Covered Orgs</span>
-            <Building2 className="h-3.5 w-3.5 text-purple-500" />
+        <div className="col-span-2 sm:col-span-1 border border-neutral-200/80 dark:border-neutral-800 rounded-xl p-2.5 sm:p-3 bg-white dark:bg-neutral-900 shadow-2xs">
+          <div className="flex items-center justify-between text-neutral-400 mb-0.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider">Assigned to Events</span>
+            <Calendar className="h-3.5 w-3.5 text-rose-500" />
           </div>
-          <p className="text-lg sm:text-xl font-black tracking-tight">{coveredOrgsCount}</p>
+          <p className="text-base sm:text-xl font-extrabold tracking-tight">{assignedStaffCount}</p>
         </div>
       </div>
 
       {/* Filter & Search Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 mb-4">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mb-3.5 sm:mb-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search staff by name or email…"
-            className="w-full pl-9 pr-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-colors"
+            className="w-full pl-9 pr-3 py-1.5 sm:py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-colors"
           />
         </div>
 
@@ -423,7 +473,7 @@ const AdminStaffPage: React.FC = () => {
               type="button"
               onClick={() => setStatusFilter(mode)}
               className={cn(
-                'px-3 py-1.5 rounded-lg capitalize transition-all',
+                'px-2.5 sm:px-3 py-1 rounded-lg capitalize transition-all text-xs',
                 statusFilter === mode
                   ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs font-bold'
                   : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
@@ -436,7 +486,7 @@ const AdminStaffPage: React.FC = () => {
       </div>
 
       {/* Staff Roster Table */}
-      <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl bg-white dark:bg-neutral-900 shadow-sm overflow-hidden">
+      <div className="border border-neutral-200/80 dark:border-neutral-800 rounded-xl sm:rounded-2xl bg-white dark:bg-neutral-900 shadow-2xs overflow-hidden">
         {isLoading ? (
           <div className="p-4 space-y-3">
             {[1, 2, 3, 4, 5].map((i) => (
@@ -450,12 +500,12 @@ const AdminStaffPage: React.FC = () => {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="p-10 text-center">
+          <div className="p-8 sm:p-10 text-center">
             <Users className="h-8 w-8 text-neutral-300 dark:text-neutral-700 mx-auto mb-2" />
-            <p className="text-sm font-bold text-neutral-700 dark:text-neutral-300">
+            <p className="text-xs sm:text-sm font-bold text-neutral-700 dark:text-neutral-300">
               No staff members found
             </p>
-            <p className="text-xs text-neutral-400 mt-0.5">
+            <p className="text-[11px] sm:text-xs text-neutral-400 mt-0.5">
               Try adjusting your search or add a new staff account above.
             </p>
           </div>
@@ -464,21 +514,23 @@ const AdminStaffPage: React.FC = () => {
             {filtered.map((s: any) => {
               const active = s.staffProfile?.active !== false;
               const caps = parseCaps(s.staffProfile?.capabilities);
-              const orgCoverages = s.staffOrgCoverages || [];
+              const assignedEvents = (s.staffProjectAssignments || [])
+                .map((a: any) => a.project?.event)
+                .filter(Boolean);
 
               return (
                 <div
                   key={s.id}
                   onClick={() => openManage(s)}
-                  className="px-3.5 py-3 flex items-center justify-between gap-3 hover:bg-neutral-50/70 dark:hover:bg-neutral-800/40 transition-colors cursor-pointer group"
+                  className="px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-3 hover:bg-neutral-50/70 dark:hover:bg-neutral-800/40 transition-colors cursor-pointer group"
                 >
                   {/* Left: Avatar + Names */}
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-xs">
+                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center text-white text-[10px] sm:text-[11px] font-extrabold shrink-0 shadow-2xs">
                       {getInitials(s.firstName, s.lastName)}
                     </div>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="text-xs font-bold text-neutral-900 dark:text-white truncate group-hover:text-rose-500 transition-colors">
                           {s.firstName} {s.lastName}
                         </p>
@@ -501,7 +553,7 @@ const AdminStaffPage: React.FC = () => {
                   </div>
 
                   {/* Middle: Capabilities */}
-                  <div className="hidden md:flex flex-wrap items-center gap-1 max-w-[280px]">
+                  <div className="hidden md:flex flex-wrap items-center gap-1 max-w-[260px]">
                     {caps.slice(0, 3).map((c) => {
                       const cfg = CAP_CONFIG[c];
                       return (
@@ -523,15 +575,15 @@ const AdminStaffPage: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Middle: Org Coverage */}
-                  <div className="hidden lg:flex items-center gap-1 max-w-[200px] truncate text-xs text-neutral-400">
-                    <Building2 className="h-3 w-3 shrink-0" />
-                    {orgCoverages.length > 0 ? (
-                      <span className="truncate">
-                        {orgCoverages.map((c: any) => c.organization?.name || `#${c.organizationId}`).join(', ')}
+                  {/* Middle: Assigned Events */}
+                  <div className="hidden lg:flex items-center gap-1.5 max-w-[220px] truncate text-xs">
+                    <Calendar className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+                    {assignedEvents.length > 0 ? (
+                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 truncate">
+                        {assignedEvents.length} Event{assignedEvents.length === 1 ? '' : 's'} Assigned
                       </span>
                     ) : (
-                      <span className="text-[11px] italic text-neutral-400">All / Unrestricted</span>
+                      <span className="text-[11px] italic text-neutral-400">No events assigned</span>
                     )}
                   </div>
 
@@ -556,20 +608,22 @@ const AdminStaffPage: React.FC = () => {
         )}
       </div>
 
-      {/* Manage Staff Modal */}
+      {/* ────────────────────────────────────────────────────────────────────────── */}
+      {/* MODAL 1: Manage Staff Modal */}
+      {/* ────────────────────────────────────────────────────────────────────────── */}
       <Dialog open={Boolean(manageStaff)} onOpenChange={(o) => !o && setManageId(null)}>
-        <DialogContent className="sm:max-w-lg w-full max-h-[88vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
+        <DialogContent className="sm:max-w-lg w-full max-h-[88vh] overflow-y-auto p-4 sm:p-5 rounded-2xl">
           {manageStaff && (
             <>
-              <DialogHeader className="border-b border-neutral-150 dark:border-neutral-800 pb-3.5">
+              <DialogHeader className="border-b border-neutral-150 dark:border-neutral-800 pb-3">
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-rose-500 via-rose-600 to-pink-600 flex items-center justify-center text-white text-sm font-black shadow-md shadow-rose-500/20 shrink-0">
+                    <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-rose-500 via-rose-600 to-pink-600 flex items-center justify-center text-white text-sm font-black shadow-xs shrink-0">
                       {getInitials(manageStaff.firstName, manageStaff.lastName)}
                     </div>
                     <span
                       className={cn(
-                        'absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white dark:border-neutral-900',
+                        'absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-neutral-900',
                         manageStaff.staffProfile?.active !== false ? 'bg-emerald-500' : 'bg-neutral-400'
                       )}
                       title={manageStaff.staffProfile?.active !== false ? 'Active' : 'Disabled'}
@@ -577,7 +631,7 @@ const AdminStaffPage: React.FC = () => {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <DialogTitle className="text-base sm:text-lg font-extrabold text-neutral-900 dark:text-white truncate">
+                      <DialogTitle className="text-base font-extrabold text-neutral-900 dark:text-white truncate">
                         {manageStaff.firstName} {manageStaff.lastName}
                       </DialogTitle>
                       <span
@@ -623,7 +677,7 @@ const AdminStaffPage: React.FC = () => {
                   type="button"
                   onClick={() => setManageTab('caps')}
                   className={cn(
-                    'flex-1 py-1.5 px-2.5 rounded-lg transition-all text-center flex items-center justify-center gap-1.5',
+                    'flex-1 py-1.5 px-2 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 text-xs',
                     manageTab === 'caps'
                       ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs font-bold'
                       : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
@@ -634,22 +688,22 @@ const AdminStaffPage: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setManageTab('coverage')}
+                  onClick={() => setManageTab('events')}
                   className={cn(
-                    'flex-1 py-1.5 px-2.5 rounded-lg transition-all text-center flex items-center justify-center gap-1.5',
-                    manageTab === 'coverage'
+                    'flex-1 py-1.5 px-2 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 text-xs',
+                    manageTab === 'events'
                       ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs font-bold'
                       : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
                   )}
                 >
-                  <Building2 className="h-3.5 w-3.5 text-purple-500" />
-                  <span>Coverage ({(manageStaff.staffOrgCoverages || []).length})</span>
+                  <Calendar className="h-3.5 w-3.5 text-rose-500" />
+                  <span>Events ({manageStaffAssignedEvents.length})</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setManageTab('access')}
                   className={cn(
-                    'flex-1 py-1.5 px-2.5 rounded-lg transition-all text-center flex items-center justify-center gap-1.5',
+                    'flex-1 py-1.5 px-2 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 text-xs',
                     manageTab === 'access'
                       ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs font-bold'
                       : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
@@ -663,10 +717,34 @@ const AdminStaffPage: React.FC = () => {
               {/* Tab 1: Capabilities */}
               {manageTab === 'caps' && (
                 <div className="space-y-3 pt-2">
-                  <p className="text-[11px] text-neutral-500">
-                    Select the operations this staff member is authorized to perform on mobile / gate:
-                  </p>
-                  <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-neutral-500">
+                      Authorized operations on mobile & gate:
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allSelected = editingCaps.length === CAPS.length;
+                        setEditingCaps(allSelected ? [] : [...CAPS]);
+                      }}
+                      className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors cursor-pointer select-none shrink-0"
+                    >
+                      <span
+                        className={cn(
+                          'h-3.5 w-3.5 rounded border flex items-center justify-center transition-colors',
+                          editingCaps.length === CAPS.length
+                            ? 'bg-rose-500 border-rose-500 text-white'
+                            : 'border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900'
+                        )}
+                      >
+                        {editingCaps.length === CAPS.length && (
+                          <Check className="h-2.5 w-2.5 stroke-[3]" />
+                        )}
+                      </span>
+                      <span>Select All</span>
+                    </button>
+                  </div>
+                  <div className="space-y-1.5">
                     {CAPS.map((cap) => {
                       const cfg = CAP_CONFIG[cap];
                       const Icon = cfg.icon;
@@ -751,74 +829,121 @@ const AdminStaffPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Tab 2: Org Coverage */}
-              {manageTab === 'coverage' && (
+              {/* Tab 2: Assigned Events */}
+              {manageTab === 'events' && (
                 <div className="space-y-3 pt-2">
                   <p className="text-[11px] text-neutral-500">
-                    Assign organization coverage to grant this staff member access to all events hosted by these organizers:
+                    Assign this staff member to specific events for gate check-in scanning and attendee walk-in sales:
                   </p>
 
-                  <div className="flex flex-wrap gap-1.5 min-h-[40px] p-2 rounded-xl border border-neutral-150 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
-                    {(manageStaff.staffOrgCoverages || []).length === 0 ? (
-                      <p className="text-xs text-neutral-400 p-1">
-                        No org-specific restrictions. Staff can operate on all events when assigned.
-                      </p>
+                  {/* List of currently assigned events */}
+                  <div className="space-y-2">
+                    {manageStaffAssignedEvents.length === 0 ? (
+                      <div className="p-4 rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 text-center">
+                        <Calendar className="h-5 w-5 text-neutral-300 dark:text-neutral-700 mx-auto mb-1" />
+                        <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
+                          Not assigned to any events
+                        </p>
+                        <p className="text-[11px] text-neutral-400 mt-0.5">
+                          Select an upcoming event below to grant gate access.
+                        </p>
+                      </div>
                     ) : (
-                      (manageStaff.staffOrgCoverages || []).map((c: any) => (
-                        <span
-                          key={c.id}
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-xs"
+                      manageStaffAssignedEvents.map((ev: any) => (
+                        <div
+                          key={ev.id}
+                          className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-2xs gap-2"
                         >
-                          <Building2 className="h-3 w-3 text-purple-500" />
-                          {c.organization?.name || `Org #${c.organizationId}`}
-                          <button
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-neutral-900 dark:text-white truncate">
+                              {ev.title}
+                            </p>
+                            <p className="text-[10px] text-neutral-400 truncate mt-0.5">
+                              {formatEventDate(ev.startDate)}
+                              {ev.organization?.name ? ` · ${ev.organization.name}` : ''}
+                              {ev.location ? ` · ${ev.location}` : ''}
+                            </p>
+                          </div>
+                          <Button
                             type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg shrink-0"
+                            disabled={removeEvent.isPending}
                             onClick={() =>
-                              removeCoverage.mutate({
+                              removeEvent.mutate({
                                 userId: manageStaff.id,
-                                organizationId: c.organizationId,
+                                eventId: ev.id,
                               })
                             }
-                            className="text-neutral-400 hover:text-red-500 transition-colors ml-0.5"
                           >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
+                            <Trash2 className="h-3.5 w-3.5 mr-1" />
+                            Remove
+                          </Button>
+                        </div>
                       ))
                     )}
                   </div>
 
-                  <div className="flex gap-2">
-                    <Select
-                      value={coverageOrgId || 'none'}
-                      onValueChange={(v) => setCoverageOrgId(v === 'none' ? '' : v)}
-                    >
-                      <SelectTrigger className="flex-1 h-9 rounded-xl text-xs">
-                        <SelectValue placeholder="Add organization coverage…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Choose an organization…</SelectItem>
-                        {(orgs as any[]).map((o: any) => (
-                          <SelectItem key={o.id} value={String(o.id)}>
-                            {o.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      size="sm"
-                      className="rounded-xl h-9 text-xs font-bold"
-                      disabled={!coverageOrgId || coverageOrgId === 'none' || addCoverage.isPending}
-                      onClick={() => {
-                        addCoverage.mutate({
-                          userId: manageStaff.id,
-                          organizationId: Number(coverageOrgId),
-                        });
-                        setCoverageOrgId('');
-                      }}
-                    >
-                      {addCoverage.isPending ? 'Adding…' : 'Add'}
-                    </Button>
+                  {/* Assign to event section */}
+                  <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                        Assign to New Event
+                      </p>
+                      {unassignedEvents.length > 0 && (
+                        <button
+                          type="button"
+                          disabled={assignEvent.isPending}
+                          onClick={() => {
+                            assignEvent.mutate({
+                              userId: manageStaff.id,
+                              eventId: 'all',
+                            });
+                          }}
+                          className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors cursor-pointer select-none"
+                        >
+                          <Check className="h-3 w-3 stroke-[3]" />
+                          Assign to All Events ({unassignedEvents.length})
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Select
+                        value={selectedEventId || 'none'}
+                        onValueChange={(v) => setSelectedEventId(v === 'none' ? '' : v)}
+                      >
+                        <SelectTrigger className="flex-1 h-8.5 rounded-xl text-xs">
+                          <SelectValue placeholder="Choose an event to assign…" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          <SelectItem value="none">Choose an event…</SelectItem>
+                          {unassignedEvents.length > 1 && (
+                            <SelectItem value="all" className="font-bold text-rose-600 dark:text-rose-400">
+                              ⚡ All Events ({unassignedEvents.length} remaining)
+                            </SelectItem>
+                          )}
+                          {unassignedEvents.map((ev: any) => (
+                            <SelectItem key={ev.id} value={String(ev.id)}>
+                              {ev.title} ({formatEventDate(ev.startDate)})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        className="rounded-xl h-9 text-xs font-bold bg-rose-500 hover:bg-rose-600 text-white shrink-0"
+                        disabled={!selectedEventId || selectedEventId === 'none' || assignEvent.isPending}
+                        onClick={() => {
+                          assignEvent.mutate({
+                            userId: manageStaff.id,
+                            eventId: selectedEventId,
+                          });
+                        }}
+                      >
+                        {assignEvent.isPending ? 'Assigning…' : 'Assign Event'}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -831,12 +956,12 @@ const AdminStaffPage: React.FC = () => {
                   </p>
 
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between p-3 rounded-xl border border-neutral-200 dark:border-neutral-800">
+                    <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800">
                       <div>
                         <p className="text-xs font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
                           <Mail className="h-3.5 w-3.5 text-neutral-400" /> Resend Welcome Invite
                         </p>
-                        <p className="text-[11px] text-neutral-400">
+                        <p className="text-[10px] text-neutral-400">
                           Send staff invite link to {manageStaff.email}
                         </p>
                       </div>
@@ -853,12 +978,12 @@ const AdminStaffPage: React.FC = () => {
                       </Button>
                     </div>
 
-                    <div className="flex items-center justify-between p-3 rounded-xl border border-neutral-200 dark:border-neutral-800">
+                    <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800">
                       <div>
                         <p className="text-xs font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
                           <Key className="h-3.5 w-3.5 text-neutral-400" /> Reset Password & Invite
                         </p>
-                        <p className="text-[11px] text-neutral-400">
+                        <p className="text-[10px] text-neutral-400">
                           Generate a temporary password and email it
                         </p>
                       </div>
@@ -875,12 +1000,12 @@ const AdminStaffPage: React.FC = () => {
                       </Button>
                     </div>
 
-                    <div className="flex items-center justify-between p-3 rounded-xl border border-red-200/50 dark:border-red-950/40 bg-red-50/10">
+                    <div className="flex items-center justify-between p-2.5 rounded-xl border border-red-200/50 dark:border-red-950/40 bg-red-50/10">
                       <div>
                         <p className="text-xs font-bold text-red-600 dark:text-red-400">
                           Revoke Staff Access
                         </p>
-                        <p className="text-[11px] text-neutral-400">
+                        <p className="text-[10px] text-neutral-400">
                           Demote user to normal guest status
                         </p>
                       </div>
@@ -925,41 +1050,43 @@ const AdminStaffPage: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Promote Existing User Dialog */}
+      {/* ────────────────────────────────────────────────────────────────────────── */}
+      {/* MODAL 2: Promote Existing User Dialog */}
+      {/* ────────────────────────────────────────────────────────────────────────── */}
       <Dialog open={promoteOpen} onOpenChange={setPromoteOpen}>
-        <DialogContent className="sm:max-w-lg w-full max-h-[88vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
-          <DialogHeader className="border-b border-neutral-150 dark:border-neutral-800 pb-3.5">
+        <DialogContent className="sm:max-w-lg w-full max-h-[88vh] overflow-y-auto p-4 sm:p-5 rounded-2xl">
+          <DialogHeader className="border-b border-neutral-150 dark:border-neutral-800 pb-3">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200/60 dark:border-rose-900/60 flex items-center justify-center text-rose-500 shrink-0 shadow-xs">
+              <div className="h-10 w-10 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200/60 dark:border-rose-900/60 flex items-center justify-center text-rose-500 shrink-0 shadow-2xs">
                 <UserCheck className="h-5 w-5" />
               </div>
               <div>
-                <DialogTitle className="text-base sm:text-lg font-extrabold text-neutral-900 dark:text-white">
+                <DialogTitle className="text-base font-extrabold text-neutral-900 dark:text-white">
                   Promote Member to Staff
                 </DialogTitle>
                 <DialogDescription className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                  Grant an existing user gate scanning, box office, or coordinator permissions.
+                  Grant an existing platform user gate scanning and check-in permissions.
                 </DialogDescription>
               </div>
             </div>
           </DialogHeader>
 
-          <div className="space-y-4 mt-3">
+          <div className="space-y-3.5 mt-3">
             {/* Candidate Picker / Selected Candidate Card */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1">
                 Select Platform User
               </p>
 
               {selectedUser ? (
-                <div className="p-3.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-950/20 flex items-center justify-between gap-3 shadow-xs">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-xs">
+                <div className="p-3 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-950/20 flex items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-xs">
                       {getInitials(selectedUser.firstName, selectedUser.lastName)}
                     </div>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-xs sm:text-sm text-neutral-900 dark:text-white truncate">
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-bold text-xs text-neutral-900 dark:text-white truncate">
                           {selectedUser.firstName} {selectedUser.lastName}
                         </p>
                         <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
@@ -975,7 +1102,7 @@ const AdminStaffPage: React.FC = () => {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="rounded-xl text-xs h-8 shrink-0 hover:border-rose-400"
+                    className="rounded-xl text-xs h-7.5 shrink-0 hover:border-rose-400"
                     onClick={() => setSelectedUserId(null)}
                   >
                     Change User
@@ -993,7 +1120,7 @@ const AdminStaffPage: React.FC = () => {
                         setSelectedUserId(null);
                       }}
                       placeholder="Search user by name or email…"
-                      className="w-full pl-9 pr-8 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                      className="w-full pl-9 pr-8 py-1.5 sm:py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
                     />
                     {userSearch && (
                       <button
@@ -1009,18 +1136,18 @@ const AdminStaffPage: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 max-h-44 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800/60 bg-neutral-50/30 dark:bg-neutral-900/30">
+                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 max-h-40 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800/60 bg-neutral-50/30 dark:bg-neutral-900/30">
                     {debouncedUserSearch.length < 2 ? (
-                      <div className="p-4 text-center">
+                      <div className="p-3 text-center">
                         <Search className="h-4 w-4 text-neutral-300 mx-auto mb-1" />
                         <p className="text-xs text-neutral-400">
                           Type at least 2 characters to search users
                         </p>
                       </div>
                     ) : usersLoading ? (
-                      <div className="p-4 text-center text-xs text-neutral-400">Searching platform users…</div>
+                      <div className="p-3 text-center text-xs text-neutral-400">Searching platform users…</div>
                     ) : promoteCandidates.length === 0 ? (
-                      <div className="p-4 text-center text-xs text-neutral-400">
+                      <div className="p-3 text-center text-xs text-neutral-400">
                         No eligible non-staff users found matching &ldquo;{debouncedUserSearch}&rdquo;
                       </div>
                     ) : (
@@ -1029,10 +1156,10 @@ const AdminStaffPage: React.FC = () => {
                           key={u.id}
                           type="button"
                           onClick={() => setSelectedUserId(u.id)}
-                          className="w-full text-left px-3.5 py-2.5 text-xs flex items-center justify-between hover:bg-neutral-100/80 dark:hover:bg-neutral-800 transition-colors group"
+                          className="w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-neutral-100/80 dark:hover:bg-neutral-800 transition-colors group"
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="h-7 w-7 rounded-lg bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-[10px] font-bold text-neutral-600 dark:text-neutral-300 shrink-0">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="h-6 w-6 rounded-md bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-[10px] font-bold text-neutral-600 dark:text-neutral-300 shrink-0">
                               {getInitials(u.firstName, u.lastName)}
                             </div>
                             <div className="min-w-0">
@@ -1055,11 +1182,35 @@ const AdminStaffPage: React.FC = () => {
 
             {/* Capabilities */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                  Assign Operations Capabilities
-                </p>
-                <span className="text-[10px] text-neutral-400 font-semibold">
+              <div className="flex items-center justify-between mb-1.5 gap-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Operations Capabilities
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allSelected = promoteCaps.length === CAPS.length;
+                      setPromoteCaps(allSelected ? [] : [...CAPS]);
+                    }}
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors cursor-pointer select-none"
+                  >
+                    <span
+                      className={cn(
+                        'h-3.5 w-3.5 rounded border flex items-center justify-center transition-colors',
+                        promoteCaps.length === CAPS.length
+                          ? 'bg-rose-500 border-rose-500 text-white'
+                          : 'border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900'
+                      )}
+                    >
+                      {promoteCaps.length === CAPS.length && (
+                        <Check className="h-2.5 w-2.5 stroke-[3]" />
+                      )}
+                    </span>
+                    <span>Select All</span>
+                  </button>
+                </div>
+                <span className="text-[10px] text-neutral-400 font-semibold shrink-0">
                   {promoteCaps.length} of {CAPS.length} selected
                 </span>
               </div>
@@ -1073,20 +1224,20 @@ const AdminStaffPage: React.FC = () => {
                       key={cap}
                       onClick={() => toggleCap(cap, promoteCaps, setPromoteCaps)}
                       className={cn(
-                        'flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer select-none',
+                        'flex items-center justify-between p-2 rounded-xl border transition-all cursor-pointer select-none',
                         isChecked
-                          ? 'border-rose-400/60 bg-rose-50/30 dark:bg-rose-950/20 shadow-xs'
+                          ? 'border-rose-400/60 bg-rose-50/30 dark:bg-rose-950/20 shadow-2xs'
                           : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 bg-white dark:bg-neutral-900'
                       )}
                     >
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2">
                         <div
                           className={cn(
-                            'h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border',
+                            'h-6 w-6 rounded-md flex items-center justify-center shrink-0 border',
                             cfg.color
                           )}
                         >
-                          <Icon className="h-3.5 w-3.5" />
+                          <Icon className="h-3 w-3" />
                         </div>
                         <div>
                           <p className="text-xs font-bold text-neutral-900 dark:text-white">
@@ -1111,31 +1262,96 @@ const AdminStaffPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Organization Scope */}
+            {/* Event Assignment (Optional) */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1">
-                Organization Restriction (Optional)
-              </p>
-              <Select
-                value={promoteOrgId || 'none'}
-                onValueChange={(v) => setPromoteOrgId(v === 'none' ? '' : v)}
-              >
-                <SelectTrigger className="w-full h-9 rounded-xl text-xs">
-                  <SelectValue placeholder="Universal Platform Access (No Restrictions)" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  <SelectItem value="none">Universal platform access (No restrictions)</SelectItem>
-                  {(orgs as any[]).map((o: any) => (
-                    <SelectItem key={o.id} value={String(o.id)}>
-                      {o.name}
+              <div className="flex items-center justify-between mb-1.5 gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                  Assign to Event (Optional)
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !promoteAssignAll;
+                    setPromoteAssignAll(next);
+                    setPromoteEventId(next ? 'all' : '');
+                  }}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors cursor-pointer select-none"
+                >
+                  <span
+                    className={cn(
+                      'h-3.5 w-3.5 rounded border flex items-center justify-center transition-colors',
+                      promoteAssignAll || promoteEventId === 'all'
+                        ? 'bg-rose-500 border-rose-500 text-white'
+                        : 'border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900'
+                    )}
+                  >
+                    {(promoteAssignAll || promoteEventId === 'all') && (
+                      <Check className="h-2.5 w-2.5 stroke-[3]" />
+                    )}
+                  </span>
+                  <span>Assign to All Events</span>
+                </button>
+              </div>
+
+              {promoteAssignAll || promoteEventId === 'all' ? (
+                <div className="p-2.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/40 dark:bg-rose-950/20 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-rose-500 shrink-0" />
+                    <div>
+                      <p className="font-bold text-neutral-900 dark:text-white">
+                        All Events Selected ({adminEvents.length} events)
+                      </p>
+                      <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                        Staff member will have check-in access to all events.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[10px] text-neutral-400 hover:text-neutral-700 dark:hover:text-white"
+                    onClick={() => {
+                      setPromoteAssignAll(false);
+                      setPromoteEventId('');
+                    }}
+                  >
+                    Change
+                  </Button>
+                </div>
+              ) : (
+                <Select
+                  value={promoteEventId || 'none'}
+                  onValueChange={(v) => {
+                    if (v === 'all') {
+                      setPromoteAssignAll(true);
+                      setPromoteEventId('all');
+                    } else {
+                      setPromoteAssignAll(false);
+                      setPromoteEventId(v === 'none' ? '' : v);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full h-8.5 rounded-xl text-xs">
+                    <SelectValue placeholder="Assign to an event now (Optional)" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="none">No immediate assignment (assign later)</SelectItem>
+                    <SelectItem value="all" className="font-bold text-rose-600 dark:text-rose-400">
+                      ⚡ All Events ({adminEvents.length} events)
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    {adminEvents.map((ev: any) => (
+                      <SelectItem key={ev.id} value={String(ev.id)}>
+                        {ev.title} ({formatEventDate(ev.startDate)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 
-          <DialogFooter className="mt-4 pt-3 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between sm:justify-end gap-2">
+          <DialogFooter className="mt-3.5 pt-3 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between sm:justify-end gap-2">
             <Button
               variant="ghost"
               size="sm"
@@ -1147,7 +1363,7 @@ const AdminStaffPage: React.FC = () => {
             <Button
               size="sm"
               disabled={!selectedUserId || promoteCaps.length === 0 || promote.isPending}
-              className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold h-9 px-4 shadow-sm"
+              className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold h-9 px-4 shadow-xs"
               onClick={() => promote.mutate()}
             >
               {promote.isPending ? 'Promoting…' : 'Promote to Staff'}
@@ -1156,7 +1372,9 @@ const AdminStaffPage: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Create Staff Dialog */}
+      {/* ────────────────────────────────────────────────────────────────────────── */}
+      {/* MODAL 3: Create Staff Dialog */}
+      {/* ────────────────────────────────────────────────────────────────────────── */}
       <Dialog
         open={createOpen}
         onOpenChange={(open) => {
@@ -1164,28 +1382,28 @@ const AdminStaffPage: React.FC = () => {
           if (!open) resetForm();
         }}
       >
-        <DialogContent className="sm:max-w-lg w-full max-h-[88vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
-          <DialogHeader className="border-b border-neutral-150 dark:border-neutral-800 pb-3.5">
+        <DialogContent className="sm:max-w-lg w-full max-h-[88vh] overflow-y-auto p-4 sm:p-5 rounded-2xl">
+          <DialogHeader className="border-b border-neutral-150 dark:border-neutral-800 pb-3">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200/60 dark:border-rose-900/60 flex items-center justify-center text-rose-500 shrink-0 shadow-xs">
+              <div className="h-10 w-10 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200/60 dark:border-rose-900/60 flex items-center justify-center text-rose-500 shrink-0 shadow-2xs">
                 <UserPlus className="h-5 w-5" />
               </div>
               <div>
-                <DialogTitle className="text-base sm:text-lg font-extrabold text-neutral-900 dark:text-white">
+                <DialogTitle className="text-base font-extrabold text-neutral-900 dark:text-white">
                   {createdCred ? 'Staff Account Created' : 'Create Staff Member'}
                 </DialogTitle>
                 <DialogDescription className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                   {createdCred
                     ? 'Staff login credentials have been generated and dispatched.'
-                    : 'Issue new login credentials and configure operations access.'}
+                    : 'Issue new login credentials and configure gate check-in permissions.'}
                 </DialogDescription>
               </div>
             </div>
           </DialogHeader>
 
           {createdCred ? (
-            <div className="space-y-4 mt-3">
-              <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/80 p-4 space-y-2.5 text-xs bg-emerald-50/40 dark:bg-emerald-950/20">
+            <div className="space-y-3.5 mt-3">
+              <div className="rounded-xl border border-emerald-200 dark:border-emerald-800/80 p-3.5 space-y-2 text-xs bg-emerald-50/40 dark:bg-emerald-950/20">
                 <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold text-sm">
                   <CheckCircle2 className="h-4 w-4" /> Account Credentials Ready
                 </div>
@@ -1215,7 +1433,7 @@ const AdminStaffPage: React.FC = () => {
                   size="sm"
                   variant="outline"
                   className={cn(
-                    'w-full rounded-xl text-xs h-10 font-bold transition-all',
+                    'w-full rounded-xl text-xs h-9 font-bold transition-all',
                     copied
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
                       : 'hover:border-neutral-400'
@@ -1236,7 +1454,7 @@ const AdminStaffPage: React.FC = () => {
               <DialogFooter className="pt-2">
                 <Button
                   size="sm"
-                  className="w-full rounded-xl bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-900 text-xs font-bold h-9"
+                  className="w-full rounded-xl bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-900 text-xs font-bold "
                   onClick={() => setCreateOpen(false)}
                 >
                   Done
@@ -1244,8 +1462,8 @@ const AdminStaffPage: React.FC = () => {
               </DialogFooter>
             </div>
           ) : (
-            <div className="space-y-3.5 mt-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="space-y-3 mt-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                     First Name
@@ -1254,7 +1472,7 @@ const AdminStaffPage: React.FC = () => {
                     value={form.firstName}
                     onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))}
                     placeholder="e.g. John"
-                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs mt-1 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                    className="w-full px-2.5 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs mt-0.5 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
                   />
                 </div>
                 <div>
@@ -1265,7 +1483,7 @@ const AdminStaffPage: React.FC = () => {
                     value={form.lastName}
                     onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))}
                     placeholder="e.g. Doe"
-                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs mt-1 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                    className="w-full px-2.5 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs mt-0.5 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
                   />
                 </div>
               </div>
@@ -1279,7 +1497,7 @@ const AdminStaffPage: React.FC = () => {
                   value={form.email}
                   onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
                   placeholder="staff@example.com"
-                  className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs mt-1 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                  className="w-full px-2.5 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs mt-0.5 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
                 />
               </div>
 
@@ -1291,17 +1509,44 @@ const AdminStaffPage: React.FC = () => {
                   value={form.phone}
                   onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
                   placeholder="08012345678"
-                  className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs mt-1 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                  className="w-full px-2.5 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs mt-0.5 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
                 />
               </div>
 
               {/* Capabilities */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                    Operations Capabilities
-                  </p>
-                  <span className="text-[10px] text-neutral-400 font-semibold">
+                <div className="flex items-center justify-between mb-1.5 gap-2">
+                  <div className="flex items-center gap-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                      Operations Capabilities
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allSelected = form.capabilities.length === CAPS.length;
+                        setForm((p) => ({
+                          ...p,
+                          capabilities: allSelected ? [] : [...CAPS],
+                        }));
+                      }}
+                      className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors cursor-pointer select-none"
+                    >
+                      <span
+                        className={cn(
+                          'h-3.5 w-3.5 rounded border flex items-center justify-center transition-colors',
+                          form.capabilities.length === CAPS.length
+                            ? 'bg-rose-500 border-rose-500 text-white'
+                            : 'border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900'
+                        )}
+                      >
+                        {form.capabilities.length === CAPS.length && (
+                          <Check className="h-2.5 w-2.5 stroke-[3]" />
+                        )}
+                      </span>
+                      <span>Select All</span>
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-neutral-400 font-semibold shrink-0">
                     {form.capabilities.length} of {CAPS.length} selected
                   </span>
                 </div>
@@ -1322,20 +1567,20 @@ const AdminStaffPage: React.FC = () => {
                           }))
                         }
                         className={cn(
-                          'flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer select-none',
+                          'flex items-center justify-between p-2 rounded-xl border transition-all cursor-pointer select-none',
                           isChecked
-                            ? 'border-rose-400/60 bg-rose-50/30 dark:bg-rose-950/20 shadow-xs'
+                            ? 'border-rose-400/60 bg-rose-50/30 dark:bg-rose-950/20 shadow-2xs'
                             : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 bg-white dark:bg-neutral-900'
                         )}
                       >
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2">
                           <div
                             className={cn(
-                              'h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border',
+                              'h-6 w-6 rounded-md flex items-center justify-center shrink-0 border',
                               cfg.color
                             )}
                           >
-                            <Icon className="h-3.5 w-3.5" />
+                            <Icon className="h-3 w-3" />
                           </div>
                           <div>
                             <p className="text-xs font-bold text-neutral-900 dark:text-white">
@@ -1360,37 +1605,100 @@ const AdminStaffPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Organization Assignment */}
+              {/* Event Assignment (Optional) */}
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                  Assign Organization Coverage (Optional)
-                </label>
-                <Select
-                  value={form.organizationId || 'none'}
-                  onValueChange={(v) => setForm((p) => ({ ...p, organizationId: v === 'none' ? '' : v }))}
-                >
-                  <SelectTrigger className="w-full h-9 rounded-xl text-xs mt-1">
-                    <SelectValue placeholder="Universal Platform Access (All Organizations)" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    <SelectItem value="none">Universal platform access (No restriction)</SelectItem>
-                    {(orgs as any[]).map((o: any) => (
-                      <SelectItem key={o.id} value={String(o.id)}>
-                        {o.name}
+                <div className="flex items-center justify-between mb-1.5 gap-2">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Assign to Event (Optional)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !form.assignAllEvents;
+                      setForm((p) => ({
+                        ...p,
+                        assignAllEvents: next,
+                        eventId: next ? 'all' : '',
+                      }));
+                    }}
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors cursor-pointer select-none"
+                  >
+                    <span
+                      className={cn(
+                        'h-3.5 w-3.5 rounded border flex items-center justify-center transition-colors',
+                        form.assignAllEvents || form.eventId === 'all'
+                          ? 'bg-rose-500 border-rose-500 text-white'
+                          : 'border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900'
+                      )}
+                    >
+                      {(form.assignAllEvents || form.eventId === 'all') && (
+                        <Check className="h-2.5 w-2.5 stroke-[3]" />
+                      )}
+                    </span>
+                    <span>Assign to All Events</span>
+                  </button>
+                </div>
+
+                {form.assignAllEvents || form.eventId === 'all' ? (
+                  <div className="p-2.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/40 dark:bg-rose-950/20 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-rose-500 shrink-0" />
+                      <div>
+                        <p className="font-bold text-neutral-900 dark:text-white">
+                          All Events Selected ({adminEvents.length} events)
+                        </p>
+                        <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                          Staff member will be authorized on all platform events.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] text-neutral-400 hover:text-neutral-700 dark:hover:text-white"
+                      onClick={() => setForm((p) => ({ ...p, assignAllEvents: false, eventId: '' }))}
+                    >
+                      Change
+                    </Button>
+                  </div>
+                ) : (
+                  <Select
+                    value={form.eventId || 'none'}
+                    onValueChange={(v) => {
+                      if (v === 'all') {
+                        setForm((p) => ({ ...p, assignAllEvents: true, eventId: 'all' }));
+                      } else {
+                        setForm((p) => ({ ...p, assignAllEvents: false, eventId: v === 'none' ? '' : v }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-full  rounded-xl text-xs mt-0.5">
+                      <SelectValue placeholder="Assign to an event now (Optional)" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      <SelectItem value="none">No immediate assignment (assign later)</SelectItem>
+                      <SelectItem value="all" className="font-bold text-rose-600 dark:text-rose-400">
+                        ⚡ All Events ({adminEvents.length} events)
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      {adminEvents.map((ev: any) => (
+                        <SelectItem key={ev.id} value={String(ev.id)}>
+                          {ev.title} ({formatEventDate(ev.startDate)})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
-              <DialogFooter className="mt-4 pt-3 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between sm:justify-end gap-2">
+              <DialogFooter className="mt-3.5 pt-3 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between sm:justify-end gap-2">
                 <Button variant="ghost" size="sm" className="rounded-xl text-xs" onClick={() => setCreateOpen(false)}>
                   Cancel
                 </Button>
                 <Button
                   size="sm"
                   disabled={!form.email.trim() || !form.firstName.trim() || create.isPending}
-                  className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold h-9 px-4 shadow-sm"
+                  className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold h-9 px-4 shadow-xs"
                   onClick={() => create.mutate()}
                 >
                   {create.isPending ? 'Creating…' : 'Create & Send Invite'}

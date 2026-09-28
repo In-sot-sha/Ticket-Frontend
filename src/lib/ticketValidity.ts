@@ -12,6 +12,10 @@ export function ymdInZone(date: Date, timeZone = EVENT_TZ): string {
   }).format(date);
 }
 
+export function todayYmd(): string {
+  return ymdInZone(new Date());
+}
+
 export function ymdFromUnknown(value?: string | Date | null): string {
   if (!value) return '';
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
@@ -33,13 +37,19 @@ export function eventDayList(start?: string | Date | null, end?: string | Date |
   return days.length ? days : [first];
 }
 
-export function shortDayChip(ymd: string): string {
+export function shortDayChip(raw?: string | Date | null): string {
+  const ymd = ymdFromUnknown(raw);
+  if (!ymd) return '';
   const d = new Date(`${ymd}T12:00:00+01:00`);
+  if (isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric' });
 }
 
-export function longDayLabel(ymd: string): string {
+export function longDayLabel(raw?: string | Date | null): string {
+  const ymd = ymdFromUnknown(raw);
+  if (!ymd) return '';
   const d = new Date(`${ymd}T12:00:00+01:00`);
+  if (isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 

@@ -46,7 +46,7 @@ const HOST_PERKS = [
 const CHECKLIST = [
   'Business or brand name',
   'Short brand description',
-  'At least 2 social profiles',
+  'At least 1 social profile',
   'Website (optional)',
 ];
 
@@ -186,8 +186,8 @@ const BecomeOrganizer = () => {
       setError('Description is required.');
       return;
     }
-    if (countFilledSocials(socialLinks) < 2) {
-      setError('Please add at least 2 social profiles.');
+    if (countFilledSocials(socialLinks) < 1) {
+      setError('Please add at least 1 social profile.');
       return;
     }
 
@@ -327,7 +327,7 @@ const BecomeOrganizer = () => {
     !!businessName.trim(),
     !!contactInfo.trim(),
     !!description.trim(),
-    filledSocials >= 2,
+    filledSocials >= 1,
   ];
 
   return (
@@ -508,10 +508,10 @@ const BecomeOrganizer = () => {
                   <div className="sm:col-span-2">
                     <label className={labelClass}>Social profiles</label>
                     <p className="text-[11px] text-neutral-400 mb-2">
-                      Add at least 2 — shown on your public host profile.
+                      Add at least 1 — shown on your public host profile.
                       {filledSocials > 0 && (
                         <span className="ml-1 text-neutral-500">
-                          ({filledSocials}/2 added)
+                          ({filledSocials} added)
                         </span>
                       )}
                     </p>

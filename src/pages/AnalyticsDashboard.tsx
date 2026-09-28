@@ -41,7 +41,7 @@ const AnalyticsDashboard = () => {
         const g = map.get(email);
         g.count++;
         if (ticket.ticketType?.name) g.ticketTypes.add(ticket.ticketType.name);
-        if (ticket.status === 'USED') g.checkedIn++;
+        if ((ticket.checkIns && ticket.checkIns.length > 0) || ticket.status === 'USED') g.checkedIn++;
       });
 
       const rows = Array.from(map.values()).map(a => [
