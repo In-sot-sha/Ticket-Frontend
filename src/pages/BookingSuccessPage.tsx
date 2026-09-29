@@ -85,6 +85,15 @@ const BookingSuccessPage = () => {
           totalAmount: cachedOrder.totalAmount,
           currency: 'NGN',
           tickets: checkoutRes.data.tickets,
+          guestFirstName: cachedOrder.firstName || '',
+          guestLastName: cachedOrder.lastName || '',
+          guestName: `${cachedOrder.firstName || ''} ${cachedOrder.lastName || ''}`.trim() || 'Guest',
+          buyerName: `${cachedOrder.firstName || ''} ${cachedOrder.lastName || ''}`.trim() || 'Guest',
+          user: checkoutRes.data.user || {
+            firstName: cachedOrder.firstName || '',
+            lastName: cachedOrder.lastName || '',
+            email: cachedOrder.email || '',
+          },
         };
 
         setStepIndex(2);

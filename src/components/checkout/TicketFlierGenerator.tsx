@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import QRCode from 'qrcode.react';
 import * as htmlToImage from 'html-to-image';
-import { Download, Share2, Upload, Loader2, X, Image as ImageIcon } from 'lucide-react';
+import { Download, Upload, Loader2, X, Image as ImageIcon } from 'lucide-react';
 import { resolveImageUrl } from '../../lib/media';
 import { captureElementPng } from '../../lib/capturePng';
 import { DEFAULT_BRAND_LOGO } from './flierBrandLogo';
@@ -27,31 +27,15 @@ export interface FlierUser {
 interface TicketFlierGeneratorProps {
   event: FlierEvent;
   user?: FlierUser | null;
+  guestName?: string;
   onClose?: () => void;
   embedded?: boolean;
 }
 
-type Format = 'flyer' | 'story' | 'feed';
-type Template = 'torn-bold' | 'spotlight' | 'clean' | 'going';
-
-const FORMATS: { key: Format; label: string; hint: string }[] = [
-  { key: 'flyer', label: 'Flyer', hint: '4:5' },
-  { key: 'story', label: 'Story', hint: '9:16' },
-  { key: 'feed', label: 'Square', hint: '1:1' },
-];
-
-const TEMPLATES: { key: Template; label: string }[] = [
-  { key: 'torn-bold', label: 'PartyStorm (Default)' },
-  { key: 'spotlight', label: 'Poster' },
-  { key: 'clean', label: 'Editorial' },
-  { key: 'going', label: "I'm going" },
-];
-
 const HEADLINE_PRESETS = [
   'I will / be / there',
-  "I'm / going",
+  'I am / attending',
   'See you / there',
-  'Join / me',
 ];
 
 const FALLBACK_IMAGE =
@@ -69,64 +53,48 @@ function bookingLink(eventUrl?: string) {
 const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
   event,
   user,
+  guestName: propGuestName,
   embedded = false,
 }) => {
   const flierRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Set the user's provided PartyStorm design as default template
-  const [template, setTemplate] = useState<Template>('torn-bold');
-  const [format, setFormat] = useState<Format>('flyer');
+  // Locked format to standard 4:5 flyer (1080x1350) and PartyStorm template
   const [headline, setHeadline] = useState(HEADLINE_PRESETS[0]);
-  const [guestName, setGuestName] = useState(
-    user ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Guest'
-  );
+  const [useEventCover, setUseEventCover] = useState(false);
   const [avatar, setAvatar] = useState<string | null>(
     user?.avatar ? resolveImageUrl(user.avatar) : null
   );
-  const [useEventCover, setUseEventCover] = useState(false);
   const [busy, setBusy] = useState(false);
   const [scale, setScale] = useState(1);
 
-  // Update default guest name if user prop changes
-  useEffect(() => {
-    if (user) {
-      setGuestName(`${user.firstName} ${user.lastName || ''}`.trim());
-      if (user.avatar && !avatar) {
-        setAvatar(resolveImageUrl(user.avatar));
-      }
+  // Automatically resolve the guest name from ticket info / user
+  const resolvedTicketName = useMemo(() => {
+    if (propGuestName && propGuestName.trim() && propGuestName.trim().toLowerCase() !== 'guest') {
+      return propGuestName.trim();
     }
-  }, [user]);
+    if (user?.firstName || user?.lastName) {
+      const uName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+      if (uName) return uName;
+    }
+    return propGuestName?.trim() || 'Guest';
+  }, [propGuestName, user]);
 
-  const square = format === 'feed';
-  const isStory = format === 'story';
+  const [guestName, setGuestName] = useState(resolvedTicketName);
+
+  useEffect(() => {
+    if (resolvedTicketName) {
+      setGuestName(resolvedTicketName);
+    }
+    if (user?.avatar && !avatar) {
+      setAvatar(resolveImageUrl(user.avatar));
+    }
+  }, [resolvedTicketName, user]);
+
   const orgLogo = resolveImageUrl(event.organizerLogo);
   const orgName = event.organizerName?.trim() || '';
   const link = useMemo(() => bookingLink(event.eventUrl), [event.eventUrl]);
-
-  const dateParts = useMemo(() => {
-    try {
-      const d = new Date(event.date);
-      if (Number.isNaN(d.getTime())) {
-        return { day: '', weekday: event.date, monthYear: '', line: event.date };
-      }
-      return {
-        day: String(d.getDate()),
-        weekday: d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
-        monthYear: d
-          .toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-          .toUpperCase(),
-        line: d.toLocaleDateString('en-US', {
-          weekday: 'short',
-          month: 'short',
-          day: 'numeric',
-        }),
-      };
-    } catch {
-      return { day: '', weekday: event.date, monthYear: '', line: event.date };
-    }
-  }, [event.date]);
 
   const formattedDateTime = useMemo(() => {
     try {
@@ -144,31 +112,17 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
     }
   }, [event.date, event.time]);
 
-  const timeLine = event.time?.trim() || '';
   const imageSrc = event.image || FALLBACK_IMAGE;
 
-  // Intrinsic canvas dimensions
-  const isTorn = template === 'torn-bold';
-  const flierW = isTorn ? 1080 : 360;
-  const flierH = isTorn
-    ? isStory
-      ? 1920
-      : square
-      ? 1080
-      : 1350
-    : isStory
-    ? 640
-    : square
-    ? 360
-    : 450;
+  // Intrinsic canvas dimensions for the standard flyer (1080x1350)
+  const flierW = 1080;
+  const flierH = 1350;
 
   useEffect(() => {
     const measure = () => {
       if (!containerRef.current) return;
       const w = containerRef.current.clientWidth;
-      const maxH = square
-        ? Math.min(window.innerHeight * 0.45, 420)
-        : Math.min(window.innerHeight * (embedded ? 0.65 : 0.72), embedded ? 580 : 640);
+      const maxH = Math.min(window.innerHeight * (embedded ? 0.65 : 0.72), embedded ? 580 : 640);
       const byW = (w - 24) / flierW;
       const byH = maxH / flierH;
       setScale(Math.min(byW, byH, 1));
@@ -176,7 +130,7 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
-  }, [flierH, flierW, square, embedded]);
+  }, [flierH, flierW, embedded]);
 
   const handleDownload = async () => {
     if (!flierRef.current) return;
@@ -189,14 +143,14 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
         dataUrl = await htmlToImage.toPng(flierRef.current, {
           width: flierW,
           height: flierH,
-          pixelRatio: isTorn ? 2 : 3,
+          pixelRatio: 2,
           style: { transform: 'none', top: '0', left: '0' },
         });
       } catch {
         const canvas = await captureElementPng(flierRef.current, {
           width: flierW,
           height: flierH,
-          scale: isTorn ? 1.5 : 3,
+          scale: 1.5,
           backgroundColor: '#ffffff',
         });
         dataUrl = canvas.toDataURL('image/png');
@@ -206,7 +160,7 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
       a.href = dataUrl;
       const cleanEventTitle = (event.title || 'event').replace(/\s+/g, '-').slice(0, 30);
       const cleanGuest = (guestName || 'ticket').replace(/\s+/g, '-').slice(0, 20);
-      a.download = `${cleanGuest}-${cleanEventTitle}-ticket-flier.png`;
+      a.download = `${cleanGuest}-${cleanEventTitle}-flyer.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -218,51 +172,6 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
     }
   };
 
-  const handleShare = async () => {
-    if (!flierRef.current) return;
-    setBusy(true);
-    try {
-      if (document.fonts?.ready) await document.fonts.ready;
-      let blob: Blob | null = null;
-
-      try {
-        blob = await htmlToImage.toBlob(flierRef.current, {
-          width: flierW,
-          height: flierH,
-          pixelRatio: isTorn ? 2 : 3,
-          style: { transform: 'none', top: '0', left: '0' },
-        });
-      } catch {
-        const canvas = await captureElementPng(flierRef.current, {
-          width: flierW,
-          height: flierH,
-          scale: isTorn ? 1.5 : 3,
-        });
-        blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'));
-      }
-
-      if (!blob) throw new Error('empty blob');
-      const file = new File([blob], 'event-flier.png', { type: 'image/png' });
-
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({
-          title: event.title,
-          text: `${headline.replace(/\//g, ' ').replace(/\s+/g, ' ').trim()} — ${event.title}\nGet tickets: ${link.href}`,
-          url: link.href,
-          files: [file],
-        });
-      } else {
-        await handleDownload();
-      }
-    } catch (e) {
-      if ((e as Error).name !== 'AbortError') {
-        console.error('Share error:', e);
-        await handleDownload();
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const onAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -300,624 +209,6 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
   // Center photo resolution
   const photoUrl = avatar ? avatar : useEventCover ? imageSrc : null;
 
-  /* =========================================================================
-     1. TORN POSTER FACE (Default PartyStorm Flyer)
-     ========================================================================= */
-  const TornPosterFace = () => {
-    // Vertical offset when in story format
-    const offsetY = isStory ? 285 : square ? -80 : 0;
-    const photoSize = square ? 380 : 460;
-
-    return (
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: flierW,
-          height: flierH,
-          background: '#ffffff',
-          overflow: 'hidden',
-          fontFamily: "'Nunito', sans-serif",
-        }}
-      >
-        {/* Torn pink/blue corner */}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: '#004aad',
-            clipPath:
-              'polygon(0 0,68% 0,66% 2%,60% 5%,52% 9%,44% 14%,36% 20%,28% 27%,20% 34%,12% 40%,5% 45%,0 50%)',
-            pointerEvents: 'none',
-          }}
-        />
-
-        {/* Host logo with jagged polygon clip */}
-        <div
-          style={{
-            position: 'absolute',
-            left: 62,
-            top: 50,
-            width: 230,
-            height: 160,
-            background: '#ffffff',
-            clipPath:
-              'polygon(0 8%,6% 3%,14% 8%,24% 2%,36% 7%,48% 1%,60% 6%,72% 1%,84% 7%,94% 2%,100% 8%,100% 92%,92% 98%,80% 92%,66% 99%,50% 93%,36% 99%,22% 93%,10% 99%,0 92%)',
-            display: 'grid',
-            placeItems: 'center',
-            overflow: 'hidden',
-          }}
-        >
-          {orgLogo ? (
-            <img
-              src={orgLogo}
-              alt=""
-              crossOrigin="anonymous"
-              style={{ maxWidth: 190, maxHeight: 110, objectFit: 'contain' }}
-            />
-          ) : (
-            <b
-              style={{
-                fontFamily: "'Anton', Impact, sans-serif",
-                fontSize: 34,
-                color: '#000000',
-                textTransform: 'uppercase',
-                textAlign: 'center',
-                padding: '0 10px',
-                lineHeight: 1.1,
-              }}
-            >
-              {orgName || 'HOST LOGO'}
-            </b>
-          )}
-        </div>
-
-        {/* Brand logo (Partystorm) */}
-        <img
-          src="/images/partystorm-brand-logo.png"
-          alt="Partystorm"
-          crossOrigin="anonymous"
-          style={{
-            position: 'absolute',
-            right: 40,
-            top: 62,
-            height: 86,
-            maxWidth: 340,
-            objectFit: 'contain',
-            mixBlendMode: 'multiply',
-            filter: 'contrast(1.4) brightness(1.02)',
-          }}
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).src = DEFAULT_BRAND_LOGO;
-          }}
-        />
-
-        {/* Guest circular photo */}
-        <div
-          style={{
-            position: 'absolute',
-            left: square ? 90 : 134,
-            top: 335 + offsetY,
-            width: photoSize,
-            height: photoSize,
-            borderRadius: '50%',
-            backgroundColor: '#004aad',
-            backgroundImage: photoUrl ? `url("${photoUrl}")` : undefined,
-            backgroundPosition: 'center',
-            backgroundSize: 'cover',
-            backgroundRepeat: 'no-repeat',
-            boxShadow: '0 0 0 14px #ffde59',
-            overflow: 'hidden',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {!photoUrl && (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#ffffff',
-                textAlign: 'center',
-                userSelect: 'none',
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: "'Anton', Impact, sans-serif",
-                  fontSize: 160,
-                  lineHeight: 1,
-                  textTransform: 'uppercase',
-                  color: '#ffde59',
-                }}
-              >
-                {(guestName || 'G').charAt(0).toUpperCase()}
-              </span>
-              <span
-                style={{
-                  fontFamily: "'Nunito', sans-serif",
-                  fontWeight: 800,
-                  fontSize: 22,
-                  letterSpacing: 2,
-                  textTransform: 'uppercase',
-                  marginTop: 6,
-                  color: '#ffffff',
-                }}
-              >
-                I&apos;LL BE THERE
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Guest name badge */}
-        <div
-          style={{
-            position: 'absolute',
-            left: square ? 60 : 104,
-            top: (square ? 740 : 848) + offsetY,
-            width: square ? 460 : 522,
-            height: 100,
-            background: '#ffffff',
-            border: '4px solid #004aad',
-            borderRadius: 28,
-            display: 'grid',
-            placeItems: 'center',
-            padding: '0 32px',
-            textAlign: 'center',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <span
-            style={{
-              position: 'absolute',
-              left: -14,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              width: 22,
-              height: 22,
-              background: '#ffffff',
-              border: '4px solid #004aad',
-              borderRadius: '50%',
-            }}
-          />
-          <span
-            style={{
-              position: 'absolute',
-              right: -14,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              width: 22,
-              height: 22,
-              background: '#ffffff',
-              border: '4px solid #004aad',
-              borderRadius: '50%',
-            }}
-          />
-          <span
-            style={{
-              fontFamily: "'Nunito', sans-serif",
-              fontWeight: 800,
-              fontSize: guestName.length > 20 ? 30 : guestName.length > 15 ? 36 : 44,
-              textTransform: 'uppercase',
-              color: '#000000',
-              letterSpacing: '0.5px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              maxWidth: '100%',
-            }}
-          >
-            {guestName}
-          </span>
-        </div>
-
-        {/* Headline area */}
-        <div
-          style={{
-            position: 'absolute',
-            left: square ? 580 : 668,
-            top: (square ? 280 : 335) + offsetY,
-            width: square ? 420 : 380,
-            height: square ? 480 : 613,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "'Anton', Impact, sans-serif",
-              fontSize: headlineFontSize,
-              lineHeight: 1,
-              letterSpacing: '-1px',
-              textTransform: 'uppercase',
-              whiteSpace: 'nowrap',
-              color: '#000000',
-            }}
-          >
-            {headlineLines.map((line, idx) => (
-              <div key={idx}>{line}</div>
-            ))}
-          </div>
-          <div
-            style={{
-              width: 130,
-              height: 12,
-              borderRadius: 6,
-              background: '#004aad',
-              marginTop: 26,
-            }}
-          />
-        </div>
-
-        {/* QR Code Card */}
-        <div
-          style={{
-            position: 'absolute',
-            left: square ? 790 : 800,
-            top: (square ? 740 : 1000) + offsetY,
-            width: square ? 220 : 232,
-            padding: '17px 17px 15px',
-            background: '#ffffff',
-            borderRadius: 28,
-            zIndex: 2,
-            boxShadow: '0 12px 32px rgba(120, 10, 30, 0.28)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 10,
-          }}
-        >
-          <div style={{ width: square ? 180 : 198, height: square ? 180 : 198, background: '#ffffff' }}>
-            <QRCode
-              value={link.href}
-              size={square ? 180 : 198}
-              renderAs="canvas"
-              fgColor="#004aad"
-              bgColor="#ffffff"
-              level="H"
-              includeMargin={false}
-              style={{ width: '100%', height: '100%' }}
-            />
-          </div>
-          <div
-            style={{
-              color: '#004aad',
-              fontWeight: 800,
-              fontSize: square ? 18 : 21,
-              lineHeight: 1.15,
-              textAlign: 'center',
-              fontFamily: "'Nunito', sans-serif",
-            }}
-          >
-            Scan to get your ticket
-          </div>
-        </div>
-
-        {/* Event Banner */}
-        <div
-          style={{
-            position: 'absolute',
-            left: square ? 50 : 100,
-            top: (square ? 860 : 1016) + offsetY,
-            width: square ? 700 : 680,
-            height: square ? 130 : 150,
-            background: 'linear-gradient(90deg, #00306f, #0a62d8 50%, #00306f)',
-            clipPath: 'polygon(15% 0, 100% 0, 88% 55%, 80% 85%, 68% 100%, 0 100%, 6% 88%)',
-            display: 'grid',
-            placeItems: 'center',
-            textAlign: 'center',
-            padding: '0 90px 0 60px',
-            fontFamily: "'Archivo Black', sans-serif",
-            fontSize: eventNameFontSize,
-            lineHeight: 1.05,
-            textTransform: 'uppercase',
-            color: '#ffde59',
-          }}
-        >
-          <span
-            style={{
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-            }}
-          >
-            {event.title}
-          </span>
-        </div>
-
-        {/* Footer with right padding so long venue text never collides with QR Card */}
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: square ? 150 : 184,
-            background: '#004aad',
-            color: '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 54px',
-            gap: 20,
-          }}
-        >
-          <svg style={{ width: 54, height: 54, flex: 'none' }} viewBox="0 0 24 24">
-            <path
-              fill="#ffffff"
-              d="M12 1.5a8.5 8.5 0 0 0-8.5 8.5c0 6.3 8.5 13.5 8.5 13.5S20.5 16.300 20.500 10A8.500 8.500 0 0 0 12 1.500z"
-            />
-            <circle cx="12" cy="10" r="4" fill="#ffde59" />
-          </svg>
-          <div
-            style={{
-              fontFamily: "'Archivo Black', sans-serif",
-              fontSize: 26,
-              lineHeight: 1.2,
-              textTransform: 'uppercase',
-              flex: 1,
-              letterSpacing: '-0.5px',
-              overflow: 'hidden',
-              paddingRight: 280, // Safe margin so text stops gracefully before the QR card
-            }}
-          >
-            <div style={{ color: '#ffde59', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {formattedDateTime}
-            </div>
-            <div
-              style={{
-                color: '#ffffff',
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-              }}
-              title={event.location}
-            >
-              {event.location}
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                marginTop: 10,
-                fontFamily: "'Nunito', sans-serif",
-                fontWeight: 400,
-                fontSize: 27,
-                letterSpacing: '1px',
-                textTransform: 'uppercase',
-              }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" style={{ width: 34, height: 34 }}>
-                <rect x="3" y="3" width="18" height="18" rx="5" />
-                <circle cx="12" cy="12" r="4" />
-                <circle cx="17.5" cy="6.5" r="1" fill="#fff" />
-              </svg>
-              <svg viewBox="0 0 24 24" style={{ width: 34, height: 34 }}>
-                <path
-                  fill="#fff"
-                  d="M16.600 5.800A4.300 4.300 0 0 1 15.500 3h-3.100v12.400a2.600 2.600 0 1 1-2.600-2.600c.3 0 .5 0 .7.100V9.700a5.800 5.800 0 1 0 5 5.700V9a7.300 7.300 0 0 0 4.300 1.400V7.300a4.300 4.300 0 0 1-3.200-1.500z"
-                />
-              </svg>
-              <span>@partystorm</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  /* =========================================================================
-     2. LEGACY / ADDITIONAL TEMPLATES (Poster, Editorial, Going)
-     ========================================================================= */
-  const BrandRow = ({ light = true }: { light?: boolean }) => (
-    <div className="flex items-center justify-between gap-2">
-      {orgLogo ? (
-        <img
-          src={orgLogo}
-          alt=""
-          crossOrigin="anonymous"
-          className={`rounded-lg object-cover bg-white ${square ? 'h-10 w-10' : 'h-12 w-12'}`}
-        />
-      ) : (
-        <span
-          className={`flex items-center justify-center rounded-lg font-black ${
-            square ? 'h-10 w-10 text-base' : 'h-12 w-12 text-lg'
-          } ${light ? 'bg-white/15 text-white' : 'bg-black/10 text-[#1c1917]'}`}
-        >
-          {(orgName || 'H').charAt(0).toUpperCase()}
-        </span>
-      )}
-      <span className={`shrink-0 font-black ${square ? 'text-xs' : 'text-sm'} ${light ? 'text-white' : 'text-[#1c1917]'}`}>
-        party<span className="text-rose-500">storm</span>
-      </span>
-    </div>
-  );
-
-  const ScanToBook = ({ compact = false, mini = false }: { compact?: boolean; mini?: boolean }) => {
-    const size = mini ? 32 : compact ? 40 : 64;
-    return (
-      <div
-        className={`flex items-center bg-white text-neutral-900 ${
-          mini ? 'gap-2 rounded-lg p-1.5' : compact ? 'gap-2 rounded-xl p-1.5' : 'gap-2.5 rounded-xl p-2'
-        }`}
-      >
-        <div className="shrink-0 rounded-md bg-white">
-          <QRCode value={link.href} size={size} renderAs="canvas" includeMargin={false} level="M" />
-        </div>
-        <div className="min-w-0 text-left">
-          <p className={`font-extrabold text-rose-500 ${mini ? 'text-[9px]' : 'text-[11px]'}`}>
-            Scan to get tickets
-          </p>
-          <p
-            className={`mt-0.5 truncate font-semibold text-neutral-700 ${
-              mini ? 'text-[8px] leading-tight' : 'text-[11px] leading-snug'
-            }`}
-          >
-            {link.display}
-          </p>
-        </div>
-      </div>
-    );
-  };
-
-  const PosterFace = () => (
-    <div className="relative h-full w-full overflow-hidden bg-neutral-950 text-white">
-      <img
-        src={imageSrc}
-        alt=""
-        crossOrigin="anonymous"
-        className="absolute inset-0 h-full w-full object-cover"
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/30" />
-      <div
-        className={`relative z-10 flex h-full flex-col justify-between ${square ? 'px-5 py-4' : 'px-6 py-7'}`}
-      >
-        <BrandRow />
-        <div className="rounded-2xl bg-black/75 p-3.5">
-          <div className={`flex items-end gap-3 ${square ? 'mb-2' : 'mb-3'}`}>
-            {dateParts.day ? (
-              <>
-                <span
-                  className={`font-black leading-none ${square ? 'text-[2.6rem]' : 'text-[4.4rem]'}`}
-                  style={{ fontFamily: '"Oswald", "Plus Jakarta Sans", sans-serif' }}
-                >
-                  {dateParts.day}
-                </span>
-                <div className={square ? 'mb-0.5' : 'mb-1.5'}>
-                  <p className="text-[11px] font-extrabold text-rose-400">{dateParts.weekday}</p>
-                  <p className="text-[11px] font-bold text-white/90">{dateParts.monthYear}</p>
-                  {timeLine ? <p className="mt-0.5 text-[12px] font-semibold text-white">{timeLine}</p> : null}
-                </div>
-              </>
-            ) : (
-              <p className="text-sm font-bold">{dateParts.line}</p>
-            )}
-          </div>
-          <h2
-            className={`font-black uppercase leading-[1.05] ${square ? 'text-[1.45rem]' : 'text-[2.15rem]'}`}
-            style={{ fontFamily: '"Oswald", "Plus Jakarta Sans", sans-serif' }}
-          >
-            {event.title}
-          </h2>
-          <p className="mt-2 text-[12px] font-semibold leading-snug text-white/90">{event.location}</p>
-          <div className={square ? 'mt-2.5' : 'mt-4'}>
-            <ScanToBook compact={square} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const EditorialFace = () => (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-[#111114] text-white">
-      <div className={`relative shrink-0 ${square ? 'h-[42%]' : 'h-[48%]'}`}>
-        <img src={imageSrc} alt="" crossOrigin="anonymous" className="absolute inset-0 h-full w-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#111114] via-transparent to-black/20" />
-        <div className="absolute inset-x-0 top-0 p-4">
-          <BrandRow />
-        </div>
-      </div>
-      <div className={`flex flex-1 flex-col justify-between bg-[#111114] ${square ? 'px-4 pb-3.5 pt-3' : 'px-6 pb-6 pt-4'}`}>
-        <div>
-          <p className="text-[11px] font-extrabold text-rose-400">
-            {dateParts.weekday} {dateParts.day} {dateParts.monthYear}
-            {timeLine ? `  ·  ${timeLine}` : ''}
-          </p>
-          <h2
-            className={`mt-1.5 font-semibold leading-[1.1] ${square ? 'text-[1.25rem]' : 'text-[1.85rem]'}`}
-            style={{ fontFamily: '"Cormorant Garamond", "Plus Jakarta Sans", Georgia, serif' }}
-          >
-            {event.title}
-          </h2>
-          <p className="mt-2 text-[12px] font-medium leading-snug text-white/80">{event.location}</p>
-        </div>
-        <div className={square ? 'mt-3' : 'mt-5'}>
-          <ScanToBook compact={square} />
-        </div>
-      </div>
-    </div>
-  );
-
-  const GoingFace = () => (
-    <div className="relative h-full w-full overflow-hidden bg-black text-white">
-      <img
-        src={imageSrc}
-        alt=""
-        crossOrigin="anonymous"
-        className="absolute inset-0 h-full w-full object-cover brightness-50"
-      />
-      <div className="absolute inset-0 bg-black/55" />
-      <div
-        className={`relative z-10 flex h-full flex-col ${
-          square ? 'justify-between px-4 py-3.5' : 'justify-between px-6 py-7'
-        }`}
-      >
-        <BrandRow />
-
-        <div className={`flex min-h-0 flex-col items-center text-center ${square ? 'gap-2' : 'gap-3'}`}>
-          <div
-            className={`overflow-hidden rounded-full border-2 border-white shadow-xl ${
-              square ? 'h-12 w-12' : 'h-[5.25rem] w-[5.25rem]'
-            }`}
-          >
-            {avatar ? (
-              <img src={avatar} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <div className={`flex h-full w-full items-center justify-center bg-rose-500 font-black ${square ? 'text-lg' : 'text-3xl'}`}>
-                {(guestName || 'G').charAt(0).toUpperCase()}
-              </div>
-            )}
-          </div>
-          <p
-            className={`leading-none text-white ${square ? 'text-[1.45rem]' : 'text-[2rem]'}`}
-            style={{ fontFamily: '"Great Vibes", cursive' }}
-          >
-            {headline.replace(/\//g, ' ').replace(/\s+/g, ' ').trim()}
-          </p>
-          <p className={`font-bold text-white ${square ? 'text-[11px]' : 'text-sm'}`}>{guestName}</p>
-
-          <div className="w-full overflow-hidden rounded-xl bg-neutral-950 text-left">
-            <div className="h-24 w-full overflow-hidden bg-neutral-900">
-              <img
-                src={imageSrc}
-                alt=""
-                crossOrigin="anonymous"
-                className="h-24 w-full object-cover"
-                style={{ height: 96, maxHeight: 96 }}
-              />
-            </div>
-            <div className="bg-neutral-950 px-3.5 py-3">
-              <h2 className="text-[15px] font-extrabold leading-tight text-white">{event.title}</h2>
-              <p className="mt-1 text-[11px] font-semibold text-white/80">
-                {dateParts.line}
-                {timeLine ? ` · ${timeLine}` : ''}
-              </p>
-              <p className="mt-0.5 text-[11px] text-white/70">{event.location}</p>
-            </div>
-          </div>
-        </div>
-
-        <ScanToBook compact={square} mini={square} />
-      </div>
-    </div>
-  );
-
-  const Face =
-    template === 'torn-bold'
-      ? TornPosterFace
-      : template === 'spotlight'
-      ? PosterFace
-      : template === 'clean'
-      ? EditorialFace
-      : GoingFace;
-
   return (
     <div
       className={
@@ -930,7 +221,7 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
         {/* Preview Canvas Stage */}
         <div
           ref={containerRef}
-          className="flex min-h-[300px] flex-1 items-center justify-center bg-neutral-950 px-3 py-5"
+          className="flex min-h-[320px] flex-1 items-center justify-center bg-neutral-950 px-3 py-6"
         >
           <div
             style={{
@@ -949,176 +240,481 @@ const TicketFlierGenerator: React.FC<TicketFlierGeneratorProps> = ({
                 position: 'absolute',
                 top: 0,
                 left: 0,
+                background: '#ffffff',
+                overflow: 'hidden',
+                fontFamily: "'Nunito', sans-serif",
               }}
             >
-              <div className="h-full w-full overflow-hidden">
-                <Face />
+              {/* Torn pink/blue corner */}
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: '#004aad',
+                  clipPath:
+                    'polygon(0 0,68% 0,66% 2%,60% 5%,52% 9%,44% 14%,36% 20%,28% 27%,20% 34%,12% 40%,5% 45%,0 50%)',
+                  pointerEvents: 'none',
+                }}
+              />
+
+              {/* Host logo with jagged polygon clip */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 62,
+                  top: 50,
+                  width: 230,
+                  height: 160,
+                  background: '#ffffff',
+                  clipPath:
+                    'polygon(0 8%,6% 3%,14% 8%,24% 2%,36% 7%,48% 1%,60% 6%,72% 1%,84% 7%,94% 2%,100% 8%,100% 92%,92% 98%,80% 92%,66% 99%,50% 93%,36% 99%,22% 93%,10% 99%,0 92%)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  overflow: 'hidden',
+                }}
+              >
+                {orgLogo ? (
+                  <img
+                    src={orgLogo}
+                    alt=""
+                    crossOrigin="anonymous"
+                    style={{ maxWidth: 190, maxHeight: 110, objectFit: 'contain' }}
+                  />
+                ) : (
+                  <b
+                    style={{
+                      fontFamily: "'Anton', Impact, sans-serif",
+                      fontSize: 34,
+                      color: '#000000',
+                      textTransform: 'uppercase',
+                      textAlign: 'center',
+                      padding: '0 10px',
+                      lineHeight: 1.1,
+                    }}
+                  >
+                    {orgName || 'HOST LOGO'}
+                  </b>
+                )}
+              </div>
+
+              {/* Brand logo (Partystorm) */}
+              <img
+                src="/images/partystorm-brand-logo.png"
+                alt="Partystorm"
+                crossOrigin="anonymous"
+                style={{
+                  position: 'absolute',
+                  right: 40,
+                  top: 62,
+                  height: 86,
+                  maxWidth: 340,
+                  objectFit: 'contain',
+                  mixBlendMode: 'multiply',
+                  filter: 'contrast(1.4) brightness(1.02)',
+                }}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = DEFAULT_BRAND_LOGO;
+                }}
+              />
+
+              {/* Guest circular photo */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 134,
+                  top: 335,
+                  width: 460,
+                  height: 460,
+                  borderRadius: '50%',
+                  backgroundColor: '#004aad',
+                  backgroundImage: photoUrl ? `url("${photoUrl}")` : undefined,
+                  backgroundPosition: 'center',
+                  backgroundSize: 'cover',
+                  backgroundRepeat: 'no-repeat',
+                  boxShadow: '0 0 0 14px #ffde59',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {!photoUrl && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#ffffff',
+                      textAlign: 'center',
+                      userSelect: 'none',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontFamily: "'Anton', Impact, sans-serif",
+                        fontSize: 160,
+                        lineHeight: 1,
+                        textTransform: 'uppercase',
+                        color: '#ffde59',
+                      }}
+                    >
+                      {(guestName || 'G').charAt(0).toUpperCase()}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: "'Nunito', sans-serif",
+                        fontWeight: 800,
+                        fontSize: 22,
+                        letterSpacing: 2,
+                        textTransform: 'uppercase',
+                        marginTop: 6,
+                        color: '#ffffff',
+                      }}
+                    >
+                      I&apos;LL BE THERE
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Guest name badge from ticket info */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 104,
+                  top: 848,
+                  width: 522,
+                  height: 100,
+                  background: '#ffffff',
+                  border: '4px solid #004aad',
+                  borderRadius: 28,
+                  display: 'grid',
+                  placeItems: 'center',
+                  padding: '0 32px',
+                  textAlign: 'center',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: -14,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: 22,
+                    height: 22,
+                    background: '#ffffff',
+                    border: '4px solid #004aad',
+                    borderRadius: '50%',
+                  }}
+                />
+                <span
+                  style={{
+                    position: 'absolute',
+                    right: -14,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: 22,
+                    height: 22,
+                    background: '#ffffff',
+                    border: '4px solid #004aad',
+                    borderRadius: '50%',
+                  }}
+                />
+                <span
+                  style={{
+                    fontFamily: "'Nunito', sans-serif",
+                    fontWeight: 800,
+                    fontSize: guestName.length > 20 ? 30 : guestName.length > 15 ? 36 : 44,
+                    textTransform: 'uppercase',
+                    color: '#000000',
+                    letterSpacing: '0.5px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    maxWidth: '100%',
+                  }}
+                >
+                  {guestName}
+                </span>
+              </div>
+
+              {/* Headline area */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 668,
+                  top: 335,
+                  width: 380,
+                  height: 613,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: "'Anton', Impact, sans-serif",
+                    fontSize: headlineFontSize,
+                    lineHeight: 1,
+                    letterSpacing: '-1px',
+                    textTransform: 'uppercase',
+                    whiteSpace: 'nowrap',
+                    color: '#000000',
+                  }}
+                >
+                  {headlineLines.map((line, idx) => (
+                    <div key={idx}>{line}</div>
+                  ))}
+                </div>
+                <div
+                  style={{
+                    width: 130,
+                    height: 12,
+                    borderRadius: 6,
+                    background: '#004aad',
+                    marginTop: 26,
+                  }}
+                />
+              </div>
+
+              {/* QR Code Card */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 800,
+                  top: 1000,
+                  width: 232,
+                  padding: '17px 17px 15px',
+                  background: '#ffffff',
+                  borderRadius: 28,
+                  zIndex: 2,
+                  boxShadow: '0 12px 32px rgba(120, 10, 30, 0.28)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 10,
+                }}
+              >
+                <div style={{ width: 198, height: 198, background: '#ffffff' }}>
+                  <QRCode
+                    value={link.href}
+                    size={198}
+                    renderAs="canvas"
+                    fgColor="#004aad"
+                    bgColor="#ffffff"
+                    level="H"
+                    includeMargin={false}
+                    style={{ width: '100%', height: '100%' }}
+                  />
+                </div>
+                <div
+                  style={{
+                    color: '#004aad',
+                    fontWeight: 800,
+                    fontSize: 21,
+                    lineHeight: 1.15,
+                    textAlign: 'center',
+                    fontFamily: "'Nunito', sans-serif",
+                  }}
+                >
+                  Scan to get your ticket
+                </div>
+              </div>
+
+              {/* Event Banner */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 100,
+                  top: 1016,
+                  width: 680,
+                  height: 150,
+                  background: 'linear-gradient(90deg, #00306f, #0a62d8 50%, #00306f)',
+                  clipPath: 'polygon(15% 0, 100% 0, 88% 55%, 80% 85%, 68% 100%, 0 100%, 6% 88%)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  textAlign: 'center',
+                  padding: '0 90px 0 60px',
+                  fontFamily: "'Archivo Black', sans-serif",
+                  fontSize: eventNameFontSize,
+                  lineHeight: 1.05,
+                  textTransform: 'uppercase',
+                  color: '#ffde59',
+                }}
+              >
+                <span
+                  style={{
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {event.title}
+                </span>
+              </div>
+
+              {/* Footer with safety margin so long venues don't overlap the QR card */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 184,
+                  background: '#004aad',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '0 54px',
+                  gap: 20,
+                }}
+              >
+                <svg style={{ width: 54, height: 54, flex: 'none' }} viewBox="0 0 24 24">
+                  <path
+                    fill="#ffffff"
+                    d="M12 1.5a8.5 8.5 0 0 0-8.5 8.5c0 6.3 8.5 13.5 8.5 13.5S20.5 16.300 20.500 10A8.500 8.500 0 0 0 12 1.500z"
+                  />
+                  <circle cx="12" cy="10" r="4" fill="#ffde59" />
+                </svg>
+                <div
+                  style={{
+                    fontFamily: "'Archivo Black', sans-serif",
+                    fontSize: 26,
+                    lineHeight: 1.2,
+                    textTransform: 'uppercase',
+                    flex: 1,
+                    letterSpacing: '-0.5px',
+                    overflow: 'hidden',
+                    paddingRight: 280, // Safe margin so text wraps before the QR card
+                  }}
+                >
+                  <div style={{ color: '#ffde59', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {formattedDateTime}
+                  </div>
+                  <div
+                    style={{
+                      color: '#ffffff',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}
+                    title={event.location}
+                  >
+                    {event.location}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      marginTop: 10,
+                      fontFamily: "'Nunito', sans-serif",
+                      fontWeight: 400,
+                      fontSize: 27,
+                      letterSpacing: '1px',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" style={{ width: 34, height: 34 }}>
+                      <rect x="3" y="3" width="18" height="18" rx="5" />
+                      <circle cx="12" cy="12" r="4" />
+                      <circle cx="17.5" cy="6.5" r="1" fill="#fff" />
+                    </svg>
+                    <svg viewBox="0 0 24 24" style={{ width: 34, height: 34 }}>
+                      <path
+                        fill="#fff"
+                        d="M16.600 5.800A4.300 4.300 0 0 1 15.500 3h-3.100v12.400a2.600 2.600 0 1 1-2.600-2.600c.3 0 .5 0 .7.100V9.700a5.800 5.800 0 1 0 5 5.700V9a7.300 7.300 0 0 0 4.300 1.400V7.300a4.300 4.300 0 0 1-3.200-1.500z"
+                      />
+                    </svg>
+                    <span>@partystorm</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Sidebar Controls */}
-        <div className="flex w-full shrink-0 flex-col justify-center space-y-4 p-4 lg:w-[320px] lg:border-l lg:border-neutral-200 dark:lg:border-neutral-800">
-          {/* Format / Aspect Ratio */}
-          <div>
-            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-400">Size</p>
-            <div className="flex flex-wrap gap-1.5">
-              {FORMATS.map((f) => (
+        {/* Clean, Streamlined Sidebar Controls (Size and Template Pickers Hidden) */}
+        <div className="flex w-full shrink-0 flex-col justify-center space-y-4 p-4 lg:w-[300px] lg:border-l lg:border-neutral-200 dark:lg:border-neutral-800">
+          {/* Circle Photo Customization */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                Circle photo
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setUseEventCover(!useEventCover);
+                  if (avatar) setAvatar(null);
+                }}
+                className={`inline-flex items-center gap-1 text-[11px] font-bold transition ${
+                  useEventCover ? 'text-[#004aad]' : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+                }`}
+              >
+                <ImageIcon className="h-3 w-3" />
+                {useEventCover ? 'Using Event Cover' : 'Use Event Cover'}
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-3 text-xs font-bold text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+              >
+                <Upload className="h-3.5 w-3.5 text-[#004aad]" />
+                {avatar ? 'Change photo' : 'Add your photo'}
+              </button>
+              {avatar && (
                 <button
-                  key={f.key}
                   type="button"
-                  onClick={() => setFormat(f.key)}
-                  className={`rounded-full px-3 py-1.5 text-[11px] font-bold transition-all ${
-                    format === f.key
+                  onClick={() => setAvatar(null)}
+                  title="Remove photo"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-500 hover:bg-rose-50 hover:text-rose-600 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onAvatar} />
+          </div>
+
+          {/* Headline Customization */}
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+              Headline
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {HEADLINE_PRESETS.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setHeadline(t)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-bold transition-all ${
+                    headline === t
                       ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-sm'
                       : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
                   }`}
                 >
-                  {f.label}
-                  <span className={`ml-1 font-semibold ${format === f.key ? 'opacity-70' : 'text-neutral-400'}`}>
-                    {f.hint}
-                  </span>
+                  {t.replace(/\//g, ' ').replace(/\s+/g, ' ').trim()}
                 </button>
               ))}
             </div>
           </div>
-
-          {/* Templates */}
-          <div>
-            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-400">Design Template</p>
-            <div className="flex flex-wrap gap-1.5">
-              {TEMPLATES.map((t) => (
-                <button
-                  key={t.key}
-                  type="button"
-                  onClick={() => setTemplate(t.key)}
-                  className={`rounded-full px-3 py-1.5 text-[11px] font-bold transition-all ${
-                    template === t.key
-                      ? 'bg-[#004aad] text-white shadow-sm'
-                      : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Guest Name on Flyer */}
-          {(template === 'torn-bold' || template === 'going') && (
-            <div>
-              <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Name on flyer
-              </p>
-              <input
-                type="text"
-                value={guestName}
-                onChange={(e) => setGuestName(e.target.value)}
-                placeholder="Guest Name"
-                className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs font-semibold text-neutral-800 outline-none transition focus:border-[#004aad] focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
-              />
-            </div>
-          )}
-
-          {/* Headline Controls */}
-          {(template === 'torn-bold' || template === 'going') && (
-            <div className="space-y-1.5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Headline (use / for new line)
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {HEADLINE_PRESETS.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setHeadline(t)}
-                    className={`rounded-full px-2.5 py-1 text-[10px] font-bold transition-all ${
-                      headline === t
-                        ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900'
-                        : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 hover:bg-neutral-200'
-                    }`}
-                  >
-                    {t.replace(/\//g, ' ').replace(/\s+/g, ' ').trim()}
-                  </button>
-                ))}
-              </div>
-              <input
-                type="text"
-                value={headline}
-                onChange={(e) => setHeadline(e.target.value)}
-                placeholder="e.g. I will / be / there"
-                className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-xs font-semibold text-neutral-800 outline-none transition focus:border-[#004aad] focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
-              />
-            </div>
-          )}
-
-          {/* Photo Options */}
-          {(template === 'torn-bold' || template === 'going') && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                  Circle photo
-                </p>
-                {template === 'torn-bold' && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUseEventCover(!useEventCover);
-                      if (avatar) setAvatar(null);
-                    }}
-                    className={`inline-flex items-center gap-1 text-[11px] font-bold ${
-                      useEventCover ? 'text-[#004aad]' : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
-                    }`}
-                  >
-                    <ImageIcon className="h-3 w-3" />
-                    {useEventCover ? 'Using Event Cover' : 'Use Event Cover'}
-                  </button>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-3 text-xs font-bold text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
-                >
-                  <Upload className="h-3.5 w-3.5 text-[#004aad]" />
-                  {avatar ? 'Change photo' : 'Add your photo'}
-                </button>
-                {avatar && (
-                  <button
-                    type="button"
-                    onClick={() => setAvatar(null)}
-                    title="Remove photo"
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-500 hover:bg-rose-50 hover:text-rose-600 dark:border-neutral-700 dark:hover:bg-neutral-800"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onAvatar} />
-            </div>
-          )}
 
           {/* Action Buttons */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <button
-              type="button"
-              onClick={handleShare}
-              disabled={busy}
-              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-[#004aad] text-sm font-bold text-white shadow-md shadow-[#004aad]/20 transition hover:bg-[#003882] disabled:opacity-70"
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
-              Share
-            </button>
+          <div className="pt-2">
             <button
               type="button"
               onClick={handleDownload}
               disabled={busy}
-              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-neutral-300 text-sm font-bold text-neutral-900 transition hover:bg-neutral-50 dark:border-neutral-600 dark:text-white dark:hover:bg-neutral-800 disabled:opacity-70"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[#004aad] text-sm font-bold text-white shadow-md shadow-[#004aad]/20 transition hover:bg-[#003882] active:scale-[0.99] disabled:opacity-70"
             >
-              <Download className="h-4 w-4" />
-              Save PNG
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Save Flyer
             </button>
           </div>
         </div>

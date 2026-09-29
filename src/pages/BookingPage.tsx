@@ -440,6 +440,11 @@ const BookingPage = () => {
             accentColor: firstType?.accentColor,
             tickets: data.tickets,
             paymentReference: paymentRef,
+            guestFirstName: guestFirstName || user?.firstName || '',
+            guestLastName: guestLastName || user?.lastName || '',
+            guestName: `${guestFirstName || user?.firstName || ''} ${guestLastName || user?.lastName || ''}`.trim() || 'Guest',
+            buyerName: `${guestFirstName || user?.firstName || ''} ${guestLastName || user?.lastName || ''}`.trim() || 'Guest',
+            user: data.user || user || { firstName: guestFirstName, lastName: guestLastName, email: guestEmail },
             ...hostBrand,
           };
           navigate('/ticket-confirmation', { state: confirmedOrder });
@@ -475,6 +480,11 @@ const BookingPage = () => {
           ticketStyle: firstType?.ticketStyle,
           accentColor: firstType?.accentColor,
           tickets: checkoutRes.data.tickets,
+          guestFirstName: guestFirstName || user?.firstName || '',
+          guestLastName: guestLastName || user?.lastName || '',
+          guestName: `${guestFirstName || user?.firstName || ''} ${guestLastName || user?.lastName || ''}`.trim() || 'Guest',
+          buyerName: `${guestFirstName || user?.firstName || ''} ${guestLastName || user?.lastName || ''}`.trim() || 'Guest',
+          user: checkoutRes.data.user || user || { firstName: guestFirstName, lastName: guestLastName, email: guestEmail },
           ...hostBrand,
         };
         navigate('/ticket-confirmation', { state: confirmedOrder });
@@ -587,6 +597,11 @@ const BookingPage = () => {
             ticketStyle: firstType?.ticketStyle,
             accentColor: firstType?.accentColor,
             tickets: init.tickets,
+            guestFirstName: guestFirstName || user?.firstName || '',
+            guestLastName: guestLastName || user?.lastName || '',
+            guestName: `${guestFirstName || user?.firstName || ''} ${guestLastName || user?.lastName || ''}`.trim() || 'Guest',
+            buyerName: `${guestFirstName || user?.firstName || ''} ${guestLastName || user?.lastName || ''}`.trim() || 'Guest',
+            user: init.user || user || { firstName: guestFirstName, lastName: guestLastName, email: guestEmail },
             ...hostBrand,
           },
         });

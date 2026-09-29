@@ -85,6 +85,34 @@ const TicketConfirmationPage = () => {
     }
   };
 
+  const ticketGuestName = useMemo(() => {
+    const raw =
+      orderData.guestName ||
+      orderData.buyerName ||
+      orderData.attendeeName ||
+      orderData.customerName ||
+      (orderData.guestFirstName || orderData.guestLastName
+        ? `${orderData.guestFirstName || ''} ${orderData.guestLastName || ''}`
+        : null) ||
+      (orderData.firstName || orderData.lastName
+        ? `${orderData.firstName || ''} ${orderData.lastName || ''}`
+        : null) ||
+      (orderData.user?.firstName || orderData.user?.lastName
+        ? `${orderData.user?.firstName || ''} ${orderData.user?.lastName || ''}`
+        : null) ||
+      (ticketsList[0] as any)?.attendeeName ||
+      (ticketsList[0] as any)?.guestName ||
+      (ticketsList[0] as any)?.name ||
+      ((ticketsList[0] as any)?.user?.firstName || (ticketsList[0] as any)?.user?.lastName
+        ? `${(ticketsList[0] as any)?.user?.firstName || ''} ${(ticketsList[0] as any)?.user?.lastName || ''}`
+        : null) ||
+      (user?.firstName || user?.lastName
+        ? `${user.firstName || ''} ${user.lastName || ''}`
+        : null);
+
+    return raw?.trim() || 'Guest';
+  }, [orderData, ticketsList, user]);
+
   const flierEvent = useMemo(
     () => ({
       title: eventMeta.eventName || 'Event',
@@ -180,10 +208,10 @@ const TicketConfirmationPage = () => {
           <div className="px-4 pb-4 pt-1 md:px-1 md:pt-2">
             <h2 className="text-base font-extrabold tracking-tight md:hidden">Share flyer</h2>
             <p className="mt-0.5 text-xs text-neutral-500 md:hidden">
-              Pick a size and template, then share or save.
+              Save or share your official event ticket flyer.
             </p>
             <div className="mt-3 md:mt-0">
-              <TicketFlierGenerator embedded event={flierEvent} user={user} />
+              <TicketFlierGenerator embedded event={flierEvent} user={user} guestName={ticketGuestName} />
             </div>
           </div>
         </ResponsiveModal>
@@ -194,7 +222,7 @@ const TicketConfirmationPage = () => {
             Friends scan the code on the flyer to open this event and buy their own ticket.
           </p>
           <div className="mt-5">
-            <TicketFlierGenerator embedded event={flierEvent} user={user} />
+            <TicketFlierGenerator embedded event={flierEvent} user={user} guestName={ticketGuestName} />
           </div>
         </section>
       </div>
