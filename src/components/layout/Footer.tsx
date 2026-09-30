@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom';
-import { Facebook, Twitter, Instagram, Mail, MapPin } from 'lucide-react';
+import { Instagram, Mail, MapPin } from 'lucide-react';
 import { WhatsAppIcon } from '../icons/WhatsAppIcon';
+import { TikTokIcon } from '../icons/TikTokIcon';
 import {
   SUPPORT_ADDRESS,
   SUPPORT_EMAIL,
   SUPPORT_INSTAGRAM_URL,
+  SUPPORT_TIKTOK_URL,
   mailtoHref,
   whatsappHref,
 } from '../../lib/contact';
@@ -20,26 +22,29 @@ const Footer = () => {
               The ultimate platform for event discovery, ticketing, and management.
             </p>
             <div className="flex gap-4">
-              <a href="#" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground" aria-label="Facebook">
-                <Facebook className="h-4 w-4 md:h-5 md:w-5" />
-              </a>
-              <a href="#" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground" aria-label="Twitter">
-                <Twitter className="h-4 w-4 md:h-5 md:w-5" />
-              </a>
               <a
                 href={SUPPORT_INSTAGRAM_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground transition-colors"
                 aria-label="Instagram"
               >
                 <Instagram className="h-4 w-4 md:h-5 md:w-5" />
               </a>
               <a
+                href={SUPPORT_TIKTOK_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="TikTok"
+              >
+                <TikTokIcon className="h-4 w-4 md:h-5 md:w-5" />
+              </a>
+              <a
                 href={whatsappHref('Hi PartyStorm, I need help with…')}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[#25D366] hover:opacity-80"
+                className="text-[#25D366] hover:opacity-80 transition-opacity"
                 aria-label="WhatsApp"
               >
                 <WhatsAppIcon className="h-4 w-4 md:h-5 md:w-5" />
