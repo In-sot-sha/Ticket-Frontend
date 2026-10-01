@@ -17,6 +17,7 @@ import {
 import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/skeleton';
 import { Switch } from '../components/ui/Switch';
+import { VoiceInputButton } from '../components/ui/VoiceInputButton';
 import { api } from '../services/api';
 import { cn } from '../lib/utils';
 import { isValidEmail, isValidPhone, normalizePhone } from '../lib/phone';
@@ -131,24 +132,21 @@ const emailError = (email: string): string | undefined => {
 
 const guestErrors = (guest: GuestDraft): FieldErrors => {
   const errors: FieldErrors = {};
+  if (!guest.email.trim()) {
+    errors.email = 'Email is required';
+  } else {
+    const eErr = emailError(guest.email);
+    if (eErr) errors.email = eErr;
+  }
   if (!guest.name.trim()) errors.name = 'Name is required';
   const pErr = phoneError(guest.phone);
-  const eErr = emailError(guest.email);
   if (pErr) errors.phone = pErr;
-  if (eErr) errors.email = eErr;
-  if (!guest.phone.trim() && !guest.email.trim()) {
-    errors.contact = 'Add a phone number or email';
-  } else if (pErr && !guest.email.trim()) {
-    errors.contact = 'Fix the phone number, or add a valid email';
-  } else if (eErr && !guest.phone.trim()) {
-    errors.contact = 'Fix the email, or add a valid phone number';
-  }
   return errors;
 };
 
 const guestIsValid = (guest: GuestDraft) => {
   const errors = guestErrors(guest);
-  return !errors.name && !errors.phone && !errors.email && !errors.contact;
+  return !errors.name && !errors.email && !errors.phone;
 };
 
 const resizeGuests = (current: GuestDraft[], count: number, payment: PaymentMethod) => {
@@ -166,7 +164,7 @@ const ManualAttendeePage: React.FC = () => {
   const isStaffMode = location.pathname.startsWith('/staff/');
   const backPath = isStaffMode ? '/staff' : `/organizer/events/${id}`;
   const scanPath = isStaffMode ? '/staff/scan' : '/organizer/scan';
-  const phoneRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
 
   const [event, setEvent] = useState<EventInfo | null>(null);
   const [loadingEvent, setLoadingEvent] = useState(true);
@@ -239,7 +237,7 @@ const ManualAttendeePage: React.FC = () => {
   }, [id, isStaffMode]);
 
   useEffect(() => {
-    phoneRef.current?.focus();
+    emailRef.current?.focus();
   }, []);
 
   useEffect(() => {
@@ -325,10 +323,9 @@ const ManualAttendeePage: React.FC = () => {
     formGuests.forEach((guest, index) => {
       const label = split ? `Person ${index + 1}` : 'This guest';
       const errors = guestErrors(guest);
+      if (errors.email) notes.push(`${label}: ${errors.email.toLowerCase()}`);
       if (errors.name) notes.push(`${label}: ${errors.name.toLowerCase()}`);
       if (errors.phone) notes.push(`${label}: ${errors.phone}`);
-      if (errors.email) notes.push(`${label}: ${errors.email}`);
-      if (errors.contact && !errors.phone && !errors.email) notes.push(`${label}: ${errors.contact.toLowerCase()}`);
     });
     return notes;
   }, [formGuests, split, ticketTypeId]);
@@ -392,7 +389,7 @@ const ManualAttendeePage: React.FC = () => {
     setGuests(split ? Array.from({ length: qty }, () => emptyGuest()) : [emptyGuest(guests[0]?.paymentMethod)]);
     setMatches({});
     setAttempted(false);
-    setTimeout(() => phoneRef.current?.focus(), 40);
+    setTimeout(() => emailRef.current?.focus(), 40);
   };
 
   const addToQueue = () => {
@@ -522,56 +519,69 @@ const ManualAttendeePage: React.FC = () => {
   const renderPersonCard = (guest: GuestDraft, index: number, isFirst: boolean) => {
     const errors = guestErrors(guest);
     const show = (field: keyof FieldErrors) => {
-      if (field === 'name' || field === 'contact') return attempted && Boolean(errors[field]);
-      const value = field === 'phone' ? guest.phone : guest.email;
-      return Boolean(errors[field]) && (attempted || value.trim().length > 0);
+      if (field === 'name') return attempted && Boolean(errors.name);
+      if (field === 'email') return Boolean(errors.email) && (attempted || guest.email.trim().length > 0);
+      if (field === 'phone') return Boolean(errors.phone) && (attempted || guest.phone.trim().length > 0);
+      return false;
     };
     const match = matches[guest.id];
     const lookingUp = lookingUpId === guest.id;
+    const hasInput = Boolean(guest.email.trim() || guest.name.trim() || guest.phone.trim());
+
     return (
       <div key={guest.id} className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
             {split ? `Person ${index + 1}` : 'Person'}
           </span>
-          {lookingUp && (
-            <span className="text-[10px] text-neutral-400 flex items-center gap-1">
-              <Search className="h-3 w-3" /> Looking up…
-            </span>
-          )}
+          <div className="flex items-center gap-2.5">
+            {lookingUp && (
+              <span className="text-[10px] text-neutral-400 flex items-center gap-1">
+                <Search className="h-3 w-3 animate-spin text-rose-500" /> Looking up…
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                updateGuest(guest.id, { email: '', name: '', phone: '' });
+                setMatches((prev) => ({ ...prev, [guest.id]: null }));
+                if (isFirst) {
+                  emailRef.current?.focus();
+                }
+              }}
+              className={cn(
+                'text-[11px] font-bold transition-colors cursor-pointer',
+                hasInput
+                  ? 'text-neutral-400 hover:text-rose-500 dark:hover:text-rose-400'
+                  : 'text-neutral-300 dark:text-neutral-600 hover:text-neutral-500'
+              )}
+            >
+              Clear
+            </button>
+          </div>
         </div>
+
+        {/* 1. Email (FIRST & REQUIRED) */}
         <div>
-          <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
-            Phone <span className="text-rose-500">*</span>
-          </label>
-          <input
-            ref={isFirst ? phoneRef : undefined}
-            type="tel"
-            inputMode="tel"
-            className={cn(inputClass, show('phone') && 'border-rose-400 focus:border-rose-500')}
-            placeholder="0803 000 0000"
-            value={guest.phone}
-            onChange={(e) => updateGuest(guest.id, { phone: e.target.value })}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                addToQueue();
-              }
-            }}
-          />
-          {show('phone') && <p className="mt-1 text-[11px] font-medium text-rose-600">{errors.phone}</p>}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <div>
-            <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
-              Name <span className="text-rose-500">*</span>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300">
+              Email <span className="text-rose-500">*</span>
             </label>
+            <span className="text-[10px] text-neutral-400">Tickets sent here</span>
+          </div>
+          <div className="relative flex items-center">
             <input
-              type="text"
-              className={cn(inputClass, show('name') && 'border-rose-400 focus:border-rose-500')}
-              placeholder="Tunde Adeleke"
-              value={guest.name}
-              onChange={(e) => updateGuest(guest.id, { name: e.target.value })}
+              ref={isFirst ? emailRef : undefined}
+              type="email"
+              inputMode="email"
+              className={cn(
+                inputClass,
+                'pr-10',
+                show('email') && 'border-rose-400 focus:border-rose-500'
+              )}
+              placeholder="e.g. attendee@gmail.com"
+              value={guest.email}
+              onChange={(e) => updateGuest(guest.id, { email: e.target.value })}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -579,31 +589,96 @@ const ManualAttendeePage: React.FC = () => {
                 }
               }}
             />
-            {show('name') && <p className="mt-1 text-[11px] font-medium text-rose-600">{errors.name}</p>}
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+              <VoiceInputButton
+                fieldType="email"
+                fieldLabel="Email"
+                onTranscript={(val) => updateGuest(guest.id, { email: val })}
+              />
+            </div>
           </div>
+          {show('email') && <p className="mt-1 text-[11px] font-medium text-rose-600">{errors.email}</p>}
+        </div>
+
+        {/* 2. Name & Phone (Switched places - Phone is now in grid, optional) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <div>
             <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
-              Email
+              Name <span className="text-rose-500">*</span>
             </label>
-            <input
-              type="email"
-              className={cn(inputClass, show('email') && 'border-rose-400 focus:border-rose-500')}
-              placeholder="optional if phone is set"
-              value={guest.email}
-              onChange={(e) => updateGuest(guest.id, { email: e.target.value })}
-            />
-            {show('email') && <p className="mt-1 text-[11px] font-medium text-rose-600">{errors.email}</p>}
+            <div className="relative flex items-center">
+              <input
+                type="text"
+                className={cn(
+                  inputClass,
+                  'pr-10',
+                  show('name') && 'border-rose-400 focus:border-rose-500'
+                )}
+                placeholder="Tunde Adeleke"
+                value={guest.name}
+                onChange={(e) => updateGuest(guest.id, { name: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addToQueue();
+                  }
+                }}
+              />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+                <VoiceInputButton
+                  fieldType="name"
+                  fieldLabel="Name"
+                  onTranscript={(val) => updateGuest(guest.id, { name: val })}
+                />
+              </div>
+            </div>
+            {show('name') && <p className="mt-1 text-[11px] font-medium text-rose-600">{errors.name}</p>}
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+              Phone <span className="text-neutral-400 font-normal text-[10px]">(optional)</span>
+            </label>
+            <div className="relative flex items-center">
+              <input
+                type="tel"
+                inputMode="tel"
+                className={cn(
+                  inputClass,
+                  'pr-10',
+                  show('phone') && 'border-rose-400 focus:border-rose-500'
+                )}
+                placeholder="0803 000 0000"
+                value={guest.phone}
+                onChange={(e) => updateGuest(guest.id, { phone: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addToQueue();
+                  }
+                }}
+              />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+                <VoiceInputButton
+                  fieldType="phone"
+                  fieldLabel="Phone"
+                  onTranscript={(val) => updateGuest(guest.id, { phone: val })}
+                />
+              </div>
+            </div>
+            {show('phone') && <p className="mt-1 text-[11px] font-medium text-rose-600">{errors.phone}</p>}
           </div>
         </div>
-        {show('contact') && !show('phone') && !show('email') && (
-          <p className="text-[11px] font-medium text-rose-600">{errors.contact}</p>
-        )}
+
         {match && (
-          <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
-            Known guest
-            {match.existingTickets.length > 0
-              ? ` · has ${match.existingTickets.map((t) => t.ticketTypeName).join(', ')}`
-              : ''}
+          <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+            <span>
+              Known guest
+              {match.existingTickets.length > 0
+                ? ` · has ${match.existingTickets.map((t) => t.ticketTypeName).join(', ')}`
+                : ''}
+            </span>
           </p>
         )}
         {isPaid && (

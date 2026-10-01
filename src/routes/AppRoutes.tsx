@@ -19,6 +19,8 @@ import EventsPage from '../pages/EventsPage';
 import EventDetailPage from '../pages/EventDetailPage';
 import Login from '../pages/Login';
 import Register from '../pages/Register';
+import ForgotPasswordPage from '../pages/ForgotPasswordPage';
+import ResetPasswordPage from '../pages/ResetPasswordPage';
 import TermsOfService from '../pages/TermsOfService';
 import PrivacyPolicy from '../pages/PrivacyPolicy';
 import OrganizerPage from '../pages/OrganizerPage';
@@ -223,6 +225,22 @@ const AppRoutes: React.FC = () => {
           element: (
             <PublicRoute>
               <Register />
+            </PublicRoute>
+          ),
+        },
+        {
+          path: "forgot-password",
+          element: (
+            <PublicRoute>
+              <ForgotPasswordPage />
+            </PublicRoute>
+          ),
+        },
+        {
+          path: "reset-password",
+          element: (
+            <PublicRoute>
+              <ResetPasswordPage />
             </PublicRoute>
           ),
         },

@@ -222,6 +222,15 @@ export const api = {
       formData.append('avatar', file);
       return apiRequest<{ url: string; user: any }>('POST', '/users/profile/avatar', formData);
     },
+
+    forgotPassword: (data: { email: string }) =>
+      apiRequest<{ success: boolean; message: string }>('POST', '/users/forgot-password', data),
+
+    resetPassword: (data: { token: string; newPassword: string }) =>
+      apiRequest<{ success: boolean; message: string }>('POST', '/users/reset-password', data),
+
+    changePassword: (data: { currentPassword: string; newPassword: string }) =>
+      apiRequest<{ message: string; user: any }>('POST', '/users/change-password', data),
   },
 
   // User role endpoints
