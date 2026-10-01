@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Sparkles,
   ArrowRightLeft,
@@ -123,6 +123,7 @@ export function getEventStatus(ev: {
 }
 
 const AdminEventsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [events, setEvents] = useState<EventAdminInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -356,7 +357,7 @@ const AdminEventsPage: React.FC = () => {
             className="rounded-lg text-xs h-7 px-2.5 font-semibold"
             onClick={(e) => {
               e.stopPropagation();
-              setSelectedEvent(ev);
+              navigate(`/admin/events/${ev.id}`);
             }}
           >
             <Eye className="h-3 w-3 mr-1 text-neutral-400" />
@@ -434,7 +435,7 @@ const AdminEventsPage: React.FC = () => {
           onSearchChange={setSearch}
           searchPlaceholder="Search events by title…"
           pageSize={12}
-          onRowClick={(ev) => setSelectedEvent(ev)}
+          onRowClick={(ev) => navigate(`/admin/events/${ev.id}`)}
           toolbar={
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>

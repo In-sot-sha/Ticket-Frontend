@@ -61,8 +61,10 @@ import AdminTransactionsPage from '../pages/admin/AdminTransactionsPage';
 import AdminSupportPage from '../pages/admin/AdminSupportPage';
 import AdminStaffPage from '../pages/admin/AdminStaffPage';
 import AdminEventsPage from '../pages/admin/AdminEventsPage';
+import AdminEventDetailPage from '../pages/admin/AdminEventDetailPage';
 import AdminWhatsAppPage from '../pages/admin/AdminWhatsAppPage';
 import StaffHomePage from '../pages/StaffHomePage';
+import StaffWalkInPage from '../pages/StaffWalkInPage';
 import { StaffOrgsPage, StaffProjectsPage } from '../pages/StaffSections';
 import ForceChangePasswordPage from '../pages/ForceChangePasswordPage';
 import SupportPage from '../pages/SupportPage';
@@ -360,6 +362,10 @@ const AppRoutes: React.FC = () => {
           element: <AdminEventsPage />,
         },
         {
+          path: "events/:id",
+          element: <AdminEventDetailPage />,
+        },
+        {
           path: "whatsapp",
           element: <AdminWhatsAppPage />,
         },
@@ -384,6 +390,10 @@ const AppRoutes: React.FC = () => {
         {
           path: "projects",
           element: <Navigate to="/staff" replace />,
+        },
+        {
+          path: "walk-in",
+          element: <StaffWalkInPage />,
         },
         {
           path: "events/:id/walk-in",

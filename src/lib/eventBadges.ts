@@ -26,7 +26,8 @@ export function eventHasUnlimitedTickets(
 }
 
 export function isEventPast(date?: string | null, endDate?: string | null): boolean {
-  const end = new Date(endDate || date || '');
+  const effectiveEnd = (endDate && endDate.trim()) || (date && date.trim()) || '';
+  const end = new Date(effectiveEnd);
   return !Number.isNaN(end.getTime()) && end.getTime() < Date.now();
 }
 
@@ -48,14 +49,19 @@ export function getEventUrgencyBadges({
     ];
   }
 
-  if (!date) return [];
+  const effectiveCloseStr = (endDate && endDate.trim()) || (date && date.trim());
+  if (!effectiveCloseStr) return [];
+
+  const closingDate = new Date(effectiveCloseStr);
+  if (Number.isNaN(closingDate.getTime())) return [];
 
   const badges: EventUrgencyBadge[] = [];
-  const eventDate = new Date(date);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const closingDay = new Date(closingDate);
+  closingDay.setHours(0, 0, 0, 0);
   const diffDays = Math.round(
-    (eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    (closingDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
   );
 
   if (diffDays === 0) {

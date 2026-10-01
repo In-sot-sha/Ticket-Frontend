@@ -20,6 +20,7 @@ interface AttendeesTabProps {
   eventId?: number;
   eventSlug?: string | null;
   event?: any;
+  readOnly?: boolean;
 }
 
 const personKey = (ticket: any) => {
@@ -38,7 +39,12 @@ const personName = (ticket: any) => {
   return ticket.buyerName || 'Guest';
 };
 
-export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug, event }) => {
+export const AttendeesTab: React.FC<AttendeesTabProps> = ({
+  eventId,
+  eventSlug,
+  event,
+  readOnly = false,
+}) => {
   const [attendees, setAttendees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -283,12 +289,14 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug, 
           >
             Copy event link
           </Button>
-          <Link to={`/organizer/events/${eventSlug || eventId}/add-attendee`}>
-            <Button size="sm" className="rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0">
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
-              Add attendee
-            </Button>
-          </Link>
+          {!readOnly && (
+            <Link to={`/organizer/events/${eventSlug || eventId}/add-attendee`}>
+              <Button size="sm" className="rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0">
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Add attendee
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
     );
@@ -538,16 +546,19 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({ eventId, eventSlug, 
                 </SelectGroup>
               </SelectContent>
             </Select>
-            <Button onClick={exportCsv} variant="outline" size="sm" className="rounded-xl text-xs gap-1.5 h-9">
+            {/* Export button commented out for now as requested */}
+            {/* <Button onClick={exportCsv} variant="outline" size="sm" className="rounded-xl text-xs gap-1.5 h-9">
               <Download className="h-3.5 w-3.5" />
               Export
-            </Button>
-            <Link to={`/organizer/events/${eventSlug || eventId}/add-attendee`}>
-              <Button size="sm" className="rounded-xl text-xs h-9 bg-rose-500 hover:bg-rose-600 text-white border-0 font-bold px-3">
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Add
-              </Button>
-            </Link>
+            </Button> */}
+            {!readOnly && (
+              <Link to={`/organizer/events/${eventSlug || eventId}/add-attendee`}>
+                <Button size="sm" className="rounded-xl text-xs h-9 bg-rose-500 hover:bg-rose-600 text-white border-0 font-bold px-3">
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Add
+                </Button>
+              </Link>
+            )}
           </div>
         }
         emptyTitle="No matches"

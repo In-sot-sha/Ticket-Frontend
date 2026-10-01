@@ -28,6 +28,7 @@ import { eventDayList, ymdFromUnknown } from '../../lib/ticketValidity';
 interface SettingsTabProps {
   event: OrganizerEvent;
   onEventUpdate?: (patch: Partial<OrganizerEvent>) => void;
+  readOnly?: boolean;
 }
 
 interface EditableTicket {
@@ -75,7 +76,11 @@ const CATEGORIES = [
   'Other',
 ];
 
-export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }) => {
+export const SettingsTab: React.FC<SettingsTabProps> = ({
+  event,
+  onEventUpdate,
+  readOnly = false,
+}) => {
   const navigate = useNavigate();
 
   // Visibility & Vendor toggles
@@ -307,6 +312,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
 
   return (
     <div className="space-y-6 w-full">
+      {readOnly && (
+        <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200 flex items-center gap-2">
+          <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+          <span className="font-semibold">
+            Admin View (Read-Only) — Event details and ticket tiers cannot be updated from this view.
+          </span>
+        </div>
+      )}
+
       {/* Toast Notification with auto-dismiss and close button */}
       {updateMsg && (
         <div
@@ -371,17 +385,23 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
                   : 'Hidden from public lists. Only accessible via direct link.'}
               </p>
             </div>
-            <Button
-              variant={isPublished ? 'outline' : 'default'}
-              size="sm"
-              disabled={updating}
-              onClick={handleTogglePublish}
-              className={`rounded-full text-xs font-semibold px-4 cursor-pointer shrink-0 ${
-                !isPublished ? 'bg-rose-500 hover:bg-rose-600 text-white' : ''
-              }`}
-            >
-              {updating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isPublished ? 'Unpublish' : 'Publish Event'}
-            </Button>
+            {!readOnly ? (
+              <Button
+                variant={isPublished ? 'outline' : 'default'}
+                size="sm"
+                disabled={updating}
+                onClick={handleTogglePublish}
+                className={`rounded-full text-xs font-semibold px-4 cursor-pointer shrink-0 ${
+                  !isPublished ? 'bg-rose-500 hover:bg-rose-600 text-white' : ''
+                }`}
+              >
+                {updating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isPublished ? 'Unpublish' : 'Publish Event'}
+              </Button>
+            ) : (
+              <span className="text-xs font-bold text-neutral-500 shrink-0">
+                {isPublished ? 'Published' : 'Draft'}
+              </span>
+            )}
           </div>
 
           {/* Toggle: Vendor Applications */}
@@ -395,23 +415,36 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
                 Allow vendors to register and apply for booth spaces.
               </p>
             </div>
-            <Button
-              variant={allowVendors ? 'default' : 'outline'}
-              size="sm"
-              disabled={updating}
-              onClick={handleToggleVendors}
-              className={`rounded-full text-xs font-semibold px-4 cursor-pointer shrink-0 ${
-                allowVendors ? 'bg-rose-500 hover:bg-rose-600 text-white' : ''
-              }`}
-            >
-              {updating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : allowVendors ? 'Enabled' : 'Disabled'}
-            </Button>
+            {!readOnly ? (
+              <Button
+                variant={allowVendors ? 'default' : 'outline'}
+                size="sm"
+                disabled={updating}
+                onClick={handleToggleVendors}
+                className={`rounded-full text-xs font-semibold px-4 cursor-pointer shrink-0 ${
+                  allowVendors ? 'bg-rose-500 hover:bg-rose-600 text-white' : ''
+                }`}
+              >
+                {updating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : allowVendors ? 'Enabled' : 'Disabled'}
+              </Button>
+            ) : (
+              <span className="text-xs font-bold text-neutral-500 shrink-0">
+                {allowVendors ? 'Enabled' : 'Disabled'}
+              </span>
+            )}
           </div>
         </div>
       </div>
 
       {/* Card 2: Simple In-Place Event Details & Ticket Editor */}
-      <form onSubmit={handleSaveQuickDetails} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 shadow-2xs space-y-5">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (readOnly) return;
+          handleSaveQuickDetails(e);
+        }}
+        className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 shadow-2xs space-y-5"
+      >
         <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-4">
           <div>
             <h3 className="text-sm sm:text-base font-bold text-neutral-900 dark:text-white flex items-center gap-2">
@@ -433,9 +466,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
             <input
               type="text"
               value={title}
+              disabled={readOnly}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Summer Music Festival"
-              className="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+              className="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500 disabled:opacity-60 disabled:cursor-not-allowed"
               required
             />
           </div>
@@ -446,8 +480,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
             </label>
             <select
               value={category}
+              disabled={readOnly}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full h-10 px-3 text-xs sm:text-sm rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+              className="w-full h-10 px-3 text-xs sm:text-sm rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
@@ -466,9 +501,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
           <textarea
             rows={3}
             value={description}
+            disabled={readOnly}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Tell attendees what to expect..."
-            className="w-full p-3 text-xs sm:text-sm rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500 resize-none leading-relaxed"
+            className="w-full p-3 text-xs sm:text-sm rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500 resize-none leading-relaxed disabled:opacity-60 disabled:cursor-not-allowed"
           />
         </div>
 
@@ -481,8 +517,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
             <input
               type="date"
               value={startDate}
+              disabled={readOnly}
               onChange={(e) => setStartDate(e.target.value)}
-              className="w-full h-9 px-3 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+              className="w-full h-9 px-3 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500 disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </div>
           <div>
@@ -492,8 +529,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
             <input
               type="time"
               value={startTime}
+              disabled={readOnly}
               onChange={(e) => setStartTime(e.target.value)}
-              className="w-full h-9 px-3 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+              className="w-full h-9 px-3 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500 disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </div>
           <div>
@@ -503,8 +541,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
             <input
               type="date"
               value={endDate}
+              disabled={readOnly}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full h-9 px-3 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+              className="w-full h-9 px-3 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500 disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </div>
           <div>
@@ -514,8 +553,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
             <input
               type="time"
               value={endTime}
+              disabled={readOnly}
               onChange={(e) => setEndTime(e.target.value)}
-              className="w-full h-9 px-3 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+              className="w-full h-9 px-3 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500 disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </div>
         </div>
@@ -528,8 +568,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
           <div className="flex gap-2 mb-2">
             <button
               type="button"
+              disabled={readOnly}
               onClick={() => setLocationType('physical')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                readOnly ? 'cursor-not-allowed opacity-80 ' : 'cursor-pointer '
+              }${
                 locationType === 'physical'
                   ? 'border-rose-500 bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300'
                   : 'border-neutral-200 dark:border-neutral-700 text-neutral-600'
@@ -539,8 +582,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
             </button>
             <button
               type="button"
+              disabled={readOnly}
               onClick={() => setLocationType('online')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                readOnly ? 'cursor-not-allowed opacity-80 ' : 'cursor-pointer '
+              }${
                 locationType === 'online'
                   ? 'border-rose-500 bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300'
                   : 'border-neutral-200 dark:border-neutral-700 text-neutral-600'
@@ -554,17 +600,19 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
             <input
               type="text"
               value={location}
+              disabled={readOnly}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="e.g. Landmark Centre, Plot 2 & 3, Water Corporation Dr, VI, Lagos"
-              className="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+              className="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500 disabled:opacity-60 disabled:cursor-not-allowed"
             />
           ) : (
             <input
               type="url"
               value={onlineUrl}
+              disabled={readOnly}
               onChange={(e) => setOnlineUrl(e.target.value)}
               placeholder="e.g. https://zoom.us/j/... or https://meet.google.com/..."
-              className="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+              className="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500 disabled:opacity-60 disabled:cursor-not-allowed"
             />
           )}
         </div>
@@ -577,15 +625,19 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
                 <Ticket className="h-3.5 w-3.5 text-rose-500" />
                 Ticket Tiers & Pricing
               </label>
-              <p className="text-[11px] text-neutral-400">Adjust prices, quantity, or which day a pass works</p>
+              <p className="text-[11px] text-neutral-400">
+                {readOnly ? 'Ticket tiers configured for this event' : 'Adjust prices, quantity, or which day a pass works'}
+              </p>
             </div>
-            <button
-              type="button"
-              onClick={handleAddTicket}
-              className="text-xs font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 cursor-pointer"
-            >
-              <Plus className="h-3.5 w-3.5" /> Add Tier
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={handleAddTicket}
+                className="text-xs font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add Tier
+              </button>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -602,9 +654,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
                   <input
                     type="text"
                     value={t.name}
+                    disabled={readOnly}
                     onChange={(e) => handleUpdateTicket(idx, 'name', e.target.value)}
                     placeholder="Tier Name (e.g. VIP)"
-                    className="w-full h-8 px-2.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white font-semibold"
+                    className="w-full h-8 px-2.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div className="w-28">
@@ -614,9 +667,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
                       type="number"
                       min={0}
                       value={t.price}
+                      disabled={readOnly}
                       onChange={(e) => handleUpdateTicket(idx, 'price', e.target.value)}
                       placeholder="Price"
-                      className="w-full h-8 pl-5 pr-2 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white font-bold tabular-nums"
+                      className="w-full h-8 pl-5 pr-2 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white font-bold tabular-nums disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>
@@ -630,16 +684,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
                       type="number"
                       min={1}
                       value={t.quantity}
+                      disabled={readOnly}
                       onChange={(e) => handleUpdateTicket(idx, 'quantity', e.target.value)}
                       placeholder="Qty"
-                      className="w-full h-8 px-2.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white tabular-nums text-center"
+                      className="w-full h-8 px-2.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white tabular-nums text-center disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                   )}
                 </div>
-                <label className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-500 cursor-pointer shrink-0">
+                <label className={`flex items-center gap-1.5 text-[11px] font-semibold text-neutral-500 shrink-0 ${readOnly ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                   <input
                     type="checkbox"
                     checked={!!t.isUnlimited}
+                    disabled={readOnly}
                     onChange={(e) => {
                       setTickets((prev) =>
                         prev.map((row, i) =>
@@ -657,27 +713,29 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
                   />
                   Unlimited
                 </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = tickets.map((row, i) =>
-                      i === idx ? { ...row, isPaused: !row.isPaused } : row
-                    );
-                    setTickets(next);
-                    void handleSaveQuickDetails(undefined, next);
-                  }}
-                  disabled={updating}
-                  className={`h-8 px-2.5 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer border disabled:opacity-50 ${
-                    t.isPaused
-                      ? 'border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-800'
-                      : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-amber-300'
-                  }`}
-                  title={t.isPaused ? 'Resume sales' : 'Pause sales'}
-                >
-                  {t.isPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-                  {t.isPaused ? 'Paused' : 'Pause'}
-                </button>
-                {tickets.length > 1 && (
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = tickets.map((row, i) =>
+                        i === idx ? { ...row, isPaused: !row.isPaused } : row
+                      );
+                      setTickets(next);
+                      void handleSaveQuickDetails(undefined, next);
+                    }}
+                    disabled={updating}
+                    className={`h-8 px-2.5 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer border disabled:opacity-50 ${
+                      t.isPaused
+                        ? 'border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-800'
+                        : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-amber-300'
+                    }`}
+                    title={t.isPaused ? 'Resume sales' : 'Pause sales'}
+                  >
+                    {t.isPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+                    {t.isPaused ? 'Paused' : 'Pause'}
+                  </button>
+                )}
+                {!readOnly && tickets.length > 1 && (
                   <button
                     type="button"
                     onClick={() => handleRemoveTicket(idx)}
@@ -692,6 +750,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
                     startDate={startDate}
                     endDate={endDate || startDate}
                     value={t.validOn}
+                    disabled={readOnly}
                     onChange={(next) => handleUpdateTicket(idx, 'validOn', next)}
                   />
                 </div>
@@ -701,62 +760,66 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ event, onEventUpdate }
         </div>
 
         {/* Footer save action + link to full editor */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-neutral-100 dark:border-neutral-800">
-          <p className="text-[11px] text-neutral-400">
-            Need custom ticket flier badges or vendor forms?{' '}
-            <button
-              type="button"
-              onClick={() => navigate(`/organizer/events/create/${event.id}`)}
-              className="text-rose-500 hover:underline font-semibold cursor-pointer"
-            >
-              Open the 3-step wizard →
-            </button>
-          </p>
+        {!readOnly && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-neutral-100 dark:border-neutral-800">
+            <p className="text-[11px] text-neutral-400">
+              Need custom ticket flier badges or vendor forms?{' '}
+              <button
+                type="button"
+                onClick={() => navigate(`/organizer/events/create/${event.id}`)}
+                className="text-rose-500 hover:underline font-semibold cursor-pointer"
+              >
+                Open the 3-step wizard →
+              </button>
+            </p>
 
-          <Button
-            type="submit"
-            size="sm"
-            disabled={updating}
-            className="w-full sm:w-auto rounded-xl text-xs font-bold px-5 h-9 bg-rose-500 hover:bg-rose-600 text-white border-0 shadow-2xs gap-1.5 cursor-pointer"
-          >
-            {updating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-            Save Changes
-          </Button>
-        </div>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={updating}
+              className="w-full sm:w-auto rounded-xl text-xs font-bold px-5 h-9 bg-rose-500 hover:bg-rose-600 text-white border-0 shadow-2xs gap-1.5 cursor-pointer"
+            >
+              {updating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Save Changes
+            </Button>
+          </div>
+        )}
       </form>
 
       {/* Card 3: Danger Zone (Delete Only — Cancel removed) */}
-      <div className="bg-rose-50/30 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/50 rounded-2xl p-5 shadow-2xs space-y-4">
-        <div className="border-b border-rose-200/60 dark:border-rose-900/60 pb-3">
-          <h3 className="text-sm sm:text-base font-bold text-rose-700 dark:text-rose-400 flex items-center gap-2">
-            <ShieldAlert className="h-4 w-4 text-rose-600" />
-            Danger Zone
-          </h3>
-          <p className="text-xs text-rose-600/80 dark:text-rose-400/80 mt-0.5">
-            To stop ticket purchases temporarily, simply use the <strong>Unpublish</strong> toggle above. Deleting the event is permanent.
-          </p>
-        </div>
-
-        <div className="flex items-center justify-between p-3.5 rounded-xl bg-white dark:bg-neutral-900 border border-rose-200 dark:border-rose-950/50">
-          <div className="space-y-0.5">
-            <p className="text-xs font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
-              <Trash2 className="h-3.5 w-3.5 text-rose-600" />
-              Delete Event
-            </p>
-            <p className="text-[11px] text-neutral-500">
-              Permanently delete this event and all associated records from PartyStorm.
+      {!readOnly && (
+        <div className="bg-rose-50/30 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/50 rounded-2xl p-5 shadow-2xs space-y-4">
+          <div className="border-b border-rose-200/60 dark:border-rose-900/60 pb-3">
+            <h3 className="text-sm sm:text-base font-bold text-rose-700 dark:text-rose-400 flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-rose-600" />
+              Danger Zone
+            </h3>
+            <p className="text-xs text-rose-600/80 dark:text-rose-400/80 mt-0.5">
+              To stop ticket purchases temporarily, simply use the <strong>Unpublish</strong> toggle above. Deleting the event is permanent.
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setDeleteModalOpen(true)}
-            className="rounded-full text-xs font-semibold border-rose-300 text-rose-700 hover:bg-rose-100 dark:border-rose-900 dark:hover:bg-rose-950 px-4 shrink-0 cursor-pointer"
-          >
-            Delete Event
-          </Button>
+
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white dark:bg-neutral-900 border border-rose-200 dark:border-rose-950/50">
+            <div className="space-y-0.5">
+              <p className="text-xs font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
+                <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                Delete Event
+              </p>
+              <p className="text-[11px] text-neutral-500">
+                Permanently delete this event and all associated records from PartyStorm.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDeleteModalOpen(true)}
+              className="rounded-full text-xs font-semibold border-rose-300 text-rose-700 hover:bg-rose-100 dark:border-rose-900 dark:hover:bg-rose-950 px-4 shrink-0 cursor-pointer"
+            >
+              Delete Event
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {unpublishModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">

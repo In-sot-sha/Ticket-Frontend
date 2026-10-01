@@ -23,9 +23,14 @@ import { Button } from '../ui/Button';
 interface OverviewTabProps {
   event: OrganizerEvent;
   vendorApplications?: any[];
+  readOnly?: boolean;
 }
 
-export const OverviewTab: React.FC<OverviewTabProps> = ({ event, vendorApplications = [] }) => {
+export const OverviewTab: React.FC<OverviewTabProps> = ({
+  event,
+  vendorApplications = [],
+  readOnly = false,
+}) => {
   const [copiedLink, setCopiedLink] = useState(false);
   const stats = event.stats;
   const cover = resolveImageUrl(event.imageUrl);
@@ -289,26 +294,30 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ event, vendorApplicati
               {copiedLink ? 'Copied' : 'Copy Link'}
             </Button>
 
-            <Link to="/organizer/scan">
-              <Button
-                variant="outline"
-                size="sm"
-                className="rounded-xl text-xs font-bold h-8 px-2.5 gap-1.5 border-neutral-200 dark:border-neutral-700 hover:border-rose-400 hover:text-rose-500 cursor-pointer"
-              >
-                <ScanLine className="h-3 w-3 text-rose-500" />
-                Scan Tickets
-              </Button>
-            </Link>
+            {!readOnly && (
+              <>
+                <Link to="/organizer/scan">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl text-xs font-bold h-8 px-2.5 gap-1.5 border-neutral-200 dark:border-neutral-700 hover:border-rose-400 hover:text-rose-500 cursor-pointer"
+                  >
+                    <ScanLine className="h-3 w-3 text-rose-500" />
+                    Scan Tickets
+                  </Button>
+                </Link>
 
-            <Link to={`/organizer/events/${event.id}/add-attendee`}>
-              <Button
-                size="sm"
-                className="rounded-xl text-xs font-bold h-8 px-3 gap-1.5 bg-rose-500 hover:bg-rose-600 text-white border-0 shadow-2xs cursor-pointer"
-              >
-                <UserPlus className="h-3 w-3" />
-                Add Walk-in
-              </Button>
-            </Link>
+                <Link to={`/organizer/events/${event.id}/add-attendee`}>
+                  <Button
+                    size="sm"
+                    className="rounded-xl text-xs font-bold h-8 px-3 gap-1.5 bg-rose-500 hover:bg-rose-600 text-white border-0 shadow-2xs cursor-pointer"
+                  >
+                    <UserPlus className="h-3 w-3" />
+                    Add Walk-in
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </section>

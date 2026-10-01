@@ -3,12 +3,14 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   ScanLine,
+  ShoppingCart,
   LifeBuoy,
   X,
   Shield,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../context/AuthContext';
+import { useStaffAccess } from '../../hooks/useStaffAccess';
 import { cn } from '../../lib/utils';
 
 interface NavItem {
@@ -18,22 +20,34 @@ interface NavItem {
   exact?: boolean;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { title: 'Staff home', icon: LayoutDashboard, href: '/staff', exact: true },
-  { title: 'Gate scan', icon: ScanLine, href: '/staff/scan' },
-  { title: 'Support', icon: LifeBuoy, href: '/staff/support' },
-];
-
 const StaffSidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = ({
   isOpen,
   toggleSidebar,
 }) => {
   const location = useLocation();
   const { user } = useAuth();
+  const { canScan, canWalkIn, canSupport } = useStaffAccess();
+
+  const navItems: NavItem[] = React.useMemo(() => {
+    const items: NavItem[] = [
+      { title: 'Staff home', icon: LayoutDashboard, href: '/staff', exact: true },
+    ];
+    if (canScan) {
+      items.push({ title: 'Gate scan', icon: ScanLine, href: '/staff/scan' });
+    }
+    if (canWalkIn) {
+      items.push({ title: 'Gate sale', icon: ShoppingCart, href: '/staff/walk-in' });
+    }
+    if (canSupport) {
+      items.push({ title: 'Support', icon: LifeBuoy, href: '/staff/support' });
+    }
+    return items;
+  }, [canScan, canWalkIn, canSupport]);
 
   const isActive = (item: NavItem) => {
     const path = location.pathname;
-    if (item.href === '/staff/scan') return path.startsWith('/staff/scan');
+    if (item.href === '/staff/scan') return path.startsWith('/staff/scan') || path.startsWith('/scan-gate');
+    if (item.href === '/staff/walk-in') return path.startsWith('/staff/walk-in') || path.includes('/walk-in');
     if (item.exact) return path === item.href;
     return path === item.href || path.startsWith(`${item.href}/`);
   };
@@ -74,7 +88,7 @@ const StaffSidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = (
 
         <nav className="flex-1 px-3 py-4 overflow-y-auto">
           <ul className="space-y-1">
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const active = isActive(item);
               const Icon = item.icon;
               return (

@@ -1,3 +1,4 @@
+import React, { useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Search,
@@ -9,16 +10,19 @@ import {
   Home,
   HomeIcon,
   ScanLine,
+  ShoppingCart,
   Building2,
   LifeBuoy,
   LayoutDashboard,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useRole } from '../../context/RoleContext';
+import { useStaffAccess } from '../../hooks/useStaffAccess';
 
 const MobileTabBar: React.FC = () => {
   const { isAuthenticated, user } = useAuth();
   const { currentRole } = useRole();
+  const { canScan, canWalkIn, canSupport } = useStaffAccess();
   const location = useLocation();
 
   const hiddenPaths = ['/login', '/register', '/become-organizer'];
@@ -59,11 +63,21 @@ const MobileTabBar: React.FC = () => {
     { label: 'Analytics', icon: BarChart3, path: '/organizer/analytics', exact: false },
   ];
 
-  const staffTabs = [
-    { label: 'Home', icon: LayoutDashboard, path: '/staff', exact: true },
-    { label: 'Scan', icon: ScanLine, path: '/staff/scan', exact: false },
-    { label: 'Support', icon: LifeBuoy, path: '/staff/support', exact: false },
-  ];
+  const staffTabs = useMemo(() => {
+    const tabs = [
+      { label: 'Home', icon: LayoutDashboard, path: '/staff', exact: true },
+    ];
+    if (canScan) {
+      tabs.push({ label: 'Scan', icon: ScanLine, path: '/staff/scan', exact: false });
+    }
+    if (canWalkIn) {
+      tabs.push({ label: 'Gate sale', icon: ShoppingCart, path: '/staff/walk-in', exact: false });
+    }
+    if (canSupport) {
+      tabs.push({ label: 'Support', icon: LifeBuoy, path: '/staff/support', exact: false });
+    }
+    return tabs;
+  }, [canScan, canWalkIn, canSupport]);
 
   const activeTabs = showStaffTabs
     ? staffTabs
@@ -80,6 +94,8 @@ const MobileTabBar: React.FC = () => {
           let isActive = false;
           if (tab.path === '/staff/scan' || tab.path.startsWith('/scan-gate')) {
             isActive = path.startsWith('/staff/scan') || path.startsWith('/scan-gate');
+          } else if (tab.path === '/staff/walk-in') {
+            isActive = path.startsWith('/staff/walk-in') || path.includes('/walk-in');
           } else if (tab.path === '/organizer/events') {
             isActive =
               path === '/organizer/events' ||

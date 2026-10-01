@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
   QrCode,
@@ -29,9 +29,22 @@ import { SettingsTab } from '../components/organizer/SettingsTab';
 
 type TabType = 'overview' | 'attendees' | 'marketing' | 'vendors' | 'analytics' | 'settings';
 
-const OrganizerEventPage: React.FC = () => {
+interface OrganizerEventPageProps {
+  readOnly?: boolean;
+  backTo?: string;
+}
+
+export const OrganizerEventPage: React.FC<OrganizerEventPageProps> = ({
+  readOnly: propReadOnly,
+  backTo,
+}) => {
   const { id: eventParam } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const isReadOnly = propReadOnly ?? location.pathname.startsWith('/admin');
+  const returnTarget = backTo || (isReadOnly ? '/admin/events' : '/organizer/events');
+
   const [event, setEvent] = useState<OrganizerEvent | null>(null);
   const [vendorApplications, setVendorApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -180,9 +193,9 @@ const OrganizerEventPage: React.FC = () => {
     return (
       <div className="py-12 text-center px-4">
         <p className="text-rose-500 mb-4">{error || 'Event not found'}</p>
-        <Link to="/organizer/events">
+        <Link to={returnTarget}>
           <Button variant="outline" className="rounded-full">
-            ← Back to events
+            ← Back to {isReadOnly ? 'admin events' : 'events'}
           </Button>
         </Link>
       </div>
@@ -196,11 +209,11 @@ const OrganizerEventPage: React.FC = () => {
         <div className="flex items-center gap-1.5 min-w-0">
           <Button
             variant="ghost"
-            onClick={() => navigate('/organizer/events')}
+            onClick={() => navigate(returnTarget)}
             className="flex items-center gap-1 text-xs font-bold text-neutral-500 hover:text-rose-500 transition-colors shrink-0 px-2 h-8"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Events</span>
+            <span className="hidden sm:inline">{isReadOnly ? 'Admin Events' : 'Events'}</span>
           </Button>
           {activeTab !== 'overview' && (
             <p className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white truncate min-w-0">
@@ -303,11 +316,11 @@ const OrganizerEventPage: React.FC = () => {
 
         <div className="min-h-[420px]">
           <TabsContent value="overview" className="mt-0">
-            <OverviewTab event={event} vendorApplications={vendorApplications} />
+            <OverviewTab event={event} vendorApplications={vendorApplications} readOnly={isReadOnly} />
           </TabsContent>
 
           <TabsContent value="attendees" className="mt-0">
-            <AttendeesTab eventId={event.id} eventSlug={event.slug} event={event} />
+            <AttendeesTab eventId={event.id} eventSlug={event.slug} event={event} readOnly={isReadOnly} />
           </TabsContent>
 
           <TabsContent value="marketing" className="mt-0">
@@ -331,6 +344,7 @@ const OrganizerEventPage: React.FC = () => {
             <SettingsTab
               event={event}
               onEventUpdate={(patch) => setEvent((prev) => (prev ? { ...prev, ...patch } : prev))}
+              readOnly={isReadOnly}
             />
           </TabsContent>
         </div>

@@ -28,6 +28,10 @@ interface User {
   isOrganizer?: boolean;
   isVendor?: boolean;
   isStaff?: boolean;
+  staffProfile?: {
+    capabilities?: string[] | string;
+    active?: boolean;
+  } | null;
   mustChangePassword?: boolean;
   vendorProfile?: any;
   ownedOrganizations?: Array<{
