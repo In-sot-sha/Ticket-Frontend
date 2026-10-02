@@ -116,7 +116,7 @@ const MobileTabBar: React.FC = () => {
               key={tab.label}
               to={tab.path}
               end={tab.exact}
-              className="flex flex-col items-center justify-center gap-0.5 py-2 px-0.5 min-w-0 flex-1 relative transition-all active:scale-95"
+              className="flex flex-col items-center justify-center gap-0.5 py-1.5 px-0.5 min-w-0 flex-1 relative transition-all active:scale-95 touch-manipulation select-none cursor-pointer min-h-[48px]"
             >
               <Icon
                 className={`h-5 w-5 transition-colors ${

@@ -23,6 +23,28 @@ type ScanStatus = 'idle' | 'scanning' | 'loading' | 'success' | 'error';
 
 const SCANNER_DIV_ID = 'qr-video-region';
 
+function cleanQrCode(raw: string): string {
+  if (!raw) return '';
+  const trimmed = String(raw).trim();
+  try {
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      const u = new URL(trimmed);
+      const fromParam =
+        u.searchParams.get('qrCode') ||
+        u.searchParams.get('code') ||
+        u.searchParams.get('ticket');
+      if (fromParam) return fromParam.trim();
+      const lastSeg = u.pathname.split('/').filter(Boolean).pop();
+      if (lastSeg && (lastSeg.startsWith('QR-') || lastSeg.startsWith('MANUAL-') || lastSeg.startsWith('TKT-'))) {
+        return lastSeg.trim();
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return trimmed;
+}
+
 const TicketScanner: React.FC = () => {
   const navigate = useNavigate();
 
@@ -57,6 +79,7 @@ const TicketScanner: React.FC = () => {
 
   // ── Verify ─────────────────────────────────────────────────────────────────
   const handleVerification = useCallback(async (code: string) => {
+    const cleaned = cleanQrCode(code);
     // Stop camera immediately so the result screen has full focus
     if (scannerRef.current) {
       try {
@@ -74,7 +97,7 @@ const TicketScanner: React.FC = () => {
     document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
 
     try {
-      const response = await api.tickets.validate(code, selectedEventId || undefined);
+      const response = await api.tickets.validate(cleaned, selectedEventId || undefined);
       setScanStatus('success');
       setMessage(response.data.message || 'Ticket validated — entry approved');
       setTicketData(response.data.ticket);
@@ -144,8 +167,38 @@ const TicketScanner: React.FC = () => {
       const scanner = new Html5Qrcode(SCANNER_DIV_ID, { verbose: false } as any);
       scannerRef.current = scanner;
 
+      // Select camera: prefer back/environment camera ID on iOS
+      let cameraConfig: any = { facingMode: 'environment' };
+      try {
+        const cameras = await Html5Qrcode.getCameras();
+        if (cameras && cameras.length > 0) {
+          const backCam =
+            cameras.find((c) => /back|rear|environment/i.test(c.label)) ||
+            cameras[cameras.length - 1];
+          if (backCam?.id) {
+            cameraConfig = backCam.id;
+          }
+        }
+      } catch {
+        cameraConfig = { facingMode: 'environment' };
+      }
+
+      // Enforce inline video playback on iOS Safari / WebKit standalone
+      const enforceInlineVideo = () => {
+        const container = document.getElementById(SCANNER_DIV_ID);
+        if (!container) return;
+        container.querySelectorAll('video').forEach((v) => {
+          v.setAttribute('playsinline', 'true');
+          v.setAttribute('webkit-playsinline', 'true');
+          v.setAttribute('muted', 'true');
+          v.setAttribute('autoplay', 'true');
+          v.muted = true;
+          v.playsInline = true;
+        });
+      };
+
       await scanner.start(
-        { facingMode: 'environment' },
+        cameraConfig,
         { fps: 12, qrbox: { width: 220, height: 220 } },
         (decodedText) => {
           if (!isVerifyingRef.current) {
@@ -155,6 +208,8 @@ const TicketScanner: React.FC = () => {
         },
         () => { /* per-frame failures are normal */ },
       );
+
+      enforceInlineVideo();
 
       setScanStatus('scanning');
       setCameraActive(true);

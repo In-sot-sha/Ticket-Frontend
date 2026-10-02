@@ -27,7 +27,7 @@ const DashboardLayout: React.FC = () => {
     // Full-viewport flex column.
     // pb-16 on mobile = clearance for the MobileTabBar (64 px).
     // No overflow-hidden on the outer shell so the page itself doesn't clip.
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <div className="h-screen min-h-[100dvh] max-h-[100dvh] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
 
       {/* ── Header ── */}
       {showHeader && (

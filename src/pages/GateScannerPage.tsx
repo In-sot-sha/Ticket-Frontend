@@ -33,6 +33,54 @@ type PageState  = 'pin-entry' | 'scanner';
 const SCANNER_DIV_ID = 'gate-qr-region';
 const SESSION_KEY    = 'gate_active_session';
 
+function cleanQrCode(raw: string): string {
+  if (!raw) return '';
+  const trimmed = String(raw).trim();
+  try {
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      const u = new URL(trimmed);
+      const fromParam =
+        u.searchParams.get('qrCode') ||
+        u.searchParams.get('code') ||
+        u.searchParams.get('ticket');
+      if (fromParam) return fromParam.trim();
+      const lastSeg = u.pathname.split('/').filter(Boolean).pop();
+      if (lastSeg && (lastSeg.startsWith('QR-') || lastSeg.startsWith('MANUAL-') || lastSeg.startsWith('TKT-'))) {
+        return lastSeg.trim();
+      }
+    }
+  } catch {
+    /* not a url */
+  }
+  return trimmed;
+}
+
+function saveGateSession(data: { pin?: string; name: string; organizationId: number | null; staffMode?: boolean }) {
+  const payload = JSON.stringify({ ...data, savedAt: Date.now() });
+  try { sessionStorage.setItem(SESSION_KEY, payload); } catch {}
+  try { localStorage.setItem(SESSION_KEY, payload); } catch {}
+}
+
+function clearGateSession() {
+  try { sessionStorage.removeItem(SESSION_KEY); } catch {}
+  try { localStorage.removeItem(SESSION_KEY); } catch {}
+}
+
+function readGateSession(): { pin?: string; name: string; organizationId: number | null; staffMode?: boolean; savedAt?: number } | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (s.savedAt && Date.now() - s.savedAt > 24 * 60 * 60 * 1000) {
+      clearGateSession();
+      return null;
+    }
+    return s;
+  } catch {
+    return null;
+  }
+}
+
 // ── Pin Entry screen ──────────────────────────────────────────────────────────
 
 const PinEntry: React.FC<{ onUnlock: (name: string, orgId: number) => void }> = ({ onUnlock }) => {
@@ -92,11 +140,11 @@ const PinEntry: React.FC<{ onUnlock: (name: string, orgId: number) => void }> = 
     setVerifying(true); setError('');
     try {
       const res = await api.gatePins.verify(pinValue);
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ 
+      saveGateSession({ 
         pin: pinValue, 
         name: res.data.staffName, 
         organizationId: res.data.organizationId 
-      }));
+      });
       onUnlock(res.data.staffName, res.data.organizationId);
     } catch (e: any) {
       // Show error WITHOUT clearing digits so the user can see and edit what they typed
@@ -119,7 +167,7 @@ const PinEntry: React.FC<{ onUnlock: (name: string, orgId: number) => void }> = 
   useEffect(() => { inputRefs.current[0]?.focus(); }, []);
 
   return (
-    <div className="h-[calc(100svh-100px)] bg-white dark:bg-neutral-950 flex flex-col">
+    <div className="min-h-screen min-h-[100dvh] bg-white dark:bg-neutral-950 flex flex-col pt-safe pb-safe">
       {/* Top brand bar */}
       <div className="flex items-center justify-center py-8">
         <div className="flex items-center gap-2">
@@ -290,6 +338,7 @@ const GateScanner: React.FC<{
 
   // ── Verify ──────────────────────────────────────────────────────────────────
   const handleVerification = useCallback(async (code: string) => {
+    const cleaned = cleanQrCode(code);
     // Stop capture before validating so the light turns off immediately
     const scanner = scannerRef.current;
     scannerRef.current = null;
@@ -328,7 +377,7 @@ const GateScanner: React.FC<{
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     try {
-      const res = await api.tickets.validate(code, selectedEventId || undefined);
+      const res = await api.tickets.validate(cleaned, selectedEventId || undefined);
       setScanStatus('success');
       setMessage(res.data.message || 'Ticket validated — entry approved');
       setTicketData(res.data.ticket);
@@ -448,8 +497,39 @@ const GateScanner: React.FC<{
 
       scanner = new Html5Qrcode(SCANNER_DIV_ID, { verbose: false } as any);
       scannerRef.current = scanner;
+
+      // Select camera on iOS/Safari: prefer back/environment camera ID
+      let cameraConfig: any = { facingMode: 'environment' };
+      try {
+        const cameras = await Html5Qrcode.getCameras();
+        if (cameras && cameras.length > 0) {
+          const backCam =
+            cameras.find((c) => /back|rear|environment/i.test(c.label)) ||
+            cameras[cameras.length - 1];
+          if (backCam?.id) {
+            cameraConfig = backCam.id;
+          }
+        }
+      } catch {
+        cameraConfig = { facingMode: 'environment' };
+      }
+
+      // Helper to ensure playsinline on iOS Safari WebKit
+      const enforceInlineVideo = () => {
+        const container = document.getElementById(SCANNER_DIV_ID);
+        if (!container) return;
+        container.querySelectorAll('video').forEach((v) => {
+          v.setAttribute('playsinline', 'true');
+          v.setAttribute('webkit-playsinline', 'true');
+          v.setAttribute('muted', 'true');
+          v.setAttribute('autoplay', 'true');
+          v.muted = true;
+          v.playsInline = true;
+        });
+      };
+
       await scanner.start(
-        { facingMode: 'environment' },
+        cameraConfig,
         { fps: 12, qrbox: { width: 220, height: 220 } },
         (decoded) => {
           if (
@@ -465,6 +545,8 @@ const GateScanner: React.FC<{
           /* per-frame failures are normal */
         }
       );
+
+      enforceInlineVideo();
 
       // Capture stream even if we are about to tear down
       const video = document.querySelector(
@@ -610,7 +692,7 @@ const GateScanner: React.FC<{
     >
       {/* PIN / public scanner chrome — staff shell already has Header + sidebar */}
       {!embeddedInShell && (
-        <div className="sticky top-0 z-20 bg-white/95 dark:bg-gray-950/95 backdrop-blur-sm border-b border-neutral-100 dark:border-neutral-900 px-4 py-3 flex items-center justify-between gap-3 shrink-0">
+        <div className="sticky top-0 z-20 bg-white/95 dark:bg-gray-950/95 backdrop-blur-sm border-b border-neutral-100 dark:border-neutral-900 px-4 py-3 pt-safe flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="flex items-center gap-1.5 shrink-0">
               <div className="w-6 h-6 rounded-lg bg-rose-500 flex items-center justify-center">
@@ -965,23 +1047,18 @@ const GateScannerPage: React.FC = () => {
       return;
     }
 
-    try {
-      const raw = sessionStorage.getItem(SESSION_KEY);
-      if (raw) {
-        const s = JSON.parse(raw);
-        // Don't restore PIN sessions inside staff shell
-        if (embeddedInShell && !s.staffMode) {
-          unlockAsStaff();
-          return;
-        }
-        setStaffName(s.name || '');
-        setOrganizationId(Number(s.organizationId) || null);
-        setStaffMode(Boolean(s.staffMode));
-        setPageState('scanner');
+    const saved = readGateSession();
+    if (saved) {
+      // Don't restore PIN sessions inside staff shell
+      if (embeddedInShell && !saved.staffMode) {
+        unlockAsStaff();
         return;
       }
-    } catch {
-      /* ignore */
+      setStaffName(saved.name || '');
+      setOrganizationId(Number(saved.organizationId) || null);
+      setStaffMode(Boolean(saved.staffMode));
+      setPageState('scanner');
+      return;
     }
 
     if (isAuthenticated && (user?.isStaff || user?.role === 'ADMIN') && embeddedInShell) {
@@ -1014,7 +1091,7 @@ const GateScannerPage: React.FC = () => {
   const handleLogout = () => {
     // Force scanner unmount first so camera cleanup always runs
     setPageState('booting');
-    sessionStorage.removeItem(SESSION_KEY);
+    clearGateSession();
     setStaffName('');
     setOrganizationId(null);
     setStaffMode(false);

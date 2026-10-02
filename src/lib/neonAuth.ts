@@ -22,7 +22,9 @@ export const AUTH_LOGGED_OUT_KEY = 'auth_logged_out';
 export function markNeonOAuthPending() {
   try {
     sessionStorage.setItem(NEON_OAUTH_PENDING_KEY, '1');
+    localStorage.setItem(NEON_OAUTH_PENDING_KEY, String(Date.now()));
     sessionStorage.removeItem(AUTH_LOGGED_OUT_KEY);
+    localStorage.removeItem(AUTH_LOGGED_OUT_KEY);
   } catch {
     /* ignore */
   }
@@ -30,7 +32,24 @@ export function markNeonOAuthPending() {
 
 export function hasNeonOAuthPending(): boolean {
   try {
-    return sessionStorage.getItem(NEON_OAUTH_PENDING_KEY) === '1';
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('oauth') === 'google' || url.searchParams.get('neon_pending') === '1') {
+        return true;
+      }
+    }
+    if (sessionStorage.getItem(NEON_OAUTH_PENDING_KEY) === '1') {
+      return true;
+    }
+    const localVal = localStorage.getItem(NEON_OAUTH_PENDING_KEY);
+    if (localVal) {
+      const ts = parseInt(localVal, 10);
+      if (!isNaN(ts) && Date.now() - ts < 15 * 60 * 1000) {
+        return true;
+      }
+      localStorage.removeItem(NEON_OAUTH_PENDING_KEY);
+    }
+    return false;
   } catch {
     return false;
   }
@@ -40,6 +59,7 @@ export function hasNeonOAuthPending(): boolean {
 export function clearNeonOAuthPending() {
   try {
     sessionStorage.removeItem(NEON_OAUTH_PENDING_KEY);
+    localStorage.removeItem(NEON_OAUTH_PENDING_KEY);
   } catch {
     /* ignore */
   }
@@ -48,8 +68,8 @@ export function clearNeonOAuthPending() {
 /** @deprecated prefer hasNeonOAuthPending + clearNeonOAuthPending */
 export function consumeNeonOAuthPending(): boolean {
   try {
-    const pending = sessionStorage.getItem(NEON_OAUTH_PENDING_KEY) === '1';
-    if (pending) sessionStorage.removeItem(NEON_OAUTH_PENDING_KEY);
+    const pending = hasNeonOAuthPending();
+    if (pending) clearNeonOAuthPending();
     return pending;
   } catch {
     return false;
@@ -59,7 +79,9 @@ export function consumeNeonOAuthPending(): boolean {
 export function markLoggedOut() {
   try {
     sessionStorage.setItem(AUTH_LOGGED_OUT_KEY, '1');
+    localStorage.setItem(AUTH_LOGGED_OUT_KEY, '1');
     sessionStorage.removeItem(NEON_OAUTH_PENDING_KEY);
+    localStorage.removeItem(NEON_OAUTH_PENDING_KEY);
   } catch {
     /* ignore */
   }
@@ -68,6 +90,7 @@ export function markLoggedOut() {
 export function clearLoggedOutFlag() {
   try {
     sessionStorage.removeItem(AUTH_LOGGED_OUT_KEY);
+    localStorage.removeItem(AUTH_LOGGED_OUT_KEY);
   } catch {
     /* ignore */
   }
@@ -75,7 +98,10 @@ export function clearLoggedOutFlag() {
 
 export function wasExplicitLogout(): boolean {
   try {
-    return sessionStorage.getItem(AUTH_LOGGED_OUT_KEY) === '1';
+    return (
+      sessionStorage.getItem(AUTH_LOGGED_OUT_KEY) === '1' ||
+      localStorage.getItem(AUTH_LOGGED_OUT_KEY) === '1'
+    );
   } catch {
     return false;
   }
@@ -97,12 +123,16 @@ type NeonSessionBag = {
 export async function getNeonJwt(
   client: NonNullable<typeof neonAuthClient>
 ): Promise<string | null> {
-  const result = await client.getSession();
-  const session = result.data?.session as NeonSessionBag | undefined;
-  if (!session) return null;
-
-  for (const candidate of [session.access_token, session.accessToken, session.token]) {
-    if (isJwt(candidate)) return candidate;
+  try {
+    const result = await client.getSession();
+    const session = result.data?.session as NeonSessionBag | undefined;
+    if (session) {
+      for (const candidate of [session.access_token, session.accessToken, session.token]) {
+        if (isJwt(candidate)) return candidate;
+      }
+    }
+  } catch (e) {
+    console.warn('[Neon Auth] getSession error:', e);
   }
 
   const tokenFn = (client as { token?: () => Promise<{ data?: { token?: string } }> }).token;
@@ -123,8 +153,8 @@ export async function waitForNeonJwt(
   client: NonNullable<typeof neonAuthClient>,
   opts?: { attempts?: number; delayMs?: number }
 ): Promise<string | null> {
-  const attempts = opts?.attempts ?? 10;
-  const delayMs = opts?.delayMs ?? 250;
+  const attempts = opts?.attempts ?? 15;
+  const delayMs = opts?.delayMs ?? 300;
 
   for (let i = 0; i < attempts; i++) {
     const jwt = await getNeonJwt(client);

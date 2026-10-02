@@ -10,7 +10,7 @@ const StaffLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <div className="h-screen min-h-[100dvh] max-h-[100dvh] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
       <div className="shrink-0">
         <Header />
       </div>
@@ -24,7 +24,7 @@ const StaffLayout: React.FC = () => {
 
         <StaffSidebar isOpen={sidebarOpen} toggleSidebar={() => setSidebarOpen((o) => !o)} />
 
-        <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
+        <main className="flex-1 overflow-y-auto pb-24 md:pb-0">
           <div className="max-w-7xl mx-auto p-2 md:p-3.5">
             <Outlet />
           </div>

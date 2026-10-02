@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Eye, EyeOff, Ticket, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -31,6 +31,7 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { register, loginWithGoogle } = useAuth();
 
   const handleGoogleSignUp = async () => {
@@ -42,10 +43,11 @@ const Register = () => {
     setGoogleLoading(true);
     try {
       markNeonOAuthPending();
+      const dest = `${window.location.origin}/login?oauth=google`;
       await neonAuthClient.signIn.social({
         provider: 'google',
-        callbackURL: `${window.location.origin}/`,
-        newUserCallbackURL: `${window.location.origin}/`,
+        callbackURL: dest,
+        newUserCallbackURL: dest,
         requestSignUp: true,
       });
       setGoogleLoading(false);
@@ -75,7 +77,10 @@ const Register = () => {
         return;
       }
 
-      if (!hasNeonOAuthPending()) {
+      const isReturningFromOAuth =
+        searchParams.get('oauth') === 'google' || hasNeonOAuthPending();
+
+      if (!isReturningFromOAuth) {
         setGoogleLoading(false);
         return;
       }
@@ -95,12 +100,17 @@ const Register = () => {
             return;
           }
           setError('Google sign-up failed. Please try again.');
+        } else {
+          setError('Could not verify Google sign-up session. Please try again.');
         }
         clearNeonOAuthPending();
-      } catch {
-        if (!cancelled) clearNeonOAuthPending();
+      } catch (err: any) {
+        if (!cancelled) {
+          clearNeonOAuthPending();
+          setError(err?.message || 'Google sign-up error. Please try again.');
+        }
       } finally {
-        setGoogleLoading(false);
+        if (!cancelled) setGoogleLoading(false);
       }
     };
 
@@ -109,7 +119,7 @@ const Register = () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loginWithGoogle, navigate]);
+  }, [loginWithGoogle, navigate, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

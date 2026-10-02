@@ -5,19 +5,19 @@
 /* ── Safe Area Utilities for iPhone notch ── */
 @layer utilities {
   .pt-safe {
-    padding-top: env(safe-area-inset-top);
+    padding-top: max(env(safe-area-inset-top), 0px);
   }
   .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: max(env(safe-area-inset-bottom), 12px);
   }
   .pl-safe {
-    padding-left: env(safe-area-inset-left);
+    padding-left: max(env(safe-area-inset-left), 0px);
   }
   .pr-safe {
-    padding-right: env(safe-area-inset-right);
+    padding-right: max(env(safe-area-inset-right), 0px);
   }
   .gap-safe {
-    gap: env(safe-area-inset-bottom);
+    gap: max(env(safe-area-inset-bottom), 0px);
   }
 }
 
@@ -108,8 +108,18 @@
   * {
     @apply border-border;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
+  }
   body {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
     @apply bg-background text-foreground font-sans antialiased;
+  }
+  button, [role="button"], a, input, select, textarea {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 }
 

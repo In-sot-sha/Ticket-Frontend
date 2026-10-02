@@ -40,6 +40,11 @@ const Login = () => {
     if (searchParams.get('expired') === 'true') {
       setError('Your session has expired. Please log in again.');
     }
+    const oauthError = searchParams.get('error') || searchParams.get('error_description');
+    if (oauthError) {
+      setError(`Sign-in error: ${oauthError}`);
+      clearNeonOAuthPending();
+    }
   }, [searchParams]);
 
   // Complete Google login only when returning from OAuth
@@ -61,8 +66,10 @@ const Login = () => {
         return;
       }
 
-      // Peek only — clearing too early breaks React Strict Mode remounts
-      if (!hasNeonOAuthPending()) {
+      const isReturningFromOAuth =
+        searchParams.get('oauth') === 'google' || hasNeonOAuthPending();
+
+      if (!isReturningFromOAuth) {
         setGoogleLoading(false);
         return;
       }
@@ -80,12 +87,17 @@ const Login = () => {
             return;
           }
           setError('Google sign-in failed. Please try again.');
+        } else {
+          setError('Could not verify Google sign-in session. Please try again.');
         }
         clearNeonOAuthPending();
-      } catch {
-        if (!cancelled) clearNeonOAuthPending();
+      } catch (err: any) {
+        if (!cancelled) {
+          clearNeonOAuthPending();
+          setError(err?.message || 'Google sign-in error. Please try again.');
+        }
       } finally {
-        setGoogleLoading(false);
+        if (!cancelled) setGoogleLoading(false);
       }
     };
 
@@ -94,7 +106,7 @@ const Login = () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loginWithGoogle]);
+  }, [loginWithGoogle, searchParams]);
 
   const handleGoogleSignIn = async () => {
     if (!neonAuthClient) {
@@ -106,9 +118,9 @@ const Login = () => {
     try {
       markNeonOAuthPending();
       const redirect = searchParams.get('redirect');
-      const dest = redirect
-        ? `${window.location.origin}/login?redirect=${encodeURIComponent(redirect)}`
-        : `${window.location.origin}/`;
+      const dest = `${window.location.origin}/login?oauth=google${
+        redirect ? `&redirect=${encodeURIComponent(redirect)}` : ''
+      }`;
       await neonAuthClient.signIn.social({
         provider: 'google',
         callbackURL: dest,

@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { 
   useRoutes,
   Navigate,
   useParams,
+  useLocation,
+  useNavigate,
 } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
@@ -114,6 +116,19 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 // Define the routes using useRoutes pattern
 const AppRoutes: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (
+      location.search.includes('oauth=google') &&
+      !location.pathname.startsWith('/login') &&
+      !location.pathname.startsWith('/register')
+    ) {
+      navigate(`/login${location.search}`, { replace: true });
+    }
+  }, [location.pathname, location.search, navigate]);
+
   const routes = [
     // ── Gate scanner — fully public, no header/footer, no auth ──
     {
