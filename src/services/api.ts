@@ -2,11 +2,42 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { isTokenExpired } from '../lib/tokenUtils';
 
-let localEndpoint = import.meta.env.VITE_API_URL || "http://192.168.1.165:33333/api";
-let productionEndpoint = "https://api.partystorm.ng/api";
+export function getApiBaseUrl(): string {
+  const isBrowser = typeof window !== 'undefined';
+  const hostname = isBrowser ? window.location.hostname : '';
+  const isLocalHost =
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.startsWith('192.168.') ||
+    hostname.startsWith('10.');
 
-let currentEndpoint =
-  import.meta.env.MODE === "development" ? localEndpoint : productionEndpoint;
+  const envUrl =
+    typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL
+      ? String(import.meta.env.VITE_API_URL).trim()
+      : '';
+
+  // If running online (e.g. partystorm.ng, Vercel), never call localhost!
+  if (!isLocalHost && isBrowser) {
+    if (
+      envUrl &&
+      !envUrl.includes('localhost') &&
+      !envUrl.includes('127.0.0.1') &&
+      !envUrl.includes('192.168.')
+    ) {
+      return envUrl.replace(/\/$/, '');
+    }
+    return 'https://api.partystorm.ng/api';
+  }
+
+  // Local development
+  if (envUrl) {
+    return envUrl.replace(/\/$/, '');
+  }
+  return 'http://localhost:33312/api';
+}
+
+export const currentEndpoint = getApiBaseUrl();
+
 // Create axios instance with default config
 const apiClient: AxiosInstance = axios.create({
   baseURL: currentEndpoint,

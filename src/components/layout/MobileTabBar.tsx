@@ -25,6 +25,22 @@ const MobileTabBar: React.FC = () => {
   const { canScan, canWalkIn, canSupport } = useStaffAccess();
   const location = useLocation();
 
+  const staffTabs = useMemo(() => {
+    const tabs = [
+      { label: 'Home', icon: LayoutDashboard, path: '/staff', exact: true },
+    ];
+    if (canScan) {
+      tabs.push({ label: 'Scan', icon: ScanLine, path: '/staff/scan', exact: false });
+    }
+    if (canWalkIn) {
+      tabs.push({ label: 'Gate sale', icon: ShoppingCart, path: '/staff/walk-in', exact: false });
+    }
+    if (canSupport) {
+      tabs.push({ label: 'Support', icon: LifeBuoy, path: '/staff/support', exact: false });
+    }
+    return tabs;
+  }, [canScan, canWalkIn, canSupport]);
+
   const hiddenPaths = ['/login', '/register', '/become-organizer'];
   // Public PIN gate only — staff scan keeps the tab bar
   if (location.pathname.startsWith('/scan-gate')) {
@@ -62,22 +78,6 @@ const MobileTabBar: React.FC = () => {
     { label: 'Create', icon: PlusCircle, path: '/organizer/events/create', exact: false },
     { label: 'Analytics', icon: BarChart3, path: '/organizer/analytics', exact: false },
   ];
-
-  const staffTabs = useMemo(() => {
-    const tabs = [
-      { label: 'Home', icon: LayoutDashboard, path: '/staff', exact: true },
-    ];
-    if (canScan) {
-      tabs.push({ label: 'Scan', icon: ScanLine, path: '/staff/scan', exact: false });
-    }
-    if (canWalkIn) {
-      tabs.push({ label: 'Gate sale', icon: ShoppingCart, path: '/staff/walk-in', exact: false });
-    }
-    if (canSupport) {
-      tabs.push({ label: 'Support', icon: LifeBuoy, path: '/staff/support', exact: false });
-    }
-    return tabs;
-  }, [canScan, canWalkIn, canSupport]);
 
   const activeTabs = showStaffTabs
     ? staffTabs

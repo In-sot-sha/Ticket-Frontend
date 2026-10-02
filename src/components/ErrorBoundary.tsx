@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { getApiBaseUrl } from '../services/api';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -11,12 +12,9 @@ interface ErrorBoundaryState {
   errorId?: number;
 }
 
-/** Same base as api.ts — VITE_API_URL already includes `/api`. */
+/** Unified API base — automatically uses production endpoint when running online */
 function getApiBase(): string {
-  const raw =
-    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) ||
-    'http://localhost:33333/api';
-  return String(raw).replace(/\/$/, '');
+  return getApiBaseUrl();
 }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {

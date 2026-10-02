@@ -1,7 +1,7 @@
-const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:33333/api';
+import { getApiBaseUrl } from '../services/api';
 
 function apiOrigin(): string {
-  return apiBase.replace(/\/api\/?$/, '');
+  return getApiBaseUrl().replace(/\/api\/?$/, '');
 }
 
 /** Resolve event image URLs (relative paths or mismatched localhost ports). */
@@ -11,6 +11,13 @@ export function resolveImageUrl(url?: string | null): string | null {
     try {
       const base = new URL(apiOrigin());
       const parsed = new URL(url);
+      if (
+        (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') &&
+        base.hostname !== 'localhost' &&
+        base.hostname !== '127.0.0.1'
+      ) {
+        return `${base.origin}${parsed.pathname}${parsed.search}`;
+      }
       if (
         parsed.hostname === 'localhost' &&
         base.hostname === 'localhost' &&
