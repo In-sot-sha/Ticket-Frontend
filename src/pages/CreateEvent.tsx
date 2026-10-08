@@ -82,6 +82,20 @@ const STEPS: { key: Step; label: string; description: string }[] = [
   { key: 'review', label: 'Publish', description: 'Check and go live' },
 ];
 
+/** Keep digits and one decimal. Commas and ₦ are allowed while typing. */
+function sanitizePriceInput(raw: string): string {
+  const cleaned = raw.replace(/[₦,\s]/g, '');
+  const match = cleaned.match(/^\d*\.?\d{0,2}/);
+  return match?.[0] ?? '';
+}
+
+function parsePriceDraft(raw: string): number | null {
+  const cleaned = sanitizePriceInput(raw);
+  if (!cleaned || cleaned === '.') return null;
+  const price = Number(cleaned);
+  return Number.isFinite(price) ? price : null;
+}
+
 const defaultTicket = (): TicketDraft => ({
   name: 'General Admission',
   price: '',
@@ -201,7 +215,7 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
         const day = t.validOn && days.includes(t.validOn) ? t.validOn : null;
         return {
         name: t.name,
-        price: t.isFree ? 0 : parseFloat(t.price || '0'),
+        price: t.isFree ? 0 : (parsePriceDraft(t.price) ?? 0),
         quantity: t.isUnlimited ? 0 : parseInt(t.quantity || '0', 10),
         isUnlimited: !!t.isUnlimited,
         ticketStyle: t.ticketStyle || encodeTicketStyle('classic', 'rose'),
@@ -240,7 +254,8 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
   }
 
   const firstPaid = form.tickets.find((t) => !t.isFree);
-  if (firstPaid?.price) fd.append('price', firstPaid.price);
+  const firstPaidPrice = firstPaid ? parsePriceDraft(firstPaid.price) : null;
+  if (firstPaidPrice != null) fd.append('price', String(firstPaidPrice));
   else fd.append('price', '0');
   
   if (image) {
@@ -523,6 +538,12 @@ const CreateEvent: React.FC = () => {
   ];
 
   const clearError = () => setError(null);
+
+  useEffect(() => {
+    if (activeTicketIndex > 0 && activeTicketIndex >= form.tickets.length) {
+      setActiveTicketIndex(form.tickets.length - 1);
+    }
+  }, [activeTicketIndex, form.tickets.length]);
   const coverImageSrc = imagePreview || resolveImageUrl(form.imageUrl);
 
   useEffect(() => {
@@ -673,7 +694,13 @@ const CreateEvent: React.FC = () => {
           i === 0 || isDefaultTicketStyle(t.ticketStyle)
             ? suggestion.styleId
             : encodeTicketStyle(suggestion.layout, accent);
-        return { ...t, ticketStyle: styleId, accentColor: '', isFree: false };
+        const price = parsePriceDraft(String(t.price ?? ''));
+        return {
+          ...t,
+          ticketStyle: styleId,
+          accentColor: '',
+          isFree: Boolean(t.isFree) || price == null || price <= 0,
+        };
       }),
       imageUrl: template.image,
       includedItems: template.amenities ? [...template.amenities] : [],
@@ -692,6 +719,7 @@ const CreateEvent: React.FC = () => {
     });
     setImagePreview(template.image);
     setImageFile(null);
+    setActiveTicketIndex(0);
     setError(null);
   };
 
@@ -771,7 +799,12 @@ const CreateEvent: React.FC = () => {
   const validateTickets = (): string | null => {
     for (const t of form.tickets) {
       if (!t.name.trim()) return 'Each ticket needs a name.';
-      if (!t.isFree && (!t.price || Number(t.price) < 0)) return 'Enter a valid price.';
+      if (!t.isFree) {
+        const price = parsePriceDraft(t.price);
+        if (price == null || price <= 0) {
+          return `Enter a valid price for ${t.name.trim() || 'this ticket'}.`;
+        }
+      }
       if (!t.isUnlimited && (!t.quantity || Number(t.quantity) < 1)) return 'Enter quantity or select Unlimited.';
     }
     return null;
@@ -1507,10 +1540,12 @@ const CreateEvent: React.FC = () => {
                         <div>
                           <FieldLabel>Price (₦)</FieldLabel>
                           <input
-                            type="number"
-                            min={0}
+                            type="text"
+                            inputMode="decimal"
                             value={activeTicket.price}
-                            onChange={(e) => updateTicket(activeTicketIndex, { price: e.target.value })}
+                            onChange={(e) =>
+                              updateTicket(activeTicketIndex, { price: sanitizePriceInput(e.target.value) })
+                            }
                             placeholder="5000"
                             className={getInputClass('price')}
                           />
