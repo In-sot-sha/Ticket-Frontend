@@ -3,6 +3,7 @@ import { LazyImage } from './LazyImage';
 import { eventHasUnlimitedTickets, getEventUrgencyBadges, isEventPast } from '../lib/eventBadges';
 import { cn } from '../lib/utils';
 import { ticketUnitPrice } from '../lib/ticketPrice';
+import { buyerPaysForTicket } from '../lib/fees';
 
 // Define the event type
 interface Event {
@@ -21,6 +22,8 @@ interface Event {
   latitude?: number;
   longitude?: number;
   ticketTypes?: Array<{ price: number; quantity?: number | null; isPaused?: boolean }>;
+  absorbFee?: boolean;
+  organization?: { absorbFee?: boolean };
   isPromoted?: boolean;
   description?: string;
 }
@@ -58,9 +61,11 @@ const EventCard: React.FC<EventCardProps> = ({
   compact = false,
   onHover,
 }) => {
+  const absorbFee = Boolean(event.absorbFee ?? event.organization?.absorbFee);
+  const shownPrice = (price: unknown) => buyerPaysForTicket(ticketUnitPrice(price), absorbFee);
   let displayPrice = '';
   if (event.ticketTypes && event.ticketTypes.length > 0) {
-    const prices = event.ticketTypes.map((t) => ticketUnitPrice(t.price));
+    const prices = event.ticketTypes.map((t) => shownPrice(t.price));
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
 
@@ -74,7 +79,7 @@ const EventCard: React.FC<EventCardProps> = ({
       displayPrice = `₦${minPrice.toLocaleString()}`;
     }
   } else if (event.price !== undefined && event.price !== null && event.price !== '') {
-    const n = ticketUnitPrice(event.price);
+    const n = shownPrice(event.price);
     displayPrice = n === 0 ? 'Free' : `₦${n.toLocaleString()}`;
   }
 

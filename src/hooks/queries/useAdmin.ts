@@ -66,6 +66,24 @@ async function refreshHostApplications(queryClient: QueryClient) {
   });
 }
 
+export function useCreateHostOrganization() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      name: string;
+      ownerId: number;
+      description: string;
+      website?: string;
+      logo?: string;
+      socials?: string;
+    }) => api.admin.createHostOrganization(data),
+    onSuccess: async () => {
+      await refreshHostApplications(queryClient);
+      await refreshAdminQueries(queryClient);
+    },
+  });
+}
+
 export function useVerifyHost() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -320,6 +338,18 @@ export function useUpdateOrganizationFee() {
       });
       await refreshAdminQueries(queryClient);
     },
+  });
+}
+
+export function useAdminSettlements() {
+  return useQuery({
+    queryKey: ['admin', 'settlements'],
+    queryFn: async () => {
+      const res = await api.admin.getSettlements();
+      return res.data;
+    },
+    staleTime: 5 * 60 * 1000,
+    refetchOnMount: 'always' as const,
   });
 }
 

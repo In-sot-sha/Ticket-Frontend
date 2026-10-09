@@ -6,7 +6,7 @@ import {
   CreditCard,
   Plus,
   Eye,
-  BarChart3,
+  Banknote,
   Users,
   ChevronRight,
   Scan,
@@ -271,16 +271,16 @@ const OrganizerDashboard = () => {
             </Link>
 
             <Link
-              to="analytics"
+              to="finance"
               className="group rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3.5 sm:p-4 lg:p-4.5 hover:border-emerald-400 dark:hover:border-emerald-700 shadow-2xs transition-all flex items-center justify-between gap-3"
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-50 text-emerald-500 dark:bg-emerald-950/40 shrink-0">
-                  <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <Banknote className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white truncate">Analytics</p>
-                  <p className="text-[11px] sm:text-xs text-neutral-400 truncate">Sales breakdown</p>
+                  <p className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white truncate">Payments</p>
+                  <p className="text-[11px] sm:text-xs text-neutral-400 truncate">Sales and bank payouts</p>
                 </div>
               </div>
               <ChevronRight className="h-4 w-4 text-neutral-300 group-hover:text-emerald-500 shrink-0 transition-transform group-hover:translate-x-0.5" />

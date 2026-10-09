@@ -2,7 +2,6 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Calendar,
-  BarChart3,
   Settings,
   X,
   DollarSign,
@@ -24,8 +23,7 @@ const NAV_ITEMS: NavItem[] = [
   { title: 'Dashboard',     icon: LayoutDashboard, href: '/organizer',                    exact: true  },
   { title: 'Manage Events', icon: Calendar,         href: '/organizer/events',             exact: true  },
   { title: 'Create Event',  icon: Plus,             href: '/organizer/events/create',      exact: false },
-  { title: 'Analytics',     icon: BarChart3,        href: '/organizer/analytics',          exact: false },
-  // { title: 'Finance',       icon: DollarSign,       href: '/organizer/finance',            exact: false },
+  { title: 'Payments',      icon: DollarSign,       href: '/organizer/finance',            exact: false },
   { title: 'Settings',      icon: Settings,         href: '/organizer/organizer-settings', exact: false },
 ];
 

@@ -327,9 +327,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
     role: 'organizer',
     popular: true,
     body: [
-      'Use organizer analytics and finance pages to track ticket sales, revenue, and event performance over time.',
+      'Open an event for ticket sales and check-ins. Open Payments for sales and the money Paystack sends to your bank.',
     ],
-    cta: { label: 'Analytics', to: '/organizer/analytics' },
+    cta: { label: 'Payments', to: '/organizer/finance' },
   },
 
   // —— Vendors ——

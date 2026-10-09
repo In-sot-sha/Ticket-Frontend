@@ -37,6 +37,7 @@ import { VerifiedBadge } from '@/components/icons/VerifiedBadge';
 import { cn } from '@/lib/utils';
 import { eventHasUnlimitedTickets, getEventUrgencyBadges } from '@/lib/eventBadges';
 import { ticketUnitPrice } from '@/lib/ticketPrice';
+import { buyerPaysForTicket } from '@/lib/fees';
 
 const formatDeadlineFriendly = (dateStr: string) => {
   try {
@@ -286,6 +287,7 @@ interface EventDetail {
   images: string[];
   organizer: Organizer;
   ticketTypes: TicketType[];
+  absorbFee?: boolean;
   amenities: string[];
   highlights: Highlight[];
   vendorApplicationsAllowed: boolean;
@@ -417,6 +419,7 @@ const mapApiEventToDetail = (apiEvent: any): EventDetail => {
       socials: parseOrgSocials(apiEvent.organization?.socials),
       isVerified: apiEvent.organization?.isVerified,
     },
+    absorbFee: Boolean(apiEvent.organization?.absorbFee),
     ticketTypes: apiEvent.ticketTypes || [],
     amenities: (() => {
       try {
@@ -650,8 +653,9 @@ const EventDetailPage = () => {
   let displayPrice = '';
   const onSaleTypes = (event.ticketTypes || []).filter((t) => !t.isPaused);
   const pricedTypes = onSaleTypes.length ? onSaleTypes : event.ticketTypes || [];
+  const shownPrice = (price: unknown) => buyerPaysForTicket(ticketUnitPrice(price), Boolean(event.absorbFee));
   if (pricedTypes.length > 0) {
-    const prices = pricedTypes.map((t) => ticketUnitPrice(t.price));
+    const prices = pricedTypes.map((t) => shownPrice(t.price));
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
 
@@ -665,7 +669,7 @@ const EventDetailPage = () => {
       displayPrice = `₦${minPrice.toLocaleString()}`;
     }
   } else if (event.price !== undefined && event.price !== null) {
-    const n = ticketUnitPrice(event.price);
+    const n = shownPrice(event.price);
     displayPrice = n === 0 ? 'Free' : `₦${n.toLocaleString()}`;
   }
   const allFree =

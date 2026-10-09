@@ -42,7 +42,6 @@ import EventsDashboard from '../pages/EventsDashboard';
 import CreateEvent from '../pages/CreateEvent';
 import PaymentPage from '../pages/PaymentPage';
 import TicketConfirmationPage from '../pages/TicketConfirmationPage';
-import AnalyticsDashboard from '../pages/AnalyticsDashboard';
 import SettingsDashboard from '../pages/SettingsDashboard';
 import FinanceDashboard from '../pages/FinanceDashboard';
 import BecomeOrganizer from '../pages/BecomeOrganizer';
@@ -310,7 +309,7 @@ const AppRoutes: React.FC = () => {
         },
         {
           path: "analytics",
-          element: <AnalyticsDashboard />,
+          element: <Navigate to="/organizer/finance" replace />,
         },
         {
           path: "finance",

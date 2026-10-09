@@ -67,7 +67,7 @@ export const CACHE_CONFIGS = {
   },
   
   // ALL OTHER PAGES: NO caching (always fresh) ⚠️
-  // Used for: Dashboard, EventsDashboard, AnalyticsDashboard, FinanceDashboard,
+  // Used for: Dashboard, EventsDashboard, FinanceDashboard,
   // OrganizerEventPage, BookingPage, etc.
   FRESH: {
     staleTime: 0,

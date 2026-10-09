@@ -1,9 +1,5 @@
 import React, { useState } from 'react';
 import {
-  CreditCard,
-  TrendingUp,
-  Wallet,
-  Percent,
   ChevronLeft,
   ChevronRight,
   Check,
@@ -41,6 +37,7 @@ import { Button } from '../../components/ui/Button';
 import {
   useAdminTransactions,
   useAdminRevenue,
+  useAdminSettlements,
   useAdminPayouts,
   useApprovePayout,
   useRejectPayout,
@@ -49,6 +46,58 @@ import { formatNaira } from '../../lib/eventOrganizer';
 import { cn } from '../../lib/utils';
 
 const STATUS_FILTERS = ['all', 'PAID', 'PENDING', 'REFUNDED'] as const;
+
+function lagosWeekday(date: Date) {
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Lagos', weekday: 'short' }).format(date);
+}
+
+function lagosDayKey(date: Date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Lagos',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function nextBusinessDay(fromIso: string) {
+  let cursor = new Date(fromIso);
+  for (let i = 0; i < 8; i += 1) {
+    cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
+    const day = lagosWeekday(cursor);
+    if (day !== 'Sat' && day !== 'Sun') return cursor;
+  }
+  return cursor;
+}
+
+function formatSettleDay(date: Date) {
+  return date.toLocaleDateString('en-NG', {
+    timeZone: 'Africa/Lagos',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
+function bankPayoutLabel(
+  tx: { status: string; createdAt: string; paymentReference?: string | null },
+  hit?: { status: string; settlementDate: string | null },
+) {
+  if (tx.status !== 'PAID') return null;
+  if (!tx.paymentReference) return { text: 'Not Paystack', tone: 'muted' as const };
+  if (hit?.status === 'success') {
+    const when = hit.settlementDate ? formatSettleDay(new Date(hit.settlementDate)) : '';
+    return { text: when ? `Paid out ${when}` : 'Paid out', tone: 'ok' as const };
+  }
+  if (hit?.status === 'failed') return { text: 'Payout failed', tone: 'bad' as const };
+  if (hit) return { text: 'Sending to bank', tone: 'wait' as const };
+  const due = nextBusinessDay(tx.createdAt);
+  const label = formatSettleDay(due);
+  if (lagosDayKey(due) > lagosDayKey(new Date())) {
+    return { text: `Settles ${label}`, tone: 'wait' as const };
+  }
+  return { text: `Due ${label}`, tone: 'wait' as const };
+}
 
 interface TxTicket {
   id: number;
@@ -102,9 +151,9 @@ const AdminTransactionsPage: React.FC = () => {
   const [resolveBusy, setResolveBusy] = useState(false);
   const [resolveResult, setResolveResult] = useState<any>(null);
   const [resolveError, setResolveError] = useState('');
-  const [showResolveTool, setShowResolveTool] = useState(false);
 
   const { data: revenue, isLoading: revenueLoading } = useAdminRevenue();
+  const { data: settlementData, isLoading: settlementsLoading } = useAdminSettlements();
   const { data, isLoading: transactionsLoading } = useAdminTransactions({
     status: status === 'all' ? undefined : status,
     page,
@@ -190,7 +239,7 @@ const AdminTransactionsPage: React.FC = () => {
       <PageHeader
         title="Transactions &"
         accent="Revenue"
-        description="Monitor orders, platform earnings, and process organizer payout settlements."
+        description="Paid orders, platform earnings, and Paystack bank payouts."
         actions={
           <div className="inline-flex rounded-xl bg-neutral-100 dark:bg-neutral-800 p-0.5 text-xs font-semibold">
             <button
@@ -215,10 +264,13 @@ const AdminTransactionsPage: React.FC = () => {
                   : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
               )}
             >
-              <span>Payout Requests</span>
-              {payouts.filter((p: any) => p.status === 'PENDING').length > 0 && (
+              <span>Bank payouts</span>
+              {(settlementData?.settlements || []).filter((s) => s.status !== 'success').length +
+                payouts.filter((p: any) => p.status === 'PENDING').length >
+                0 && (
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-white">
-                  {payouts.filter((p: any) => p.status === 'PENDING').length}
+                  {(settlementData?.settlements || []).filter((s) => s.status !== 'success').length +
+                    payouts.filter((p: any) => p.status === 'PENDING').length}
                 </span>
               )}
             </button>
@@ -228,125 +280,63 @@ const AdminTransactionsPage: React.FC = () => {
 
       {/* Compact Financial Stats */}
       {revenueLoading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5 mb-4">
+        <div className="mb-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 bg-white dark:bg-neutral-900"
-            >
-              <Skeleton className="h-3 w-16 mb-2 rounded" />
-              <Skeleton className="h-6 w-24 rounded" />
-            </div>
+            <Skeleton key={i} className="h-8 rounded-lg" />
           ))}
         </div>
       ) : (
         summary && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5 mb-4">
-            <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 sm:p-3.5 bg-white dark:bg-neutral-900 shadow-sm">
-              <div className="flex items-center justify-between text-neutral-400 mb-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider">
-                  Platform Earnings
+          <div className="mb-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+            {[
+              { label: 'Platform', value: formatNaira(summary.platformRevenue), tone: 'text-rose-500' },
+              { label: 'GMV', value: formatNaira(summary.totalGmv), tone: 'text-neutral-900 dark:text-white' },
+              { label: 'Paystack', value: formatNaira(summary.processingFees), tone: 'text-neutral-900 dark:text-white' },
+              { label: 'Hosts', value: formatNaira(summary.organizerPayouts), tone: 'text-emerald-600 dark:text-emerald-400' },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="flex items-baseline justify-between gap-2 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 dark:border-neutral-800 dark:bg-neutral-900"
+              >
+                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                  {item.label}
                 </span>
-                <Wallet className="h-3.5 w-3.5 text-rose-500" />
+                <span className={cn('text-sm font-bold tabular-nums', item.tone)}>{item.value}</span>
               </div>
-              <p className="text-lg sm:text-xl font-black text-rose-500 tracking-tight">
-                {formatNaira(summary.platformRevenue)}
-              </p>
-              <p className="text-[10px] text-neutral-400 mt-0.5">
-                {summary.platformFeePercent}% per paid order
-              </p>
-            </div>
-
-            <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 sm:p-3.5 bg-white dark:bg-neutral-900 shadow-sm">
-              <div className="flex items-center justify-between text-neutral-400 mb-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider">Total GMV</span>
-                <TrendingUp className="h-3.5 w-3.5 text-blue-500" />
-              </div>
-              <p className="text-lg sm:text-xl font-black tracking-tight">
-                {formatNaira(summary.totalGmv)}
-              </p>
-              <p className="text-[10px] text-neutral-400 mt-0.5">
-                {summary.totalOrders} paid payments
-              </p>
-            </div>
-
-            <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 sm:p-3.5 bg-white dark:bg-neutral-900 shadow-sm">
-              <div className="flex items-center justify-between text-neutral-400 mb-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider">
-                  Processing Fees
-                </span>
-                <Percent className="h-3.5 w-3.5 text-amber-500" />
-              </div>
-              <p className="text-lg sm:text-xl font-black tracking-tight">
-                {formatNaira(summary.processingFees)}
-              </p>
-              <p className="text-[10px] text-neutral-400 mt-0.5">Gateway costs (Paystack)</p>
-            </div>
-
-            <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 sm:p-3.5 bg-white dark:bg-neutral-900 shadow-sm">
-              <div className="flex items-center justify-between text-neutral-400 mb-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider">
-                  Host Share
-                </span>
-                <CreditCard className="h-3.5 w-3.5 text-purple-500" />
-              </div>
-              <p className="text-lg sm:text-xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
-                {formatNaira(summary.organizerPayouts)}
-              </p>
-              <p className="text-[10px] text-neutral-400 mt-0.5">Net to organizers</p>
-            </div>
+            ))}
           </div>
         )
       )}
 
-      {/* Compact Payment Resolve Tool Drawer / Bar */}
-      <div className="mb-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 sm:p-3.5 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <RefreshCw className="h-3.5 w-3.5 text-rose-500" />
-            <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
-              Paystack Reference Verification
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowResolveTool((p) => !p)}
-            className="text-[11px] font-semibold text-rose-500 hover:text-rose-600 transition-colors"
+      <div className="mb-3 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="flex items-center gap-2">
+          <span className="hidden shrink-0 text-[10px] font-bold uppercase tracking-wider text-neutral-400 sm:inline">
+            Reference
+          </span>
+          <input
+            value={resolveRef}
+            onChange={(e) => setResolveRef(e.target.value)}
+            placeholder="Paystack reference"
+            className="h-7 min-w-0 flex-1 rounded-md border border-neutral-200 bg-white px-2 text-xs dark:border-neutral-800 dark:bg-neutral-950"
+          />
+          <Button
+            size="sm"
+            disabled={resolveBusy || !resolveRef.trim()}
+            onClick={() => handleResolvePayment()}
+            className="h-7 shrink-0 rounded-md bg-rose-500 px-2.5 text-xs font-bold text-white hover:bg-rose-600"
           >
-            {showResolveTool ? 'Hide Tool' : 'Verify Reference'}
-          </button>
+            {resolveBusy ? 'Checking…' : 'Verify'}
+          </Button>
         </div>
-
-        {showResolveTool && (
-          <div className="mt-2.5 pt-2.5 border-t border-neutral-100 dark:border-neutral-800">
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                value={resolveRef}
-                onChange={(e) => setResolveRef(e.target.value)}
-                placeholder="Enter Paystack payment reference (e.g. EVT_… or VND_…)"
-                className="flex-1 h-8 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 px-3 text-xs"
-              />
-              <Button
-                size="sm"
-                disabled={resolveBusy || !resolveRef.trim()}
-                onClick={() => handleResolvePayment()}
-                className="h-8 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold"
-              >
-                {resolveBusy ? 'Checking Paystack…' : 'Verify & Fulfill'}
-              </Button>
-            </div>
-
-            {resolveError && (
-              <p className="mt-2 text-xs text-red-500 flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" /> {resolveError}
-              </p>
-            )}
-            {resolveResult && (
-              <div className="mt-2.5 p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 text-xs font-mono text-neutral-700 dark:text-neutral-300 max-h-40 overflow-auto">
-                <pre>{JSON.stringify(resolveResult, null, 2)}</pre>
-              </div>
-            )}
-          </div>
+        {resolveError && (
+          <p className="mt-1.5 flex items-center gap-1 text-xs text-red-500">
+            <AlertCircle className="h-3 w-3" /> {resolveError}
+          </p>
+        )}
+        {resolveResult && (
+          <pre className="mt-1.5 max-h-32 overflow-auto rounded-md bg-neutral-50 p-2 text-[11px] text-neutral-700 dark:bg-neutral-950 dark:text-neutral-300">
+            {JSON.stringify(resolveResult, null, 2)}
+          </pre>
         )}
       </div>
 
@@ -411,6 +401,32 @@ const AdminTransactionsPage: React.FC = () => {
                       {formatNaira(tx.platformFee)}
                     </span>
                   ),
+                },
+                {
+                  id: 'bank',
+                  header: 'Bank',
+                  cell: (tx: TransactionItem) => {
+                    const label = bankPayoutLabel(
+                      tx,
+                      tx.paymentReference
+                        ? settlementData?.byReference?.[tx.paymentReference]
+                        : undefined,
+                    );
+                    if (!label) return <span className="text-[11px] text-neutral-300">—</span>;
+                    return (
+                      <span
+                        className={cn(
+                          'text-[10px] font-semibold',
+                          label.tone === 'ok' && 'text-emerald-600 dark:text-emerald-400',
+                          label.tone === 'wait' && 'text-amber-700 dark:text-amber-400',
+                          label.tone === 'bad' && 'text-red-600 dark:text-red-400',
+                          label.tone === 'muted' && 'text-neutral-400',
+                        )}
+                      >
+                        {label.text}
+                      </span>
+                    );
+                  },
                 },
                 {
                   id: 'status',
@@ -497,10 +513,65 @@ const AdminTransactionsPage: React.FC = () => {
           )}
         </>
       ) : (
-        <>
-          {payoutsLoading ? (
-            <DataTableSkeleton rows={6} columns={5} />
-          ) : (
+        <div className="space-y-3">
+          <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="border-b border-neutral-100 px-3 py-2 dark:border-neutral-800">
+              <h2 className="text-sm font-semibold">Paystack bank payouts</h2>
+              <p className="text-[11px] text-neutral-500">
+                Split sales do not create a payout request. Paystack sends the host share the next business day. Paid out means the money has left Paystack for the bank.
+              </p>
+            </div>
+            {settlementsLoading ? (
+              <div className="space-y-2 p-3">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </div>
+            ) : !settlementData?.configured ? (
+              <p className="px-3 py-4 text-sm text-neutral-500">Paystack is not connected.</p>
+            ) : (settlementData.settlements || []).length === 0 ? (
+              <p className="px-3 py-4 text-sm text-neutral-500">
+                No bank payout yet. A paid sale shows here the next business day.
+              </p>
+            ) : (
+              <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                {settlementData.settlements.map((settlement) => (
+                  <div key={settlement.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-neutral-900 dark:text-white">
+                        {settlement.organizationName || settlement.businessName || 'PartyStorm'}
+                      </p>
+                      <p className="text-xs text-neutral-500">
+                        {settlement.settlementDate
+                          ? formatSettleDay(new Date(settlement.settlementDate))
+                          : 'Date pending'}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-sm font-bold tabular-nums">{formatNaira(settlement.amount)}</p>
+                      <p
+                        className={cn(
+                          'text-[10px] font-bold uppercase',
+                          settlement.status === 'success'
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : settlement.status === 'failed'
+                              ? 'text-red-600'
+                              : 'text-amber-700 dark:text-amber-400',
+                        )}
+                      >
+                        {settlement.status === 'success' ? 'Paid out' : settlement.status || 'Pending'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {payouts.length > 0 && (
+            payoutsLoading ? (
+              <DataTableSkeleton rows={4} columns={5} />
+            ) : (
             <DataTable
               columns={[
                 {
@@ -600,11 +671,12 @@ const AdminTransactionsPage: React.FC = () => {
                   </SelectContent>
                 </Select>
               }
-              emptyTitle="No payouts found"
-              emptyDescription="Organizer payout requests will appear here."
+              emptyTitle="No payout requests"
+              emptyDescription="Manual payout requests are only for sales that were not split to a bank."
             />
+            )
           )}
-        </>
+        </div>
       )}
 
       {/* Transaction Details Modal */}
@@ -644,7 +716,20 @@ const AdminTransactionsPage: React.FC = () => {
               </DialogHeader>
 
               <div className="space-y-3 mt-2">
-                {/* Reference */}
+                {(() => {
+                  const bank = bankPayoutLabel(
+                    selectedTx,
+                    selectedTx.paymentReference
+                      ? settlementData?.byReference?.[selectedTx.paymentReference]
+                      : undefined,
+                  );
+                  if (!bank) return null;
+                  return (
+                    <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+                      Bank: {bank.text}
+                    </p>
+                  );
+                })()}
                 {selectedTx.paymentReference && (
                   <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
                     <div className="min-w-0">

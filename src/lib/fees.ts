@@ -9,6 +9,14 @@ export const PAYSTACK_FLAT = 100;
 export const PAYSTACK_FLAT_WAIVE_BELOW = 2500;
 export const PAYSTACK_LOCAL_CAP = 2000;
 
+/** What the buyer pays for one ticket. Face price when the host absorbs the fee. */
+export function buyerPaysForTicket(facePrice: number, absorbFee = false): number {
+  const face = Math.round(Number(facePrice) || 0);
+  if (face <= 0) return 0;
+  if (absorbFee) return face;
+  return calculateBuyerCheckout(face, platformFeeForUnit(face), false).total;
+}
+
 export function platformFeeForUnit(price: number): number {
   if (price <= 0) return 0;
   return Math.min(

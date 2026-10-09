@@ -18,7 +18,7 @@ import {
   Plus,
   LayoutDashboard,
   Calendar,
-  BarChart3,
+  Banknote,
   Shield,
   HardHat,
   CreditCard,
@@ -273,8 +273,8 @@ const Header = () => {
                           <Link to="/organizer/events/create" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
                             <Plus className="h-4 w-4 mr-3 text-gray-400" />Create Event
                           </Link>
-                          <Link to="/organizer/analytics" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
-                            <BarChart3 className="h-4 w-4 mr-3 text-gray-400" />Analytics
+                          <Link to="/organizer/finance" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
+                            <Banknote className="h-4 w-4 mr-3 text-gray-400" />Payments
                           </Link>
                           <Link to="/organizer/organizer-settings" className="w-full text-left px-4 py-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors" onClick={() => setIsUserMenuOpen(false)}>
                             <Settings className="h-4 w-4 mr-3 text-gray-400" />Account Settings

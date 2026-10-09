@@ -605,6 +605,15 @@ export const api = {
         params: status ? { status } : undefined,
       }),
 
+    createHostOrganization: (data: {
+      name: string;
+      ownerId: number;
+      description: string;
+      website?: string;
+      logo?: string;
+      socials?: string;
+    }) => apiRequest<any>('POST', '/admin/host-applications', data),
+
     verifyHost: (id: number) =>
       apiRequest<any>('PUT', `/admin/host-applications/${id}/verify`),
 
@@ -716,6 +725,20 @@ export const api = {
     getPayouts: (status?: string) =>
       apiRequest<any[]>('GET', '/admin/payouts', undefined, { params: status ? { status } : undefined }),
 
+    getSettlements: () =>
+      apiRequest<{
+        configured: boolean;
+        settlements: Array<{
+          id: number;
+          status: string;
+          amount: number;
+          settlementDate: string | null;
+          organizationName: string | null;
+          businessName: string | null;
+        }>;
+        byReference: Record<string, { status: string; settlementDate: string | null; settlementId: number }>;
+      }>('GET', '/admin/settlements'),
+
     approvePayout: (id: number) =>
       apiRequest<any>('POST', `/admin/payouts/${id}/approve`),
 
@@ -811,7 +834,19 @@ export const api = {
         paystackConnected?: boolean;
       };
     }>('GET', '/finance/balance'),
-    
+
+    getSettlements: () =>
+      apiRequest<{
+        configured: boolean;
+        payouts: Array<{
+          id: number;
+          status: string;
+          amount: number;
+          settlementDate: string | null;
+        }>;
+        byReference: Record<string, { status: string; settlementDate: string | null }>;
+      }>('GET', '/finance/settlements'),
+
     requestPayout: (amount: number) => 
       apiRequest<any>('POST', '/finance/payout', { amount }),
   },

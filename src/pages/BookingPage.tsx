@@ -29,7 +29,7 @@ import {
 import { useEventById } from '../hooks/queries/useEvents';
 import { CACHE_CONFIGS } from '../lib/queryClient';
 import { isValidEmail, isValidPhone } from '../lib/phone';
-import { calculateBuyerCheckout, platformFeeForUnit } from '../lib/fees';
+import { buyerPaysForTicket, calculateBuyerCheckout, platformFeeForUnit } from '../lib/fees';
 import { openPaystackCheckout } from '../lib/paystack';
 import { ticketValidityLine } from '../lib/ticketValidity';
 import { formatTicketPrice, isFreeTicketPrice, ticketUnitPrice } from '../lib/ticketPrice';
@@ -1123,9 +1123,16 @@ const BookingPage = () => {
                                   {ticketValidityLine(t.validOn, normalizedEventData.date, eventData?.endDate)}
                                 </p>
                               ) : null}
-                              <p className="font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white mt-1 leading-none">
-                                {formatTicketPrice(t.price)}
-                              </p>
+                              <div className="mt-1 flex flex-wrap items-center gap-2">
+                                <p className="font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white leading-none">
+                                  {formatTicketPrice(buyerPaysForTicket(ticketUnitPrice(t.price), absorbFee))}
+                                </p>
+                                {!absorbFee && ticketUnitPrice(t.price) > 0 && (
+                                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:bg-neutral-800 dark:text-neutral-300">
+                                    Includes fee
+                                  </span>
+                                )}
+                              </div>
                             </div>
 
                             <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
@@ -1808,9 +1815,14 @@ const BookingPage = () => {
                       </div>
                     )}
 
-                    <div className="pt-2 flex items-center justify-between">
-                      <span className="font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                    <div className="pt-2 flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-2 font-ticket text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
                         Total
+                        {serviceFee > 0 && (
+                          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-wide text-neutral-500 dark:bg-neutral-800 dark:text-neutral-300">
+                            Includes fee
+                          </span>
+                        )}
                       </span>
                       <span className="font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
                         {displayTotal}

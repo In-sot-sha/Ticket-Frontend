@@ -6,7 +6,7 @@ import {
   UserCircle,
   Calendar,
   PlusCircle,
-  BarChart3,
+  Banknote,
   Home,
   HomeIcon,
   ScanLine,
@@ -76,7 +76,7 @@ const MobileTabBar: React.FC = () => {
     { label: 'Dashboard', icon: Home, path: '/organizer', exact: true },
     { label: 'Events', icon: Calendar, path: '/organizer/events', exact: true },
     { label: 'Create', icon: PlusCircle, path: '/organizer/events/create', exact: false },
-    { label: 'Analytics', icon: BarChart3, path: '/organizer/analytics', exact: false },
+    { label: 'Payments', icon: Banknote, path: '/organizer/finance', exact: false },
   ];
 
   const activeTabs = showStaffTabs

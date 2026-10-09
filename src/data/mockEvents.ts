@@ -136,6 +136,7 @@ export const mapApiEventToFrontendEvent = (apiEvent: any): Event => {
     ticketsAvailable,
     price: apiEvent.price ?? 0,
     ticketTypes: apiEvent.ticketTypes,
+    absorbFee: Boolean(apiEvent.organization?.absorbFee),
     rating: apiEvent.rating ?? 0,
     attendees: apiEvent.attendees || 0,
     isPromoted,

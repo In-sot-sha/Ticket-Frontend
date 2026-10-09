@@ -580,7 +580,7 @@ const PayoutsPanel = () => {
           Payouts & Settlement
         </h2>
         <p className="text-xs text-neutral-500 mt-0.5">
-          Connect your Nigerian bank account to receive automatic split settlements after ticket sales.
+          Connect your Nigerian bank account. Paystack pays your share of each sale to this account. Changing it updates the same subaccount, so future sales use the new bank. Money already sent stays in the previous account.
         </p>
       </div>
 

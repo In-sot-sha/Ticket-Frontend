@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Building2,
   Globe,
@@ -20,12 +21,25 @@ import {
   ShieldCheck,
   AlertCircle,
   Sparkles,
+  Plus,
+  ImageIcon,
+  Loader2,
+  Instagram,
+  Twitter,
+  Facebook,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Skeleton } from '../../components/ui/skeleton';
 import { CustomAlertDialog } from '../../components/ui/CustomAlertDialog';
-import { buildSocialUrl, hasAnySocial, parseOrgSocials } from '../../lib/orgSocials';
+import {
+  EMPTY_ORG_SOCIALS,
+  OrgSocialLinks,
+  buildSocialUrl,
+  hasAnySocial,
+  parseOrgSocials,
+  serializeOrgSocials,
+} from '../../lib/orgSocials';
 import {
   Dialog,
   DialogContent,
@@ -39,8 +53,11 @@ import {
   useVerifyHost,
   useRejectHost,
   useUpdateOrganizationFee,
+  useCreateHostOrganization,
 } from '../../hooks/queries/useAdmin';
 import { cn } from '../../lib/utils';
+import { queryKeys } from '../../lib/queryKeys';
+import api from '../../services/api';
 
 type FilterStatus = 'all' | 'pending' | 'rejected' | 'verified';
 
@@ -71,6 +88,35 @@ const STATUS_CONFIG = {
   },
 };
 
+const hostInputClass =
+  'w-full px-3 py-2 text-sm border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 text-neutral-900 dark:text-white placeholder:text-neutral-400';
+
+const hostLabelClass = 'block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1';
+
+const SOCIAL_FIELDS: Array<{
+  key: keyof OrgSocialLinks;
+  label: string;
+  placeholder: string;
+  icon: React.ReactNode;
+}> = [
+  { key: 'instagram', label: 'Instagram', placeholder: '@yourbrand', icon: <Instagram className="h-4 w-4" /> },
+  { key: 'twitter', label: 'X (Twitter)', placeholder: '@yourbrand', icon: <Twitter className="h-4 w-4" /> },
+  { key: 'facebook', label: 'Facebook', placeholder: 'facebook.com/yourpage', icon: <Facebook className="h-4 w-4" /> },
+  {
+    key: 'tiktok',
+    label: 'TikTok',
+    placeholder: '@yourbrand',
+    icon: <span className="text-[10px] font-extrabold leading-none">TT</span>,
+  },
+];
+
+function normalizeWebsite(raw: string): string | undefined {
+  const v = raw.trim();
+  if (!v) return undefined;
+  if (/^https?:\/\//i.test(v)) return v;
+  return `https://${v.replace(/^\/+/, '')}`;
+}
+
 const OrganizationsPage: React.FC = () => {
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,6 +140,20 @@ const OrganizationsPage: React.FC = () => {
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
   const [copiedItem, setCopiedItem] = useState<string | null>(null);
+  const [pinId, setPinId] = useState<number | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [orgName, setOrgName] = useState('');
+  const [orgDescription, setOrgDescription] = useState('');
+  const [orgWebsite, setOrgWebsite] = useState('');
+  const [logo, setLogo] = useState('');
+  const [logoPreview, setLogoPreview] = useState('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [socialLinks, setSocialLinks] = useState<OrgSocialLinks>({ ...EMPTY_ORG_SOCIALS });
+  const [createError, setCreateError] = useState('');
+  const [ownerSearch, setOwnerSearch] = useState('');
+  const [debouncedOwnerSearch, setDebouncedOwnerSearch] = useState('');
+  const [selectedOwner, setSelectedOwner] = useState<any | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Queries
   const { data: allApplications = [] } = useHostApplications('all');
@@ -101,6 +161,21 @@ const OrganizationsPage: React.FC = () => {
   const verifyMutation = useVerifyHost();
   const rejectMutation = useRejectHost();
   const updateFeeMutation = useUpdateOrganizationFee();
+  const createHostMutation = useCreateHostOrganization();
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedOwnerSearch(ownerSearch.trim()), 250);
+    return () => clearTimeout(t);
+  }, [ownerSearch]);
+
+  const { data: ownerResults = [], isFetching: ownersLoading } = useQuery({
+    queryKey: queryKeys.admin.users({ search: debouncedOwnerSearch }),
+    queryFn: async () => {
+      const res = await api.admin.getUsers({ search: debouncedOwnerSearch });
+      return res.data || [];
+    },
+    enabled: createOpen && debouncedOwnerSearch.length >= 2 && !selectedOwner,
+  });
 
   // Summary counts
   const counts = useMemo(() => {
@@ -141,6 +216,13 @@ const OrganizationsPage: React.FC = () => {
   const selectedStatus = selected ? getApplicationStatus(selected) : null;
 
   useEffect(() => {
+    if (pinId != null) {
+      if (filteredList.some((a: any) => a.id === pinId)) {
+        setSelectedId(pinId);
+        setPinId(null);
+      }
+      return;
+    }
     if (filteredList.length === 0) {
       if (!searchQuery) setSelectedId(null);
       return;
@@ -149,7 +231,7 @@ const OrganizationsPage: React.FC = () => {
     if (!stillInList) {
       setSelectedId(filteredList[0].id);
     }
-  }, [filteredList, selectedId, searchQuery]);
+  }, [filteredList, selectedId, searchQuery, pinId]);
 
   useEffect(() => {
     if (selected) {
@@ -229,7 +311,101 @@ const OrganizationsPage: React.FC = () => {
     }
   };
 
-  const isBusy = verifyMutation.isPending || rejectMutation.isPending || updateFeeMutation.isPending;
+  const resetCreateForm = () => {
+    setOrgName('');
+    setOrgDescription('');
+    setOrgWebsite('');
+    setLogo('');
+    setLogoPreview('');
+    setSocialLinks({ ...EMPTY_ORG_SOCIALS });
+    setCreateError('');
+    setOwnerSearch('');
+    setDebouncedOwnerSearch('');
+    setSelectedOwner(null);
+  };
+
+  const handleLogoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setCreateError('Please select an image file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setCreateError('Logo must be under 5MB.');
+      return;
+    }
+
+    setUploadingLogo(true);
+    setCreateError('');
+    setLogoPreview(URL.createObjectURL(file));
+    try {
+      const res = await api.userRoles.uploadOrgLogo(file);
+      setLogo(res.data.url);
+    } catch {
+      setCreateError('Failed to upload logo. Please try again.');
+      setLogoPreview('');
+      setLogo('');
+    } finally {
+      setUploadingLogo(false);
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    }
+  };
+
+  const handleCreateOrganization = async () => {
+    const name = orgName.trim();
+    const description = orgDescription.trim();
+    const socials = serializeOrgSocials(socialLinks);
+    if (!name || !selectedOwner?.id) {
+      setCreateError(!selectedOwner?.id ? 'Select an owner.' : 'Business name is required.');
+      return;
+    }
+    if (!description) {
+      setCreateError('Description is required.');
+      return;
+    }
+    if (!socials) {
+      setCreateError('Please add at least 1 social profile.');
+      return;
+    }
+    setCreateError('');
+    setActionError('');
+    setActionSuccess('');
+    try {
+      const res = await createHostMutation.mutateAsync({
+        name,
+        ownerId: selectedOwner.id,
+        description,
+        website: normalizeWebsite(orgWebsite),
+        logo: logo || undefined,
+        socials,
+      });
+      const createdId = res.data?.organization?.id as number | undefined;
+      setCreateOpen(false);
+      resetCreateForm();
+      setFilter('all');
+      setSearchQuery('');
+      setShowListOnMobile(false);
+      if (createdId) {
+        setPinId(createdId);
+        setSelectedId(createdId);
+      }
+      const ownerName = `${selectedOwner.firstName || ''} ${selectedOwner.lastName || ''}`.trim();
+      setActionSuccess(
+        ownerName
+          ? `${name} is approved. ${ownerName} is the owner.`
+          : `${name} is approved.`,
+      );
+    } catch (err: any) {
+      setCreateError(err.response?.data?.message || 'Could not create the organization.');
+    }
+  };
+
+  const isBusy =
+    verifyMutation.isPending ||
+    rejectMutation.isPending ||
+    updateFeeMutation.isPending ||
+    createHostMutation.isPending;
 
   const filtersList: { key: FilterStatus; label: string; count: number; color: string }[] = [
     { key: 'all', label: 'All Organizers', count: counts.all, color: 'text-neutral-500' },
@@ -246,12 +422,26 @@ const OrganizationsPage: React.FC = () => {
         accent="Organizers"
         description="Verify host applications, review business credentials, and configure fee absorb settings."
         actions={
-          counts.pending > 0 ? (
-            <span className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-              <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-              {counts.pending} pending review
-            </span>
-          ) : null
+          <>
+            {counts.pending > 0 ? (
+              <span className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                {counts.pending} pending review
+              </span>
+            ) : null}
+            <Button
+              size="sm"
+              className="h-8 rounded-xl bg-rose-500 px-3 text-xs font-bold text-white hover:bg-rose-600"
+              onClick={() => {
+                resetCreateForm();
+                setActionError('');
+                setCreateOpen(true);
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add organization
+            </Button>
+          </>
         }
       />
 
@@ -857,6 +1047,230 @@ const OrganizationsPage: React.FC = () => {
       </div>
 
       {/* Confirmation & Rejection Modals */}
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) resetCreateForm();
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add organization</DialogTitle>
+            <DialogDescription>
+              Same brand details as a host application. The organization is approved as soon as you create it.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className={hostLabelClass}>Owner</label>
+              {selectedOwner ? (
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-800/50">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-neutral-900 dark:text-white">
+                      {selectedOwner.firstName} {selectedOwner.lastName}
+                    </p>
+                    <p className="truncate text-xs text-neutral-500">
+                      {selectedOwner.email || selectedOwner.phone || 'No email'} · {selectedOwner.role}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="shrink-0 text-xs font-semibold text-rose-500 hover:text-rose-600"
+                    onClick={() => {
+                      setSelectedOwner(null);
+                      setOwnerSearch('');
+                    }}
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <input
+                    value={ownerSearch}
+                    onChange={(e) => setOwnerSearch(e.target.value)}
+                    placeholder="Search name or email"
+                    className={hostInputClass}
+                    autoFocus
+                  />
+                  {debouncedOwnerSearch.length >= 2 && (
+                    <div className="mt-1 max-h-36 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-700">
+                      {ownersLoading ? (
+                        <p className="px-3 py-2 text-xs text-neutral-500">Searching…</p>
+                      ) : ownerResults.filter((user: any) => !user.isGuest).length === 0 ? (
+                        <p className="px-3 py-2 text-xs text-neutral-500">No accounts match that search.</p>
+                      ) : (
+                        ownerResults.filter((user: any) => !user.isGuest).map((user: any) => (
+                          <button
+                            key={user.id}
+                            type="button"
+                            className="flex w-full flex-col px-3 py-2 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                            onClick={() => setSelectedOwner(user)}
+                          >
+                            <span className="text-sm font-semibold text-neutral-900 dark:text-white">
+                              {user.firstName} {user.lastName}
+                            </span>
+                            <span className="truncate text-xs text-neutral-500">
+                              {user.email || user.phone || 'No email'} · {user.role}
+                              {user.ownedOrganizations?.length
+                                ? ` · owns ${user.ownedOrganizations.map((o: any) => o.name).join(', ')}`
+                                : ''}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label htmlFor="admin-businessName" className={hostLabelClass}>
+                  Business / brand name
+                </label>
+                <input
+                  id="admin-businessName"
+                  type="text"
+                  value={orgName}
+                  onChange={(e) => setOrgName(e.target.value)}
+                  placeholder="e.g. Lagos Nightlife Co."
+                  className={hostInputClass}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="admin-website" className={hostLabelClass}>
+                  Website or portfolio{' '}
+                  <span className="font-medium text-neutral-400">(optional)</span>
+                </label>
+                <input
+                  id="admin-website"
+                  type="text"
+                  inputMode="url"
+                  autoComplete="url"
+                  value={orgWebsite}
+                  onChange={(e) => setOrgWebsite(e.target.value)}
+                  placeholder="yourwebsite.com"
+                  className={hostInputClass}
+                />
+              </div>
+
+              <div>
+                <label className={hostLabelClass}>Logo</label>
+                <div className="flex items-center gap-2 h-[38px] px-2 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
+                  <button
+                    type="button"
+                    onClick={() => logoInputRef.current?.click()}
+                    disabled={uploadingLogo}
+                    className="shrink-0 h-7 w-7 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 flex items-center justify-center overflow-hidden disabled:opacity-50"
+                  >
+                    {logoPreview ? (
+                      <img src={logoPreview} alt="Logo" className="h-full w-full object-cover" />
+                    ) : uploadingLogo ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-500" />
+                    ) : (
+                      <ImageIcon className="h-3.5 w-3.5 text-neutral-400" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => logoInputRef.current?.click()}
+                    disabled={uploadingLogo}
+                    className="text-xs font-semibold text-rose-500 hover:text-rose-600 truncate disabled:opacity-50"
+                  >
+                    {uploadingLogo ? 'Uploading…' : logoPreview ? 'Change logo' : 'Upload logo'}
+                  </button>
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleLogoSelect}
+                  />
+                </div>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label htmlFor="admin-description" className={hostLabelClass}>
+                  About your brand
+                </label>
+                <textarea
+                  id="admin-description"
+                  value={orgDescription}
+                  onChange={(e) => setOrgDescription(e.target.value)}
+                  placeholder="What kind of events do you host? Who is your audience?"
+                  rows={3}
+                  maxLength={500}
+                  className={`${hostInputClass} resize-none`}
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className={hostLabelClass}>Social profiles</label>
+                <p className="text-[11px] text-neutral-400 mb-2">
+                  Add at least 1 — shown on the public host profile.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {SOCIAL_FIELDS.map(({ key, label, placeholder, icon }) => (
+                    <div key={key}>
+                      <label htmlFor={`admin-social-${key}`} className={hostLabelClass}>
+                        {label}
+                      </label>
+                      <div className="relative">
+                        <div className="absolute left-2.5 top-1/2 -translate-y-1/2 h-6 w-6 rounded bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-500">
+                          {icon}
+                        </div>
+                        <input
+                          id={`admin-social-${key}`}
+                          type="text"
+                          value={socialLinks[key] || ''}
+                          onChange={(e) =>
+                            setSocialLinks((prev) => ({ ...prev, [key]: e.target.value }))
+                          }
+                          placeholder={placeholder}
+                          className={`${hostInputClass} pl-10`}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {createError && (
+              <div className="flex items-start gap-2 p-2.5 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 rounded-lg text-sm text-red-600 dark:text-red-400">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                {createError}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 border-t border-neutral-100 pt-4 dark:border-neutral-800 sm:gap-2">
+            <Button variant="outline" className="rounded-lg" onClick={() => setCreateOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="rounded-lg h-10 px-8 font-bold"
+              disabled={createHostMutation.isPending || uploadingLogo}
+              onClick={handleCreateOrganization}
+            >
+              {createHostMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creating…
+                </>
+              ) : (
+                'Create and approve'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <CustomAlertDialog
         isOpen={approveDialog.open}
         onClose={() => setApproveDialog({ open: false, id: null })}
