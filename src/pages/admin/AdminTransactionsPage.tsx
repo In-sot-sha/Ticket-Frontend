@@ -855,9 +855,10 @@ const AdminTransactionsPage: React.FC = () => {
                     variant="outline"
                     className="rounded-xl text-xs"
                     onClick={() => {
-                      setResolveRef(selectedTx.paymentReference!);
-                      setShowResolveTool(true);
-                      handleResolvePayment(selectedTx.paymentReference!);
+                      const reference = selectedTx.paymentReference!;
+                      setResolveRef(reference);
+                      setSelectedTx(null);
+                      handleResolvePayment(reference);
                     }}
                   >
                     <RefreshCw className="h-3 w-3 mr-1" /> Re-verify with Paystack
