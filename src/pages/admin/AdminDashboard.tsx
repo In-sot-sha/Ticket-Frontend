@@ -1,11 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Users,
   Building2,
   ChevronRight,
-  Clock,
-  Wallet,
   LifeBuoy,
   Sparkles,
   CreditCard,
@@ -15,37 +12,19 @@ import { useAuth } from '../../context/AuthContext';
 import { useAdminStats, useHostApplications } from '../../hooks/queries/useAdmin';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Skeleton } from '../../components/ui/skeleton';
-import { formatNaira } from '../../lib/eventOrganizer';
 
-const STAT_META = [
-  { label: 'Platform earnings', icon: Wallet, color: 'text-rose-500' },
-  { label: 'Total Events', icon: Sparkles, color: 'text-purple-500' },
-  { label: 'Total Users', icon: Users, color: 'text-blue-500' },
-  { label: 'Pending Hosts', icon: Clock, color: 'text-amber-500' },
-  { label: 'Open Support', icon: LifeBuoy, color: 'text-rose-500' },
-] as const;
+const STAT_LABELS = ['Total events', 'Total users', 'Pending hosts', 'Open support'] as const;
 
 function AdminDashboardSkeleton() {
   return (
     <>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-3.5 mb-6">
-        {STAT_META.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <div
-              key={stat.label}
-              className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3.5 sm:p-4 bg-white dark:bg-neutral-900 shadow-sm"
-            >
-              <div className="flex justify-between items-center text-neutral-400 dark:text-neutral-500 mb-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider leading-tight">
-                  {stat.label}
-                </span>
-                <Icon className={`h-4 w-4 ${stat.color}`} />
-              </div>
-              <Skeleton className="h-7 w-20 rounded-lg" />
-            </div>
-          );
-        })}
+      <div className="mb-5 grid grid-cols-2 divide-x divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200/80 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900 lg:grid-cols-4 lg:divide-y-0">
+        {STAT_LABELS.map((label) => (
+          <div key={label} className="min-w-0 px-3 py-2.5 sm:px-4 sm:py-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{label}</p>
+            <Skeleton className="mt-1.5 h-6 w-16" />
+          </div>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -77,39 +56,25 @@ const AdminDashboard = () => {
 
   const statCards = [
     {
-      label: 'Platform earnings',
-      value: formatNaira(stats?.platformRevenue ?? 0),
-      sub: `${stats?.totalOrders ?? 0} paid orders`,
-      icon: Wallet,
-      color: 'text-rose-500',
-    },
-    {
-      label: 'Total Events',
+      label: 'Total events',
       value: stats?.totalEvents ?? 0,
-      sub: 'Platform catalog',
-      icon: Sparkles,
-      color: 'text-purple-500',
+      blurb: 'Platform catalog',
     },
     {
-      label: 'Total Users',
+      label: 'Total users',
       value: stats?.totalUsers ?? 0,
-      sub: 'Registered accounts',
-      icon: Users,
-      color: 'text-blue-500',
+      blurb: 'Registered accounts',
     },
     {
-      label: 'Pending Hosts',
+      label: 'Pending hosts',
       value: stats?.pendingHosts ?? 0,
-      sub: `${stats?.verifiedHosts ?? 0} verified`,
-      icon: Clock,
-      color: 'text-amber-500',
+      blurb: `${stats?.verifiedHosts ?? 0} verified`,
+      tone: 'text-rose-600 dark:text-rose-400',
     },
     {
-      label: 'Open Support',
+      label: 'Open support',
       value: stats?.openSupportTickets ?? 0,
-      sub: 'Awaiting resolution',
-      icon: LifeBuoy,
-      color: 'text-rose-500',
+      blurb: 'Awaiting a reply',
     },
   ];
 
@@ -117,36 +82,46 @@ const AdminDashboard = () => {
     {
       to: '/admin/organizations',
       icon: Building2,
-      wrap: 'bg-amber-50 dark:bg-amber-950/30 text-amber-600',
-      title: 'Review Host Applications',
+      wrap: 'bg-amber-50 text-amber-600 dark:bg-amber-950/40',
+      hover: 'hover:border-amber-400 dark:hover:border-amber-700',
+      chevron: 'group-hover:text-amber-500',
+      title: 'Review hosts',
       sub: `${stats?.pendingHosts ?? 0} waiting for approval`,
     },
     {
       to: '/admin/staff',
       icon: UserCog,
-      wrap: 'bg-blue-50 dark:bg-blue-950/30 text-blue-600',
-      title: 'Staff Roster',
-      sub: 'Manage ground staff and permissions',
+      wrap: 'bg-blue-50 text-blue-600 dark:bg-blue-950/40',
+      hover: 'hover:border-blue-400 dark:hover:border-blue-700',
+      chevron: 'group-hover:text-blue-500',
+      title: 'Staff roster',
+      sub: 'Ground staff and permissions',
     },
     {
       to: '/admin/events',
       icon: Sparkles,
-      wrap: 'bg-purple-50 dark:bg-purple-950/30 text-purple-600',
-      title: 'Events & Promotions',
-      sub: 'View events, ticket tiers & carousel',
+      wrap: 'bg-purple-50 text-purple-600 dark:bg-purple-950/40',
+      hover: 'hover:border-purple-400 dark:hover:border-purple-700',
+      chevron: 'group-hover:text-purple-500',
+      title: 'Events',
+      sub: 'Listings, tiers, and promotions',
     },
     {
       to: '/admin/transactions',
       icon: CreditCard,
-      wrap: 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600',
-      title: 'Transactions & Revenue',
-      sub: 'Order history, payouts & references',
+      wrap: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40',
+      hover: 'hover:border-emerald-400 dark:hover:border-emerald-700',
+      chevron: 'group-hover:text-emerald-500',
+      title: 'Payments',
+      sub: 'Orders, payouts, and references',
     },
     {
       to: '/admin/support',
       icon: LifeBuoy,
-      wrap: 'bg-rose-50 dark:bg-rose-950/30 text-rose-600',
-      title: 'Customer Support',
+      wrap: 'bg-rose-50 text-rose-500 dark:bg-rose-950/40',
+      hover: 'hover:border-rose-400 dark:hover:border-rose-700',
+      chevron: 'group-hover:text-rose-500',
+      title: 'Support',
       sub: `${stats?.openSupportTickets ?? 0} open tickets`,
     },
   ];
@@ -163,28 +138,18 @@ const AdminDashboard = () => {
         <AdminDashboardSkeleton />
       ) : (
         <>
-          {/* Compact Stat Cards Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3.5 mb-5">
-            {statCards.map((stat) => {
-              const Icon = stat.icon;
-              return (
-                <div
-                  key={stat.label}
-                  className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 sm:p-4 bg-white dark:bg-neutral-900 shadow-sm transition-all hover:border-neutral-300 dark:hover:border-neutral-700"
-                >
-                  <div className="flex justify-between items-center text-neutral-400 dark:text-neutral-500 mb-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider truncate">
-                      {stat.label}
-                    </span>
-                    <Icon className={`h-3.5 w-3.5 shrink-0 ${stat.color}`} />
-                  </div>
-                  <p className="text-lg sm:text-xl font-black tracking-tight">{stat.value}</p>
-                  <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5 truncate">
-                    {stat.sub}
-                  </p>
-                </div>
-              );
-            })}
+          <div className="mb-5 grid grid-cols-2 divide-x divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200/80 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900 lg:grid-cols-4 lg:divide-y-0">
+            {statCards.map((stat) => (
+              <div key={stat.label} className="min-w-0 px-3 py-2.5 sm:px-4 sm:py-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                  {stat.label}
+                </p>
+                <p className={`mt-0.5 text-lg font-bold tabular-nums tracking-tight sm:text-xl ${stat.tone ?? 'text-neutral-900 dark:text-white'}`}>
+                  {stat.value}
+                </p>
+                <p className="mt-0.5 truncate text-[10px] text-neutral-500">{stat.blurb}</p>
+              </div>
+            ))}
           </div>
 
           {/* Main 2-column layout */}
@@ -240,32 +205,29 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl bg-white dark:bg-neutral-900 shadow-sm p-4">
-              <h2 className="text-sm font-extrabold tracking-tight mb-3">Quick Actions</h2>
-              <div className="space-y-2">
+            <div className="space-y-3">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Quick Actions</h2>
+              <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-1">
                 {quickActions.map((item) => {
                   const Icon = item.icon;
                   return (
                     <Link
                       key={item.to}
                       to={item.to}
-                      className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl border border-neutral-100 dark:border-neutral-800/80 hover:bg-neutral-50 dark:hover:bg-neutral-800/40 hover:border-neutral-200 dark:hover:border-neutral-700 transition-all group"
+                      className={`group flex items-center justify-between gap-3 rounded-2xl border border-neutral-200/80 bg-white p-3.5 shadow-2xs transition-all dark:border-neutral-800 dark:bg-neutral-900 sm:p-4 ${item.hover}`}
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div
-                          className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${item.wrap}`}
-                        >
-                          <Icon className="h-4 w-4" />
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className={`shrink-0 rounded-xl p-2 sm:p-2.5 ${item.wrap}`}>
+                          <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-neutral-900 dark:text-white group-hover:text-rose-500 transition-colors">
+                          <p className="truncate text-xs font-bold text-neutral-900 dark:text-white sm:text-sm">
                             {item.title}
                           </p>
-                          <p className="text-[11px] text-neutral-400 truncate">{item.sub}</p>
+                          <p className="truncate text-[11px] text-neutral-400 sm:text-xs">{item.sub}</p>
                         </div>
                       </div>
-                      <ChevronRight className="h-3.5 w-3.5 text-neutral-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                      <ChevronRight className={`h-4 w-4 shrink-0 text-neutral-300 transition-transform group-hover:translate-x-0.5 ${item.chevron}`} />
                     </Link>
                   );
                 })}

@@ -2,19 +2,32 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { isTokenExpired } from '../lib/tokenUtils';
 
+function isLanHostname(hostname: string): boolean {
+  return (
+    hostname.startsWith('192.168.') ||
+    hostname.startsWith('10.') ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
+  );
+}
+
 export function getApiBaseUrl(): string {
   const isBrowser = typeof window !== 'undefined';
   const hostname = isBrowser ? window.location.hostname : '';
   const isLocalHost =
     hostname === 'localhost' ||
     hostname === '127.0.0.1' ||
-    hostname.startsWith('192.168.') ||
-    hostname.startsWith('10.');
+    isLanHostname(hostname);
 
   const envUrl =
     typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL
       ? String(import.meta.env.VITE_API_URL).trim()
       : '';
+
+  // A phone opening http://192.168.x.x cannot reach this computer's localhost.
+  // Use the Vite /api proxy on the same address the page was opened from.
+  if (isBrowser && isLanHostname(hostname)) {
+    return '/api';
+  }
 
   // If running online (e.g. partystorm.ng, Vercel), never call localhost!
   if (!isLocalHost && isBrowser) {

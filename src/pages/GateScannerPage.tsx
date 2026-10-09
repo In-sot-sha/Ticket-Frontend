@@ -21,6 +21,14 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { api } from '../services/api';
+import {
+  iosCameraSetupMessage,
+  isIosDevice,
+  qrScanConfig,
+  qrScannerOptions,
+  resolveCameraConfig,
+  startIosCameraScan,
+} from '../lib/qrCamera';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { Skeleton } from '../components/ui/skeleton';
@@ -291,6 +299,7 @@ const GateScanner: React.FC<{
   const cameraSessionRef = useRef(0);
   const isVerifyingRef = useRef(false);
   const handleVerifRef = useRef<(code: string) => void>(() => {});
+  const stopIosScanRef = useRef<(() => void) | null>(null);
 
   // Fetch today's / covered events — PIN org, or staff coverage (no PIN)
   useEffect(() => {
@@ -471,6 +480,8 @@ const GateScanner: React.FC<{
   }, []);
 
   const stopCamera = useCallback(async () => {
+    stopIosScanRef.current?.();
+    stopIosScanRef.current = null;
     cameraSessionRef.current += 1;
     const scanner = scannerRef.current;
     scannerRef.current = null;
@@ -490,47 +501,56 @@ const GateScanner: React.FC<{
     setCameraError(null);
     isVerifyingRef.current = false;
 
+    const blocked = iosCameraSetupMessage();
+    if (blocked) {
+      if (mountedRef.current) {
+        setCameraError(blocked);
+        setScanStatus('idle');
+        setCameraActive(false);
+      }
+      return;
+    }
+
+    if (isIosDevice()) {
+      try {
+        stopIosScanRef.current = await startIosCameraScan(SCANNER_DIV_ID, (text) => {
+          if (cameraSessionRef.current !== session || !mountedRef.current) return;
+          if (!isVerifyingRef.current) {
+            isVerifyingRef.current = true;
+            handleVerifRef.current(text);
+          }
+        });
+        if (cameraSessionRef.current !== session || !mountedRef.current) {
+          stopIosScanRef.current?.();
+          stopIosScanRef.current = null;
+          return;
+        }
+        setScanStatus('scanning');
+        setCameraActive(true);
+      } catch (err: any) {
+        if (!mountedRef.current || cameraSessionRef.current !== session) return;
+        const raw = err?.message ?? String(err) ?? 'unknown';
+        const cameraMessage = /[Pp]ermission|[Dd]enied/.test(raw)
+          ? 'Camera access denied. Allow the camera in Safari settings, then tap Retry.'
+          : `Could not start camera: ${raw}`;
+        setCameraError(cameraMessage);
+        setScanStatus('idle');
+        setCameraActive(false);
+      }
+      return;
+    }
+
     let scanner: Html5Qrcode | null = null;
     try {
       const el = document.getElementById(SCANNER_DIV_ID);
       if (!el) return;
 
-      scanner = new Html5Qrcode(SCANNER_DIV_ID, { verbose: false } as any);
+      scanner = new Html5Qrcode(SCANNER_DIV_ID, qrScannerOptions());
       scannerRef.current = scanner;
 
-      // Select camera on iOS/Safari: prefer back/environment camera ID
-      let cameraConfig: any = { facingMode: 'environment' };
-      try {
-        const cameras = await Html5Qrcode.getCameras();
-        if (cameras && cameras.length > 0) {
-          const backCam =
-            cameras.find((c) => /back|rear|environment/i.test(c.label)) ||
-            cameras[cameras.length - 1];
-          if (backCam?.id) {
-            cameraConfig = backCam.id;
-          }
-        }
-      } catch {
-        cameraConfig = { facingMode: 'environment' };
-      }
-
-      // Helper to ensure playsinline on iOS Safari WebKit
-      const enforceInlineVideo = () => {
-        const container = document.getElementById(SCANNER_DIV_ID);
-        if (!container) return;
-        container.querySelectorAll('video').forEach((v) => {
-          v.setAttribute('playsinline', 'true');
-          v.setAttribute('webkit-playsinline', 'true');
-          v.setAttribute('muted', 'true');
-          v.setAttribute('autoplay', 'true');
-          v.muted = true;
-          v.playsInline = true;
-        });
-      };
-
       await scanner.start(
-        cameraConfig,
-        { fps: 12, qrbox: { width: 220, height: 220 } },
+        await resolveCameraConfig(),
+        qrScanConfig(),
         (decoded) => {
           if (
             !isVerifyingRef.current &&
@@ -542,11 +562,9 @@ const GateScanner: React.FC<{
           }
         },
         () => {
-          /* per-frame failures are normal */
+          /* per-frame misses are normal */
         }
       );
-
-      enforceInlineVideo();
 
       // Capture stream even if we are about to tear down
       const video = document.querySelector(
@@ -572,15 +590,15 @@ const GateScanner: React.FC<{
       releaseMediaTracks();
       if (!mountedRef.current || cameraSessionRef.current !== session) return;
       const raw = err?.message ?? '';
-      setCameraError(
+      const cameraMessage =
         /[Pp]ermission|[Dd]enied/.test(raw)
           ? 'Camera access denied. Allow it in browser settings.'
           : /[Nn]ot[Ff]ound|device not found/.test(raw)
             ? 'No camera found on this device.'
             : /[Hh][Tt][Tt][Pp][Ss]|[Ss]ecure/.test(raw)
               ? 'HTTPS required for camera. Open this page over https://.'
-              : `Could not start camera: ${raw}`
-      );
+              : `Could not start camera: ${raw}`;
+      setCameraError(cameraMessage);
       setScanStatus('idle');
       setCameraActive(false);
     }
@@ -980,7 +998,7 @@ const GateScanner: React.FC<{
         #${SCANNER_DIV_ID} > img, #${SCANNER_DIV_ID} button, #${SCANNER_DIV_ID} select,
         #${SCANNER_DIV_ID} span[id*="status"], #${SCANNER_DIV_ID} div[id*="header"],
         #${SCANNER_DIV_ID} div[id*="dashboard"], #${SCANNER_DIV_ID} div[id*="anchor"] { display: none !important; }
-        #${SCANNER_DIV_ID} video { width: 100% !important; height: 100% !important; object-fit: cover !important; display: block !important; }
+        #${SCANNER_DIV_ID} video { width: 100%; height: 100%; min-height: 240px; object-fit: contain; display: block; }
       `}</style>
     </div>
   );

@@ -17,6 +17,14 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { api } from '../services/api';
+import {
+  iosCameraSetupMessage,
+  isIosDevice,
+  qrScanConfig,
+  qrScannerOptions,
+  resolveCameraConfig,
+  startIosCameraScan,
+} from '../lib/qrCamera';
 import { useNavigate } from 'react-router-dom';
 
 type ScanStatus = 'idle' | 'scanning' | 'loading' | 'success' | 'error';
@@ -65,6 +73,7 @@ const TicketScanner: React.FC = () => {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const isVerifyingRef = useRef(false);
   const handleVerificationRef = useRef<(code: string) => void>(() => {});
+  const stopIosScanRef = useRef<(() => void) | null>(null);
 
   // Fetch organizer events on mount
   useEffect(() => {
@@ -147,6 +156,8 @@ const TicketScanner: React.FC = () => {
 
   // ── Stop camera ────────────────────────────────────────────────────────────
   const stopCamera = useCallback(async () => {
+    stopIosScanRef.current?.();
+    stopIosScanRef.current = null;
     if (scannerRef.current) {
       try {
         if (scannerRef.current.isScanning) await scannerRef.current.stop();
@@ -163,53 +174,52 @@ const TicketScanner: React.FC = () => {
     setCameraError(null);
     isVerifyingRef.current = false;
 
+    const blocked = iosCameraSetupMessage();
+    if (blocked) {
+      setCameraError(blocked);
+      setScanStatus('idle');
+      setCameraActive(false);
+      return;
+    }
+
+    if (isIosDevice()) {
+      try {
+        stopIosScanRef.current?.();
+        stopIosScanRef.current = await startIosCameraScan(SCANNER_DIV_ID, (text) => {
+          if (!isVerifyingRef.current) {
+            isVerifyingRef.current = true;
+            handleVerificationRef.current(text);
+          }
+        });
+        setScanStatus('scanning');
+        setCameraActive(true);
+      } catch (err: any) {
+        const rawMsg = err?.message ?? String(err) ?? 'unknown';
+        const msg = /[Pp]ermission|[Dd]enied/.test(rawMsg)
+          ? 'Camera access denied. Allow the camera in Safari settings, then tap Retry.'
+          : `Could not start camera: ${rawMsg}`;
+        setCameraError(msg);
+        setScanStatus('idle');
+        setCameraActive(false);
+      }
+      return;
+    }
+
     try {
-      const scanner = new Html5Qrcode(SCANNER_DIV_ID, { verbose: false } as any);
+      const scanner = new Html5Qrcode(SCANNER_DIV_ID, qrScannerOptions());
       scannerRef.current = scanner;
 
-      // Select camera: prefer back/environment camera ID on iOS
-      let cameraConfig: any = { facingMode: 'environment' };
-      try {
-        const cameras = await Html5Qrcode.getCameras();
-        if (cameras && cameras.length > 0) {
-          const backCam =
-            cameras.find((c) => /back|rear|environment/i.test(c.label)) ||
-            cameras[cameras.length - 1];
-          if (backCam?.id) {
-            cameraConfig = backCam.id;
-          }
-        }
-      } catch {
-        cameraConfig = { facingMode: 'environment' };
-      }
-
-      // Enforce inline video playback on iOS Safari / WebKit standalone
-      const enforceInlineVideo = () => {
-        const container = document.getElementById(SCANNER_DIV_ID);
-        if (!container) return;
-        container.querySelectorAll('video').forEach((v) => {
-          v.setAttribute('playsinline', 'true');
-          v.setAttribute('webkit-playsinline', 'true');
-          v.setAttribute('muted', 'true');
-          v.setAttribute('autoplay', 'true');
-          v.muted = true;
-          v.playsInline = true;
-        });
-      };
-
       await scanner.start(
-        cameraConfig,
-        { fps: 12, qrbox: { width: 220, height: 220 } },
+        await resolveCameraConfig(),
+        qrScanConfig(),
         (decodedText) => {
           if (!isVerifyingRef.current) {
             isVerifyingRef.current = true;
             handleVerificationRef.current(decodedText);
           }
         },
-        () => { /* per-frame failures are normal */ },
+        () => { /* per-frame misses are normal */ },
       );
-
-      enforceInlineVideo();
 
       setScanStatus('scanning');
       setCameraActive(true);
@@ -335,11 +345,6 @@ const TicketScanner: React.FC = () => {
           <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <p className="text-xs font-bold text-red-700 dark:text-red-400 leading-snug break-words">{cameraError}</p>
-            {cameraError.includes('HTTPS') && (
-              <p className="text-[11px] text-red-600/80 dark:text-red-500/80 mt-1 leading-snug">
-                Mobile browsers require HTTPS for camera access. Use the Manual Entry tab instead, or set up HTTPS (ngrok/mkcert).
-              </p>
-            )}
           </div>
           <button
             onClick={startCamera}
@@ -667,10 +672,11 @@ const TicketScanner: React.FC = () => {
           display: none !important;
         }
         #${SCANNER_DIV_ID} video {
-          width: 100% !important;
-          height: 100% !important;
-          object-fit: cover !important;
-          display: block !important;
+          width: 100%;
+          height: 100%;
+          min-height: 240px;
+          object-fit: contain;
+          display: block;
         }
       `}</style>
     </div>

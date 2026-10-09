@@ -10,6 +10,15 @@
   .pb-safe {
     padding-bottom: max(env(safe-area-inset-bottom), 12px);
   }
+  /* Matches MobileTabBar: 3.5rem of tabs + the same bottom safe padding. */
+  .bottom-above-tab {
+    bottom: calc(3.5rem + max(env(safe-area-inset-bottom), 12px));
+  }
+  @media (min-width: 768px) {
+    .bottom-above-tab {
+      bottom: 0;
+    }
+  }
   .pl-safe {
     padding-left: max(env(safe-area-inset-left), 0px);
   }

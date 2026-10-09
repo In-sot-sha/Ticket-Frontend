@@ -904,7 +904,7 @@ const BookingPage = () => {
 
       {/* Only show content when event data is loaded or using mock */}
       {(eventData || !eventId) && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-28 lg:pb-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-[calc(9rem+max(env(safe-area-inset-bottom),12px))] md:pb-28 lg:pb-0">
         
         {/* Navigation & Header */}
         <div className="flex items-center gap-3 mb-3 lg:mb-4">
@@ -1924,7 +1924,7 @@ const BookingPage = () => {
       )}
 
       {(eventData || !eventId) && bookMode !== 'choice' && (
-        <div className="lg:hidden fixed bottom-[3.6rem] left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-t border-neutral-200 dark:border-neutral-800 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+        <div className="lg:hidden fixed bottom-above-tab left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-t border-neutral-200 dark:border-neutral-800 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[9px] font-ticket font-semibold uppercase tracking-[0.16em] text-neutral-400">

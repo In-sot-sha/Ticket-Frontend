@@ -226,7 +226,7 @@ function EventDetailSkeleton() {
         </div>
       </div>
 
-      <div className="lg:hidden fixed bottom-[3.6rem] left-0 right-0 z-40 border-t border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-gray-900/95 px-4 py-3">
+      <div className="lg:hidden fixed bottom-above-tab left-0 right-0 z-40 border-t border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-gray-900/95 px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-1.5">
             <div className={`h-2 w-8 rounded ${bone}`} />
@@ -814,7 +814,7 @@ const EventDetailPage = () => {
       {!isLoading && !notFound && !loadFailed && (<>
 
       {/* ─── Content ─── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-[calc(9rem+max(env(safe-area-inset-bottom),12px))] md:pb-28 lg:pb-2">
         <div className="flex flex-col lg:flex-row gap-8">
 
           {/* Left: Event Details */}
@@ -1639,7 +1639,7 @@ const EventDetailPage = () => {
 
       {/* ─── Sticky Bottom Bar (Mobile only, when not loading) ─── */}
       {!isLoading && !notFound && !loadFailed && (
-        <div className="lg:hidden fixed bottom-[3.6rem] left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-t border-neutral-200 dark:border-neutral-800 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+        <div className="lg:hidden fixed bottom-above-tab left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-t border-neutral-200 dark:border-neutral-800 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
           {ticketingBlocked ? (
             <div className="flex items-center justify-between gap-3">
               <div>

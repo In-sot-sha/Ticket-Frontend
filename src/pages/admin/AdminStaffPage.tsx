@@ -427,31 +427,22 @@ const AdminStaffPage: React.FC = () => {
         }
       />
 
-      {/* Responsive Stat Cards: Clean 3-col on laptop, 2-col on mobile */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 mb-3.5 sm:mb-4">
-        <div className="border border-neutral-200/80 dark:border-neutral-800 rounded-xl p-2.5 sm:p-3 bg-white dark:bg-neutral-900 shadow-2xs">
-          <div className="flex items-center justify-between text-neutral-400 mb-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Total Staff</span>
-            <Users className="h-3.5 w-3.5 text-blue-500" />
+      <div className="mb-3.5 grid grid-cols-3 divide-x divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200/80 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900 sm:mb-4">
+        {[
+          { label: 'Total staff', value: staff.length, blurb: 'On the roster' },
+          { label: 'Active', value: activeStaffCount, blurb: 'Can sign in', tone: 'text-rose-600 dark:text-rose-400' },
+          { label: 'Assigned', value: assignedStaffCount, blurb: 'Linked to an event' },
+        ].map((stat) => (
+          <div key={stat.label} className="min-w-0 px-3 py-2.5 sm:px-4 sm:py-3">
+            <p className="truncate text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+              {stat.label}
+            </p>
+            <p className={`mt-0.5 text-lg font-bold tabular-nums tracking-tight sm:text-xl ${stat.tone ?? 'text-neutral-900 dark:text-white'}`}>
+              {stat.value}
+            </p>
+            <p className="mt-0.5 truncate text-[10px] text-neutral-500">{stat.blurb}</p>
           </div>
-          <p className="text-base sm:text-xl font-extrabold tracking-tight">{staff.length}</p>
-        </div>
-
-        <div className="border border-neutral-200/80 dark:border-neutral-800 rounded-xl p-2.5 sm:p-3 bg-white dark:bg-neutral-900 shadow-2xs">
-          <div className="flex items-center justify-between text-neutral-400 mb-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Active Staff</span>
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-          </div>
-          <p className="text-base sm:text-xl font-extrabold tracking-tight">{activeStaffCount}</p>
-        </div>
-
-        <div className="col-span-2 sm:col-span-1 border border-neutral-200/80 dark:border-neutral-800 rounded-xl p-2.5 sm:p-3 bg-white dark:bg-neutral-900 shadow-2xs">
-          <div className="flex items-center justify-between text-neutral-400 mb-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Assigned to Events</span>
-            <Calendar className="h-3.5 w-3.5 text-rose-500" />
-          </div>
-          <p className="text-base sm:text-xl font-extrabold tracking-tight">{assignedStaffCount}</p>
-        </div>
+        ))}
       </div>
 
       {/* Filter & Search Bar */}

@@ -2,12 +2,9 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import {
   Calendar,
-  Ticket as TicketIcon,
-  CreditCard,
   Plus,
   Eye,
   Banknote,
-  Users,
   ChevronRight,
   Scan,
 } from 'lucide-react';
@@ -59,68 +56,47 @@ const OrganizerDashboard = () => {
         </Link>
       </div>
 
-      {/* Compact Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5">
+      <div className="grid grid-cols-2 divide-x divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200/80 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900 lg:grid-cols-4 lg:divide-y-0">
         {[
           {
-            label: 'Live Events',
+            label: 'Live events',
             value: liveEvents,
-            blurb: `${events.length} total events`,
-            icon: <Calendar className="h-3.5 w-3.5" />,
-            badgeBg: 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400',
+            blurb: 'On sale or coming up',
           },
           {
-            label: 'Tickets Sold',
+            label: 'Tickets sold',
             value: totalTickets,
-            blurb: 'Across all listings',
-            icon: <TicketIcon className="h-3.5 w-3.5" />,
-            badgeBg: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400',
+            blurb: 'Across your events',
           },
           {
-            label: 'Total Events',
+            label: 'Total events',
             value: events.length,
-            blurb: 'Includes draft pages',
-            icon: <Users className="h-3.5 w-3.5" />,
-            badgeBg: 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400',
+            blurb: 'Includes drafts',
           },
           {
-            label: 'Total Revenue',
+            label: 'Revenue',
             value: totalRevenue,
-            blurb: 'Actual sales earned',
+            blurb: 'From ticket sales',
             isCurrency: true,
-            icon: <CreditCard className="h-3.5 w-3.5" />,
-            badgeBg: 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400',
+            tone: 'text-rose-600 dark:text-rose-400',
           },
-        ].map((stat, i) => (
-          <div
-            key={i}
-            className="rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-2.5 sm:p-3 shadow-2xs flex flex-col justify-between gap-1.5"
-          >
-            {/* Top Row: Icon Badge & Label */}
-            <div className="flex items-center justify-between gap-1.5">
-              <div className={`p-1.5 rounded-lg shrink-0 ${stat.badgeBg}`}>
-                {stat.icon}
-              </div>
-              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-neutral-400 truncate">
-                {stat.label}
-              </span>
-            </div>
-
-            {/* Bottom Row: Metric Value & Blurb */}
-            <div className="min-w-0">
-              {isLoading ? (
-                <Skeleton className="h-6 w-16 mb-0.5" />
-              ) : hasError ? (
-                <p className="text-xs text-rose-500 font-semibold">Error</p>
-              ) : (
-                <p className="text-lg sm:text-xl font-bold tracking-tight text-neutral-900 dark:text-white font-mono">
-                  {stat.isCurrency ? formatNaira(stat.value) : String(stat.value)}
-                </p>
-              )}
-              <p className="text-[10px] text-neutral-400 truncate">
-                {stat.blurb}
+        ].map((stat) => (
+          <div key={stat.label} className="min-w-0 px-3 py-2.5 sm:px-4 sm:py-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+              {stat.label}
+            </p>
+            {isLoading ? (
+              <Skeleton className="mt-1.5 h-6 w-16" />
+            ) : hasError ? (
+              <p className="mt-1 text-xs font-semibold text-rose-500">Error</p>
+            ) : (
+              <p className={`mt-0.5 text-lg font-bold tabular-nums tracking-tight sm:text-xl ${stat.tone ?? 'text-neutral-900 dark:text-white'}`}>
+                {stat.isCurrency ? formatNaira(stat.value) : String(stat.value)}
               </p>
-            </div>
+            )}
+            <p className="mt-0.5 truncate text-[10px] text-neutral-500">
+              {stat.blurb}
+            </p>
           </div>
         ))}
       </div>

@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
+// import { devHttpsOptions } from './dev/lanPhone'
 
 export default defineConfig({
   plugins: [
@@ -120,14 +121,16 @@ export default defineConfig({
   server: {
     host:  true,   // 0.0.0.0 — LAN devices can reach the dev server
     port:  5181,
-    // Vite 4 built-in self-signed cert — no plugin needed.
-    // Mobile browsers need HTTPS for camera (getUserMedia).
-    // On first visit your phone shows an "untrusted cert" warning;
-    // tap Advanced → Proceed to accept it once.
-    // https: true,
+    // iPhone camera only. Uncomment the import above and the next line, then restart.
+    // https: devHttpsOptions(path.resolve(__dirname, '.certs')),
     proxy: {
       '/api': {
-        target:       'http://localhost:33333',
+        target:       'http://127.0.0.1:33312',
+        changeOrigin: true,
+        secure:       false,
+      },
+      '/uploads': {
+        target:       'http://127.0.0.1:33312',
         changeOrigin: true,
         secure:       false,
       },

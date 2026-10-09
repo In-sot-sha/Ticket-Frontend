@@ -13,6 +13,9 @@ dist/*
 dist-ssr
 *.local
 
+# Local HTTPS cert for iPhone camera testing
+.certs/
+
 # Environment variables — never commit secrets
 .env
 .env.local

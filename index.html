@@ -91,6 +91,32 @@
       }
     </script>
 
+    <!-- iPhone Safari only has crypto.randomUUID on HTTPS. The LAN http:// page still needs it. -->
+    <script>
+      (function () {
+        if (typeof crypto === 'undefined' || typeof crypto.randomUUID === 'function') return;
+        function randomUUID() {
+          var bytes = new Uint8Array(16);
+          crypto.getRandomValues(bytes);
+          bytes[6] = (bytes[6] & 15) | 64;
+          bytes[8] = (bytes[8] & 63) | 128;
+          var hex = '';
+          for (var i = 0; i < 16; i++) {
+            var h = bytes[i].toString(16);
+            hex += h.length === 1 ? '0' + h : h;
+          }
+          return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+        }
+        try {
+          crypto.randomUUID = randomUUID;
+        } catch (e) {
+          try {
+            Object.defineProperty(crypto, 'randomUUID', { value: randomUUID, configurable: true, writable: true });
+          } catch (e2) {}
+        }
+      })();
+    </script>
+
     <!-- Instant theme before JS (matches ThemeProvider storageKey, defaults to light mode) -->
     <script>
       (function () {
@@ -289,19 +315,26 @@
           if (screen) screen.style.display = 'none';
         }
 
-        // Only show if the user is actually offline! Never covers online users.
+        // Confirm with a request to this server. iPhone reports navigator.onLine
+        // as false on some local Wi-Fi even after this page has loaded, and the
+        // full-screen overlay then hides the app. Reloading on every "online"
+        // event also loops and leaves the page blank.
+        function confirmOffline() {
+          fetch('/favicon.ico?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
+            .then(function () { hideOfflineScreen(); })
+            .catch(function () { showOfflineScreen(); });
+        }
+
         if (typeof navigator !== 'undefined' && !navigator.onLine) {
-          showOfflineScreen();
+          confirmOffline();
         }
 
         window.addEventListener('offline', function () {
-          // If the page had an error or is booting offline
-          showOfflineScreen();
+          confirmOffline();
         });
 
         window.addEventListener('online', function () {
           hideOfflineScreen();
-          window.location.reload();
         });
 
         window.handleOfflineRetry = function () {
@@ -336,6 +369,23 @@
     <script>
       (function () {
         if (!('serviceWorker' in navigator)) return;
+
+        // A service worker left over from an earlier visit can serve a blank
+        // page when the phone opens the dev server by its LAN address.
+        var host = location.hostname;
+        var devHost = host === 'localhost' || host === '127.0.0.1' || host.indexOf('192.168.') === 0 || host.indexOf('10.') === 0;
+        if (devHost) {
+          navigator.serviceWorker.getRegistrations().then(function (regs) {
+            if (!regs.length) return;
+            Promise.all(regs.map(function (reg) { return reg.unregister(); })).then(function () {
+              try {
+                if (sessionStorage.getItem('dev-sw-cleared')) return;
+                sessionStorage.setItem('dev-sw-cleared', '1');
+              } catch (e) { return; }
+              window.location.reload();
+            });
+          }).catch(function () {});
+        }
 
         var hadController = !!navigator.serviceWorker.controller;
         var reloading = false;

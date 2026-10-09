@@ -10,7 +10,6 @@ import {
   Check,
   Eye,
   CheckCircle2,
-  Users,
   Briefcase,
   HardHat,
   Phone,
@@ -293,39 +292,23 @@ const AdminUsersPage = () => {
         </div>
       )}
 
-      {/* Responsive Metrics Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mb-4">
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 bg-white dark:bg-neutral-900 shadow-xs">
-          <div className="flex items-center justify-between text-neutral-400 mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Total Users</span>
-            <Users className="h-3.5 w-3.5 text-rose-500" />
+      <div className="mb-3 grid grid-cols-2 divide-x divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200/80 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900 sm:mb-4 sm:grid-cols-4 sm:divide-y-0">
+        {[
+          { label: 'Total users', value: stats.total, blurb: 'In this list', tone: 'text-rose-600 dark:text-rose-400' },
+          { label: 'Hosts', value: stats.organizers, blurb: 'Organizer accounts' },
+          { label: 'Gate staff', value: stats.staff, blurb: 'Can work the gate' },
+          { label: 'Admins', value: stats.admins, blurb: 'Platform admins' },
+        ].map((stat) => (
+          <div key={stat.label} className="flex min-w-0 items-baseline justify-between gap-2 px-2.5 py-1.5 sm:block sm:px-4 sm:py-3">
+            <p className="truncate text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+              {stat.label}
+            </p>
+            <p className={`text-sm font-bold tabular-nums tracking-tight sm:mt-0.5 sm:text-xl ${stat.tone ?? 'text-neutral-900 dark:text-white'}`}>
+              {stat.value}
+            </p>
+            <p className="mt-0.5 hidden truncate text-[10px] text-neutral-500 sm:block">{stat.blurb}</p>
           </div>
-          <p className="text-base sm:text-xl font-black tracking-tight">{stats.total}</p>
-        </div>
-
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 bg-white dark:bg-neutral-900 shadow-xs">
-          <div className="flex items-center justify-between text-neutral-400 mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Hosts / Orgs</span>
-            <Building2 className="h-3.5 w-3.5 text-purple-500" />
-          </div>
-          <p className="text-base sm:text-xl font-black tracking-tight">{stats.organizers}</p>
-        </div>
-
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 bg-white dark:bg-neutral-900 shadow-xs">
-          <div className="flex items-center justify-between text-neutral-400 mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Gate Staff</span>
-            <HardHat className="h-3.5 w-3.5 text-amber-500" />
-          </div>
-          <p className="text-base sm:text-xl font-black tracking-tight">{stats.staff}</p>
-        </div>
-
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 bg-white dark:bg-neutral-900 shadow-xs">
-          <div className="flex items-center justify-between text-neutral-400 mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Admins</span>
-            <Shield className="h-3.5 w-3.5 text-sky-500" />
-          </div>
-          <p className="text-base sm:text-xl font-black tracking-tight">{stats.admins}</p>
-        </div>
+        ))}
       </div>
 
       {isLoading ? (

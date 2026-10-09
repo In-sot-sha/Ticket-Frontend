@@ -96,22 +96,39 @@ const EventsDashboard = () => {
 
 function PageHead({ countLabel }: { countLabel: string }) {
   return (
-    <div className="flex items-start justify-between gap-3 mb-5">
-      <div className="min-w-0">
-        <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
-          Your <span className="text-rose-500">Events</span>
-        </h1>
-        {countLabel ? (
+    <div className="flex items-center justify-between gap-3 border-b border-neutral-100 dark:border-neutral-800 pb-2 mb-2">
+    <div>
+      <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+        Your <span className="text-rose-500">Events</span>
+      </h1>
+      <p className="text-[11px] sm:text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+      {countLabel ? (
           <p className="text-xs text-neutral-500 mt-1">{countLabel}</p>
         ) : null}
-      </div>
-      <Link to="/organizer/events/create" className="shrink-0">
-        <Button className="rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0 text-xs h-9 px-4">
-          <Plus className="h-4 w-4 mr-1.5" />
-          Create event
-        </Button>
-      </Link>
+      </p>
     </div>
+
+    <Link to="/organizer/events/create">
+      <Button className="rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0 shadow-2xs text-xs h-8 px-3.5">
+        <Plus className="h-4 w-4 mr-1.5" />
+        <span>Create event</span>
+      </Button>
+    </Link>
+  </div>
+    // <div className="flex items-start justify-between gap-3 mb-5">
+    //   <div className="min-w-0">
+      
+    //     {countLabel ? (
+    //       <p className="text-xs text-neutral-500 mt-1">{countLabel}</p>
+    //     ) : null}
+    //   </div>
+    //   <Link to="/organizer/events/create" className="shrink-0">
+    //     <Button className="rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0 text-xs h-8 px-4">
+    //       <Plus className="h-4 w-4 mr-1.5" />
+    //       Create event
+    //     </Button>
+    //   </Link>
+    // </div>
   );
 }
 

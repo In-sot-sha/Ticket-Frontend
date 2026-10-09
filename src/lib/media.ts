@@ -1,7 +1,11 @@
 import { getApiBaseUrl } from '../services/api';
 
 function apiOrigin(): string {
-  return getApiBaseUrl().replace(/\/api\/?$/, '');
+  const base = getApiBaseUrl();
+  if (base.startsWith('/')) {
+    return typeof window !== 'undefined' ? window.location.origin : '';
+  }
+  return base.replace(/\/api\/?$/, '');
 }
 
 /** Resolve event image URLs (relative paths or mismatched localhost ports). */
