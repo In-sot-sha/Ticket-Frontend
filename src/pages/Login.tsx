@@ -25,6 +25,24 @@ const Login = () => {
   const [searchParams] = useSearchParams();
   const { login, loginWithGoogle } = useAuth();
 
+  const getPostAuthPath = (): string => {
+    try {
+      const stored = localStorage.getItem('user');
+      if (!stored) return '/';
+      const authUser = JSON.parse(stored) as {
+        role?: string;
+        isOrganizer?: boolean;
+      };
+      if (authUser.role === 'ORGANIZER' || authUser.isOrganizer) {
+        localStorage.setItem('preferredRole', 'ORGANIZER');
+        return '/organizer';
+      }
+    } catch {
+      /* ignore corrupt storage */
+    }
+    return '/';
+  };
+
   const redirectAfterAuth = () => {
     clearLoggedOutFlag();
     clearNeonOAuthPending();
@@ -33,7 +51,7 @@ const Login = () => {
       navigate(redirect, { replace: true });
       return;
     }
-    navigate('/', { replace: true });
+    navigate(getPostAuthPath(), { replace: true });
   };
 
   useEffect(() => {

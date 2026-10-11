@@ -735,6 +735,12 @@ export const api = {
     updateOrganizationFee: (id: number, data: { serviceFeePercent?: number; absorbFee?: boolean }) =>
       apiRequest<any>('PUT', `/admin/host-applications/${id}/fee`, data),
 
+    /** Admin-only: PartyStorm ₦ take per ticket tier. null clears override. */
+    updateTicketTypePlatformFee: (id: number, platformFeeNaira: number | null) =>
+      apiRequest<{ message: string; ticketType: any }>('PUT', `/admin/ticket-types/${id}/platform-fee`, {
+        platformFeeNaira,
+      }),
+
     getPayouts: (status?: string) =>
       apiRequest<any[]>('GET', '/admin/payouts', undefined, { params: status ? { status } : undefined }),
 

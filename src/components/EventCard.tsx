@@ -21,7 +21,12 @@ interface Event {
   attendees?: number;
   latitude?: number;
   longitude?: number;
-  ticketTypes?: Array<{ price: number; quantity?: number | null; isPaused?: boolean }>;
+  ticketTypes?: Array<{
+    price: number;
+    quantity?: number | null;
+    isPaused?: boolean;
+    platformFeeNaira?: number | null;
+  }>;
   absorbFee?: boolean;
   organization?: { absorbFee?: boolean };
   isPromoted?: boolean;
@@ -62,10 +67,11 @@ const EventCard: React.FC<EventCardProps> = ({
   onHover,
 }) => {
   const absorbFee = Boolean(event.absorbFee ?? event.organization?.absorbFee);
-  const shownPrice = (price: unknown) => buyerPaysForTicket(ticketUnitPrice(price), absorbFee);
+  const shownPrice = (price: unknown, platformFeeNaira?: number | null) =>
+    buyerPaysForTicket(ticketUnitPrice(price), absorbFee, platformFeeNaira);
   let displayPrice = '';
   if (event.ticketTypes && event.ticketTypes.length > 0) {
-    const prices = event.ticketTypes.map((t) => shownPrice(t.price));
+    const prices = event.ticketTypes.map((t) => shownPrice(t.price, t.platformFeeNaira));
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
 

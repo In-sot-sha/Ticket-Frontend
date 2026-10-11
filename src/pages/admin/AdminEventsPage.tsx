@@ -33,6 +33,7 @@ import {
 } from '../../components/ui/dialog';
 import { useHostApplications } from '../../hooks/queries/useAdmin';
 import { formatNaira } from '../../lib/eventOrganizer';
+import { platformFeeForUnit } from '../../lib/fees';
 import { cn } from '../../lib/utils';
 
 interface TicketTypeAdmin {
@@ -41,6 +42,8 @@ interface TicketTypeAdmin {
   price: number;
   quantity: number | null;
   isPaused: boolean;
+  /** Admin override; null = default 6% formula */
+  platformFeeNaira?: number | null;
   _count?: { tickets: number };
 }
 
@@ -141,7 +144,81 @@ const AdminEventsPage: React.FC = () => {
   const [durationMode, setDurationMode] = useState<'1' | '7' | '30' | 'indefinite' | 'custom'>('7');
   const [customDate, setCustomDate] = useState('');
 
+  /** Draft PartyStorm ₦ takes keyed by ticket type id (empty string = clear / default). */
+  const [feeDrafts, setFeeDrafts] = useState<Record<number, string>>({});
+  const [savingFeeId, setSavingFeeId] = useState<number | null>(null);
+
   const { data: orgs = [] } = useHostApplications('verified');
+
+  useEffect(() => {
+    if (!selectedEvent?.ticketTypes) {
+      setFeeDrafts({});
+      return;
+    }
+    const next: Record<number, string> = {};
+    for (const tier of selectedEvent.ticketTypes) {
+      next[tier.id] =
+        tier.platformFeeNaira == null || tier.platformFeeNaira === undefined
+          ? ''
+          : String(Math.round(Number(tier.platformFeeNaira)));
+    }
+    setFeeDrafts(next);
+  }, [selectedEvent?.id, selectedEvent?.ticketTypes]);
+
+  const saveTierPlatformFee = async (
+    tier: TicketTypeAdmin,
+    value?: number | null,
+  ) => {
+    const platformFeeNaira =
+      value !== undefined
+        ? value
+        : (() => {
+            const raw = (feeDrafts[tier.id] ?? '').trim();
+            if (raw === '') return null;
+            return Math.round(Number(raw));
+          })();
+    if (platformFeeNaira != null && (!Number.isFinite(platformFeeNaira) || platformFeeNaira < 0)) {
+      setError('PartyStorm take must be a number ≥ 0, or blank for the default formula.');
+      return;
+    }
+    setSavingFeeId(tier.id);
+    setError(null);
+    try {
+      const res = await api.admin.updateTicketTypePlatformFee(tier.id, platformFeeNaira);
+      const updated = res.data?.ticketType;
+      const nextFee = updated?.platformFeeNaira ?? platformFeeNaira;
+      setSuccess(res.data?.message || 'Ticket fee updated');
+      setTimeout(() => setSuccess(null), 2500);
+      setFeeDrafts((prev) => ({
+        ...prev,
+        [tier.id]: nextFee == null ? '' : String(Math.round(Number(nextFee))),
+      }));
+      setEvents((prev) =>
+        prev.map((ev) => {
+          if (ev.id !== (selectedEvent?.id ?? updated?.eventId)) return ev;
+          return {
+            ...ev,
+            ticketTypes: (ev.ticketTypes || []).map((t) =>
+              t.id === tier.id ? { ...t, platformFeeNaira: nextFee } : t,
+            ),
+          };
+        }),
+      );
+      setSelectedEvent((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          ticketTypes: (prev.ticketTypes || []).map((t) =>
+            t.id === tier.id ? { ...t, platformFeeNaira: nextFee } : t,
+          ),
+        };
+      });
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to update ticket fee.');
+    } finally {
+      setSavingFeeId(null);
+    }
+  };
 
   const fetchEvents = () => {
     setLoading(true);
@@ -362,6 +439,17 @@ const AdminEventsPage: React.FC = () => {
           >
             <Eye className="h-3 w-3 mr-1 text-neutral-400" />
             View
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-lg text-xs h-7 px-2.5 font-semibold text-rose-600 border-rose-200 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/30"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/admin/events/${ev.id}#platform-fees`);
+            }}
+          >
+            Fees
           </Button>
 
           <Button
@@ -585,7 +673,7 @@ const AdminEventsPage: React.FC = () => {
                   <p className="text-xs font-bold uppercase tracking-wider text-neutral-400">
                     Ticket Tiers ({(selectedEvent.ticketTypes || []).length})
                   </p>
-                  <span className="text-[11px] text-neutral-400">Pricing & Capacity</span>
+                  <span className="text-[11px] text-neutral-400">Price · PartyStorm take</span>
                 </div>
 
                 <div className="space-y-2">
@@ -598,16 +686,27 @@ const AdminEventsPage: React.FC = () => {
                       const sold = tier._count?.tickets ?? 0;
                       const cap = tier.quantity;
                       const percent = cap && cap > 0 ? Math.min(100, Math.round((sold / cap) * 100)) : 0;
+                      const defaultTake = platformFeeForUnit(tier.price);
+                      const draft = feeDrafts[tier.id] ?? '';
+                      const saved =
+                        tier.platformFeeNaira == null || tier.platformFeeNaira === undefined
+                          ? ''
+                          : String(Math.round(Number(tier.platformFeeNaira)));
+                      const dirty = draft !== saved;
+                      const hostGets =
+                        tier.price <= 0
+                          ? 0
+                          : Math.max(0, Math.round(tier.price) - (draft === '' ? defaultTake : Math.round(Number(draft) || 0)));
 
                       return (
                         <div
                           key={tier.id}
                           className="p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/80 space-y-2"
                         >
-                          <div className="flex items-center justify-between">
-                            <div>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-bold text-neutral-900 dark:text-white">
+                                <span className="text-xs font-bold text-neutral-900 dark:text-white truncate">
                                   {tier.name}
                                 </span>
                                 {tier.isPaused && (
@@ -621,7 +720,7 @@ const AdminEventsPage: React.FC = () => {
                               </span>
                             </div>
 
-                            <div className="text-right">
+                            <div className="text-right shrink-0">
                               <span className="text-xs font-bold text-neutral-900 dark:text-white">
                                 {sold} sold
                               </span>
@@ -633,13 +732,63 @@ const AdminEventsPage: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* Progress bar */}
                           {cap && cap > 0 && (
                             <div className="h-1.5 w-full bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
                               <div
                                 className="h-full bg-rose-500 rounded-full transition-all duration-300"
                                 style={{ width: `${percent}%` }}
                               />
+                            </div>
+                          )}
+
+                          {tier.price > 0 && (
+                            <div className="rounded-lg border border-neutral-100 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-950/40 p-2 space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                                  PartyStorm take (₦)
+                                </label>
+                                <span className="text-[10px] text-neutral-400 truncate">
+                                  Default {formatNaira(defaultTake)} · Host ~{formatNaira(hostGets)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={1}
+                                  inputMode="numeric"
+                                  placeholder={String(defaultTake)}
+                                  value={draft}
+                                  onChange={(e) =>
+                                    setFeeDrafts((prev) => ({ ...prev, [tier.id]: e.target.value }))
+                                  }
+                                  className="w-full min-w-0 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 text-xs font-semibold tabular-nums focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                                />
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  disabled={!dirty || savingFeeId === tier.id}
+                                  onClick={() => void saveTierPlatformFee(tier)}
+                                  className="shrink-0 h-8 rounded-lg bg-rose-500 hover:bg-rose-600 text-white border-0 text-[11px] font-bold px-2.5 disabled:opacity-40"
+                                >
+                                  {savingFeeId === tier.id ? '…' : 'Save'}
+                                </Button>
+                                {saved !== '' && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={savingFeeId === tier.id}
+                                    onClick={() => void saveTierPlatformFee(tier, null)}
+                                    className="shrink-0 h-8 rounded-lg text-[11px] px-2"
+                                  >
+                                    Default
+                                  </Button>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-neutral-400 leading-snug">
+                                Blank uses 6% · min ₦100 · max ₦2,000. Paystack is still charged separately to the buyer (or host if fees are absorbed).
+                              </p>
                             </div>
                           )}
                         </div>

@@ -10,15 +10,29 @@ export const PAYSTACK_FLAT_WAIVE_BELOW = 2500;
 export const PAYSTACK_LOCAL_CAP = 2000;
 
 /** What the buyer pays for one ticket. Face price when the host absorbs the fee. */
-export function buyerPaysForTicket(facePrice: number, absorbFee = false): number {
+export function buyerPaysForTicket(
+  facePrice: number,
+  absorbFee = false,
+  platformFeeNaira?: number | null,
+): number {
   const face = Math.round(Number(facePrice) || 0);
   if (face <= 0) return 0;
   if (absorbFee) return face;
-  return calculateBuyerCheckout(face, platformFeeForUnit(face), false).total;
+  return calculateBuyerCheckout(face, platformFeeForUnit(face, platformFeeNaira), false).total;
 }
 
-export function platformFeeForUnit(price: number): number {
+/**
+ * PartyStorm take per unit.
+ * Pass `platformFeeNaira` (admin override) to skip the default 6% · min ₦100 · max ₦2,000 formula.
+ */
+export function platformFeeForUnit(
+  price: number,
+  platformFeeNaira?: number | null,
+): number {
   if (price <= 0) return 0;
+  if (platformFeeNaira != null && Number.isFinite(Number(platformFeeNaira))) {
+    return Math.max(0, Math.round(Number(platformFeeNaira)));
+  }
   return Math.min(
     PLATFORM_FEE_MAX,
     Math.max(PLATFORM_FEE_MIN, Math.round(price * PLATFORM_FEE_RATE)),

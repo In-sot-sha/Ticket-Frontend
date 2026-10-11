@@ -47,6 +47,7 @@ export interface OrganizerEvent {
     quantity: number | null;
     isPaused?: boolean;
     validOn?: string | null;
+    platformFeeNaira?: number | null;
   }>;
   allowVendors?: boolean;
   amenities?: string[] | string;

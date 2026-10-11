@@ -237,7 +237,7 @@ const BookingPage = () => {
           const qty = selectedTickets[t.id] || selectedTickets[Number(t.id)] || 0;
           if (qty <= 0) return acc;
           const unit = ticketUnitPrice(t.price);
-          return acc + platformFeeForUnit(unit) * qty;
+          return acc + platformFeeForUnit(unit, t.platformFeeNaira) * qty;
         }, 0) || 0);
 
   const { fee: serviceFee, total: totalAmount } = calculateBuyerCheckout(
@@ -928,70 +928,65 @@ const BookingPage = () => {
           </div>
         </div>
 
-        {/* Stepper bar - only for ticket or vendor, not for choice */}
-        {bookMode !== 'choice' && (
-          <div className="flex items-center justify-start gap-2 mb-4 overflow-x-auto py-0.5">
-            {bookMode === 'tickets' ? (
-              <>
-                {['Review Tickets', 'Guest Details', hasCheckoutSelection && totalAmount === 0 ? 'Confirm' : 'Payment'].map((s, idx) => {
-                  const stepNum = idx + 1;
-                  return (
-                    <Fragment key={s}>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <div 
-                          className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                            step === stepNum 
-                              ? 'bg-rose-500 text-white' 
-                              : step > stepNum 
-                              ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400' 
-                              : 'bg-neutral-250 text-neutral-400 dark:bg-neutral-900'
-                          }`}
-                        >
-                          {stepNum}
+        {/* Stepper — compact on mobile, full labels from sm+ */}
+        {bookMode !== 'choice' && (() => {
+          const ticketLabels = [
+            'Tickets',
+            'Details',
+            hasCheckoutSelection && totalAmount === 0 ? 'Confirm' : 'Pay',
+          ];
+          const vendorLabels = ['Stall', 'Business', 'Review', 'Pay'];
+          const labels = bookMode === 'tickets' ? ticketLabels : vendorLabels;
+          const progress = Math.min(100, Math.round((step / labels.length) * 100));
+          return (
+            <div className="mb-4 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+                  Step {step} of {labels.length}
+                  <span className="text-neutral-900 dark:text-white"> · {labels[step - 1]}</span>
+                </p>
+                <div className="hidden sm:flex items-center gap-1.5">
+                  {labels.map((label, idx) => {
+                    const stepNum = idx + 1;
+                    return (
+                      <Fragment key={label}>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <div
+                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                              step === stepNum
+                                ? 'bg-rose-500 text-white'
+                                : step > stepNum
+                                  ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400'
+                                  : 'bg-neutral-100 text-neutral-400 dark:bg-neutral-800'
+                            }`}
+                          >
+                            {stepNum}
+                          </div>
+                          <span
+                            className={`text-[11px] font-bold ${
+                              step === stepNum ? 'text-neutral-900 dark:text-white' : 'text-neutral-400'
+                            }`}
+                          >
+                            {label}
+                          </span>
                         </div>
-                        <span className={`text-xs font-bold ${step === stepNum ? 'text-neutral-900 dark:text-white' : 'text-neutral-400'}`}>
-                          {s}
-                        </span>
-                      </div>
-                      {idx < 2 && (
-                        <div className={`w-8 h-0.5 ${step > stepNum ? 'bg-rose-300' : 'bg-neutral-200 dark:bg-neutral-800'}`} />
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </>
-            ) : (
-              <>
-                {['Stall Type', 'Business Info', 'Review', 'Payment'].map((s, idx) => {
-                  const stepNum = idx + 1;
-                  return (
-                    <Fragment key={s}>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <div 
-                          className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                            step === stepNum 
-                              ? 'bg-rose-500 text-white' 
-                              : step > stepNum 
-                              ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400' 
-                              : 'bg-neutral-250 text-neutral-400 dark:bg-neutral-900'
-                          }`}
-                        >
-                          {stepNum}
-                        </div>
-                        <span className={`text-xs font-bold ${step === stepNum ? 'text-neutral-900 dark:text-white' : 'text-neutral-400'}`}>
-                          {s}
-                        </span>
-                      </div>
-                      {idx < 3 && (
-                        <div className={`w-8 h-0.5 ${step > stepNum ? 'bg-rose-300' : 'bg-neutral-200 dark:bg-neutral-800'}`} />
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </>
-            )}
-          </div>
-        )}
+                        {idx < labels.length - 1 && (
+                          <div className={`w-5 h-0.5 ${step > stepNum ? 'bg-rose-300' : 'bg-neutral-200 dark:bg-neutral-800'}`} />
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="h-1 w-full rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden sm:hidden">
+                <div
+                  className="h-full rounded-full bg-rose-500 transition-[width] duration-300 ease-out"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-8">
@@ -1125,7 +1120,7 @@ const BookingPage = () => {
                               ) : null}
                               <div className="mt-1 flex flex-wrap items-center gap-2">
                                 <p className="font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white leading-none">
-                                  {formatTicketPrice(buyerPaysForTicket(ticketUnitPrice(t.price), absorbFee))}
+                                  {formatTicketPrice(buyerPaysForTicket(ticketUnitPrice(t.price), absorbFee, t.platformFeeNaira))}
                                 </p>
                                 {!absorbFee && ticketUnitPrice(t.price) > 0 && (
                                   <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:bg-neutral-800 dark:text-neutral-300">

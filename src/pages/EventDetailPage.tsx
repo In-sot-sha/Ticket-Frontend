@@ -246,6 +246,8 @@ interface TicketType {
   quantity: number;
   isPaused?: boolean;
   validOn?: string | null;
+  /** Admin override: PartyStorm ₦ take per unit. Null = default formula. */
+  platformFeeNaira?: number | null;
 }
 
 interface Organizer {
@@ -653,9 +655,11 @@ const EventDetailPage = () => {
   let displayPrice = '';
   const onSaleTypes = (event.ticketTypes || []).filter((t) => !t.isPaused);
   const pricedTypes = onSaleTypes.length ? onSaleTypes : event.ticketTypes || [];
-  const shownPrice = (price: unknown) => buyerPaysForTicket(ticketUnitPrice(price), Boolean(event.absorbFee));
+  const absorbFee = Boolean(event.absorbFee);
+  const shownPrice = (price: unknown, platformFeeNaira?: number | null) =>
+    buyerPaysForTicket(ticketUnitPrice(price), absorbFee, platformFeeNaira);
   if (pricedTypes.length > 0) {
-    const prices = pricedTypes.map((t) => shownPrice(t.price));
+    const prices = pricedTypes.map((t) => shownPrice(t.price, t.platformFeeNaira));
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
 
