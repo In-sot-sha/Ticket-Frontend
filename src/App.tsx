@@ -8,6 +8,7 @@ import { RoleProvider } from './context/RoleContext';
 import { queryClient } from './lib/queryClient';
 import AppRoutes from './routes/AppRoutes';
 import ScrollToTop from './components/ScrollToTop';
+import GoogleAnalytics from './components/GoogleAnalytics';
 import ErrorBoundary from './components/ErrorBoundary';
 import OfflineBadge from './components/OfflineBadge';
 import ForcedPasswordGate from './components/ForcedPasswordGate';
@@ -19,6 +20,7 @@ function App() {
       <HelmetProvider>
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <ScrollToTop />
+          <GoogleAnalytics />
           <ErrorBoundary>
             <ThemeProvider>
               <AuthProvider>
