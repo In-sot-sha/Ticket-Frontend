@@ -56,7 +56,8 @@ export type CheckoutFees = {
 /**
  * Buyer checkout totals.
  * Pass-through: Fee = PartyStorm + Paystack (bundled); buyer pays subtotal + Fee.
- * Absorb: Fee = 0; buyer pays listed ticket/booth price only (host covers platform + processing).
+ * Absorb: Fee = 0; buyer pays listed ticket/booth price only.
+ * Paystack is settled from PartyStorm’s take (not the organizer subaccount).
  * Free / RSVP (₦0 face value) is never charged a platform or processing fee.
  */
 export function calculateBuyerCheckout(

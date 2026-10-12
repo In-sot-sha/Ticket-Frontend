@@ -569,7 +569,8 @@ const PayoutsPanel = () => {
   const platformFee = Math.min(Math.max(100, examplePrice * 0.06), 2000); // ₦600
   const paystackFee = examplePrice * 0.015 + 100; // ₦250
   const totalFees = platformFee + paystackFee;
-  const hostReceives = form.absorbFee ? examplePrice - totalFees : examplePrice;
+  // Absorb: organizer gets face − PartyStorm take (Paystack comes from our take).
+  const hostReceives = form.absorbFee ? examplePrice - platformFee : examplePrice;
   const buyerPays = form.absorbFee ? examplePrice : examplePrice + totalFees;
 
   return (
@@ -787,10 +788,10 @@ const PayoutsPanel = () => {
           />
           <div className="text-xs">
             <span className="font-semibold text-neutral-900 dark:text-white">
-              Absorb ticket platform & processing fees
+              Buyers pay ticket price only
             </span>
             <p className="text-neutral-500 text-[11px] mt-0.5">
-              When checked, buyers pay exact ticket price. Fees are subtracted from your direct payout.
+              When checked, buyers pay the listed price. Your payout is ticket price minus the PartyStorm fee. Card fees are covered by PartyStorm.
             </p>
           </div>
         </label>

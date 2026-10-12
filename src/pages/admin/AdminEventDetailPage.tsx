@@ -611,7 +611,7 @@ const AdminEventDetailPage: React.FC = () => {
                 PartyStorm take per ticket
               </h3>
               <p className="mt-0.5 text-[11px] text-neutral-500">
-                Type the ₦ amount we keep on each sold ticket, then tap Save. Leave blank for the default 6% formula.
+                Type the ₦ we keep per sold ticket (host gets the rest). Paystack comes out of our take. Leave blank for the default 6% formula.
               </p>
             </div>
 

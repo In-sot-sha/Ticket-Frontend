@@ -822,7 +822,7 @@ const OrganizationsPage: React.FC = () => {
                             </p>
                             <p className="text-[11px] text-neutral-500 mt-0.5">
                               {selected.absorbFee
-                                ? 'Attendees pay nominal face ticket price; fee deducted from host payout.'
+                                ? 'Attendees pay face price; host gets price minus PartyStorm take. Paystack is covered by PartyStorm.'
                                 : 'A bundled platform & processing fee is added to buyer checkout.'}
                             </p>
                           </div>

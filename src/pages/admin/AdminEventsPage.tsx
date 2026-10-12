@@ -787,7 +787,7 @@ const AdminEventsPage: React.FC = () => {
                                 )}
                               </div>
                               <p className="text-[10px] text-neutral-400 leading-snug">
-                                Blank uses 6% · min ₦100 · max ₦2,000. Paystack is still charged separately to the buyer (or host if fees are absorbed).
+                                Blank uses 6% · min ₦100 · max ₦2,000. Host gets ticket − this amount. Paystack is taken from our share.
                               </p>
                             </div>
                           )}
