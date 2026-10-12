@@ -1,19 +1,20 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { initAnalytics, isAnalyticsEnabled, trackPageView } from '../lib/analytics';
+import { isAnalyticsEnabled, trackPageView } from '../lib/analytics';
 
 /**
- * Loads GA4 once, then records a page_view on every React Router navigation.
- * Renders nothing. Place inside <Router>.
+ * Records page_view on React Router navigations.
+ * Initial page view is already sent by the gtag snippet in index.html.
  */
 const GoogleAnalytics = () => {
   const location = useLocation();
+  const isFirstLoad = useRef(true);
 
   useEffect(() => {
-    initAnalytics();
-  }, []);
-
-  useEffect(() => {
+    if (isFirstLoad.current) {
+      isFirstLoad.current = false;
+      return;
+    }
     if (!isAnalyticsEnabled()) return;
     const path = `${location.pathname}${location.search}${location.hash}`;
     trackPageView(path);

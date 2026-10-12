@@ -1,4 +1,4 @@
-/** Google Analytics 4 (gtag). Enabled when VITE_GA_MEASUREMENT_ID is set. */
+/** Google Analytics 4 — gtag is loaded from index.html (G-3G1RLJL6EG). */
 
 declare global {
   interface Window {
@@ -7,51 +7,20 @@ declare global {
   }
 }
 
-const MEASUREMENT_ID = (
-  typeof import.meta !== 'undefined' && import.meta.env?.VITE_GA_MEASUREMENT_ID
-    ? String(import.meta.env.VITE_GA_MEASUREMENT_ID).trim()
-    : ''
-);
-
-let initialized = false;
+export const GA_MEASUREMENT_ID = 'G-3G1RLJL6EG';
 
 export function isAnalyticsEnabled(): boolean {
-  return Boolean(MEASUREMENT_ID);
+  return typeof window !== 'undefined' && typeof window.gtag === 'function';
 }
 
-export function getGaMeasurementId(): string {
-  return MEASUREMENT_ID;
-}
-
-/** Load gtag.js once and configure GA4 without an automatic first page_view. */
-export function initAnalytics(): void {
-  if (initialized || !MEASUREMENT_ID || typeof window === 'undefined') return;
-  initialized = true;
-
-  window.dataLayer = window.dataLayer || [];
-  window.gtag = function gtag(...args: unknown[]) {
-    window.dataLayer.push(args);
-  };
-
-  window.gtag('js', new Date());
-  window.gtag('config', MEASUREMENT_ID, {
-    send_page_view: false,
-    anonymize_ip: true,
-  });
-
-  const script = document.createElement('script');
-  script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(MEASUREMENT_ID)}`;
-  document.head.appendChild(script);
-}
-
-/** Send a SPA page view (call on React Router location changes). */
+/** SPA page view after in-app navigations (initial load is sent by index.html). */
 export function trackPageView(path: string, title?: string): void {
-  if (!MEASUREMENT_ID || typeof window === 'undefined' || !window.gtag) return;
+  if (!isAnalyticsEnabled()) return;
   window.gtag('event', 'page_view', {
     page_path: path,
     page_title: title || document.title,
     page_location: window.location.href,
+    send_to: GA_MEASUREMENT_ID,
   });
 }
 
@@ -60,6 +29,6 @@ export function trackEvent(
   eventName: string,
   params?: Record<string, string | number | boolean | undefined>,
 ): void {
-  if (!MEASUREMENT_ID || typeof window === 'undefined' || !window.gtag) return;
-  window.gtag('event', eventName, params);
+  if (!isAnalyticsEnabled()) return;
+  window.gtag('event', eventName, { ...params, send_to: GA_MEASUREMENT_ID });
 }
