@@ -53,7 +53,7 @@ export const GoogleMapLocationPicker: React.FC<GoogleMapLocationPickerProps> = (
 
   const { isLoaded: isMapLoaded } = useJsApiLoader({
     id: 'google-map-script',
-    googleMapsApiKey: hasGoogleKey ? apiKey : '',
+    googleMapsApiKey: apiKey || '',
     libraries: LIBRARIES,
   });
 

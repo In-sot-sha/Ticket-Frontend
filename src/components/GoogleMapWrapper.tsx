@@ -42,7 +42,7 @@ export const GoogleMapWrapper: React.FC<GoogleMapWrapperProps> = ({
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
-    googleMapsApiKey: hasApiKey ? apiKey : '',
+    googleMapsApiKey: apiKey || '',
     libraries: LIBRARIES,
   });
 

@@ -29,7 +29,7 @@ export const VenueAutocomplete: React.FC<VenueAutocompleteProps> = ({
   const hasGoogleKey = Boolean(apiKey && apiKey !== 'YOUR_GOOGLE_MAPS_API_KEY_HERE');
   const { isLoaded: placesLoaded } = useJsApiLoader({
     id: 'google-map-script',
-    googleMapsApiKey: hasGoogleKey ? apiKey : '',
+    googleMapsApiKey: apiKey || '',
     libraries: ['places'],
   });
   const [suggestions, setSuggestions] = useState<VenueSuggestion[]>([]);
