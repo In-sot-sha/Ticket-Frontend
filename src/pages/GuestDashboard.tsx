@@ -98,6 +98,8 @@ const TicketsDashboard = () => {
     ticketType: ticket?.ticketType?.name,
     ticketStyle: ticket?.ticketType?.ticketStyle,
     accentColor: ticket?.ticketType?.accentColor,
+    organizerName: ticket?.event?.organization?.name,
+    organizerLogo: ticket?.event?.organization?.logo,
   });
 
   const modalIndex = selectedTicket

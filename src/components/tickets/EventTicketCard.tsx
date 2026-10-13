@@ -279,7 +279,7 @@ function HostBadge({
     return (
       <img
         src={src}
-        alt=""
+        alt={name || 'Host'}
         className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg object-cover bg-white shrink-0"
         crossOrigin="anonymous"
       />
@@ -489,7 +489,7 @@ function ClassicLayout(props: LayoutProps) {
           <div className="mt-2 bg-white p-2 rounded-2xl shadow-lg ring-1 ring-black/5">
             <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={mobileQr} />
           </div>
-          <p className="mt-1.5 text-[9px] font-bold uppercase tracking-wider opacity-90">Scan to enter</p>
+          <p className="mt-1.5 text-[9px] font-bold uppercase tracking-wider opacity-90">Do not share ticket</p>
           <p className="mt-0.5 text-[9px] font-semibold opacity-80">
             <EditCopy value={copy.sublabel} field="ticketSublabel" enabled={editable} onCopyChange={onCopyChange} />
           </p>
@@ -584,7 +584,7 @@ function ClassicLayout(props: LayoutProps) {
             </div>
             <div className="shrink-0 z-10">
               <p className="text-[9px] font-black tracking-[0.22em] uppercase opacity-85 font-mono">
-                Scan to entry
+                Do not share ticket
               </p>
               <p className="text-[10px] font-extrabold mt-0.5 tracking-wide font-mono">
                 <EditCopy value={copy.sublabel} field="ticketSublabel" enabled={editable} onCopyChange={onCopyChange} />
@@ -690,7 +690,7 @@ function ClassicLayout(props: LayoutProps) {
         </div>
         <div className="text-center z-10">
           <p className="text-[10px] font-bold uppercase opacity-90">
-            Scan to entry
+            Do not share ticket
           </p>
           <p className="text-[10px] font-mono opacity-75 mt-1">
             <EditCopy value={copy.sublabel} field="ticketSublabel" enabled={editable} onCopyChange={onCopyChange} />
@@ -831,7 +831,7 @@ function BoardingLayout(props: LayoutProps) {
             <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={qrSize} />
           </div>
           <div>
-            <p className="text-[9px] font-bold tracking-[0.2em] uppercase opacity-80">Scan to enter</p>
+            <p className="text-[9px] font-bold tracking-[0.2em] uppercase opacity-80">Do not share ticket</p>
           </div>
         </div>
       </div>
@@ -972,7 +972,7 @@ function StubLayout(props: LayoutProps) {
           <div className="bg-white p-1.5 rounded-xl shadow-md shrink-0" data-ticket-qr>
             <QrBlock qrCodeImage={qrCodeImage} qrValue={qrValue} size={qrSize} />
           </div>
-          <p className="text-[9px] sm:text-[10px] font-bold uppercase opacity-90">Scan to enter</p>
+          <p className="text-[9px] sm:text-[10px] font-bold uppercase opacity-90">Do not share ticket</p>
         </div>
       </div>
     </div>

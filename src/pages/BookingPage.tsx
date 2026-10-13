@@ -1512,7 +1512,7 @@ const BookingPage = () => {
                         Your details
                       </h2>
                       <p className="mt-0.5 text-xs text-neutral-500">
-                        Email is required for your ticket confirmation.
+                        Double-check your email — your tickets are sent there.
                       </p>
                     </div>
                     {isAuthenticated && user && (
@@ -1588,11 +1588,18 @@ const BookingPage = () => {
                       <input
                         type="email"
                         required
+                        autoComplete="email"
+                        inputMode="email"
                         value={guestEmail}
                         onChange={(e) => setGuestEmail(e.target.value)}
                         placeholder="you@email.com"
                         className="w-full px-3 pt-5 pb-1.5 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-900 dark:text-white placeholder:text-neutral-400"
                       />
+                    </div>
+                    <div className="px-3 py-2.5 border-b border-neutral-200 dark:border-neutral-700 bg-amber-50/80 dark:bg-amber-950/20">
+                      <p className="text-[11px] leading-snug text-amber-800 dark:text-amber-200/90">
+                        Confirm this email is correct. Your ticket QR and receipt go here — a wrong address means we can’t deliver them.
+                      </p>
                     </div>
                     <div className="relative">
                       <label className="absolute top-2 left-3 font-ticket text-[9px] font-semibold uppercase tracking-wider text-neutral-400">

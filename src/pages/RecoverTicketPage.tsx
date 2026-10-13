@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import {
   Mail,
-  Phone,
+  // Phone, // phone recovery temporarily disabled
   ArrowRight,
   CheckCircle2,
   CheckCircle,
@@ -55,7 +55,7 @@ function formatRelativeDate(dateString?: string) {
 type Step = 'input' | 'verify' | 'results';
 
 const RecoverTicketPage = () => {
-  const [method, setMethod] = useState<'email' | 'phone'>('email');
+  const [method] = useState<'email' | 'phone'>('email'); // phone recovery temporarily disabled
   const [inputValue, setInputValue] = useState('');
   const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
   const [step, setStep] = useState<Step>('input');
@@ -74,6 +74,8 @@ const RecoverTicketPage = () => {
     ticketType: ticket?.ticketType?.name,
     ticketStyle: ticket?.ticketType?.ticketStyle,
     accentColor: ticket?.ticketType?.accentColor,
+    organizerName: ticket?.event?.organization?.name,
+    organizerLogo: ticket?.event?.organization?.logo,
   });
 
   const modalIndex = selectedTicket
@@ -162,13 +164,22 @@ const RecoverTicketPage = () => {
           ticketHeadline: t.ticketType?.ticketHeadline,
           venueLabel: t.ticketType?.venueLabel,
           ticketSublabel: t.ticketType?.ticketSublabel,
+          validOn: t.ticketType?.validOn,
         },
         event: {
           id: t.event?.id,
           title: t.event?.title || 'Unknown Event',
           startDate: t.event?.startDate,
+          endDate: t.event?.endDate,
           location: t.event?.location || 'Location Pending',
           imageUrl: t.event?.imageUrl,
+          organization: t.event?.organization
+            ? {
+                id: t.event.organization.id,
+                name: t.event.organization.name,
+                logo: t.event.organization.logo,
+              }
+            : null,
         },
       }));
 
@@ -183,40 +194,40 @@ const RecoverTicketPage = () => {
 
   return (
     <div className="min-h-[calc(100dvh-4rem)] bg-gradient-to-br from-white via-neutral-50 to-neutral-100 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 overflow-x-hidden">
-      <div className="w-full max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 pt-6 sm:pt-10 md:pt-16 pb-28 md:pb-16">
+      <div className="w-full max-w-xl mx-auto px-3 sm:px-6 pt-4 sm:pt-8 pb-24 md:pb-12">
 
         {/* Header */}
-        <div className="text-center mb-6 sm:mb-10 md:mb-12">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-neutral-900 dark:text-white tracking-tight mb-2 sm:mb-3 px-1">
+        <div className="text-center mb-4 sm:mb-6">
+          <h1 className="text-xl sm:text-2xl font-extrabold text-neutral-900 dark:text-white tracking-tight mb-1 px-1">
             Find Your Tickets
           </h1>
-          <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 max-w-md mx-auto leading-relaxed px-1">
-            Lost access to your tickets? We&apos;ll help you recover them instantly using your email or phone number.
+          <p className="text-xs text-neutral-600 dark:text-neutral-400 max-w-sm mx-auto leading-snug px-1">
+            Enter the email you used at checkout to recover your passes.
           </p>
         </div>
 
         {/* Step indicator */}
-        <div className="flex items-center justify-center gap-1.5 sm:gap-2 mb-6 sm:mb-10 md:mb-12">
+        <div className="flex items-center justify-center gap-1.5 mb-4 sm:mb-6">
           {(['input', 'verify', 'results'] as Step[]).map((s, i) => (
             <React.Fragment key={s}>
               <div
-                className={`flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full text-[11px] sm:text-xs font-bold transition-all shadow-md ${
+                className={`flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full text-[10px] sm:text-[11px] font-bold transition-all ${
                   step === s
-                    ? 'bg-rose-500 text-white shadow-lg'
+                    ? 'bg-rose-500 text-white shadow-md'
                     : i < ['input', 'verify', 'results'].indexOf(step)
                     ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400'
                     : 'bg-neutral-200 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-600'
                 }`}
               >
                 {i < ['input', 'verify', 'results'].indexOf(step) ? (
-                  <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 ) : (
                   i + 1
                 )}
               </div>
               {i < 2 && (
                 <div
-                  className={`w-5 sm:w-8 h-1 rounded-full transition-all ${
+                  className={`w-4 sm:w-6 h-0.5 rounded-full transition-all ${
                     i < ['input', 'verify', 'results'].indexOf(step)
                       ? 'bg-emerald-300 dark:bg-emerald-700'
                       : 'bg-neutral-300 dark:bg-neutral-700'
@@ -232,20 +243,20 @@ const RecoverTicketPage = () => {
           {step === 'input' && (
             <motion.div
               key="input"
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.3 }}
-              className="bg-white dark:bg-neutral-900/80 backdrop-blur border border-neutral-200 dark:border-neutral-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-lg"
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.25 }}
+              className="bg-white dark:bg-neutral-900/80 backdrop-blur border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3.5 sm:p-5 shadow-md"
             >
               {error && (
-                <div className="mb-4 sm:mb-6 rounded-xl bg-red-50/80 dark:bg-red-950/30 p-3 sm:p-4 border border-red-100 dark:border-red-900/40">
+                <div className="mb-3 rounded-lg bg-red-50/80 dark:bg-red-950/30 p-2.5 border border-red-100 dark:border-red-900/40">
                   <p className="text-xs text-red-700 dark:text-red-300 font-bold leading-relaxed">{error}</p>
                 </div>
               )}
 
-              {/* Method toggle */}
-              <div className="flex bg-neutral-100 dark:bg-neutral-800/50 rounded-xl p-1 mb-5 sm:mb-8">
+              {/* Method toggle — phone recovery temporarily disabled
+              <div className="flex bg-neutral-100 dark:bg-neutral-800/50 rounded-xl p-1 mb-4">
                 <button
                   type="button"
                   onClick={() => {
@@ -253,10 +264,10 @@ const RecoverTicketPage = () => {
                     setInputValue('');
                     setError('');
                   }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 rounded-lg text-xs sm:text-sm font-bold transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all ${
                     method === 'email'
                       ? 'bg-white dark:bg-neutral-700 shadow-md text-neutral-900 dark:text-white'
-                      : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300'
+                      : 'text-neutral-500 dark:text-neutral-400'
                   }`}
                 >
                   <Mail className="h-4 w-4 shrink-0" />
@@ -269,48 +280,52 @@ const RecoverTicketPage = () => {
                     setInputValue('');
                     setError('');
                   }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 rounded-lg text-xs sm:text-sm font-bold transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all ${
                     method === 'phone'
                       ? 'bg-white dark:bg-neutral-700 shadow-md text-neutral-900 dark:text-white'
-                      : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300'
+                      : 'text-neutral-500 dark:text-neutral-400'
                   }`}
                 >
                   <Phone className="h-4 w-4 shrink-0" />
                   Phone
                 </button>
               </div>
+              */}
 
-              {/* Input field */}
-              <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden mb-5 sm:mb-8 bg-neutral-50 dark:bg-neutral-950/50">
+              {/* Email input */}
+              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden mb-3.5 sm:mb-4 bg-neutral-50 dark:bg-neutral-950/50">
                 <div className="relative">
-                  <label className="absolute top-3 left-4 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-                    {method === 'email' ? 'Email Address' : 'Phone Number'}
+                  <label className="absolute top-2.5 left-3.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide flex items-center gap-1">
+                    <Mail className="h-3 w-3" />
+                    Email Address
                   </label>
-                  {method === 'email' ? (
-                    <input
-                      type="email"
-                      value={inputValue}
-                      onChange={(e) => {
-                        setInputValue(e.target.value);
-                        setError('');
-                      }}
-                      placeholder="you@example.com"
-                      autoComplete="email"
-                      className="w-full px-4 pt-8 pb-4 text-base sm:text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600"
-                    />
-                  ) : (
-                    <input
-                      type="tel"
-                      value={inputValue}
-                      onChange={(e) => {
-                        setInputValue(e.target.value);
-                        setError('');
-                      }}
-                      placeholder="+234 801 234 5678"
-                      autoComplete="tel"
-                      className="w-full px-4 pt-8 pb-4 text-base sm:text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600"
-                    />
-                  )}
+                  <input
+                    type="email"
+                    value={inputValue}
+                    onChange={(e) => {
+                      setInputValue(e.target.value);
+                      setError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && inputValue) void handleSendCode();
+                    }}
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    className="w-full px-3.5 pt-7 pb-3 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600"
+                  />
+                  {/* Phone input — temporarily disabled
+                  <input
+                    type="tel"
+                    value={inputValue}
+                    onChange={(e) => {
+                      setInputValue(e.target.value);
+                      setError('');
+                    }}
+                    placeholder="+234 801 234 5678"
+                    autoComplete="tel"
+                    className="w-full px-3.5 pt-7 pb-3 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600"
+                  />
+                  */}
                 </div>
               </div>
 
@@ -318,7 +333,7 @@ const RecoverTicketPage = () => {
                 type="button"
                 onClick={handleSendCode}
                 disabled={!inputValue || isLoading}
-                className="w-full h-12 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-full text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-full text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isLoading ? (
                   <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -330,10 +345,8 @@ const RecoverTicketPage = () => {
                 )}
               </button>
 
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 text-center mt-4 sm:mt-5 px-1">
-                {method === 'phone'
-                  ? "We'll send a 6-digit code on WhatsApp."
-                  : "We'll send a secure 6-digit code to verify your identity"}
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center mt-3 px-1">
+                We&apos;ll email you a 6-digit code to verify.
               </p>
             </motion.div>
           )}
@@ -342,18 +355,18 @@ const RecoverTicketPage = () => {
           {step === 'verify' && (
             <motion.div
               key="verify"
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.3 }}
-              className="bg-white dark:bg-neutral-900/80 backdrop-blur border border-neutral-200 dark:border-neutral-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-lg"
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.25 }}
+              className="bg-white dark:bg-neutral-900/80 backdrop-blur border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3.5 sm:p-5 shadow-md"
             >
-              <div className="text-center mb-6 sm:mb-10">
-                <h3 className="text-xl sm:text-2xl font-extrabold text-neutral-900 dark:text-white mb-2">
+              <div className="text-center mb-4 sm:mb-5">
+                <h3 className="text-lg sm:text-xl font-extrabold text-neutral-900 dark:text-white mb-1">
                   Enter Verification Code
                 </h3>
-                <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 px-1">
-                  We sent a code to{' '}
+                <p className="text-xs text-neutral-600 dark:text-neutral-400 px-1">
+                  Sent to{' '}
                   <span className="font-bold text-neutral-900 dark:text-white break-all">
                     {inputValue}
                   </span>
@@ -361,13 +374,13 @@ const RecoverTicketPage = () => {
               </div>
 
               {error && (
-                <div className="mb-5 sm:mb-8 rounded-xl bg-red-50/80 dark:bg-red-950/30 p-3 sm:p-4 border border-red-100 dark:border-red-900/40">
+                <div className="mb-3 rounded-lg bg-red-50/80 dark:bg-red-950/30 p-2.5 border border-red-100 dark:border-red-900/40">
                   <p className="text-xs text-red-700 dark:text-red-300 font-bold leading-relaxed">{error}</p>
                 </div>
               )}
 
               {/* OTP inputs */}
-              <div className="flex items-center justify-center gap-1.5 sm:gap-2.5 mb-6 sm:mb-10 px-0.5">
+              <div className="flex items-center justify-center gap-1.5 sm:gap-2 mb-4 sm:mb-5 px-0.5">
                 {verificationCode.map((digit, i) => (
                   <input
                     key={i}
@@ -382,7 +395,7 @@ const RecoverTicketPage = () => {
                     onChange={(e) => handleCodeChange(i, e.target.value)}
                     onKeyDown={(e) => handleCodeKeyDown(i, e)}
                     onPaste={handlePaste}
-                    className="w-10 h-12 sm:w-14 sm:h-16 min-w-0 flex-1 max-w-14 text-center text-xl sm:text-2xl font-extrabold bg-neutral-50 dark:bg-neutral-800 border-2 border-neutral-200 dark:border-neutral-700 rounded-xl focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all text-neutral-900 dark:text-white"
+                    className="w-9 h-11 sm:w-12 sm:h-14 min-w-0 flex-1 max-w-12 text-center text-lg sm:text-xl font-extrabold bg-neutral-50 dark:bg-neutral-800 border-2 border-neutral-200 dark:border-neutral-700 rounded-xl focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all text-neutral-900 dark:text-white"
                   />
                 ))}
               </div>
@@ -391,21 +404,20 @@ const RecoverTicketPage = () => {
                 type="button"
                 onClick={handleVerify}
                 disabled={verificationCode.join('').length < 6 || isLoading}
-                className="w-full h-12 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-full text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full h-11 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 text-white rounded-full text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isLoading ? (
                   <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <>
-                    <span className="sm:hidden">Verify &amp; Get Tickets</span>
-                    <span className="hidden sm:inline">Verify &amp; Retrieve Tickets</span>
+                    Verify &amp; Get Tickets
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
               </button>
 
               {/* Helper links */}
-              <div className="mt-5 sm:mt-6 space-y-3 text-center">
+              <div className="mt-3.5 space-y-2 text-center">
                 <button
                   type="button"
                   onClick={() => {
@@ -414,10 +426,11 @@ const RecoverTicketPage = () => {
                   }}
                   className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline transition-colors"
                 >
-                  ← Use a different {method}
+                  ← Use a different email
                 </button>
                 <button
                   type="button"
+                  onClick={() => void handleSendCode()}
                   className="block w-full text-xs text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
                 >
                   Didn&apos;t receive a code?{' '}
@@ -431,35 +444,32 @@ const RecoverTicketPage = () => {
           {step === 'results' && (
             <motion.div
               key="results"
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.3 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.25 }}
               className="min-w-0"
             >
-              <div className="text-center mb-5 sm:mb-8 px-1">
-                <div className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-emerald-100 dark:bg-emerald-950/40 rounded-2xl mb-3 shadow-md">
-                  <CheckCircle2 className="h-6 w-6 sm:h-7 sm:w-7 text-emerald-600 dark:text-emerald-400" />
+              <div className="text-center mb-3.5 sm:mb-5 px-1">
+                <div className="inline-flex items-center justify-center w-10 h-10 bg-emerald-100 dark:bg-emerald-950/40 rounded-xl mb-2">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <h3 className="text-xl sm:text-2xl font-extrabold text-neutral-900 dark:text-white mb-2">
+                <h3 className="text-lg sm:text-xl font-extrabold text-neutral-900 dark:text-white mb-0.5">
                   {recoveredTickets.length} ticket{recoveredTickets.length !== 1 ? 's' : ''} found
                 </h3>
-                <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400">
-                  Associated with <span className="font-bold break-all">{inputValue}</span>
-                </p>
-                <p className="mt-1 text-xs text-neutral-500">
-                  Tap View to open your pass and download a PNG.
+                <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                  For <span className="font-bold break-all">{inputValue}</span>
                 </p>
               </div>
 
               {recoveredTickets.length === 0 ? (
-                <div className="text-center py-10 sm:py-14 bg-neutral-50 dark:bg-neutral-900/50 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl sm:rounded-3xl mb-6 sm:mb-8">
+                <div className="text-center py-8 bg-neutral-50 dark:bg-neutral-900/50 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl mb-4">
                   <p className="text-sm text-neutral-600 dark:text-neutral-400 px-4">
-                    No tickets matched this contact.
+                    No tickets matched this email.
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 mb-6 sm:mb-8">
+                <div className="grid grid-cols-1 gap-2 mb-4 sm:mb-5">
                   {recoveredTickets.map((ticket) => {
                     const past = isTicketEventPast(ticket);
                     const coverImage =
@@ -529,7 +539,7 @@ const RecoverTicketPage = () => {
                 </div>
               )}
 
-              <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -540,13 +550,13 @@ const RecoverTicketPage = () => {
                     setSelectedTicket(null);
                     setError('');
                   }}
-                  className="flex-1 text-sm font-bold text-neutral-700 dark:text-neutral-300 border-2 border-neutral-200 dark:border-neutral-800 rounded-full px-5 py-3 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  className="flex-1 text-xs sm:text-sm font-bold text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-800 rounded-full px-4 py-2.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 >
-                  Search Another Account
+                  Try another email
                 </button>
                 <Link
                   to="/"
-                  className="flex-1 text-sm font-bold text-white bg-gradient-to-r from-neutral-900 to-neutral-800 dark:from-white dark:to-neutral-200 dark:text-neutral-900 rounded-full px-5 py-3 hover:opacity-90 transition-opacity text-center"
+                  className="flex-1 text-xs sm:text-sm font-bold text-white bg-neutral-900 dark:bg-white dark:text-neutral-900 rounded-full px-4 py-2.5 hover:opacity-90 transition-opacity text-center"
                 >
                   Back to Home
                 </Link>

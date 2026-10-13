@@ -264,6 +264,35 @@ export function useAdminReplySupport(source: 'admin' | 'staff' = 'admin') {
   });
 }
 
+export function useAdminResendSupportReply(source: 'admin' | 'staff' = 'admin') {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, messageId }: { id: number; messageId: number }) =>
+      source === 'staff'
+        ? api.staff.resendSupportReply(id, messageId)
+        : api.admin.resendSupportReply(id, messageId),
+    onSuccess: async (res, vars) => {
+      const reply = res.data?.reply;
+      const ticketKey =
+        source === 'staff'
+          ? queryKeys.staff.supportTicket(vars.id)
+          : queryKeys.admin.supportTicket(vars.id);
+
+      if (reply) {
+        queryClient.setQueryData(ticketKey, (old: any) => {
+          if (!old?.messages) return old;
+          return {
+            ...old,
+            messages: old.messages.map((m: any) => (m.id === reply.id ? { ...m, ...reply } : m)),
+          };
+        });
+      }
+
+      await refreshAdminQueries(queryClient);
+    },
+  });
+}
+
 export function useAdminUpdateSupportTicket(source: 'admin' | 'staff' = 'admin') {
   const queryClient = useQueryClient();
   return useMutation({

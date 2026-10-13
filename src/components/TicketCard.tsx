@@ -30,6 +30,11 @@ export interface TicketCardTicket {
     endDate?: string;
     location?: string;
     imageUrl?: string;
+    organization?: {
+      id?: number;
+      name?: string | null;
+      logo?: string | null;
+    } | null;
   };
   status?: string;
 }
@@ -213,8 +218,8 @@ const TicketCard: React.FC<TicketCardProps> = ({
     eventTime: eventTime || undefined,
     eventLocation: eventLoc,
     eventImageUrl: bannerImg || undefined,
-    organizerName: eventMeta.organizerName,
-    organizerLogo: eventMeta.organizerLogo,
+    organizerName: eventMeta.organizerName ?? ticket.event?.organization?.name,
+    organizerLogo: eventMeta.organizerLogo ?? ticket.event?.organization?.logo,
     qrValue,
     ticketType: {
       name: typeName,

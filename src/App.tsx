@@ -11,6 +11,7 @@ import ScrollToTop from './components/ScrollToTop';
 import GoogleAnalytics from './components/GoogleAnalytics';
 import ErrorBoundary from './components/ErrorBoundary';
 import OfflineBadge from './components/OfflineBadge';
+import WhatsAppFloat from './components/WhatsAppFloat';
 import ForcedPasswordGate from './components/ForcedPasswordGate';
 import './index.css';
 
@@ -26,6 +27,7 @@ function App() {
               <AuthProvider>
                 <RoleProvider>
                   <OfflineBadge />
+                  <WhatsAppFloat />
                   <ForcedPasswordGate>
                     <AppRoutes />
                   </ForcedPasswordGate>

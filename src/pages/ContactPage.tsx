@@ -111,35 +111,36 @@ const ContactPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-rose-50/40 via-white to-white dark:from-gray-950 dark:via-gray-950 dark:to-gray-950">
-      <div className="max-w-6xl mx-auto px-4 py-8 md:py-12 pb-24">
-
-        <div className="mb-6 md:mb-8">
-          <h1 className="text-2xl md:text-3xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
-            Contact <span className="text-rose-500">Us</span>
+    <div className="min-h-[calc(100dvh-4rem)] bg-neutral-50 dark:bg-neutral-950">
+      <header className="sticky top-0 z-20 border-b border-neutral-200/80 dark:border-neutral-800 bg-white/95 dark:bg-neutral-950/95 backdrop-blur">
+        <div className="mx-auto flex h-12 sm:h-14 max-w-5xl items-center px-3 sm:px-6">
+          <h1 className="truncate text-sm sm:text-base font-extrabold tracking-tight text-neutral-900 dark:text-white">
+            Contact
           </h1>
         </div>
+      </header>
 
+      <div className="mx-auto max-w-5xl px-3 sm:px-6 py-3 sm:py-5 pb-24 md:pb-10">
         {/* Lost tickets banner */}
-        <div className="mb-8 p-5 md:p-6 bg-gradient-to-r from-rose-50 via-pink-50 to-rose-50 dark:from-rose-950/20 dark:via-pink-950/10 dark:to-rose-950/20 rounded-2xl border border-rose-100 dark:border-rose-900/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="h-10 w-10 rounded-xl bg-rose-500/10 dark:bg-rose-500/20 flex items-center justify-center shrink-0 text-rose-500">
-              <Ticket className="h-5 w-5" />
+        <div className="mb-3 flex flex-row items-center justify-between gap-3 rounded-xl border border-rose-100 dark:border-rose-900/40 bg-rose-50/80 dark:bg-rose-950/20 px-3.5 py-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500">
+              <Ticket className="h-4 w-4" />
             </div>
-            <div>
-              <h2 className="font-bold text-neutral-900 dark:text-white text-sm md:text-base">
+            <div className="min-w-0">
+              <h2 className="text-sm font-bold text-neutral-900 dark:text-white">
                 Lost your tickets?
               </h2>
-              <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">
-                Recover valid tickets with the email or phone used at checkout.
+              <p className="text-[11px] text-neutral-500 truncate">
+                Recover with the email used at checkout.
               </p>
             </div>
           </div>
           <Link
             to="/recover-ticket"
-            className="shrink-0 w-full sm:w-auto text-center bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-xl text-xs font-bold px-5 py-2.5 shadow-sm hover:shadow hover:opacity-95 transition-all active:scale-[0.98]"
+            className="shrink-0 rounded-lg bg-rose-500 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-rose-600"
           >
-            Recover Tickets
+            Recover
           </Link>
         </div>
 

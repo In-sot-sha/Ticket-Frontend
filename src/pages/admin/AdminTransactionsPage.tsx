@@ -1,19 +1,15 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
   Check,
   X,
-  Search,
   Copy,
   Ticket,
-  ExternalLink,
-  Calendar,
-  User,
-  Building2,
   RefreshCw,
   AlertCircle,
   CheckCircle2,
+  Mail,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Skeleton } from '../../components/ui/skeleton';
@@ -152,9 +148,30 @@ const AdminTransactionsPage: React.FC = () => {
   const [resolveResult, setResolveResult] = useState<any>(null);
   const [resolveError, setResolveError] = useState('');
 
+  const [pendingRows, setPendingRows] = useState<
+    Array<{
+      id: number;
+      reference: string;
+      kind: string;
+      eventTitle: string | null;
+      chargeAmount: number;
+      email: string | null;
+      createdAt: string;
+    }>
+  >([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [sweepBusy, setSweepBusy] = useState(false);
+  const [sweepNotice, setSweepNotice] = useState<string | null>(null);
+  const [sweepError, setSweepError] = useState('');
+
+  const [resendEmail, setResendEmail] = useState('');
+  const [resendBusy, setResendBusy] = useState(false);
+  const [resendNotice, setResendNotice] = useState<string | null>(null);
+  const [resendError, setResendError] = useState('');
+
   const { data: revenue, isLoading: revenueLoading } = useAdminRevenue();
   const { data: settlementData, isLoading: settlementsLoading } = useAdminSettlements();
-  const { data, isLoading: transactionsLoading } = useAdminTransactions({
+  const { data, isLoading: transactionsLoading, refetch: refetchTransactions } = useAdminTransactions({
     status: status === 'all' ? undefined : status,
     page,
   });
@@ -166,6 +183,31 @@ const AdminTransactionsPage: React.FC = () => {
   const approvePayoutMutation = useApprovePayout();
   const rejectPayoutMutation = useRejectPayout();
 
+  const loadPendingPayments = useCallback(async () => {
+    setPendingLoading(true);
+    try {
+      const { api } = await import('../../services/api');
+      const res = await api.admin.getPendingPayments();
+      setPendingRows(res.data?.pending ?? []);
+    } catch {
+      setPendingRows([]);
+    } finally {
+      setPendingLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'transactions') void loadPendingPayments();
+  }, [activeTab, loadPendingPayments]);
+
+  useEffect(() => {
+    if (selectedTx?.type === 'TICKET') {
+      setResendEmail(selectedTx.buyer?.email || '');
+      setResendNotice(null);
+      setResendError('');
+    }
+  }, [selectedTx]);
+
   const handleResolvePayment = async (customRef?: string) => {
     const reference = (customRef || resolveRef).trim();
     if (!reference) return;
@@ -176,10 +218,64 @@ const AdminTransactionsPage: React.FC = () => {
       const { api } = await import('../../services/api');
       const res = await api.admin.resolvePayment(reference);
       setResolveResult(res.data);
+      void loadPendingPayments();
+      void refetchTransactions();
     } catch (err: any) {
       setResolveError(err.response?.data?.message || err.message || 'Resolve failed');
     } finally {
       setResolveBusy(false);
+    }
+  };
+
+  const handleSweepPending = async () => {
+    setSweepBusy(true);
+    setSweepError('');
+    setSweepNotice(null);
+    try {
+      const { api } = await import('../../services/api');
+      const res = await api.admin.sweepPendingPayments();
+      const d = res.data;
+      setSweepNotice(
+        `Checked ${d.scanned}: ${d.fulfilled} fulfilled, ${d.abandoned ?? 0} abandoned cleared, ${d.stillPending} still open, ${d.failed} errors.`,
+      );
+      void loadPendingPayments();
+      void refetchTransactions();
+    } catch (err: any) {
+      setSweepError(err.response?.data?.message || err.message || 'Sweep failed');
+    } finally {
+      setSweepBusy(false);
+    }
+  };
+
+  const handleResendTickets = async () => {
+    if (!selectedTx || selectedTx.type !== 'TICKET') return;
+    const email = resendEmail.trim();
+    if (!email) {
+      setResendError('Enter the delivery email');
+      return;
+    }
+    setResendBusy(true);
+    setResendError('');
+    setResendNotice(null);
+    try {
+      const { api } = await import('../../services/api');
+      const res = await api.admin.resendOrderTickets(selectedTx.txId, email);
+      setResendNotice(res.data?.message || `Tickets resent to ${email}`);
+      setSelectedTx((prev) =>
+        prev
+          ? {
+              ...prev,
+              buyer: prev.buyer
+                ? { ...prev.buyer, email: res.data?.deliveredTo || email }
+                : prev.buyer,
+            }
+          : prev,
+      );
+      void refetchTransactions();
+    } catch (err: any) {
+      setResendError(err.response?.data?.message || err.message || 'Resend failed');
+    } finally {
+      setResendBusy(false);
     }
   };
 
@@ -308,37 +404,113 @@ const AdminTransactionsPage: React.FC = () => {
         )
       )}
 
-      <div className="mb-3 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 dark:border-neutral-800 dark:bg-neutral-900">
-        <div className="flex items-center gap-2">
-          <span className="hidden shrink-0 text-[10px] font-bold uppercase tracking-wider text-neutral-400 sm:inline">
-            Reference
-          </span>
-          <input
-            value={resolveRef}
-            onChange={(e) => setResolveRef(e.target.value)}
-            placeholder="Paystack reference"
-            className="h-7 min-w-0 flex-1 rounded-md border border-neutral-200 bg-white px-2 text-xs dark:border-neutral-800 dark:bg-neutral-950"
-          />
-          <Button
-            size="sm"
-            disabled={resolveBusy || !resolveRef.trim()}
-            onClick={() => handleResolvePayment()}
-            className="h-7 shrink-0 rounded-md bg-rose-500 px-2.5 text-xs font-bold text-white hover:bg-rose-600"
-          >
-            {resolveBusy ? 'Checking…' : 'Verify'}
-          </Button>
+      {activeTab === 'transactions' && (
+        <div className="mb-3 rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 overflow-hidden">
+          <div className="flex flex-wrap items-center gap-2 px-2.5 py-2 border-b border-neutral-100 dark:border-neutral-800">
+            <input
+              value={resolveRef}
+              onChange={(e) => setResolveRef(e.target.value)}
+              placeholder="Paystack reference…"
+              className="h-7 min-w-0 flex-1 rounded-md border border-neutral-200 bg-white px-2 text-xs dark:border-neutral-700 dark:bg-neutral-950"
+            />
+            <Button
+              size="sm"
+              disabled={resolveBusy || !resolveRef.trim()}
+              onClick={() => handleResolvePayment()}
+              className="h-7 shrink-0 rounded-md bg-rose-500 px-2.5 text-xs font-bold text-white hover:bg-rose-600"
+            >
+              {resolveBusy ? '…' : 'Verify'}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={pendingLoading || sweepBusy}
+              onClick={() => void loadPendingPayments()}
+              className="h-7 rounded-md text-[11px] px-2"
+              title="Refresh open checkouts"
+            >
+              <RefreshCw className={cn('h-3 w-3', pendingLoading && 'animate-spin')} />
+            </Button>
+            <Button
+              size="sm"
+              disabled={sweepBusy || pendingRows.length === 0}
+              onClick={() => void handleSweepPending()}
+              className="h-7 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold px-2"
+              title="Fulfill paid ones; clear abandoned"
+            >
+              {sweepBusy ? '…' : `Clean (${pendingRows.length})`}
+            </Button>
+          </div>
+
+          {(resolveError || sweepError || sweepNotice || resolveResult) && (
+            <div className="px-2.5 py-1.5 space-y-1 border-b border-neutral-100 dark:border-neutral-800">
+              {resolveError && (
+                <p className="text-[11px] text-red-500 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3 shrink-0" /> {resolveError}
+                </p>
+              )}
+              {sweepError && (
+                <p className="text-[11px] text-red-500 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3 shrink-0" /> {sweepError}
+                </p>
+              )}
+              {sweepNotice && (
+                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3 shrink-0" /> {sweepNotice}
+                </p>
+              )}
+              {resolveResult && (
+                <p className="text-[11px] text-neutral-600 dark:text-neutral-300">
+                  {resolveResult.message ||
+                    (resolveResult.resolved
+                      ? 'Fulfilled / already fulfilled'
+                      : resolveResult.abandoned
+                        ? 'Not paid — cleared from list'
+                        : `Paystack: ${resolveResult.paystack?.status ?? 'unknown'}`)}
+                </p>
+              )}
+            </div>
+          )}
+
+          {pendingLoading ? (
+            <p className="px-2.5 py-2 text-[11px] text-neutral-400">Loading open checkouts…</p>
+          ) : pendingRows.length === 0 ? (
+            <p className="px-2.5 py-2 text-[11px] text-neutral-400">
+              No open checkouts (2 min–14 days). Abandoned ones clear when you tap Clean.
+            </p>
+          ) : (
+            <div className="max-h-36 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800">
+              {pendingRows.map((row) => (
+                <div
+                  key={row.id}
+                  className="flex items-center gap-2 px-2.5 py-1.5 text-[11px]"
+                >
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 text-left truncate font-mono text-neutral-700 dark:text-neutral-300 hover:text-rose-500"
+                    title={`${row.email || 'no email'} · ${row.eventTitle || 'Event'}`}
+                    onClick={() => setResolveRef(row.reference)}
+                  >
+                    {row.reference}
+                    <span className="ml-1.5 font-sans text-neutral-400">
+                      {formatNaira(row.chargeAmount)}
+                    </span>
+                  </button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={resolveBusy}
+                    onClick={() => void handleResolvePayment(row.reference)}
+                    className="h-6 rounded-md text-[10px] px-2 shrink-0"
+                  >
+                    Check
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        {resolveError && (
-          <p className="mt-1.5 flex items-center gap-1 text-xs text-red-500">
-            <AlertCircle className="h-3 w-3" /> {resolveError}
-          </p>
-        )}
-        {resolveResult && (
-          <pre className="mt-1.5 max-h-32 overflow-auto rounded-md bg-neutral-50 p-2 text-[11px] text-neutral-700 dark:bg-neutral-950 dark:text-neutral-300">
-            {JSON.stringify(resolveResult, null, 2)}
-          </pre>
-        )}
-      </div>
+      )}
 
       {activeTab === 'transactions' ? (
         <>
@@ -681,199 +853,196 @@ const AdminTransactionsPage: React.FC = () => {
 
       {/* Transaction Details Modal */}
       <Dialog open={Boolean(selectedTx)} onOpenChange={(o) => !o && setSelectedTx(null)}>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto p-4 sm:p-5">
-          {selectedTx && (
-            <>
-              <DialogHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto p-4 sm:p-5 pr-12">
+          {selectedTx && (() => {
+            const isFree =
+              selectedTx.type === 'TICKET' &&
+              (!selectedTx.totalAmount || selectedTx.totalAmount <= 0) &&
+              !selectedTx.paymentReference;
+            const bank = !isFree
+              ? bankPayoutLabel(
+                  selectedTx,
+                  selectedTx.paymentReference
+                    ? settlementData?.byReference?.[selectedTx.paymentReference]
+                    : undefined,
+                )
+              : null;
+
+            return (
+              <>
+                <DialogHeader className="pr-2 text-left space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
                     <DialogTitle className="text-base font-extrabold">
-                      Order #{selectedTx.txId}
+                      {isFree ? 'Free order' : 'Order'} #{selectedTx.txId}
                     </DialogTitle>
                     <span
                       className={cn(
-                        'px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider',
-                        selectedTx.type === 'VENDOR'
-                          ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200'
-                          : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200'
+                        'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full',
+                        statusBadge(selectedTx.status),
                       )}
                     >
-                      {selectedTx.type}
+                      {isFree ? 'Free' : selectedTx.status}
                     </span>
                   </div>
-                  <span
-                    className={cn(
-                      'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full',
-                      statusBadge(selectedTx.status)
-                    )}
-                  >
-                    {selectedTx.status}
-                  </span>
-                </div>
-                <DialogDescription className="text-xs text-neutral-400 mt-1">
-                  Placed on {new Date(selectedTx.createdAt).toLocaleString()}
-                </DialogDescription>
-              </DialogHeader>
+                  <DialogDescription className="text-xs text-neutral-400">
+                    {selectedTx.event?.title || 'Event'} ·{' '}
+                    {new Date(selectedTx.createdAt).toLocaleString()}
+                  </DialogDescription>
+                </DialogHeader>
 
-              <div className="space-y-3 mt-2">
-                {(() => {
-                  const bank = bankPayoutLabel(
-                    selectedTx,
-                    selectedTx.paymentReference
-                      ? settlementData?.byReference?.[selectedTx.paymentReference]
-                      : undefined,
-                  );
-                  if (!bank) return null;
-                  return (
-                    <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
-                      Bank: {bank.text}
+                <div className="space-y-3 mt-1 text-xs">
+                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-3 space-y-1.5">
+                    <p className="font-bold text-neutral-900 dark:text-white">
+                      {selectedTx.buyer?.name || 'Guest'}
                     </p>
-                  );
-                })()}
-                {selectedTx.paymentReference && (
-                  <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                        Paystack Reference
-                      </span>
-                      <p className="font-mono text-xs font-semibold text-neutral-800 dark:text-neutral-200 truncate">
+                    <p className="text-neutral-500 truncate">
+                      {selectedTx.buyer?.email || 'No email'}
+                    </p>
+                    {selectedTx.event?.organization && (
+                      <p className="text-neutral-400 truncate">
+                        Host: {selectedTx.event.organization}
+                      </p>
+                    )}
+                  </div>
+
+                  {!isFree && selectedTx.paymentReference && (
+                    <div className="flex items-center gap-2 rounded-xl border border-neutral-200 dark:border-neutral-800 px-3 py-2">
+                      <p className="min-w-0 flex-1 font-mono text-[11px] truncate text-neutral-700 dark:text-neutral-300">
                         {selectedTx.paymentReference}
                       </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 rounded-lg px-2 shrink-0"
+                        onClick={() => copyReference(selectedTx.paymentReference!)}
+                      >
+                        {copiedRef ? (
+                          <Check className="h-3.5 w-3.5 text-emerald-500" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
                     </div>
+                  )}
+
+                  {!isFree && (
+                    <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 px-3 py-2.5 space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-neutral-500">Paid</span>
+                        <span className="font-bold">{formatNaira(selectedTx.totalAmount)}</span>
+                      </div>
+                      {(selectedTx.platformFee > 0 || selectedTx.processingFee > 0) && (
+                        <>
+                          <div className="flex justify-between text-neutral-500">
+                            <span>PartyStorm</span>
+                            <span>{formatNaira(selectedTx.platformFee)}</span>
+                          </div>
+                          <div className="flex justify-between text-neutral-500">
+                            <span>Paystack</span>
+                            <span>{formatNaira(selectedTx.processingFee)}</span>
+                          </div>
+                          <div className="flex justify-between font-semibold text-emerald-600 dark:text-emerald-400 pt-1 border-t border-neutral-100 dark:border-neutral-800">
+                            <span>Host net</span>
+                            <span>{formatNaira(selectedTx.netAmount)}</span>
+                          </div>
+                        </>
+                      )}
+                      {bank && (
+                        <p className="text-[11px] text-neutral-500 pt-0.5">Bank: {bank.text}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedTx.tickets && selectedTx.tickets.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                        Tickets ({selectedTx.tickets.length})
+                      </p>
+                      <div className="space-y-1 max-h-28 overflow-y-auto">
+                        {selectedTx.tickets.map((t) => (
+                          <div
+                            key={t.id}
+                            className="flex items-center justify-between rounded-lg border border-neutral-200 dark:border-neutral-800 px-2.5 py-1.5"
+                          >
+                            <span className="font-semibold text-neutral-800 dark:text-neutral-200 truncate">
+                              {t.ticketType?.name || 'General'}
+                            </span>
+                            <span className="text-[10px] font-bold uppercase text-emerald-600 shrink-0 ml-2">
+                              {t.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedTx.type === 'TICKET' &&
+                    selectedTx.tickets &&
+                    selectedTx.tickets.length > 0 && (
+                      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1">
+                          <Mail className="h-3 w-3 text-rose-500" /> Resend to email
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="email"
+                            value={resendEmail}
+                            onChange={(e) => setResendEmail(e.target.value)}
+                            placeholder="email@example.com"
+                            className="h-8 min-w-0 flex-1 rounded-lg border border-neutral-200 bg-white px-2.5 text-xs dark:border-neutral-700 dark:bg-neutral-950"
+                          />
+                          <Button
+                            size="sm"
+                            disabled={resendBusy || !resendEmail.trim()}
+                            onClick={() => void handleResendTickets()}
+                            className="h-8 shrink-0 rounded-lg bg-rose-500 px-3 text-xs font-bold text-white hover:bg-rose-600"
+                          >
+                            {resendBusy ? '…' : 'Send'}
+                          </Button>
+                        </div>
+                        {resendError && (
+                          <p className="text-[11px] text-red-500 flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" /> {resendError}
+                          </p>
+                        )}
+                        {resendNotice && (
+                          <p className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> {resendNotice}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                </div>
+
+                <DialogFooter className="mt-3 gap-2 sm:justify-between">
+                  {selectedTx.paymentReference ? (
                     <Button
                       size="sm"
                       variant="outline"
-                      className="rounded-lg h-7 px-2 text-xs"
-                      onClick={() => copyReference(selectedTx.paymentReference!)}
+                      className="rounded-xl text-xs"
+                      onClick={() => {
+                        const reference = selectedTx.paymentReference!;
+                        setResolveRef(reference);
+                        setSelectedTx(null);
+                        handleResolvePayment(reference);
+                      }}
                     >
-                      {copiedRef ? (
-                        <Check className="h-3.5 w-3.5 text-emerald-500" />
-                      ) : (
-                        <Copy className="h-3.5 w-3.5" />
-                      )}
-                      <span className="ml-1">{copiedRef ? 'Copied' : 'Copy'}</span>
+                      <RefreshCw className="h-3 w-3 mr-1" /> Re-verify
                     </Button>
-                  </div>
-                )}
-
-                {/* Customer & Event Info */}
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-3 rounded-xl border border-neutral-200 dark:border-neutral-800">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1">
-                      <User className="h-3 w-3" /> Customer
-                    </span>
-                    <p className="font-bold text-neutral-900 dark:text-white mt-1">
-                      {selectedTx.buyer?.name || 'Guest Checkout'}
-                    </p>
-                    <p className="text-[11px] text-neutral-400 truncate">
-                      {selectedTx.buyer?.email || 'No email provided'}
-                    </p>
-                  </div>
-
-                  <div className="p-3 rounded-xl border border-neutral-200 dark:border-neutral-800">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1">
-                      <Calendar className="h-3 w-3" /> Event / Host
-                    </span>
-                    <p className="font-bold text-neutral-900 dark:text-white mt-1 truncate">
-                      {selectedTx.event?.title || '—'}
-                    </p>
-                    <p className="text-[11px] text-neutral-400 truncate">
-                      {selectedTx.event?.organization || 'Direct platform'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Financial Breakdown Table */}
-                <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-3 space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between pb-1.5 border-b border-neutral-100 dark:border-neutral-800">
-                    <span className="text-neutral-500">Gross Paid</span>
-                    <span className="font-bold text-neutral-900 dark:text-white">
-                      {formatNaira(selectedTx.totalAmount)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-neutral-500">Platform Commission (Fee)</span>
-                    <span className="font-semibold text-rose-500">
-                      {formatNaira(selectedTx.platformFee)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-neutral-500">Gateway Processing Fee</span>
-                    <span className="font-semibold text-neutral-500">
-                      {formatNaira(selectedTx.processingFee)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between pt-1.5 border-t border-neutral-100 dark:border-neutral-800 font-bold">
-                    <span className="text-neutral-700 dark:text-neutral-300">Host Net Amount</span>
-                    <span className="text-emerald-600 dark:text-emerald-400">
-                      {formatNaira(selectedTx.netAmount)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Tickets Associated */}
-                {selectedTx.tickets && selectedTx.tickets.length > 0 && (
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1">
-                      <Ticket className="h-3 w-3 text-rose-500" /> Issued Tickets ({selectedTx.tickets.length})
-                    </span>
-                    <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                      {selectedTx.tickets.map((t) => (
-                        <div
-                          key={t.id}
-                          className="flex items-center justify-between p-2 rounded-lg border border-neutral-200 dark:border-neutral-800 text-xs bg-white dark:bg-neutral-900/60"
-                        >
-                          <div>
-                            <span className="font-bold text-neutral-800 dark:text-neutral-200">
-                              {t.ticketType?.name || 'General Admission'}
-                            </span>
-                            {t.qrCode && (
-                              <p className="font-mono text-[10px] text-neutral-400">
-                                Code: {t.qrCode.slice(0, 16)}…
-                              </p>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <span className="font-bold text-rose-500">
-                              {t.amountPaid ? formatNaira(t.amountPaid) : formatNaira(t.ticketType?.price ?? 0)}
-                            </span>
-                            <p className="text-[9px] uppercase font-bold text-emerald-600">
-                              {t.status}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <DialogFooter className="mt-4 gap-2">
-                {selectedTx.paymentReference && (
+                  ) : (
+                    <span />
+                  )}
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="rounded-xl text-xs"
-                    onClick={() => {
-                      const reference = selectedTx.paymentReference!;
-                      setResolveRef(reference);
-                      setSelectedTx(null);
-                      handleResolvePayment(reference);
-                    }}
+                    className="bg-rose-500 text-white rounded-xl text-xs font-bold"
+                    onClick={() => setSelectedTx(null)}
                   >
-                    <RefreshCw className="h-3 w-3 mr-1" /> Re-verify with Paystack
+                    Done
                   </Button>
-                )}
-                <Button
-                  size="sm"
-                  className="bg-rose-500 text-white rounded-xl text-xs font-bold"
-                  onClick={() => setSelectedTx(null)}
-                >
-                  Close
-                </Button>
-              </DialogFooter>
-            </>
-          )}
+                </DialogFooter>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

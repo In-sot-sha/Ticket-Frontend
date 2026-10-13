@@ -18,6 +18,7 @@ import {
   Sparkles,
   ChevronRight,
   LifeBuoy,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Skeleton } from '../../components/ui/skeleton';
@@ -26,6 +27,7 @@ import {
   useAdminSupportTickets,
   useAdminSupportTicket,
   useAdminReplySupport,
+  useAdminResendSupportReply,
   useAdminUpdateSupportTicket,
 } from '../../hooks/queries/useAdmin';
 import { cn } from '../../lib/utils';
@@ -105,8 +107,9 @@ const AdminSupportPage = () => {
   const { data: ticket, isLoading: detailLoading } = useAdminSupportTicket(selectedId, source);
 
   const replyMutation = useAdminReplySupport(source);
+  const resendMutation = useAdminResendSupportReply(source);
   const updateMutation = useAdminUpdateSupportTicket(source);
-  const busy = replyMutation.isPending || updateMutation.isPending;
+  const busy = replyMutation.isPending || updateMutation.isPending || resendMutation.isPending;
 
   // Counts summary across all tickets
   const statusCounts = useMemo(() => {
@@ -173,10 +176,30 @@ const AdminSupportPage = () => {
       setActionMsg({
         text: res.data?.emailSent
           ? 'Email dispatched to customer successfully.'
-          : 'Response saved. (Check SMTP settings if email was not delivered).',
+          : 'Response saved, but the email was not delivered. Use Resend on the reply below.',
+        isError: !res.data?.emailSent,
       });
     } catch {
       setActionMsg({ text: 'Could not send the email response.', isError: true });
+    }
+  };
+
+  const resendReplyEmail = async (messageId: number) => {
+    if (!selectedId) return;
+    setActionMsg(null);
+    try {
+      const res = await resendMutation.mutateAsync({ id: selectedId, messageId });
+      setActionMsg({
+        text: res.data?.emailSent
+          ? 'Email resent successfully.'
+          : 'Email still failed to send. Check SMTP / Resend settings.',
+        isError: !res.data?.emailSent,
+      });
+    } catch (err: any) {
+      setActionMsg({
+        text: err?.response?.data?.message || 'Could not resend the email.',
+        isError: true,
+      });
     }
   };
 
@@ -592,29 +615,70 @@ const AdminSupportPage = () => {
                         </span>
                       </div>
 
-                      {adminReplies.map((msg: any) => (
-                        <div
-                          key={msg.id}
-                          className="rounded-xl border border-rose-200/80 bg-rose-50/50 p-4 shadow-2xs dark:border-rose-900/40 dark:bg-rose-950/20"
-                        >
-                          <div className="flex items-center justify-between pb-2 mb-2 border-b border-rose-100 dark:border-rose-900/30">
-                            <div className="flex items-center gap-1.5">
-                              <span className="inline-flex items-center gap-1 rounded bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400">
-                                Support Team
-                              </span>
-                              <span className="text-xs text-neutral-500">
-                                → Sent to {ticket.contactEmail}
+                      {adminReplies.map((msg: any) => {
+                        const emailFailed = msg.emailSent === false;
+                        const canResend = emailFailed && ticket.status !== 'CLOSED';
+                        return (
+                          <div
+                            key={msg.id}
+                            className={cn(
+                              'rounded-xl border p-4 shadow-2xs',
+                              emailFailed
+                                ? 'border-amber-200/90 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20'
+                                : 'border-rose-200/80 bg-rose-50/50 dark:border-rose-900/40 dark:bg-rose-950/20',
+                            )}
+                          >
+                            <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-rose-100/80 dark:border-rose-900/30">
+                              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                <span className="inline-flex items-center gap-1 rounded bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400">
+                                  Support Team
+                                </span>
+                                {emailFailed ? (
+                                  <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                                    Email not sent
+                                  </span>
+                                ) : msg.emailSent === true ? (
+                                  <span className="text-xs text-neutral-500 truncate">
+                                    → Sent to {ticket.contactEmail}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-neutral-500 truncate">
+                                    → {ticket.contactEmail}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="shrink-0 text-[11px] text-neutral-400">
+                                {formatWhen(msg.createdAt)}
                               </span>
                             </div>
-                            <span className="text-[11px] text-neutral-400">
-                              {formatWhen(msg.createdAt)}
-                            </span>
+                            <p className="whitespace-pre-wrap text-xs sm:text-sm leading-relaxed text-neutral-800 dark:text-neutral-200">
+                              {msg.body}
+                            </p>
+                            {canResend && (
+                              <div className="mt-3 flex items-center justify-between gap-2 border-t border-amber-200/60 pt-2.5 dark:border-amber-900/40">
+                                <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                                  Notification email failed. Resend while the ticket is open.
+                                </p>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={busy}
+                                  onClick={() => void resendReplyEmail(msg.id)}
+                                  className="h-7 shrink-0 rounded-lg border-amber-300 px-2.5 text-[11px] font-bold text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-950/40"
+                                >
+                                  {resendMutation.isPending ? (
+                                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <RefreshCw className="mr-1 h-3 w-3" />
+                                  )}
+                                  Resend
+                                </Button>
+                              </div>
+                            )}
                           </div>
-                          <p className="whitespace-pre-wrap text-xs sm:text-sm leading-relaxed text-neutral-800 dark:text-neutral-200">
-                            {msg.body}
-                          </p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

@@ -608,6 +608,9 @@ export const api = {
       data: { body: string; status?: string; needsMoreInfo?: boolean }
     ) => apiRequest<any>('POST', `/admin/support/tickets/${id}/replies`, data),
 
+    resendSupportReply: (id: number, messageId: number) =>
+      apiRequest<any>('POST', `/admin/support/tickets/${id}/replies/${messageId}/resend`),
+
     updateSupportTicket: (
       id: number,
       data: { status?: string; priority?: string; notifyMessage?: string }
@@ -767,6 +770,51 @@ export const api = {
     resolvePayment: (reference: string) =>
       apiRequest<any>('POST', '/admin/payments/resolve', { reference }),
 
+    getPendingPayments: () =>
+      apiRequest<{
+        pending: Array<{
+          id: number;
+          reference: string;
+          kind: string;
+          status: string;
+          eventId: number;
+          eventTitle: string | null;
+          amountKobo: number;
+          chargeAmount: number;
+          email: string | null;
+          paystackStatus: string | null;
+          createdAt: string;
+        }>;
+        count: number;
+      }>('GET', '/admin/payments/pending'),
+
+    sweepPendingPayments: () =>
+      apiRequest<{
+        scanned: number;
+        fulfilled: number;
+        abandoned: number;
+        stillPending: number;
+        failed: number;
+        results: Array<{
+          reference: string;
+          outcome: 'fulfilled' | 'still_pending' | 'abandoned' | 'failed';
+          message?: string;
+          email?: string | null;
+        }>;
+      }>('POST', '/admin/payments/sweep-pending'),
+
+    resendOrderTickets: (orderId: number, email: string) =>
+      apiRequest<{
+        message: string;
+        emailSent: boolean;
+        whatsappAttempted: boolean;
+        deliveredTo: string;
+        previousEmail: string | null;
+        userEmailUpdated: boolean;
+        warning?: string;
+        ticketCount: number;
+      }>('POST', `/admin/orders/${orderId}/resend-tickets`, { email }),
+
     getWhatsAppConfig: () => apiRequest<any>('GET', '/admin/whatsapp'),
 
     updateWhatsAppConfig: (data: {
@@ -825,6 +873,9 @@ export const api = {
       id: number,
       data: { body: string; status?: string; needsMoreInfo?: boolean }
     ) => apiRequest<any>('POST', `/staff/support/tickets/${id}/replies`, data),
+
+    resendSupportReply: (id: number, messageId: number) =>
+      apiRequest<any>('POST', `/staff/support/tickets/${id}/replies/${messageId}/resend`),
 
     updateSupportTicket: (
       id: number,

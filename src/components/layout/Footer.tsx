@@ -88,6 +88,11 @@ const Footer = () => {
                   </Link>
                 </li>
                 <li>
+                  <Link to="/recover-ticket" className="text-muted-foreground hover:text-foreground">
+                    Recover Ticket
+                  </Link>
+                </li>
+                <li>
                   <Link to="/contact" className="text-muted-foreground hover:text-foreground">
                     Contact Us
                   </Link>
