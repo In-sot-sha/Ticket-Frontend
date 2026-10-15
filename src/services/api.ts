@@ -590,8 +590,13 @@ export const api = {
       platformFeePercent?: number;
     }>('GET', '/admin/stats'),
 
-    getTransactions: (params?: { status?: string; page?: number; limit?: number }) =>
-      apiRequest<any>('GET', '/admin/transactions', undefined, { params }),
+    getTransactions: (params?: {
+      status?: string;
+      eventId?: number | string;
+      q?: string;
+      page?: number;
+      limit?: number;
+    }) => apiRequest<any>('GET', '/admin/transactions', undefined, { params }),
 
     getRevenue: () => apiRequest<any>('GET', '/admin/revenue'),
 

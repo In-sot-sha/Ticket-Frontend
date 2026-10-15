@@ -1,9 +1,13 @@
 export interface TicketDraft {
+  /** Persisted ticket type id when editing an existing event */
+  id?: number;
   name: string;
   price: string;
   quantity: string;
   isFree: boolean;
   isUnlimited?: boolean;
+  /** Optional booking-page blurb */
+  description?: string;
   ticketStyle: string;
   badgeText: string;
   accentColor: string;
@@ -37,6 +41,7 @@ const defaultTicket = (overrides: Partial<TicketDraft>): TicketDraft => ({
   price: '',
   quantity: '100',
   isFree: false,
+  description: '',
   ticketStyle: 'rose',
   badgeText: '',
   accentColor: '',

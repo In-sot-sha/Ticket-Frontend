@@ -28,6 +28,51 @@
   .gap-safe {
     gap: max(env(safe-area-inset-bottom), 0px);
   }
+
+  /* Fee-estimate range controls (for-organizers) */
+  .fee-range {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background: #e5e5e5;
+    outline: none;
+    cursor: pointer;
+  }
+  .dark .fee-range {
+    background: #404040;
+  }
+  .fee-range::-webkit-slider-runnable-track {
+    height: 0.5rem;
+    border-radius: 9999px;
+  }
+  .fee-range::-moz-range-track {
+    height: 0.5rem;
+    border-radius: 9999px;
+    background: transparent;
+  }
+  .fee-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 1.125rem;
+    height: 1.125rem;
+    margin-top: -0.3125rem;
+    border-radius: 9999px;
+    background: #f43f5e;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
+    cursor: pointer;
+  }
+  .fee-range::-moz-range-thumb {
+    width: 1.125rem;
+    height: 1.125rem;
+    border-radius: 9999px;
+    background: #f43f5e;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
+    cursor: pointer;
+  }
 }
 
 @layer base {

@@ -96,11 +96,14 @@ function parsePriceDraft(raw: string): number | null {
   return Number.isFinite(price) ? price : null;
 }
 
+const TICKET_DESC_MAX = 800;
+
 const defaultTicket = (): TicketDraft => ({
   name: 'General Admission',
   price: '',
   quantity: '100',
   isFree: false,
+  description: '',
   ticketStyle: encodeTicketStyle('classic', 'rose'),
   badgeText: '',
   accentColor: '',
@@ -214,10 +217,12 @@ function buildFormData(form: FormState, image: File | null, isPublished: boolean
         const days = eventDayList(form.startDate, form.endDate || form.startDate);
         const day = t.validOn && days.includes(t.validOn) ? t.validOn : null;
         return {
+        ...(t.id ? { id: t.id } : {}),
         name: t.name,
         price: t.isFree ? 0 : (parsePriceDraft(t.price) ?? 0),
         quantity: t.isUnlimited ? 0 : parseInt(t.quantity || '0', 10),
         isUnlimited: !!t.isUnlimited,
+        description: t.description?.trim() ? t.description.trim().slice(0, TICKET_DESC_MAX) : null,
         ticketStyle: t.ticketStyle || encodeTicketStyle('classic', 'rose'),
         badgeText: t.badgeText || null,
         accentColor: t.accentColor || null,
@@ -603,9 +608,11 @@ const CreateEvent: React.FC = () => {
           capacity: event.capacity ? String(event.capacity) : '',
           tickets: event.ticketTypes?.length
             ? event.ticketTypes.map((t: {
+                id?: number;
                 name: string;
                 price: number;
                 quantity: number | null;
+                description?: string | null;
                 ticketStyle?: string;
                 badgeText?: string | null;
                 accentColor?: string | null;
@@ -616,11 +623,13 @@ const CreateEvent: React.FC = () => {
                 isPaused?: boolean;
                 validOn?: string | null;
               }) => ({
+                id: t.id,
                 name: t.name,
                 price: String(t.price ?? 0),
                 isUnlimited: Number(t.quantity) === 0,
                 quantity: Number(t.quantity) === 0 ? '' : t.quantity != null ? String(t.quantity) : capacityFallback,
                 isFree: Number(t.price) === 0,
+                description: t.description || '',
                 ticketStyle: t.ticketStyle || encodeTicketStyle('classic', 'rose'),
                 badgeText: t.badgeText || '',
                 accentColor: t.accentColor || '',
@@ -1484,7 +1493,7 @@ const CreateEvent: React.FC = () => {
                     <div className="flex items-center gap-2 flex-wrap">
                       {form.tickets.map((ticket, i) => (
                         <button
-                          key={`${ticket.name}-${i}`}
+                          key={ticket.id ?? `${ticket.name}-${i}`}
                           type="button"
                           onClick={() => setActiveTicketIndex(i)}
                           className={cn(
@@ -1507,6 +1516,27 @@ const CreateEvent: React.FC = () => {
                     <div>
                       <FieldLabel>Name</FieldLabel>
                       <input value={activeTicket.name} onChange={(e) => updateTicket(activeTicketIndex, { name: e.target.value })} placeholder="e.g. General Admission" className={getInputClass('ticket needs a name')} />
+                    </div>
+
+                    <div>
+                      <FieldLabel optional>Description</FieldLabel>
+                      <textarea
+                        value={activeTicket.description || ''}
+                        onChange={(e) =>
+                          updateTicket(activeTicketIndex, {
+                            description: e.target.value.slice(0, TICKET_DESC_MAX),
+                          })
+                        }
+                        rows={3}
+                        placeholder="e.g. Includes one drink · Early entry · Table near stage"
+                        className={cn(getInputClass(), 'min-h-[4.5rem] resize-y')}
+                      />
+                      <p className="mt-1 flex items-center justify-between text-[11px] text-neutral-400">
+                        <span>Shown on the booking page</span>
+                        <span className="tabular-nums">
+                          {(activeTicket.description || '').length}/{TICKET_DESC_MAX}
+                        </span>
+                      </p>
                     </div>
 
                     <div className="flex items-center gap-4">

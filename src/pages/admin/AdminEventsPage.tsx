@@ -42,7 +42,7 @@ interface TicketTypeAdmin {
   price: number;
   quantity: number | null;
   isPaused: boolean;
-  /** Admin override; null = default 6% formula */
+  /** Admin override; null = default 7.5% + ₦100 formula */
   platformFeeNaira?: number | null;
   _count?: { tickets: number };
 }
@@ -787,7 +787,7 @@ const AdminEventsPage: React.FC = () => {
                                 )}
                               </div>
                               <p className="text-[10px] text-neutral-400 leading-snug">
-                                Blank uses 6% · min ₦100 · max ₦2,000. Host gets ticket − this amount. Paystack is taken from our share.
+                                Blank uses 7.5% + ₦100. Host gets ticket − this amount.
                               </p>
                             </div>
                           )}

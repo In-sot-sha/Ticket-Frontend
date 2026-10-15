@@ -45,6 +45,7 @@ export interface OrganizerEvent {
     name: string;
     price: number;
     quantity: number | null;
+    description?: string | null;
     isPaused?: boolean;
     validOn?: string | null;
     platformFeeNaira?: number | null;

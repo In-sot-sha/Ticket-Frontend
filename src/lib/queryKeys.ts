@@ -75,8 +75,12 @@ export const queryKeys = {
       [...queryKeys.admin.all, 'host-applications', status ?? 'pending'] as const,
     users: (filters?: { search?: string; role?: string }) =>
       [...queryKeys.admin.all, 'users', filters] as const,
-    transactions: (filters?: { status?: string; page?: number }) =>
-      [...queryKeys.admin.all, 'transactions', filters] as const,
+    transactions: (filters?: {
+      status?: string;
+      eventId?: number | string;
+      q?: string;
+      page?: number;
+    }) => [...queryKeys.admin.all, 'transactions', filters] as const,
     revenue: () => [...queryKeys.admin.all, 'revenue'] as const,
     supportTickets: (status?: string) =>
       [...queryKeys.admin.all, 'support-tickets', status ?? 'all'] as const,

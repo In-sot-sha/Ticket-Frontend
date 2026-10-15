@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
+import { buyerPaysForTicket, platformFeeForUnit } from '../lib/fees';
 
 // ── Reusable primitives ───────────────────────────────────────────────────────
 
@@ -564,14 +565,11 @@ const PayoutsPanel = () => {
     }
   };
 
-  // Live example calculation (₦10,000 ticket)
+  // Live example calculation (₦10,000 ticket) — unified 7.5% + ₦100
   const examplePrice = 10000;
-  const platformFee = Math.min(Math.max(100, examplePrice * 0.06), 2000); // ₦600
-  const paystackFee = examplePrice * 0.015 + 100; // ₦250
-  const totalFees = platformFee + paystackFee;
-  // Absorb: organizer gets face − PartyStorm take (Paystack comes from our take).
+  const platformFee = platformFeeForUnit(examplePrice);
   const hostReceives = form.absorbFee ? examplePrice - platformFee : examplePrice;
-  const buyerPays = form.absorbFee ? examplePrice : examplePrice + totalFees;
+  const buyerPays = buyerPaysForTicket(examplePrice, form.absorbFee);
 
   return (
     <div className="space-y-4">
@@ -771,7 +769,7 @@ const PayoutsPanel = () => {
               Fee Allocation
             </p>
             <p className="text-[11px] text-neutral-500">
-              PartyStorm fee: 6% (min ₦100, max ₦2,000) · Paystack gateway: 1.5% + ₦100
+              Checkout fee: 7.5% + ₦100 per paid ticket (card processing included)
             </p>
           </div>
           <span className="text-[11px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-0.5 rounded-full border border-rose-200/60 dark:border-rose-900/40 self-start sm:self-auto">

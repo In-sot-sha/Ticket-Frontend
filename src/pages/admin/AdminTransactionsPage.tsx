@@ -1,5 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Check,
@@ -10,6 +12,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Mail,
+  Search,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Skeleton } from '../../components/ui/skeleton';
@@ -38,10 +41,29 @@ import {
   useApprovePayout,
   useRejectPayout,
 } from '../../hooks/queries/useAdmin';
+import { queryKeys } from '../../lib/queryKeys';
 import { formatNaira } from '../../lib/eventOrganizer';
 import { cn } from '../../lib/utils';
+import { api } from '../../services/api';
 
 const STATUS_FILTERS = ['all', 'PAID', 'PENDING', 'REFUNDED'] as const;
+
+function isFreeTransaction(tx: {
+  totalAmount?: number | null;
+  paymentReference?: string | null;
+  type?: string;
+}) {
+  const amount = Number(tx.totalAmount ?? 0);
+  if (amount > 0) return false;
+  const ref = String(tx.paymentReference || '');
+  if (/^(FREE|VFREE)_/i.test(ref)) return true;
+  return amount <= 0;
+}
+
+function formatTxAmount(amount: number | null | undefined) {
+  const n = Number(amount ?? 0);
+  return n <= 0 ? 'Free' : formatNaira(n);
+}
 
 function lagosWeekday(date: Date) {
   return new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Lagos', weekday: 'short' }).format(date);
@@ -137,8 +159,12 @@ interface TransactionItem {
 const AdminTransactionsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'transactions' | 'payouts'>('transactions');
   const [status, setStatus] = useState<string>('all');
+  const [eventId, setEventId] = useState<string>('all');
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQ, setSearchQ] = useState('');
   const [page, setPage] = useState(1);
   const [payoutStatus, setPayoutStatus] = useState<string>('all');
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   const [selectedTx, setSelectedTx] = useState<TransactionItem | null>(null);
   const [copiedRef, setCopiedRef] = useState(false);
@@ -169,10 +195,28 @@ const AdminTransactionsPage: React.FC = () => {
   const [resendNotice, setResendNotice] = useState<string | null>(null);
   const [resendError, setResendError] = useState('');
 
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setSearchQ(searchInput.trim());
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [searchInput]);
+
   const { data: revenue, isLoading: revenueLoading } = useAdminRevenue();
   const { data: settlementData, isLoading: settlementsLoading } = useAdminSettlements();
+  const { data: adminEvents = [] } = useQuery({
+    queryKey: queryKeys.admin.events(''),
+    queryFn: async () => {
+      const res = await api.admin.getEvents();
+      return res.data as Array<{ id: number; title: string }>;
+    },
+    staleTime: 60_000,
+  });
   const { data, isLoading: transactionsLoading, refetch: refetchTransactions } = useAdminTransactions({
     status: status === 'all' ? undefined : status,
+    eventId: eventId === 'all' ? undefined : eventId,
+    q: searchQ || undefined,
     page,
   });
 
@@ -199,6 +243,10 @@ const AdminTransactionsPage: React.FC = () => {
   useEffect(() => {
     if (activeTab === 'transactions') void loadPendingPayments();
   }, [activeTab, loadPendingPayments]);
+
+  useEffect(() => {
+    if (pendingRows.length > 0) setToolsOpen(true);
+  }, [pendingRows.length]);
 
   useEffect(() => {
     if (selectedTx?.type === 'TICKET') {
@@ -314,15 +362,35 @@ const AdminTransactionsPage: React.FC = () => {
   const summary = revenue?.summary;
   const transactions: TransactionItem[] = data?.transactions ?? [];
   const pagination = data?.pagination;
+  const eventOptions = useMemo(() => {
+    const fromApi = adminEvents.map((e) => ({ id: e.id, title: e.title }));
+    const seen = new Set(fromApi.map((e) => e.id));
+    for (const tx of transactions) {
+      if (tx.event?.id && !seen.has(tx.event.id)) {
+        seen.add(tx.event.id);
+        fromApi.push({ id: tx.event.id, title: tx.event.title });
+      }
+    }
+    return fromApi.sort((a, b) => a.title.localeCompare(b.title));
+  }, [adminEvents, transactions]);
 
   const statusBadge = (s: string) => {
     const map: Record<string, string> = {
-      PAID: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800',
-      PENDING: 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800',
-      REFUNDED: 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800',
+      PAID: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800',
+      PENDING: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800',
+      REFUNDED: 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800',
     };
-    return map[s] ?? 'bg-neutral-100 text-neutral-600';
+    return map[s] ?? 'bg-neutral-100 text-neutral-600 border border-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:border-neutral-700';
   };
+
+  const formatTxDate = (iso: string) =>
+    new Date(iso).toLocaleString('en-NG', {
+      timeZone: 'Africa/Lagos',
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
   const copyReference = async (ref: string) => {
     await navigator.clipboard.writeText(ref);
@@ -404,118 +472,74 @@ const AdminTransactionsPage: React.FC = () => {
         )
       )}
 
-      {activeTab === 'transactions' && (
-        <div className="mb-3 rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 overflow-hidden">
-          <div className="flex flex-wrap items-center gap-2 px-2.5 py-2 border-b border-neutral-100 dark:border-neutral-800">
-            <input
-              value={resolveRef}
-              onChange={(e) => setResolveRef(e.target.value)}
-              placeholder="Paystack reference…"
-              className="h-7 min-w-0 flex-1 rounded-md border border-neutral-200 bg-white px-2 text-xs dark:border-neutral-700 dark:bg-neutral-950"
-            />
-            <Button
-              size="sm"
-              disabled={resolveBusy || !resolveRef.trim()}
-              onClick={() => handleResolvePayment()}
-              className="h-7 shrink-0 rounded-md bg-rose-500 px-2.5 text-xs font-bold text-white hover:bg-rose-600"
+      {activeTab === 'transactions' ? (
+        <div className="space-y-3">
+          {/* Filters + search */}
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="relative min-w-0 flex-1 sm:max-w-xs">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
+              <input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search ref, email, event…"
+                className="h-9 w-full rounded-xl border border-neutral-200 bg-white pl-8 pr-3 text-xs dark:border-neutral-700 dark:bg-neutral-900"
+              />
+            </div>
+            <Select
+              value={status}
+              onValueChange={(v) => {
+                setStatus(v);
+                setPage(1);
+              }}
             >
-              {resolveBusy ? '…' : 'Verify'}
-            </Button>
+              <SelectTrigger className="h-9 w-full rounded-xl text-xs sm:w-[140px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_FILTERS.map((f) => (
+                  <SelectItem key={f} value={f}>
+                    {f === 'all' ? 'All statuses' : f}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={eventId}
+              onValueChange={(v) => {
+                setEventId(v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="h-9 w-full rounded-xl text-xs sm:w-[200px]">
+                <SelectValue placeholder="Event" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All events</SelectItem>
+                {eventOptions.map((ev) => (
+                  <SelectItem key={ev.id} value={String(ev.id)}>
+                    {ev.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               size="sm"
               variant="outline"
-              disabled={pendingLoading || sweepBusy}
-              onClick={() => void loadPendingPayments()}
-              className="h-7 rounded-md text-[11px] px-2"
-              title="Refresh open checkouts"
+              disabled={transactionsLoading}
+              onClick={() => void refetchTransactions()}
+              className="h-9 rounded-xl px-2.5"
+              title="Refresh transactions"
             >
-              <RefreshCw className={cn('h-3 w-3', pendingLoading && 'animate-spin')} />
+              <RefreshCw className={cn('h-3.5 w-3.5', transactionsLoading && 'animate-spin')} />
             </Button>
-            <Button
-              size="sm"
-              disabled={sweepBusy || pendingRows.length === 0}
-              onClick={() => void handleSweepPending()}
-              className="h-7 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold px-2"
-              title="Fulfill paid ones; clear abandoned"
-            >
-              {sweepBusy ? '…' : `Clean (${pendingRows.length})`}
-            </Button>
+            <div className="text-[11px] text-neutral-400 sm:ml-auto">
+              {pagination ? `${pagination.total} transaction${pagination.total === 1 ? '' : 's'}` : null}
+            </div>
           </div>
 
-          {(resolveError || sweepError || sweepNotice || resolveResult) && (
-            <div className="px-2.5 py-1.5 space-y-1 border-b border-neutral-100 dark:border-neutral-800">
-              {resolveError && (
-                <p className="text-[11px] text-red-500 flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3 shrink-0" /> {resolveError}
-                </p>
-              )}
-              {sweepError && (
-                <p className="text-[11px] text-red-500 flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3 shrink-0" /> {sweepError}
-                </p>
-              )}
-              {sweepNotice && (
-                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                  <CheckCircle2 className="h-3 w-3 shrink-0" /> {sweepNotice}
-                </p>
-              )}
-              {resolveResult && (
-                <p className="text-[11px] text-neutral-600 dark:text-neutral-300">
-                  {resolveResult.message ||
-                    (resolveResult.resolved
-                      ? 'Fulfilled / already fulfilled'
-                      : resolveResult.abandoned
-                        ? 'Not paid — cleared from list'
-                        : `Paystack: ${resolveResult.paystack?.status ?? 'unknown'}`)}
-                </p>
-              )}
-            </div>
-          )}
-
-          {pendingLoading ? (
-            <p className="px-2.5 py-2 text-[11px] text-neutral-400">Loading open checkouts…</p>
-          ) : pendingRows.length === 0 ? (
-            <p className="px-2.5 py-2 text-[11px] text-neutral-400">
-              No open checkouts (2 min–14 days). Abandoned ones clear when you tap Clean.
-            </p>
-          ) : (
-            <div className="max-h-36 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800">
-              {pendingRows.map((row) => (
-                <div
-                  key={row.id}
-                  className="flex items-center gap-2 px-2.5 py-1.5 text-[11px]"
-                >
-                  <button
-                    type="button"
-                    className="min-w-0 flex-1 text-left truncate font-mono text-neutral-700 dark:text-neutral-300 hover:text-rose-500"
-                    title={`${row.email || 'no email'} · ${row.eventTitle || 'Event'}`}
-                    onClick={() => setResolveRef(row.reference)}
-                  >
-                    {row.reference}
-                    <span className="ml-1.5 font-sans text-neutral-400">
-                      {formatNaira(row.chargeAmount)}
-                    </span>
-                  </button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={resolveBusy}
-                    onClick={() => void handleResolvePayment(row.reference)}
-                    className="h-6 rounded-md text-[10px] px-2 shrink-0"
-                  >
-                    Check
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeTab === 'transactions' ? (
-        <>
+          {/* All transactions */}
           {transactionsLoading ? (
-            <DataTableSkeleton rows={6} columns={5} />
+            <DataTableSkeleton rows={8} columns={6} />
           ) : (
             <DataTable
               columns={[
@@ -527,6 +551,25 @@ const AdminTransactionsPage: React.FC = () => {
                       #{tx.txId}
                     </span>
                   ),
+                },
+                {
+                  id: 'status',
+                  header: 'Status',
+                  cell: (tx: TransactionItem) => {
+                    const free = isFreeTransaction(tx);
+                    return (
+                      <span
+                        className={cn(
+                          'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block',
+                          free
+                            ? 'bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800'
+                            : statusBadge(tx.status)
+                        )}
+                      >
+                        {free ? 'Free' : tx.status}
+                      </span>
+                    );
+                  },
                 },
                 {
                   id: 'type',
@@ -553,31 +596,46 @@ const AdminTransactionsPage: React.FC = () => {
                         {tx.event?.title ?? '—'}
                       </p>
                       <p className="text-[11px] text-neutral-400 truncate">
-                        {tx.buyer?.name ?? 'Guest'} · {tx.detail}
+                        {tx.buyer?.name ?? 'Guest'}
+                        {tx.buyer?.email ? ` · ${tx.buyer.email}` : ''} · {tx.detail}
                       </p>
                     </div>
                   ),
                 },
                 {
                   id: 'gross',
-                  header: 'Gross Paid',
-                  cell: (tx: TransactionItem) => (
-                    <span className="font-bold text-xs">{formatNaira(tx.totalAmount)}</span>
-                  ),
+                  header: 'Amount',
+                  cell: (tx: TransactionItem) => {
+                    const free = isFreeTransaction(tx);
+                    return (
+                      <div>
+                        <p className="font-bold text-xs tabular-nums">{formatTxAmount(tx.totalAmount)}</p>
+                        {!free && (
+                          <p className="text-[10px] text-rose-500 tabular-nums">
+                            Fee {formatNaira(tx.platformFee)}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  },
                 },
                 {
-                  id: 'fee',
-                  header: 'Platform Fee',
+                  id: 'date',
+                  header: 'Date',
                   cell: (tx: TransactionItem) => (
-                    <span className="font-semibold text-xs text-rose-500">
-                      {formatNaira(tx.platformFee)}
+                    <span className="text-[11px] text-neutral-500 whitespace-nowrap">
+                      {formatTxDate(tx.createdAt)}
                     </span>
                   ),
                 },
                 {
                   id: 'bank',
                   header: 'Bank',
+                  hideOnMobile: true,
                   cell: (tx: TransactionItem) => {
+                    if (isFreeTransaction(tx)) {
+                      return <span className="text-[10px] font-semibold text-neutral-400">No Paystack</span>;
+                    }
                     const label = bankPayoutLabel(
                       tx,
                       tx.paymentReference
@@ -599,20 +657,6 @@ const AdminTransactionsPage: React.FC = () => {
                       </span>
                     );
                   },
-                },
-                {
-                  id: 'status',
-                  header: 'Status',
-                  cell: (tx: TransactionItem) => (
-                    <span
-                      className={cn(
-                        'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block',
-                        statusBadge(tx.status)
-                      )}
-                    >
-                      {tx.status}
-                    </span>
-                  ),
                 },
                 {
                   id: 'actions',
@@ -637,33 +681,13 @@ const AdminTransactionsPage: React.FC = () => {
               pageSize={Math.max(transactions.length, 1)}
               onRowClick={(tx) => setSelectedTx(tx)}
               hideSearch
-              toolbar={
-                <Select
-                  value={status}
-                  onValueChange={(v) => {
-                    setStatus(v);
-                    setPage(1);
-                  }}
-                >
-                  <SelectTrigger className="w-[140px] h-9 rounded-xl text-xs">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUS_FILTERS.map((f) => (
-                      <SelectItem key={f} value={f}>
-                        {f === 'all' ? 'All statuses' : f}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              }
               emptyTitle="No transactions found"
-              emptyDescription="Orders and vendor payments will appear here."
+              emptyDescription="Try another status, event, or search."
             />
           )}
 
           {pagination && pagination.pages > 1 && (
-            <div className="flex items-center justify-between px-1 py-3 text-xs">
+            <div className="flex items-center justify-between px-1 py-1 text-xs">
               <button
                 disabled={page <= 1}
                 onClick={() => setPage((p) => p - 1)}
@@ -683,7 +707,156 @@ const AdminTransactionsPage: React.FC = () => {
               </button>
             </div>
           )}
-        </>
+
+          {/* Verify / open checkouts tools */}
+          <div className="rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setToolsOpen((o) => !o)}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800/60"
+            >
+              <ChevronDown
+                className={cn(
+                  'h-4 w-4 text-neutral-400 transition-transform',
+                  toolsOpen && 'rotate-180'
+                )}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                  Verify payments
+                </p>
+                <p className="text-[11px] text-neutral-500">
+                  Paid Paystack checkouts only — free tickets fulfill automatically
+                  {pendingRows.length > 0 ? ` · ${pendingRows.length} open` : ''}
+                </p>
+              </div>
+              {pendingRows.length > 0 && (
+                <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                  {pendingRows.length}
+                </span>
+              )}
+            </button>
+
+            {toolsOpen && (
+              <>
+                <div className="flex flex-wrap items-center gap-2 border-t border-neutral-100 px-2.5 py-2 dark:border-neutral-800">
+                  <input
+                    value={resolveRef}
+                    onChange={(e) => setResolveRef(e.target.value)}
+                    placeholder="Paystack reference…"
+                    className="h-8 min-w-0 flex-1 rounded-md border border-neutral-200 bg-white px-2 text-xs dark:border-neutral-700 dark:bg-neutral-950"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={resolveBusy || !resolveRef.trim()}
+                    onClick={() => handleResolvePayment()}
+                    className="h-8 shrink-0 rounded-md bg-rose-500 px-2.5 text-xs font-bold text-white hover:bg-rose-600"
+                  >
+                    {resolveBusy ? '…' : 'Verify'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={pendingLoading || sweepBusy}
+                    onClick={() => void loadPendingPayments()}
+                    className="h-8 rounded-md px-2 text-[11px]"
+                    title="Refresh open checkouts"
+                  >
+                    <RefreshCw className={cn('h-3.5 w-3.5', pendingLoading && 'animate-spin')} />
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={sweepBusy || pendingRows.length === 0}
+                    onClick={() => void handleSweepPending()}
+                    className="h-8 rounded-md bg-amber-600 px-2 text-[11px] font-bold text-white hover:bg-amber-700"
+                    title="Fulfill paid ones; clear abandoned"
+                  >
+                    {sweepBusy ? '…' : `Clean (${pendingRows.length})`}
+                  </Button>
+                </div>
+
+                {(resolveError || sweepError || sweepNotice || resolveResult) && (
+                  <div className="space-y-1 border-t border-neutral-100 px-2.5 py-1.5 dark:border-neutral-800">
+                    {resolveError && (
+                      <p className="flex items-center gap-1 text-[11px] text-red-500">
+                        <AlertCircle className="h-3 w-3 shrink-0" /> {resolveError}
+                      </p>
+                    )}
+                    {sweepError && (
+                      <p className="flex items-center gap-1 text-[11px] text-red-500">
+                        <AlertCircle className="h-3 w-3 shrink-0" /> {sweepError}
+                      </p>
+                    )}
+                    {sweepNotice && (
+                      <p className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="h-3 w-3 shrink-0" /> {sweepNotice}
+                      </p>
+                    )}
+                    {resolveResult && (
+                      <p className="text-[11px] text-neutral-600 dark:text-neutral-300">
+                        {resolveResult.message ||
+                          (resolveResult.resolved
+                            ? 'Fulfilled / already fulfilled'
+                            : resolveResult.abandoned
+                              ? 'Not paid — cleared from list'
+                              : `Paystack: ${resolveResult.paystack?.status ?? 'unknown'}`)}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="border-t border-neutral-100 dark:border-neutral-800">
+                  <p className="px-2.5 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Open checkouts
+                  </p>
+                  {pendingLoading ? (
+                    <p className="px-2.5 py-2 text-[11px] text-neutral-400">Loading…</p>
+                  ) : pendingRows.length === 0 ? (
+                    <p className="px-2.5 py-2 text-[11px] text-neutral-400">
+                      None open (2 min–14 days). Abandoned clear when you tap Clean.
+                    </p>
+                  ) : (
+                    <div className="max-h-48 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800">
+                      {pendingRows.map((row) => (
+                        <div
+                          key={row.id}
+                          className="flex items-center gap-2 px-2.5 py-1.5 text-[11px]"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <button
+                              type="button"
+                              className="block w-full truncate text-left font-mono text-neutral-700 hover:text-rose-500 dark:text-neutral-300"
+                              title={row.reference}
+                              onClick={() => setResolveRef(row.reference)}
+                            >
+                              {row.reference}
+                            </button>
+                            <p className="truncate text-[10px] text-neutral-400">
+                              {row.email || 'no email'} · {row.eventTitle || 'Event'} ·{' '}
+                              {formatNaira(row.chargeAmount)}
+                            </p>
+                          </div>
+                          <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400">
+                            Pending
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={resolveBusy}
+                            onClick={() => void handleResolvePayment(row.reference)}
+                            className="h-6 shrink-0 rounded-md px-2 text-[10px]"
+                          >
+                            Check
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       ) : (
         <div className="space-y-3">
           <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
@@ -855,10 +1028,7 @@ const AdminTransactionsPage: React.FC = () => {
       <Dialog open={Boolean(selectedTx)} onOpenChange={(o) => !o && setSelectedTx(null)}>
         <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto p-4 sm:p-5 pr-12">
           {selectedTx && (() => {
-            const isFree =
-              selectedTx.type === 'TICKET' &&
-              (!selectedTx.totalAmount || selectedTx.totalAmount <= 0) &&
-              !selectedTx.paymentReference;
+            const isFree = isFreeTransaction(selectedTx);
             const bank = !isFree
               ? bankPayoutLabel(
                   selectedTx,
@@ -905,6 +1075,15 @@ const AdminTransactionsPage: React.FC = () => {
                     )}
                   </div>
 
+                  {isFree && (
+                    <div className="rounded-xl border border-sky-200 bg-sky-50/60 px-3 py-2.5 dark:border-sky-900 dark:bg-sky-950/30">
+                      <p className="font-bold text-sky-800 dark:text-sky-300">Free — issued automatically</p>
+                      <p className="text-[11px] text-sky-700/80 dark:text-sky-400 mt-0.5">
+                        No Paystack payment. Verify / Clean is only for paid checkouts.
+                      </p>
+                    </div>
+                  )}
+
                   {!isFree && selectedTx.paymentReference && (
                     <div className="flex items-center gap-2 rounded-xl border border-neutral-200 dark:border-neutral-800 px-3 py-2">
                       <p className="min-w-0 flex-1 font-mono text-[11px] truncate text-neutral-700 dark:text-neutral-300">
@@ -929,7 +1108,7 @@ const AdminTransactionsPage: React.FC = () => {
                     <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 px-3 py-2.5 space-y-1">
                       <div className="flex justify-between">
                         <span className="text-neutral-500">Paid</span>
-                        <span className="font-bold">{formatNaira(selectedTx.totalAmount)}</span>
+                        <span className="font-bold">{formatTxAmount(selectedTx.totalAmount)}</span>
                       </div>
                       {(selectedTx.platformFee > 0 || selectedTx.processingFee > 0) && (
                         <>

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import EventCard, { Event } from '../components/EventCard';
@@ -7,7 +8,11 @@ import { useEvents } from '../hooks/queries/useEvents';
 import { EventLink } from '../components/EventLink';
 import { mapApiEventToFrontendEvent } from '../data/mockEvents';
 import { isEventPast } from '../lib/eventBadges';
-import { platformFeeForUnit } from '../lib/fees';
+import { buyerPaysForTicket, platformFeeForUnit } from '../lib/fees';
+
+/** Lagos nightlife — Ben Iwara / Unsplash */
+const HERO_IMAGE =
+  'https://images.unsplash.com/photo-1767661667474-4f2a197c9a51?auto=format&fit=crop&w=2000&q=80';
 
 function isLiveEvent(e: Event) {
   return !isEventPast(e.date, e.endDate);
@@ -55,7 +60,10 @@ const FALLBACK_EVENTS: Event[] = [
 const OrganizerPage: React.FC = () => {
   const [price, setPrice] = useState(5000);
   const [attendees, setAttendees] = useState(500);
+  /** When true, guests pay the fee at checkout; you keep the full ticket price. */
+  const [passFeeToBuyer, setPassFeeToBuyer] = useState(true);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
+  const reduceMotion = useReducedMotion();
 
   const { data: apiEvents = [], error } = useEvents({ limit: 12, upcoming: 'true' });
 
@@ -71,6 +79,8 @@ const OrganizerPage: React.FC = () => {
   const grossEarnings = price * attendees;
   const platformFeeTotal = feeEach * attendees;
   const netEarnings = grossEarnings - platformFeeTotal;
+  const youKeep = passFeeToBuyer ? grossEarnings : netEarnings;
+  const guestPaysEach = buyerPaysForTicket(price, !passFeeToBuyer);
 
   const whatYouGet = [
     {
@@ -110,64 +120,22 @@ const OrganizerPage: React.FC = () => {
     },
   ];
 
-  const serviceTiers = [
-    {
-      name: 'Do it yourself',
-      blurb: 'You sell tickets and scan them with your own team. You only pay the ticket fee.',
-      points: [
-        'Sell tickets online',
-        'Scan with a phone',
-        'Sell tickets at the door',
-        'See who has checked in',
-      ],
-      cta: 'Start as an organizer',
-      to: '/become-organizer',
-      contactOnly: false,
-    },
-    {
-      name: 'We help at the door',
-      blurb: 'Same tools, plus our team on the day. We scan tickets and help people in.',
-      points: [
-        'People to scan tickets',
-        'Cashiers if you need them',
-        'Wristbands if you use them',
-        'Help on the day of the event',
-      ],
-      cta: 'Ask for a price',
-      to: '/contact',
-      contactOnly: true,
-    },
-    {
-      name: 'Big events',
-      blurb: 'For concerts, festivals, and conferences. We plan the door with you.',
-      points: [
-        'A price that fits the event',
-        'One person in charge',
-        'More than one gate or day',
-        'Ready for a large crowd',
-      ],
-      cta: 'Ask for a price',
-      to: '/contact',
-      contactOnly: true,
-    },
-  ];
-
   const faqData = [
     {
       q: 'When do I get paid?',
-      a: 'We usually pay you within a day after your event starts. The money goes to the bank account in your settings.',
+      a: 'Payouts are T+1 — usually within one business day after your event starts. Money goes to the Nigerian bank account in your settings.',
+    },
+    {
+      q: 'What is the fee?',
+      a: 'One checkout fee: 7.5% + ₦100 on each paid ticket or booth. Free tickets are ₦0. No separate Paystack line for your guests.',
+    },
+    {
+      q: 'Do you provide wristbands and door staff?',
+      a: 'Yes. We can supply wristbands and send scanners, cashiers, or gate managers for event day. Tell us your crowd size and we will quote.',
     },
     {
       q: 'Do I need a special scanner?',
-      a: 'No. Any phone can scan the ticket.',
-    },
-    {
-      q: 'How much does door staff cost?',
-      a: 'We do not list one price. Tell us how many people you expect and we will send a quote.',
-    },
-    {
-      q: 'Who pays the fees?',
-      a: 'Guests usually pay a small extra at checkout. You can choose to pay it instead, so they pay only the ticket price. Our fee is not refunded.',
+      a: 'No. Any phone can scan tickets. You can run the gate yourself or ask us to staff it.',
     },
   ];
 
@@ -176,43 +144,247 @@ const OrganizerPage: React.FC = () => {
     return `₦${feeEach.toLocaleString()}`;
   }, [price, feeEach]);
 
+  const heroEase = [0.16, 1, 0.3, 1] as const;
+
   return (
     <div className="min-h-screen bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-      <section className="border-b border-neutral-200 dark:border-neutral-800">
-        <div className="mx-auto grid max-w-5xl gap-8 px-4 py-10 sm:px-6 sm:py-14 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
-          <div>
-            <h1 className="max-w-xl text-3xl font-bold tracking-tight text-neutral-900 dark:text-white sm:text-4xl text-balance">
-              Sell tickets for your event
-            </h1>
-            <p className="mt-3 max-w-lg text-base leading-relaxed text-neutral-700 dark:text-neutral-300">
-              List your event, sell tickets, and check people in at the door. It costs nothing to start.
-            </p>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Button
-                className="h-11 rounded-full bg-rose-500 px-6 text-sm font-semibold text-white hover:bg-rose-600"
-                asChild
-              >
-                <Link to="/become-organizer">
-                  Start as an organizer
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-              <Link
-                to="/organizer/events/create"
-                className="text-sm font-semibold text-neutral-700 underline-offset-4 hover:text-rose-600 hover:underline dark:text-neutral-300"
-              >
-                Already set up? Create an event
+      <section className="relative isolate min-h-[22rem] overflow-hidden text-white sm:min-h-[26rem]">
+        <motion.div
+          aria-hidden
+          className="absolute inset-0"
+          initial={reduceMotion ? false : { scale: 1.04 }}
+          animate={{ scale: 1 }}
+          transition={{ duration: 1.1, ease: heroEase }}
+        >
+          <img
+            src={HERO_IMAGE}
+            alt="Nightlife crowd in Lagos, Nigeria"
+            className="h-full w-full object-cover object-[center_30%]"
+          />
+        </motion.div>
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/75 to-neutral-950/40"
+        />
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(244,63,94,0.22),_transparent_55%)]"
+        />
+
+        <div className="relative mx-auto flex min-h-[22rem] max-w-5xl flex-col justify-center px-4 py-12 sm:min-h-[26rem] sm:px-6 sm:py-14">
+          <motion.h1
+            className="max-w-xl text-3xl font-bold tracking-tight text-white sm:text-4xl text-balance"
+            style={{ letterSpacing: '-0.03em' }}
+            initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, ease: heroEase }}
+          >
+            Sell tickets for your event
+          </motion.h1>
+          <motion.p
+            className="mt-3 max-w-md text-sm leading-relaxed text-white/85 sm:text-base"
+            initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: reduceMotion ? 0 : 0.08, ease: heroEase }}
+          >
+            List your event, sell tickets, and check people in at the door. Free to start.
+          </motion.p>
+          <motion.div
+            className="mt-6 flex w-full max-w-md flex-col gap-3"
+            initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: reduceMotion ? 0 : 0.14, ease: heroEase }}
+          >
+            <Button
+              className="h-11 w-full rounded-full bg-rose-500 px-6 text-sm font-semibold text-white hover:bg-rose-600 sm:w-auto sm:self-start"
+              asChild
+            >
+              <Link to="/become-organizer">
+                Start as an organizer
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
+            </Button>
+            <Link
+              to="/organizer/events/create"
+              className="text-sm font-medium text-white/75 underline-offset-4 transition-colors hover:text-white hover:underline sm:text-left"
+            >
+              Already have an account? Create an event
+            </Link>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Transparent pricing — immediately after hero */}
+      <section className="border-b border-neutral-200 bg-neutral-50 py-12 dark:border-neutral-800 dark:bg-neutral-900/50 sm:py-16">
+        <div className="mx-auto grid max-w-5xl gap-8 px-4 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:gap-12">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-500">
+              Transparent pricing
+            </p>
+            <h2 className="mt-2 text-3xl font-bold tracking-tight text-neutral-900 dark:text-white text-balance">
+              What your tickets cost
+            </h2>
+            <p className="mt-3 max-w-md text-sm leading-relaxed text-neutral-600 dark:text-neutral-300 sm:text-base">
+              Creating an event is free. Paid tickets and booths use one fee:{' '}
+              <span className="font-semibold text-neutral-900 dark:text-white">7.5% + ₦100</span>.
+              Free tickets stay ₦0. Nothing hidden at checkout.
+            </p>
+            <ul className="mt-6 space-y-3 text-sm text-neutral-600 dark:text-neutral-300">
+              <li className="flex gap-2">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
+                Guests see one Fee line — card processing is included.
+              </li>
+              <li className="flex gap-2">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
+                You choose who pays: guest or host.
+              </li>
+              <li className="flex gap-2">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
+                Payouts land T+1 after your event starts.
+              </li>
+            </ul>
+          </div>
+
+          <div className="rounded-2xl border border-neutral-200/80 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 sm:p-7">
+            <div className="space-y-5">
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                    Ticket price
+                  </p>
+                  <p className="text-sm font-bold tabular-nums text-neutral-900 dark:text-white">
+                    {price === 0 ? 'Free' : `₦${price.toLocaleString()}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 dark:border-neutral-700 dark:bg-neutral-900">
+                  <span className="text-sm font-semibold text-neutral-400">₦</span>
+                  <span className="text-base font-semibold tabular-nums text-neutral-900 dark:text-white">
+                    {price === 0 ? '0.00' : price.toLocaleString()}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100000}
+                  step={500}
+                  value={price}
+                  onChange={(e) => setPrice(Number(e.target.value))}
+                  className="fee-range mt-3"
+                  aria-label="Ticket price"
+                />
+              </div>
+
+              <div className="border-t border-neutral-100 pt-5 dark:border-neutral-800">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                    Tickets you expect to sell
+                  </p>
+                  <p className="text-sm font-bold tabular-nums text-neutral-900 dark:text-white">
+                    {attendees.toLocaleString()}
+                  </p>
+                </div>
+                <input
+                  type="range"
+                  min={50}
+                  max={5000}
+                  step={50}
+                  value={attendees}
+                  onChange={(e) => setAttendees(Number(e.target.value))}
+                  className="fee-range"
+                  aria-label="Expected tickets sold"
+                />
+              </div>
+
+              <fieldset className="border-t border-neutral-100 pt-5 dark:border-neutral-800">
+                <legend className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                  Who bears the fee?
+                </legend>
+                <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-neutral-800 dark:text-neutral-200">
+                    <input
+                      type="radio"
+                      name="feeBearer"
+                      checked={passFeeToBuyer}
+                      onChange={() => setPassFeeToBuyer(true)}
+                      className="h-4 w-4 accent-rose-500"
+                    />
+                    Guest pays
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-neutral-800 dark:text-neutral-200">
+                    <input
+                      type="radio"
+                      name="feeBearer"
+                      checked={!passFeeToBuyer}
+                      onChange={() => setPassFeeToBuyer(false)}
+                      className="h-4 w-4 accent-rose-500"
+                    />
+                    You pay
+                  </label>
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-neutral-500">
+                  Fee is always <span className="font-semibold text-neutral-700 dark:text-neutral-300">7.5% + ₦100</span>
+                  {price > 0 ? ` · ${feeLabel} on this ticket` : ''}.
+                </p>
+              </fieldset>
+
+              <div className="rounded-xl bg-neutral-50 px-4 py-3.5 dark:bg-neutral-900">
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-neutral-500">You keep</p>
+                    <p className="mt-0.5 text-2xl font-bold tracking-tight tabular-nums text-neutral-900 dark:text-white">
+                      ₦{youKeep.toLocaleString()}
+                    </p>
+                  </div>
+                  <p className="text-right text-xs text-neutral-500 sm:text-sm">
+                    {price > 0 ? (
+                      <>
+                        Guest pays ₦{guestPaysEach.toLocaleString()} each
+                        <br />
+                        {passFeeToBuyer
+                          ? `Fee on guest · ${feeLabel}`
+                          : `Fee from your payout · −₦${platformFeeTotal.toLocaleString()}`}
+                      </>
+                    ) : (
+                      'Free tickets — no fee'
+                    )}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
-            <p className="text-sm font-semibold text-neutral-900 dark:text-white">What you pay</p>
-            <ul className="mt-3 space-y-2 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
-              <li>Creating an event is free.</li>
-              <li>Paid tickets: 6% of the price. At least ₦100. At most ₦2,000.</li>
-              <li>Free tickets cost nothing.</li>
-              <li>Door staff is priced per event. Ask us.</li>
-            </ul>
+        </div>
+      </section>
+
+      {/* Payouts T+1 */}
+      <section className="border-b border-neutral-200 py-10 dark:border-neutral-800 sm:py-12">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
+            Payouts · T+1
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">
+            After your event starts, sales usually hit your bank within one business day. Add your
+            account once in settings — that is where every payout goes.
+          </p>
+        </div>
+      </section>
+
+      {/* Wristbands & event staff */}
+      <section className="border-b border-neutral-200 bg-neutral-50 py-10 dark:border-neutral-800 dark:bg-neutral-900/40 sm:py-12">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
+            Wristbands & door staff
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">
+            Need bands for VIP or re-entry, or people to scan and sell at the gate? We can supply
+            both. Quote is per event — tell us your crowd size.
+          </p>
+          <div className="mt-5">
+            <Button
+              className="h-10 rounded-full bg-rose-500 px-5 text-sm font-semibold text-white hover:bg-rose-600"
+              asChild
+            >
+              <Link to="/contact">Get a quote</Link>
+            </Button>
           </div>
         </div>
       </section>
@@ -258,201 +430,6 @@ const OrganizerPage: React.FC = () => {
         </div>
       </section>
 
-      <section className="border-b border-neutral-200 py-12 dark:border-neutral-800 sm:py-14">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6">
-          <h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
-            What it costs
-          </h2>
-          <p className="mt-2 max-w-xl text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
-            It is free to create an event. We only charge when a paid ticket or booth sells.
-          </p>
-
-          <div className="grid items-start gap-10 lg:grid-cols-12">
-            {/* Fee table */}
-            <div className="lg:col-span-5">
-              <div className="overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-800">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/60">
-                      <th className="px-4 py-3 font-bold text-neutral-700 dark:text-neutral-300">
-                        Item
-                      </th>
-                      <th className="px-4 py-3 font-bold text-neutral-700 dark:text-neutral-300">
-                        Our fee
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                    <tr>
-                      <td className="px-4 py-3.5 text-neutral-800 dark:text-neutral-200">
-                        Paid tickets
-                      </td>
-                      <td className="px-4 py-3.5 font-semibold text-neutral-900 dark:text-white">
-                        6%. At least ₦100. At most ₦2,000.
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="px-4 py-3.5 text-neutral-800 dark:text-neutral-200">
-                        Free tickets
-                      </td>
-                      <td className="px-4 py-3.5 font-semibold text-neutral-900 dark:text-white">
-                        Nothing
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="px-4 py-3.5 text-neutral-800 dark:text-neutral-200">
-                        Vendor booths
-                      </td>
-                      <td className="px-4 py-3.5 font-semibold text-neutral-900 dark:text-white">
-                        6%. At least ₦100. At most ₦2,000.
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="px-4 py-3.5 text-neutral-800 dark:text-neutral-200">
-                        Creating an event
-                      </td>
-                      <td className="px-4 py-3.5 font-semibold text-neutral-900 dark:text-white">
-                        5%. At most ₦2,000.
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="px-4 py-3.5 text-neutral-800 dark:text-neutral-200">
-                        Door staff
-                      </td>
-                      <td className="px-4 py-3.5 font-semibold text-neutral-900 dark:text-white">
-                        Ask us for a price
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-3 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
-                Guests usually pay a small extra at checkout. If you want them to pay only the ticket
-                price, you can cover that fee yourself.
-              </p>
-            </div>
-
-            {/* Estimator */}
-            <div className="lg:col-span-7">
-              <div className="rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900 sm:p-7">
-                <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
-                  See what you keep
-                </h3>
-                <p className="mt-1 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
-                  This is after our fee. It does not include door staff.
-                </p>
-
-                <div className="mt-6 space-y-5">
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
-                        Ticket price
-                      </label>
-                      <span className="text-sm font-bold text-neutral-900 dark:text-white">
-                        {price === 0 ? 'Free' : `₦${price.toLocaleString()}`}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100000}
-                      step={500}
-                      value={price}
-                      onChange={(e) => setPrice(Number(e.target.value))}
-                      className="w-full accent-rose-500"
-                      aria-label="Ticket price"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
-                        Tickets you expect to sell
-                      </label>
-                      <span className="text-sm font-bold text-neutral-900 dark:text-white">
-                        {attendees.toLocaleString()}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={50}
-                      max={5000}
-                      step={50}
-                      value={attendees}
-                      onChange={(e) => setAttendees(Number(e.target.value))}
-                      className="w-full accent-rose-500"
-                      aria-label="Expected tickets sold"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-6 rounded-xl bg-neutral-50 p-4 dark:bg-neutral-950">
-                  <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
-                    You keep ({feeLabel} fee per ticket)
-                  </p>
-                  <p className="mt-1 text-3xl font-black text-neutral-900 dark:text-white">
-                    ₦{netEarnings.toLocaleString()}
-                  </p>
-                  <div className="mt-3 space-y-1.5 border-t border-neutral-200 pt-3 text-sm text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
-                    <div className="flex justify-between">
-                      <span>Ticket sales</span>
-                      <span>₦{grossEarnings.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>
-                        Our fee ({feeLabel} × {attendees.toLocaleString()})
-                      </span>
-                      <span>-₦{platformFeeTotal.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="border-b border-neutral-200 bg-neutral-50 py-12 dark:border-neutral-800 dark:bg-neutral-900/40 sm:py-14">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6">
-          <h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
-            Need people at the door?
-          </h2>
-          <p className="mt-2 max-w-xl text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
-            You can run the event yourself, or ask us to send people. Door staff is priced per event.
-          </p>
-
-          <div className="mt-6 divide-y divide-neutral-200 border-y border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
-            {serviceTiers.map((tier) => (
-              <div
-                key={tier.name}
-                className="grid gap-3 py-5 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-8"
-              >
-                <div>
-                  <h3 className="font-semibold text-neutral-900 dark:text-white">{tier.name}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
-                    {tier.blurb}
-                  </p>
-                  <p className="mt-2 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
-                    {tier.points.join(' · ')}
-                  </p>
-                </div>
-                <Button
-                  variant={tier.contactOnly ? 'outline' : 'default'}
-                  className={
-                    tier.contactOnly
-                      ? 'h-10 rounded-full px-5 text-sm font-semibold sm:w-auto'
-                      : 'h-10 rounded-full bg-rose-500 px-5 text-sm font-semibold text-white hover:bg-rose-600 sm:w-auto'
-                  }
-                  asChild
-                >
-                  <Link to={tier.to}>{tier.cta}</Link>
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Live events (not ended) */}
       {showcaseEvents.length > 0 && (
         <section className="border-b border-neutral-200 py-12 dark:border-neutral-800 sm:py-14">
@@ -485,37 +462,34 @@ const OrganizerPage: React.FC = () => {
       )}
 
       {/* FAQ */}
-      <section className="border-b border-neutral-200 py-12 dark:border-neutral-800 sm:py-14">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6">
-          <h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
+      <section className="border-b border-neutral-200 py-14 dark:border-neutral-800 sm:py-16">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white sm:text-3xl">
             Common questions
           </h2>
-          <div className="space-y-2">
+          <div className="mt-6 divide-y divide-neutral-200 border-y border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
             {faqData.map((item, index) => {
               const open = activeFaq === index;
               return (
-                <div
-                  key={item.q}
-                  className="overflow-hidden border-b border-neutral-200 dark:border-neutral-800"
-                >
+                <div key={item.q} className="overflow-hidden">
                   <button
                     type="button"
                     onClick={() => setActiveFaq(open ? null : index)}
-                    className="flex w-full items-center justify-between gap-4 py-4 text-left"
+                    className="flex w-full items-center justify-between gap-4 py-5 text-left sm:py-6"
                     aria-expanded={open}
                   >
-                    <span className="text-sm font-bold text-neutral-900 dark:text-white sm:text-base">
+                    <span className="text-base font-bold text-neutral-900 dark:text-white sm:text-lg">
                       {item.q}
                     </span>
                     {open ? (
-                      <ChevronUp className="h-5 w-5 shrink-0 text-neutral-400" />
+                      <ChevronUp className="h-5 w-5 shrink-0 text-neutral-400 sm:h-6 sm:w-6" />
                     ) : (
-                      <ChevronDown className="h-5 w-5 shrink-0 text-neutral-400" />
+                      <ChevronDown className="h-5 w-5 shrink-0 text-neutral-400 sm:h-6 sm:w-6" />
                     )}
                   </button>
                   {open && (
-                    <div className="pb-4">
-                      <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+                    <div className="pb-5 sm:pb-6">
+                      <p className="max-w-3xl text-base leading-relaxed text-neutral-700 dark:text-neutral-300">
                         {item.a}
                       </p>
                     </div>

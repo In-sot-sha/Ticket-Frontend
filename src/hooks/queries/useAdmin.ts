@@ -141,7 +141,12 @@ export function useUpdateUserRole() {
   });
 }
 
-export function useAdminTransactions(filters?: { status?: string; page?: number }) {
+export function useAdminTransactions(filters?: {
+  status?: string;
+  eventId?: number | string;
+  q?: string;
+  page?: number;
+}) {
   return useQuery({
     queryKey: queryKeys.admin.transactions(filters),
     queryFn: async () => {

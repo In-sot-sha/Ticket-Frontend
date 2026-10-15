@@ -771,7 +771,7 @@ const OrganizationsPage: React.FC = () => {
                           </span>
                         </div>
                         <span className="text-[11px] font-medium text-neutral-500">
-                          Fixed: 6% · ₦100–₦2,000
+                          Default: 7.5% + ₦100
                         </span>
                       </div>
 

@@ -9,9 +9,7 @@ import {
   CheckCircle2,
   ShieldAlert,
   Loader2,
-  ArrowRight,
   Calendar,
-  MapPin,
   Ticket,
   Plus,
   X,
@@ -19,6 +17,7 @@ import {
   Pause,
   Play,
 } from 'lucide-react';
+import { cn } from '../../lib/utils';
 import { Button } from '../ui/Button';
 import { api } from '../../services/api';
 import { OrganizerEvent } from '../../lib/eventOrganizer';
@@ -31,11 +30,14 @@ interface SettingsTabProps {
   readOnly?: boolean;
 }
 
+const TICKET_DESC_MAX = 800;
+
 interface EditableTicket {
   id?: number;
   name: string;
   price: number | string;
   quantity: number | string;
+  description?: string;
   isPaused?: boolean;
   isUnlimited?: boolean;
   validOn?: string;
@@ -109,9 +111,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       price: t.price,
       isUnlimited: t.quantity === 0,
       quantity: t.quantity === 0 ? '' : t.quantity ?? 100,
+      description: t.description || '',
       isPaused: !!t.isPaused,
       validOn: ymdFromUnknown(t.validOn),
-    })) || [{ name: 'Regular', price: 0, quantity: 100, isPaused: false }]
+    })) || [{ name: 'Regular', price: 0, quantity: 100, description: '', isPaused: false }]
   );
 
   // Loading & Toast States
@@ -228,6 +231,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             name: t.name.trim() || 'General Admission',
             price: Number(t.price) || 0,
             quantity: t.isUnlimited ? 0 : Number(t.quantity) || 0,
+            description: t.description?.trim()
+              ? t.description.trim().slice(0, TICKET_DESC_MAX)
+              : null,
             isPaused: !!t.isPaused,
             validOn:
               t.validOn && eventDayList(startDate, endDate || startDate).includes(t.validOn)
@@ -254,6 +260,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             name: t.name,
             price: Number(t.price) || 0,
             quantity: t.isUnlimited ? 0 : Number(t.quantity) || 0,
+            description: t.description?.trim() || null,
             isPaused: !!t.isPaused,
             validOn: t.validOn || null,
           })),
@@ -284,7 +291,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   };
 
   const handleAddTicket = () => {
-    setTickets((prev) => [...prev, { name: `Tier ${prev.length + 1}`, price: 0, quantity: 100 }]);
+    setTickets((prev) => [
+      ...prev,
+      { name: `Tier ${prev.length + 1}`, price: 0, quantity: 100, description: '' },
+    ]);
   };
 
   const handleRemoveTicket = (index: number) => {
@@ -348,41 +358,34 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         </div>
       )}
 
-      {/* Card 1: Visibility & Publication Status */}
-      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 shadow-2xs space-y-5">
-        <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-4">
+      {/* Visibility */}
+      <section className="rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-sm sm:text-base font-bold text-neutral-900 dark:text-white flex items-center gap-2">
-              <Globe className="h-4 w-4 text-rose-500" />
-              Event Visibility & Access
-            </h3>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              Control public access, discoverability, and publication status.
-            </p>
+            <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Visibility</h3>
+            <p className="mt-0.5 text-xs text-neutral-500">Who can find this event and apply as a vendor.</p>
           </div>
           <span
-            className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+            className={cn(
+              'shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
               isPublished
-                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
-                : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
-            }`}
+                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400'
+                : 'bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400'
+            )}
           >
-            {isPublished ? 'PUBLISHED' : 'DRAFT / UNLISTED'}
+            {isPublished ? 'Live' : 'Draft'}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Toggle: Publish Status */}
-          <div className="flex items-center justify-between p-4 rounded-xl bg-neutral-50/50 dark:bg-neutral-800/40 border border-neutral-100 dark:border-neutral-800">
-            <div className="space-y-0.5 min-w-0 pr-3">
-              <p className="text-xs sm:text-sm font-semibold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+        <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+          <div className="flex items-center justify-between gap-3 py-3 first:pt-0">
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-neutral-800 dark:text-neutral-200">
                 {isPublished ? <Globe className="h-3.5 w-3.5 text-emerald-500" /> : <Lock className="h-3.5 w-3.5 text-amber-500" />}
-                Public Visibility
+                Public listing
               </p>
-              <p className="text-[11px] text-neutral-500">
-                {isPublished
-                  ? 'Live on public feeds & discoverable by attendees.'
-                  : 'Hidden from public lists. Only accessible via direct link.'}
+              <p className="mt-0.5 text-[11px] text-neutral-500">
+                {isPublished ? 'Shown in discovery and searchable.' : 'Hidden from lists — direct link still works.'}
               </p>
             </div>
             {!readOnly ? (
@@ -391,29 +394,25 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 size="sm"
                 disabled={updating}
                 onClick={handleTogglePublish}
-                className={`rounded-full text-xs font-semibold px-4 cursor-pointer shrink-0 ${
-                  !isPublished ? 'bg-rose-500 hover:bg-rose-600 text-white' : ''
-                }`}
+                className={cn(
+                  'h-8 shrink-0 rounded-full px-3.5 text-xs font-semibold',
+                  !isPublished && 'bg-rose-500 text-white hover:bg-rose-600'
+                )}
               >
-                {updating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isPublished ? 'Unpublish' : 'Publish Event'}
+                {updating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isPublished ? 'Unpublish' : 'Publish'}
               </Button>
             ) : (
-              <span className="text-xs font-bold text-neutral-500 shrink-0">
-                {isPublished ? 'Published' : 'Draft'}
-              </span>
+              <span className="text-xs font-semibold text-neutral-500">{isPublished ? 'Published' : 'Draft'}</span>
             )}
           </div>
 
-          {/* Toggle: Vendor Applications */}
-          <div className="flex items-center justify-between p-4 rounded-xl bg-neutral-50/50 dark:bg-neutral-800/40 border border-neutral-100 dark:border-neutral-800">
-            <div className="space-y-0.5 min-w-0 pr-3">
-              <p className="text-xs sm:text-sm font-semibold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+          <div className="flex items-center justify-between gap-3 py-3 last:pb-0">
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-neutral-800 dark:text-neutral-200">
                 <Store className="h-3.5 w-3.5 text-rose-500" />
-                Vendor Applications
+                Vendor applications
               </p>
-              <p className="text-[11px] text-neutral-500">
-                Allow vendors to register and apply for booth spaces.
-              </p>
+              <p className="mt-0.5 text-[11px] text-neutral-500">Let vendors apply for booths on this event.</p>
             </div>
             {!readOnly ? (
               <Button
@@ -421,40 +420,36 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 size="sm"
                 disabled={updating}
                 onClick={handleToggleVendors}
-                className={`rounded-full text-xs font-semibold px-4 cursor-pointer shrink-0 ${
-                  allowVendors ? 'bg-rose-500 hover:bg-rose-600 text-white' : ''
-                }`}
+                className={cn(
+                  'h-8 shrink-0 rounded-full px-3.5 text-xs font-semibold',
+                  allowVendors && 'bg-rose-500 text-white hover:bg-rose-600'
+                )}
               >
-                {updating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : allowVendors ? 'Enabled' : 'Disabled'}
+                {updating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : allowVendors ? 'On' : 'Off'}
               </Button>
             ) : (
-              <span className="text-xs font-bold text-neutral-500 shrink-0">
-                {allowVendors ? 'Enabled' : 'Disabled'}
-              </span>
+              <span className="text-xs font-semibold text-neutral-500">{allowVendors ? 'On' : 'Off'}</span>
             )}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Card 2: Simple In-Place Event Details & Ticket Editor */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
           if (readOnly) return;
           handleSaveQuickDetails(e);
         }}
-        className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 shadow-2xs space-y-5"
+        className="space-y-4"
       >
-        <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-4">
-          <div>
-            <h3 className="text-sm sm:text-base font-bold text-neutral-900 dark:text-white flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-rose-500" />
-              Event Details
-            </h3>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              Update title, schedule, location, and ticket tiers.
-            </p>
-          </div>
+        {/* Details */}
+        <section className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 dark:border-neutral-800 dark:bg-neutral-900">
+        <div>
+          <h3 className="flex items-center gap-2 text-sm font-bold text-neutral-900 dark:text-white">
+            <Calendar className="h-4 w-4 text-rose-500" />
+            Event details
+          </h3>
+          <p className="mt-0.5 text-xs text-neutral-500">Title, schedule, and where it happens.</p>
         </div>
 
         {/* 1. Basic Information */}
@@ -616,26 +611,29 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             />
           )}
         </div>
+        </section>
 
-        {/* 5. Ticket Tiers (Quick Edit Price & Quantity) */}
-        <div className="pt-2 space-y-3">
-          <div className="flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800 pt-3">
+        {/* Tickets */}
+        <section className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <label className="block text-xs font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
-                <Ticket className="h-3.5 w-3.5 text-rose-500" />
-                Ticket Tiers & Pricing
-              </label>
-              <p className="text-[11px] text-neutral-400">
-                {readOnly ? 'Ticket tiers configured for this event' : 'Adjust prices, quantity, or which day a pass works'}
+              <h3 className="flex items-center gap-2 text-sm font-bold text-neutral-900 dark:text-white">
+                <Ticket className="h-4 w-4 text-rose-500" />
+                Ticket types
+              </h3>
+              <p className="mt-0.5 text-xs text-neutral-500">
+                {readOnly
+                  ? 'Ticket tiers for this event'
+                  : 'Adjust prices, quantity, or which day a pass works'}
               </p>
             </div>
             {!readOnly && (
               <button
                 type="button"
                 onClick={handleAddTicket}
-                className="text-xs font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 cursor-pointer"
+                className="inline-flex h-8 items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-3 text-xs font-bold text-rose-600 hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-400"
               >
-                <Plus className="h-3.5 w-3.5" /> Add Tier
+                <Plus className="h-3.5 w-3.5" /> Add
               </button>
             )}
           </div>
@@ -644,158 +642,179 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             {tickets.map((t, idx) => (
               <div
                 key={t.id || idx}
-                className={`flex flex-wrap items-center gap-2 p-2.5 rounded-xl border bg-neutral-50/50 dark:bg-neutral-850/40 ${
+                className={cn(
+                  'rounded-xl border bg-neutral-50/60 p-3 dark:bg-neutral-950/40',
                   t.isPaused
                     ? 'border-amber-300 dark:border-amber-800'
-                    : 'border-neutral-200/80 dark:border-neutral-800'
-                }`}
+                    : 'border-neutral-200 dark:border-neutral-800'
+                )}
               >
-                <div className="flex-1 min-w-[120px]">
-                  <input
-                    type="text"
-                    value={t.name}
-                    disabled={readOnly}
-                    onChange={(e) => handleUpdateTicket(idx, 'name', e.target.value)}
-                    placeholder="Tier Name (e.g. VIP)"
-                    className="w-full h-8 px-2.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-                  />
-                </div>
-                <div className="w-28">
-                  <div className="relative">
-                    <span className="absolute left-2 top-2 text-[10px] text-neutral-400 font-bold">₦</span>
-                    <input
-                      type="number"
-                      min={0}
-                      value={t.price}
-                      disabled={readOnly}
-                      onChange={(e) => handleUpdateTicket(idx, 'price', e.target.value)}
-                      placeholder="Price"
-                      className="w-full h-8 pl-5 pr-2 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white font-bold tabular-nums disabled:opacity-60 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                </div>
-                <div className="w-24">
-                  {t.isUnlimited ? (
-                    <div className="h-8 px-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-[11px] font-bold text-neutral-500 flex items-center justify-center">
-                      Unlimited
+                <div className="min-w-0 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="min-w-[140px] flex-1">
+                        <input
+                          type="text"
+                          value={t.name}
+                          disabled={readOnly}
+                          onChange={(e) => handleUpdateTicket(idx, 'name', e.target.value)}
+                          placeholder="Tier name (e.g. VIP)"
+                          className="h-8 w-full rounded-lg border border-neutral-200 bg-white px-2.5 text-xs font-semibold text-neutral-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
+                        />
+                      </div>
+                      <div className="relative w-28">
+                        <span className="absolute left-2 top-2 text-[10px] font-bold text-neutral-400">₦</span>
+                        <input
+                          type="number"
+                          min={0}
+                          value={t.price}
+                          disabled={readOnly}
+                          onChange={(e) => handleUpdateTicket(idx, 'price', e.target.value)}
+                          placeholder="Price"
+                          className="h-8 w-full rounded-lg border border-neutral-200 bg-white pl-5 pr-2 text-xs font-bold tabular-nums text-neutral-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
+                        />
+                      </div>
+                      <div className="w-24">
+                        {t.isUnlimited ? (
+                          <div className="flex h-8 items-center justify-center rounded-lg border border-neutral-200 bg-white px-2.5 text-[11px] font-bold text-neutral-500 dark:border-neutral-700 dark:bg-neutral-800">
+                            Unlimited
+                          </div>
+                        ) : (
+                          <input
+                            type="number"
+                            min={1}
+                            value={t.quantity}
+                            disabled={readOnly}
+                            onChange={(e) => handleUpdateTicket(idx, 'quantity', e.target.value)}
+                            placeholder="Qty"
+                            className="h-8 w-full rounded-lg border border-neutral-200 bg-white px-2.5 text-center text-xs tabular-nums text-neutral-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
+                          />
+                        )}
+                      </div>
+                      <label
+                        className={cn(
+                          'flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-neutral-500',
+                          readOnly ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!!t.isUnlimited}
+                          disabled={readOnly}
+                          onChange={(e) => {
+                            setTickets((prev) =>
+                              prev.map((row, i) =>
+                                i === idx
+                                  ? {
+                                      ...row,
+                                      isUnlimited: e.target.checked,
+                                      quantity: e.target.checked ? '' : row.quantity || 100,
+                                    }
+                                  : row
+                              )
+                            );
+                          }}
+                          className="rounded accent-rose-500"
+                        />
+                        Unlimited
+                      </label>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = tickets.map((row, i) =>
+                              i === idx ? { ...row, isPaused: !row.isPaused } : row
+                            );
+                            setTickets(next);
+                            void handleSaveQuickDetails(undefined, next);
+                          }}
+                          disabled={updating}
+                          className={cn(
+                            'flex h-8 items-center gap-1 rounded-lg border px-2.5 text-[11px] font-bold disabled:opacity-50',
+                            t.isPaused
+                              ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200'
+                              : 'border-neutral-200 text-neutral-600 hover:border-amber-300 dark:border-neutral-700'
+                          )}
+                          title={t.isPaused ? 'Resume sales' : 'Pause sales'}
+                        >
+                          {t.isPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+                          {t.isPaused ? 'Paused' : 'Pause'}
+                        </button>
+                      )}
+                      {!readOnly && tickets.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTicket(idx)}
+                          className="rounded-lg p-1.5 text-neutral-400 transition-colors hover:text-rose-500"
+                          title="Remove tier"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <input
-                      type="number"
-                      min={1}
-                      value={t.quantity}
+
+
+                    <ValidOnField
+                      startDate={startDate}
+                      endDate={endDate || startDate}
+                      value={t.validOn}
                       disabled={readOnly}
-                      onChange={(e) => handleUpdateTicket(idx, 'quantity', e.target.value)}
-                      placeholder="Qty"
-                      className="w-full h-8 px-2.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white tabular-nums text-center disabled:opacity-60 disabled:cursor-not-allowed"
+                      onChange={(next) => handleUpdateTicket(idx, 'validOn', next)}
                     />
-                  )}
-                </div>
-                <label className={`flex items-center gap-1.5 text-[11px] font-semibold text-neutral-500 shrink-0 ${readOnly ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                  <input
-                    type="checkbox"
-                    checked={!!t.isUnlimited}
-                    disabled={readOnly}
-                    onChange={(e) => {
-                      setTickets((prev) =>
-                        prev.map((row, i) =>
-                          i === idx
-                            ? {
-                                ...row,
-                                isUnlimited: e.target.checked,
-                                quantity: e.target.checked ? '' : row.quantity || 100,
-                              }
-                            : row
-                        )
-                      );
-                    }}
-                    className="rounded accent-rose-500"
-                  />
-                  Unlimited
-                </label>
-                {!readOnly && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = tickets.map((row, i) =>
-                        i === idx ? { ...row, isPaused: !row.isPaused } : row
-                      );
-                      setTickets(next);
-                      void handleSaveQuickDetails(undefined, next);
-                    }}
-                    disabled={updating}
-                    className={`h-8 px-2.5 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer border disabled:opacity-50 ${
-                      t.isPaused
-                        ? 'border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-800'
-                        : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 hover:border-amber-300'
-                    }`}
-                    title={t.isPaused ? 'Resume sales' : 'Pause sales'}
-                  >
-                    {t.isPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-                    {t.isPaused ? 'Paused' : 'Pause'}
-                  </button>
-                )}
-                {!readOnly && tickets.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTicket(idx)}
-                    className="p-1.5 text-neutral-400 hover:text-rose-500 rounded-lg transition-colors cursor-pointer"
-                    title="Remove tier"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                <div className="w-full">
-                  <ValidOnField
-                    startDate={startDate}
-                    endDate={endDate || startDate}
-                    value={t.validOn}
-                    disabled={readOnly}
-                    onChange={(next) => handleUpdateTicket(idx, 'validOn', next)}
-                  />
+                    <div>
+                      <textarea
+                        value={t.description || ''}
+                        disabled={readOnly}
+                        onChange={(e) =>
+                          handleUpdateTicket(idx, 'description', e.target.value.slice(0, TICKET_DESC_MAX))
+                        }
+                        rows={2}
+                        placeholder="Optional description (shown on booking page)"
+                        className="min-h-[2.5rem] w-full resize-y rounded-lg border border-neutral-200 bg-white px-2.5 py-2 text-xs text-neutral-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
+                      />
+                      <p className="mt-0.5 flex justify-end text-[10px] tabular-nums text-neutral-400">
+                        {(t.description || '').length}/{TICKET_DESC_MAX}
+                      </p>
+                    </div>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </section>
 
-        {/* Footer save action + link to full editor */}
         {!readOnly && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-neutral-100 dark:border-neutral-800">
+          <div className="flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between dark:border-neutral-800 dark:bg-neutral-900">
             <p className="text-[11px] text-neutral-400">
-              Need custom ticket flier badges or vendor forms?{' '}
+              Ticket flier design or vendor forms?{' '}
               <button
                 type="button"
                 onClick={() => navigate(`/organizer/events/create/${event.id}`)}
-                className="text-rose-500 hover:underline font-semibold cursor-pointer"
+                className="font-semibold text-rose-500 hover:underline"
               >
-                Open the 3-step wizard →
+                Open full wizard →
               </button>
             </p>
-
             <Button
               type="submit"
               size="sm"
               disabled={updating}
-              className="w-full sm:w-auto rounded-xl text-xs font-bold px-5 h-9 bg-rose-500 hover:bg-rose-600 text-white border-0 shadow-2xs gap-1.5 cursor-pointer"
+              className="h-9 w-full gap-1.5 rounded-xl border-0 bg-rose-500 px-5 text-xs font-bold text-white shadow-2xs hover:bg-rose-600 sm:w-auto"
             >
               {updating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-              Save Changes
+              Save changes
             </Button>
           </div>
         )}
       </form>
 
-      {/* Card 3: Danger Zone (Delete Only — Cancel removed) */}
       {!readOnly && (
-        <div className="bg-rose-50/30 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/50 rounded-2xl p-5 shadow-2xs space-y-4">
-          <div className="border-b border-rose-200/60 dark:border-rose-900/60 pb-3">
-            <h3 className="text-sm sm:text-base font-bold text-rose-700 dark:text-rose-400 flex items-center gap-2">
+        <section className="space-y-4 rounded-2xl border border-rose-200/80 bg-rose-50/30 p-4 sm:p-5 dark:border-rose-900/50 dark:bg-rose-950/20">
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-bold text-rose-700 dark:text-rose-400">
               <ShieldAlert className="h-4 w-4 text-rose-600" />
-              Danger Zone
+              Danger zone
             </h3>
-            <p className="text-xs text-rose-600/80 dark:text-rose-400/80 mt-0.5">
-              To stop ticket purchases temporarily, simply use the <strong>Unpublish</strong> toggle above. Deleting the event is permanent.
+            <p className="mt-0.5 text-xs text-rose-600/80 dark:text-rose-400/80">
+              To pause sales temporarily, unpublish above. Delete is permanent.
             </p>
           </div>
 
@@ -818,7 +837,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               Delete Event
             </Button>
           </div>
-        </div>
+        </section>
       )}
 
       {unpublishModalOpen && (

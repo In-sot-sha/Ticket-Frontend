@@ -130,12 +130,12 @@ const TermsOfService = () => {
               <h2 className="text-2xl font-semibold mb-4">7. Fees, payouts, and payments</h2>
               <p className="mb-4">
                 Platform and payment-processing fees may apply to ticket and booth orders. The standard PartyStorm
-                platform fee is 6% of the paid ticket or booth price (minimum ₦100, maximum ₦2,000 per unit); free or
-                RSVP sales have no platform fee. By default, buyers pay a checkout Fee that covers the platform fee plus
-                payment processing. Hosts may absorb fees so buyers pay the listed price only. PartyStorm fees are
-                non-refundable. Current rates are also shown at checkout and on Host marketing pages and may change with
-                notice by updating the Service or these Terms. Fees already charged on completed orders are not
-                retrospectively altered except as required by law or our written agreement with you.
+                checkout fee is 7.5% plus ₦100 per paid ticket or booth unit; free or RSVP sales have no platform fee.
+                By default, buyers pay that single checkout Fee (card processing is included, not shown as a separate
+                charge). Hosts may absorb fees so buyers pay the listed price only. PartyStorm fees are non-refundable.
+                Current rates are also shown at checkout and on Host marketing pages and may change with notice by
+                updating the Service or these Terms. Fees already charged on completed orders are not retrospectively
+                altered except as required by law or our written agreement with you.
               </p>
               <p className="mb-4">
                 Payments are processed by third-party providers. You agree to their terms where applicable. We are not a

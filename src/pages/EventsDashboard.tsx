@@ -96,39 +96,28 @@ const EventsDashboard = () => {
 
 function PageHead({ countLabel }: { countLabel: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-neutral-100 dark:border-neutral-800 pb-2 mb-2">
-    <div>
-      <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
-        Your <span className="text-rose-500">Events</span>
-      </h1>
-      <p className="text-[11px] sm:text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-      {countLabel ? (
-          <p className="text-xs text-neutral-500 mt-1">{countLabel}</p>
-        ) : null}
-      </p>
-    </div>
+    <header className="mb-5 flex items-end justify-between gap-4 border-b border-neutral-200/80 dark:border-neutral-800 pb-4">
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-500">
+          Organizer
+        </p>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900 dark:text-white sm:text-[1.75rem] text-balance">
+          Your events
+        </h1>
+        {countLabel ? (
+          <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{countLabel}</p>
+        ) : (
+          <p className="mt-1 text-sm text-neutral-400">Loading…</p>
+        )}
+      </div>
 
-    <Link to="/organizer/events/create">
-      <Button className="rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0 shadow-2xs text-xs h-8 px-3.5">
-        <Plus className="h-4 w-4 mr-1.5" />
-        <span>Create event</span>
-      </Button>
-    </Link>
-  </div>
-    // <div className="flex items-start justify-between gap-3 mb-5">
-    //   <div className="min-w-0">
-      
-    //     {countLabel ? (
-    //       <p className="text-xs text-neutral-500 mt-1">{countLabel}</p>
-    //     ) : null}
-    //   </div>
-    //   <Link to="/organizer/events/create" className="shrink-0">
-    //     <Button className="rounded-full bg-rose-500 hover:bg-rose-600 text-white border-0 text-xs h-8 px-4">
-    //       <Plus className="h-4 w-4 mr-1.5" />
-    //       Create event
-    //     </Button>
-    //   </Link>
-    // </div>
+      <Link to="/organizer/events/create" className="shrink-0">
+        <Button className="h-10 rounded-full border-0 bg-rose-500 px-4 text-sm font-semibold text-white shadow-2xs hover:bg-rose-600">
+          <Plus className="mr-1.5 h-4 w-4" />
+          Create event
+        </Button>
+      </Link>
+    </header>
   );
 }
 

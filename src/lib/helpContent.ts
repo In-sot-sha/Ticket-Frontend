@@ -301,7 +301,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     role: 'organizer',
     popular: true,
     body: [
-      'PartyStorm takes 6% of each paid ticket or booth (minimum ₦100, maximum ₦2,000 per unit). Free / RSVP is ₦0.',
+      'PartyStorm takes 7.5% + ₦100 on each paid ticket or booth (one fee). Free / RSVP is ₦0.',
       'By default, buyers pay a checkout Fee that covers the PartyStorm platform fee plus payment processing. You can absorb fees so buyers only pay the ticket or booth price — then only the PartyStorm fee is withheld from your payout (card fees are covered by PartyStorm).',
       'PartyStorm fees are non-refundable. Configure payout bank details in organizer settings. Finance views show sales and payout-related info.',
     ],
@@ -625,7 +625,7 @@ export const HELP_FAQS: HelpFaq[] = [
     role: 'organizer',
     question: 'What fees does PartyStorm charge?',
     answer:
-      'Platform fee is 6% per paid ticket or booth (min ₦100, max ₦2,000). Free events are ₦0. Buyers usually pay a checkout Fee (platform + processing); you can absorb fees so they pay face price only — then only the PartyStorm fee is withheld from your payout. PartyStorm fees are non-refundable. Contact us for on-site staffing quotes.',
+      'Checkout fee is 7.5% + ₦100 per paid ticket or booth. Free events are ₦0. Buyers usually pay that Fee at checkout; you can absorb it so they pay face price only — then the fee is withheld from your payout. PartyStorm fees are non-refundable. Contact us for on-site staffing quotes.',
     relatedArticleId: 'payouts',
   },
   {

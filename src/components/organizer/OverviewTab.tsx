@@ -96,70 +96,69 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     }
   };
 
+  const dateLabel = start.toLocaleDateString('en-NG', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  const timeLabel = `${start.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  })} – ${end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+
   return (
     <div className="space-y-4 w-full pb-8">
-      {/* ── 1. Clean Hero Banner ── */}
-      <section className="overflow-hidden rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-2xs relative">
-        <div className="relative min-h-[140px] sm:min-h-[170px] w-full flex flex-col justify-end">
-          {cover ? (
-            <>
+      {/* ── 1. Event header ── */}
+      <section className="overflow-hidden rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-2xs">
+        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,11rem)_1fr] md:grid-cols-[minmax(0,14rem)_1fr]">
+          <div className="relative h-36 sm:h-full sm:min-h-[10.5rem] bg-neutral-100 dark:bg-neutral-800">
+            {cover ? (
               <img
                 src={cover}
-                alt={event.title}
-                className="absolute inset-0 w-full h-full object-cover"
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
-            </>
-          ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-neutral-900 via-neutral-800 to-rose-950/50" />
-          )}
-
-          {/* Top Phase / Countdown Badge */}
-          <div className="absolute top-3.5 right-3.5 z-10 drop-shadow-md">
-            <EventPhaseBadge event={event} showCountdown />
+            ) : (
+              <div className="absolute inset-0 bg-gradient-to-br from-neutral-800 via-neutral-900 to-rose-950/60" />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent sm:bg-gradient-to-r sm:from-transparent sm:to-black/5" />
           </div>
 
-          {/* Title & Key Logistics Pills */}
-          <div className="relative z-10 p-4 sm:p-5 space-y-2">
-            <h1 className="text-lg sm:text-2xl font-black tracking-tight text-white drop-shadow-sm text-balance">
+          <div className="flex flex-col justify-center gap-3 p-4 sm:p-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <EventPhaseBadge event={event} showCountdown />
+              {event.category ? (
+                <span className="rounded-md bg-rose-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:bg-rose-950/40 dark:text-rose-300">
+                  {event.category}
+                </span>
+              ) : null}
+            </div>
+
+            <h1 className="text-xl font-bold tracking-tight text-neutral-900 dark:text-white sm:text-2xl text-balance">
               {event.title}
             </h1>
 
-            <div className="flex flex-wrap items-center gap-1.5 text-xs text-white/90">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-black/40 backdrop-blur-md border border-white/10 font-medium text-[11px]">
-                <Calendar className="h-3 w-3 text-rose-400 shrink-0" />
-                {start.toLocaleDateString('en-NG', {
-                  weekday: 'short',
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
-              </span>
-
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-black/40 backdrop-blur-md border border-white/10 font-medium text-[11px]">
-                <Clock className="h-3 w-3 text-rose-400 shrink-0" />
-                {start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                {' – '}
-                {end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-              </span>
-
-              {event.location && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-black/40 backdrop-blur-md border border-white/10 font-medium text-[11px] max-w-full sm:max-w-md truncate">
+            <ul className="space-y-1.5 text-sm text-neutral-600 dark:text-neutral-300">
+              <li className="flex items-center gap-2 min-w-0">
+                <Calendar className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+                <span className="truncate">{dateLabel}</span>
+              </li>
+              <li className="flex items-center gap-2 min-w-0">
+                <Clock className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+                <span className="truncate">{timeLabel}</span>
+              </li>
+              {event.location ? (
+                <li className="flex items-center gap-2 min-w-0">
                   {event.locationType === 'online' ? (
-                    <Globe className="h-3 w-3 text-rose-400 shrink-0" />
+                    <Globe className="h-3.5 w-3.5 shrink-0 text-rose-500" />
                   ) : (
-                    <MapPin className="h-3 w-3 text-rose-400 shrink-0" />
+                    <MapPin className="h-3.5 w-3.5 shrink-0 text-rose-500" />
                   )}
                   <span className="truncate">{event.location}</span>
-                </span>
-              )}
-
-              {event.category && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-rose-500/80 backdrop-blur-md text-white font-bold capitalize text-[10px]">
-                  {event.category}
-                </span>
-              )}
-            </div>
+                </li>
+              ) : null}
+            </ul>
           </div>
         </div>
       </section>

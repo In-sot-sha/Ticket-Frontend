@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment, useMemo, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, Fragment, useMemo, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -62,6 +62,48 @@ const VENDOR_ROLES = [
   { id: 'sound_lighting', label: 'Sound & Lighting' },
   { id: 'other', label: 'Other' },
 ];
+
+/** Collapsed to 2 lines; Read more only when content overflows. */
+function TicketTypeDescription({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [needsToggle, setNeedsToggle] = useState(false);
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useLayoutEffect(() => {
+    setExpanded(false);
+    setNeedsToggle(false);
+  }, [text]);
+
+  useLayoutEffect(() => {
+    if (expanded) return;
+    const el = ref.current;
+    if (!el) return;
+    setNeedsToggle(el.scrollHeight > el.clientHeight + 1);
+  }, [text, expanded]);
+
+  return (
+    <div className="pt-2.5 mt-2.5 border-t border-neutral-100 dark:border-neutral-800">
+      <p
+        ref={ref}
+        className={cn(
+          'text-[13px] leading-relaxed text-neutral-600 dark:text-neutral-400 whitespace-pre-line',
+          !expanded && 'line-clamp-2'
+        )}
+      >
+        {text}
+      </p>
+      {needsToggle && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-1 text-[11px] font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 cursor-pointer"
+        >
+          {expanded ? 'Show less' : 'Read more'}
+        </button>
+      )}
+    </div>
+  );
+}
 
 const BookingPage = () => {
   const { eventId } = useParams();
@@ -1098,68 +1140,73 @@ const BookingPage = () => {
                                 : 'border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-950'
                           )}
                         >
-                          <div className="p-3.5 sm:p-4 flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                {selected && !t.isPaused && (
-                                  <CheckCircle className="h-4 w-4 text-rose-500 shrink-0" />
-                                )}
-                                <p className="font-ticket text-sm font-semibold uppercase tracking-wide text-neutral-900 dark:text-white truncate">
-                                  {t.name}
-                                </p>
-                                {t.isPaused && (
-                                  <span className="shrink-0 rounded-full bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-[10px] font-ticket font-semibold uppercase tracking-wider text-neutral-500">
-                                    Paused
-                                  </span>
-                                )}
+                          <div className="p-3.5 sm:p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  {selected && !t.isPaused && (
+                                    <CheckCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                                  )}
+                                  <p className="font-ticket text-sm font-semibold uppercase tracking-wide text-neutral-900 dark:text-white truncate">
+                                    {t.name}
+                                  </p>
+                                  {t.isPaused && (
+                                    <span className="shrink-0 rounded-full bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-[10px] font-ticket font-semibold uppercase tracking-wider text-neutral-500">
+                                      Paused
+                                    </span>
+                                  )}
+                                </div>
+                                {ticketValidityLine(t.validOn, normalizedEventData.date, eventData?.endDate) ? (
+                                  <p className="text-[11px] text-neutral-500 mt-0.5">
+                                    {ticketValidityLine(t.validOn, normalizedEventData.date, eventData?.endDate)}
+                                  </p>
+                                ) : null}
+                                <div className="mt-1 flex flex-wrap items-center gap-2">
+                                  <p className="font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white leading-none">
+                                    {formatTicketPrice(buyerPaysForTicket(ticketUnitPrice(t.price), absorbFee, t.platformFeeNaira))}
+                                  </p>
+                                  {!absorbFee && ticketUnitPrice(t.price) > 0 && (
+                                    <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:bg-neutral-800 dark:text-neutral-300">
+                                      Includes fee
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                              {ticketValidityLine(t.validOn, normalizedEventData.date, eventData?.endDate) ? (
-                                <p className="text-[11px] text-neutral-500 mt-0.5">
-                                  {ticketValidityLine(t.validOn, normalizedEventData.date, eventData?.endDate)}
-                                </p>
-                              ) : null}
-                              <div className="mt-1 flex flex-wrap items-center gap-2">
-                                <p className="font-ticket text-xl font-bold tracking-tight text-neutral-900 dark:text-white leading-none">
-                                  {formatTicketPrice(buyerPaysForTicket(ticketUnitPrice(t.price), absorbFee, t.platformFeeNaira))}
-                                </p>
-                                {!absorbFee && ticketUnitPrice(t.price) > 0 && (
-                                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:bg-neutral-800 dark:text-neutral-300">
-                                    Includes fee
-                                  </span>
-                                )}
-                              </div>
-                            </div>
 
-                            <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => updateTicketQty(t.id, -1)}
-                                disabled={qty <= 0 || t.isPaused}
-                                aria-label={`Decrease ${t.name}`}
-                                className="h-9 w-9 inline-flex items-center justify-center rounded-full border border-neutral-300 dark:border-neutral-500 bg-neutral-100 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                              >
-                                <Minus className="h-4 w-4" />
-                              </button>
-                              <input
-                                type="number"
-                                min={0}
-                                max={availableCount}
-                                value={qty}
-                                onChange={(e) => handleTicketQtyChange(t.id, e.target.value)}
-                                disabled={t.isPaused || availableCount <= 0}
-                                aria-label={`${t.name} quantity`}
-                                className="w-12 h-9 text-center text-sm font-ticket font-bold rounded-lg border border-neutral-300 dark:border-neutral-500 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white focus:ring-2 focus:ring-rose-500/40 focus:border-rose-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => updateTicketQty(t.id, 1)}
-                                disabled={!canBuyMore}
-                                aria-label={`Increase ${t.name}`}
-                                className="h-9 w-9 inline-flex items-center justify-center rounded-full border border-neutral-300 dark:border-neutral-500 bg-neutral-100 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                              >
-                                <Plus className="h-4 w-4" />
-                              </button>
+                              <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => updateTicketQty(t.id, -1)}
+                                  disabled={qty <= 0 || t.isPaused}
+                                  aria-label={`Decrease ${t.name}`}
+                                  className="h-9 w-9 inline-flex items-center justify-center rounded-full border border-neutral-300 dark:border-neutral-500 bg-neutral-100 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                  <Minus className="h-4 w-4" />
+                                </button>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={availableCount}
+                                  value={qty}
+                                  onChange={(e) => handleTicketQtyChange(t.id, e.target.value)}
+                                  disabled={t.isPaused || availableCount <= 0}
+                                  aria-label={`${t.name} quantity`}
+                                  className="w-12 h-9 text-center text-sm font-ticket font-bold rounded-lg border border-neutral-300 dark:border-neutral-500 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white focus:ring-2 focus:ring-rose-500/40 focus:border-rose-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => updateTicketQty(t.id, 1)}
+                                  disabled={!canBuyMore}
+                                  aria-label={`Increase ${t.name}`}
+                                  className="h-9 w-9 inline-flex items-center justify-center rounded-full border border-neutral-300 dark:border-neutral-500 bg-neutral-100 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </button>
+                              </div>
                             </div>
+                            {typeof t.description === 'string' && t.description.trim() ? (
+                              <TicketTypeDescription text={t.description.trim()} />
+                            ) : null}
                           </div>
 
                           {(t.isPaused || atLimit) && (

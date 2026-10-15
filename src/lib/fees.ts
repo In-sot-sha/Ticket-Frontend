@@ -1,9 +1,16 @@
-/** PartyStorm platform fee: 6% per paid ticket/booth, min ₦100, max ₦2,000. */
-export const PLATFORM_FEE_RATE = 0.06;
-export const PLATFORM_FEE_MIN = 100;
-export const PLATFORM_FEE_MAX = 2000;
+/**
+ * PartyStorm checkout fee (published): 7.5% + ₦100 per paid ticket/booth unit.
+ * Free / RSVP (₦0) is never charged.
+ * Paystack (≈1.5% + ₦100) is settled from this take — not added again for the buyer.
+ */
+export const PLATFORM_FEE_RATE = 0.075;
+export const PLATFORM_FEE_FLAT = 100;
 
-/** Paystack local: 1.5% + ₦100 (flat waived under ₦2,500), capped at ₦2,000. */
+/** @deprecated Default formula no longer uses min/max. */
+export const PLATFORM_FEE_MIN = PLATFORM_FEE_FLAT;
+export const PLATFORM_FEE_MAX = 2_000_000;
+
+/** Paystack local (internal cost): 1.5% + ₦100 (flat waived under ₦2,500), capped at ₦2,000. */
 export const PAYSTACK_RATE = 0.015;
 export const PAYSTACK_FLAT = 100;
 export const PAYSTACK_FLAT_WAIVE_BELOW = 2500;
@@ -22,8 +29,8 @@ export function buyerPaysForTicket(
 }
 
 /**
- * PartyStorm take per unit.
- * Pass `platformFeeNaira` (admin override) to skip the default 6% · min ₦100 · max ₦2,000 formula.
+ * PartyStorm take / buyer checkout fee per unit.
+ * Pass `platformFeeNaira` (admin override) to skip the default 7.5% + ₦100 formula.
  */
 export function platformFeeForUnit(
   price: number,
@@ -33,10 +40,7 @@ export function platformFeeForUnit(
   if (platformFeeNaira != null && Number.isFinite(Number(platformFeeNaira))) {
     return Math.max(0, Math.round(Number(platformFeeNaira)));
   }
-  return Math.min(
-    PLATFORM_FEE_MAX,
-    Math.max(PLATFORM_FEE_MIN, Math.round(price * PLATFORM_FEE_RATE)),
-  );
+  return Math.round(price * PLATFORM_FEE_RATE) + PLATFORM_FEE_FLAT;
 }
 
 export function paystackLocalFee(amountNgn: number): number {
@@ -47,6 +51,7 @@ export function paystackLocalFee(amountNgn: number): number {
 
 export type CheckoutFees = {
   platformFee: number;
+  /** Estimated Paystack cost (internal; not added again for the buyer). */
   processingFee: number;
   /** Amount shown as "Fee" to the buyer (0 when organizer absorbs). */
   fee: number;
@@ -55,9 +60,9 @@ export type CheckoutFees = {
 
 /**
  * Buyer checkout totals.
- * Pass-through: Fee = PartyStorm + Paystack (bundled); buyer pays subtotal + Fee.
+ * Pass-through: Fee = unified 7.5% + ₦100; buyer pays subtotal + Fee.
  * Absorb: Fee = 0; buyer pays listed ticket/booth price only.
- * Paystack is settled from PartyStorm’s take (not the organizer subaccount).
+ * Paystack is settled from PartyStorm’s take (not stacked on the buyer).
  * Free / RSVP (₦0 face value) is never charged a platform or processing fee.
  */
 export function calculateBuyerCheckout(
@@ -80,19 +85,11 @@ export function calculateBuyerCheckout(
     };
   }
 
-  const base = safeSubtotal + safePlatform;
-  let total = base;
-  for (let i = 0; i < 5; i++) {
-    total = base + paystackLocalFee(total);
-  }
-  total = Math.round(total);
-  const fee = total - safeSubtotal;
-  const processingFee = total - base;
-
+  const total = safeSubtotal + safePlatform;
   return {
     platformFee: safePlatform,
-    processingFee: Math.max(0, Math.round(processingFee)),
-    fee,
+    processingFee: Math.round(paystackLocalFee(total)),
+    fee: safePlatform,
     total,
   };
 }
