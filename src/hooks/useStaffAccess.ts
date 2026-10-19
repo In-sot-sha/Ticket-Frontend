@@ -36,7 +36,7 @@ export function useStaffAccess() {
 
   const capabilities = useMemo(() => {
     if (isAdmin) {
-      return ['SCAN', 'WALK_IN_SALE', 'CHECK_IN', 'GATE_MANAGE', 'SUPPORT'];
+      return ['SCAN', 'WALK_IN_SALE', 'CHECK_IN', 'GATE_MANAGE', 'SUPPORT', 'FINANCE'];
     }
     const fromHome = homeData?.profile?.capabilities;
     if (fromHome) return parseCapabilities(fromHome);
@@ -60,6 +60,8 @@ export function useStaffAccess() {
 
   const canManageGate = isAdmin || capabilities.includes('GATE_MANAGE');
 
+  const canFinance = isAdmin || capabilities.includes('FINANCE');
+
   return {
     isAdmin,
     isStaff: isStaffUser,
@@ -68,6 +70,7 @@ export function useStaffAccess() {
     canWalkIn,
     canSupport,
     canManageGate,
+    canFinance,
     todayGates: homeData?.todayGates || [],
     events: homeData?.events || [],
     isLoading,

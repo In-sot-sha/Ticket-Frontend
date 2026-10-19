@@ -888,6 +888,49 @@ export const api = {
     ) => apiRequest<any>('PUT', `/staff/support/tickets/${id}`, data),
   },
 
+  /** Company books — basePath is `/admin/books` or `/staff/books` */
+  books: {
+    list: (basePath: string, params?: Record<string, string>) =>
+      apiRequest<any[]>('GET', basePath, undefined, { params }),
+
+    summary: (basePath: string, params?: Record<string, string>) =>
+      apiRequest<{
+        income: number;
+        expense: number;
+        net: number;
+        incomeCount: number;
+        expenseCount: number;
+      }>('GET', `${basePath}/summary`, undefined, { params }),
+
+    create: (
+      basePath: string,
+      data: {
+        type: 'INCOME' | 'EXPENSE';
+        amount: number;
+        category: string;
+        description?: string | null;
+        occurredAt: string;
+        paymentMethod?: string | null;
+      }
+    ) => apiRequest<any>('POST', basePath, data),
+
+    update: (
+      basePath: string,
+      id: number,
+      data: {
+        type?: 'INCOME' | 'EXPENSE';
+        amount?: number;
+        category?: string;
+        description?: string | null;
+        occurredAt?: string;
+        paymentMethod?: string | null;
+      }
+    ) => apiRequest<any>('PUT', `${basePath}/${id}`, data),
+
+    remove: (basePath: string, id: number) =>
+      apiRequest<any>('DELETE', `${basePath}/${id}`),
+  },
+
   // Finance and Payouts endpoints
   finance: {
     getBalance: () => apiRequest<{

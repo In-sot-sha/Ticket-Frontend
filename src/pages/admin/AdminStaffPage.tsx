@@ -21,6 +21,7 @@ import {
   Phone,
   Shield,
   Trash2,
+  Wallet,
 } from 'lucide-react';
 import api from '../../services/api';
 import { queryKeys } from '../../lib/queryKeys';
@@ -44,7 +45,7 @@ import {
 } from '../../components/ui/select';
 import { cn } from '../../lib/utils';
 
-const CAPS = ['SCAN', 'WALK_IN_SALE', 'CHECK_IN', 'GATE_MANAGE', 'SUPPORT'] as const;
+const CAPS = ['SCAN', 'WALK_IN_SALE', 'CHECK_IN', 'GATE_MANAGE', 'SUPPORT', 'FINANCE'] as const;
 
 const CAP_CONFIG: Record<
   string,
@@ -79,6 +80,12 @@ const CAP_CONFIG: Record<
     icon: Headphones,
     color: 'bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800',
     desc: 'Handle field issues and escalate to admins',
+  },
+  FINANCE: {
+    label: 'Finance',
+    icon: Wallet,
+    color: 'bg-teal-50 dark:bg-teal-950/30 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-800',
+    desc: 'Record and manage PartyStorm company books',
   },
 };
 

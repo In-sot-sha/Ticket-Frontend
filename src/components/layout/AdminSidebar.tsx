@@ -12,6 +12,7 @@ import {
   Ticket,
   Calendar,
   UserCog,
+  Wallet,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../context/AuthContext';
@@ -33,6 +34,7 @@ const NAV_ITEMS: NavItem[] = [
   { title: 'Tickets', icon: Ticket, href: '/admin/tickets', exact: true },
   { title: 'Organizations', icon: Building2, href: '/admin/organizations', exact: true, badgeKey: 'pendingHosts' },
   { title: 'Transactions', icon: CreditCard, href: '/admin/transactions', exact: true },
+  { title: 'Books', icon: Wallet, href: '/admin/books', exact: true },
   { title: 'Users', icon: Users, href: '/admin/users', exact: true },
   { title: 'Support', icon: LifeBuoy, href: '/admin/support', exact: true, badgeKey: 'openSupportTickets' },
   { title: 'WhatsApp', icon: Phone, href: '/admin/whatsapp', exact: true },

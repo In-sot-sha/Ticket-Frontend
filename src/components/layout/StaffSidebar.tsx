@@ -5,6 +5,7 @@ import {
   ScanLine,
   ShoppingCart,
   LifeBuoy,
+  Wallet,
   X,
   Shield,
 } from 'lucide-react';
@@ -26,7 +27,7 @@ const StaffSidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = (
 }) => {
   const location = useLocation();
   const { user } = useAuth();
-  const { canScan, canWalkIn, canSupport } = useStaffAccess();
+  const { canScan, canWalkIn, canSupport, canFinance } = useStaffAccess();
 
   const navItems: NavItem[] = React.useMemo(() => {
     const items: NavItem[] = [
@@ -38,11 +39,14 @@ const StaffSidebar: React.FC<{ isOpen: boolean; toggleSidebar: () => void }> = (
     if (canWalkIn) {
       items.push({ title: 'Gate sale', icon: ShoppingCart, href: '/staff/walk-in' });
     }
+    if (canFinance) {
+      items.push({ title: 'Books', icon: Wallet, href: '/staff/books' });
+    }
     if (canSupport) {
       items.push({ title: 'Support', icon: LifeBuoy, href: '/staff/support' });
     }
     return items;
-  }, [canScan, canWalkIn, canSupport]);
+  }, [canScan, canWalkIn, canSupport, canFinance]);
 
   const isActive = (item: NavItem) => {
     const path = location.pathname;

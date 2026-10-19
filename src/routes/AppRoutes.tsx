@@ -71,6 +71,7 @@ import ForceChangePasswordPage from '../pages/ForceChangePasswordPage';
 import SupportPage from '../pages/SupportPage';
 import StaffLayout from '../components/layout/StaffLayout';
 import DevEmailsPage from '../pages/DevEmailsPage';
+import CompanyBooksPage from '../pages/CompanyBooksPage';
 
 /** Old /events/create/:id bookmarks → organizer edit URL */
 const LegacyCreateEventRedirect: React.FC = () => {
@@ -356,6 +357,10 @@ const AppRoutes: React.FC = () => {
           element: <AdminTransactionsPage />,
         },
         {
+          path: "books",
+          element: <CompanyBooksPage />,
+        },
+        {
           path: "support",
           element: <AdminSupportPage />,
         },
@@ -420,6 +425,10 @@ const AppRoutes: React.FC = () => {
         {
           path: "support",
           element: <AdminSupportPage />,
+        },
+        {
+          path: "books",
+          element: <CompanyBooksPage />,
         },
       ],
     },
