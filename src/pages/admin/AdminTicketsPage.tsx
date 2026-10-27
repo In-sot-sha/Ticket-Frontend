@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, User as UserIcon, Download, Banknote, CreditCard, ArrowLeftRight } from 'lucide-react';
+import { Calendar, User as UserIcon, Download, Banknote, CreditCard, ArrowLeftRight, Ticket, Users, ScrollText } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, DataTableSkeleton, type DataTableColumn } from '../../components/ui/data-table';
 import {
@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { useAdminTickets } from '../../hooks/queries/useAdmin';
 import { downloadCSV } from '../../lib/exportCSV';
 import { cn } from '../../lib/utils';
@@ -21,13 +22,37 @@ const statusBadgeClass: Record<string, string> = {
   USED: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 border border-neutral-200/50',
 };
 
-const paymentLabel = (method?: string | null) => {
+const paymentLabel = (method?: string | null, hasOrder?: boolean) => {
   if (method === 'CASH') return 'Cash';
   if (method === 'POS') return 'POS';
   if (method === 'TRANSFER') return 'Transfer';
   if (method === 'FREE') return 'Free';
+  if (hasOrder) return 'Online';
   return '—';
 };
+
+/** What the buyer paid for this ticket. Gate stores amountPaid; online uses the order charge. */
+function ticketPaid(ticket: any): number {
+  const gate = Number(ticket.amountPaid) || 0;
+  if (gate > 0) return gate;
+  const face = Number(ticket.ticketType?.price) || 0;
+  if (face <= 0) return 0;
+  const charge = Number(ticket.order?.chargeAmount) || 0;
+  const count = Number(ticket.order?._count?.tickets) || 0;
+  if (charge > 0 && count === 1) return charge;
+  return face;
+}
+
+function formatIssued(iso: string) {
+  const date = new Date(iso);
+  return {
+    day: date.toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }),
+    time: date.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' }),
+  };
+}
+
+const tabTriggerClass =
+  'data-[state=active]:border-rose-500 data-[state=active]:text-rose-500 data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent py-2 px-3 data-[state=active]:shadow-none text-xs sm:text-sm font-bold flex items-center gap-1.5';
 
 const AdminTicketsPage = () => {
   const [search, setSearch] = useState('');
@@ -96,18 +121,22 @@ const AdminTicketsPage = () => {
   }, [tickets]);
 
   const handleExportCSV = () => {
-    const headers = ['Ticket ID', 'Event Name', 'Buyer Name', 'Buyer Email', 'Ticket Type', 'Payment', 'Sold By', 'Status', 'Purchased At'];
-    const rows = filteredTickets.map((t: any) => [
-      t.id,
-      t.event?.title || 'N/A',
-      t.user ? `${t.user.firstName} ${t.user.lastName}` : t.buyerName || 'Guest',
-      t.user?.email || t.buyerEmail || 'N/A',
-      t.ticketType?.name || 'N/A',
-      paymentLabel(t.paymentMethod),
-      t.soldBy ? `${t.soldBy.firstName} ${t.soldBy.lastName}`.trim() : '—',
-      t.status || 'VALID',
-      new Date(t.createdAt).toLocaleDateString('en-NG'),
-    ]);
+    const headers = ['Ticket ID', 'Event Name', 'Buyer Name', 'Buyer Email', 'Ticket Type', 'Paid', 'Payment', 'Sold By', 'Status', 'Date'];
+    const rows = filteredTickets.map((t: any) => {
+      const issued = formatIssued(t.createdAt);
+      return [
+        t.id,
+        t.event?.title || 'N/A',
+        t.user ? `${t.user.firstName} ${t.user.lastName}` : t.buyerName || 'Guest',
+        t.user?.email || t.buyerEmail || 'N/A',
+        t.ticketType?.name || 'N/A',
+        ticketPaid(t),
+        paymentLabel(t.paymentMethod, Boolean(t.order)),
+        t.soldBy ? `${t.soldBy.firstName} ${t.soldBy.lastName}`.trim() : '—',
+        t.status || 'VALID',
+        `${issued.day} ${issued.time}`,
+      ];
+    });
     downloadCSV(headers, rows, 'platform_tickets_export.csv');
   };
 
@@ -161,14 +190,22 @@ const AdminTicketsPage = () => {
     {
       id: 'payment',
       header: 'Paid',
-      cell: (t) => (
-        <div>
-          <p className="text-xs font-semibold">{paymentLabel(t.paymentMethod)}</p>
-          {t.amountPaid > 0 && (
-            <p className="text-[10px] text-neutral-400 tabular-nums">{formatNaira(t.amountPaid)}</p>
-          )}
-        </div>
-      ),
+      cell: (t) => {
+        const paid = ticketPaid(t);
+        const method = paymentLabel(t.paymentMethod, Boolean(t.order));
+        const orderStatus = t.order?.status as string | undefined;
+        return (
+          <div>
+            <p className="text-xs font-bold tabular-nums text-neutral-900 dark:text-white">
+              {paid > 0 ? formatNaira(paid) : 'Free'}
+            </p>
+            <p className="text-[10px] text-neutral-500">
+              {method}
+              {orderStatus ? ` · ${orderStatus}` : ''}
+            </p>
+          </div>
+        );
+      },
     },
     {
       id: 'soldBy',
@@ -196,172 +233,214 @@ const AdminTicketsPage = () => {
     },
     {
       id: 'date',
-      header: 'Issued',
-      hideOnMobile: true,
-      cell: (t) => (
-        <span className="text-[11px] text-neutral-500">
-          {new Date(t.createdAt).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-          })}
-        </span>
-      ),
+      header: 'Date',
+      cell: (t) => {
+        const issued = formatIssued(t.createdAt);
+        return (
+          <div>
+            <p className="text-xs font-semibold tabular-nums text-neutral-800 dark:text-neutral-200">{issued.day}</p>
+            <p className="text-[10px] text-neutral-500 tabular-nums">{issued.time}</p>
+          </div>
+        );
+      },
     },
   ];
 
+  const collectionCards = [
+    { label: 'Cash', amount: collections.CASH, icon: Banknote, iconClass: 'text-emerald-600' },
+    { label: 'POS', amount: collections.POS, icon: CreditCard, iconClass: 'text-sky-600' },
+    { label: 'Transfer', amount: collections.TRANSFER, icon: ArrowLeftRight, iconClass: 'text-violet-600' },
+  ];
+
   return (
-    <div className="py-4 px-2 sm:px-2 max-w-7xl mx-auto text-neutral-900 dark:text-neutral-100 pb-6 space-y-4">
+    <div className="py-4 px-2 sm:px-2 max-w-7xl mx-auto text-neutral-900 dark:text-neutral-100 pb-6">
       <PageHeader
         title="Ticket"
         accent="Audit"
-        description="Gate collections, staff totals, and every ticket issued on the platform."
-        actions={
-          filteredTickets.length > 0 ? (
-            <Button
-              variant="outline"
-              className="rounded-xl text-xs font-bold h-10"
-              onClick={handleExportCSV}
-            >
-              <Download className="h-4 w-4 mr-1.5" />
-              Export CSV
-            </Button>
-          ) : null
-        }
+        description="Every ticket issued on the platform. Staff totals and the activity log sit in their own tabs."
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 shadow-xs">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Cash Collections</span>
-            <Banknote className="h-4 w-4 text-emerald-500" />
-          </div>
-          <p className="text-base sm:text-xl font-extrabold tabular-nums text-neutral-900 dark:text-white">{formatNaira(collections.CASH)}</p>
-        </div>
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 shadow-xs">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">POS Collections</span>
-            <CreditCard className="h-4 w-4 text-sky-500" />
-          </div>
-          <p className="text-base sm:text-xl font-extrabold tabular-nums text-neutral-900 dark:text-white">{formatNaira(collections.POS)}</p>
-        </div>
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 shadow-xs">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Transfer Collections</span>
-            <ArrowLeftRight className="h-4 w-4 text-violet-500" />
-          </div>
-          <p className="text-base sm:text-xl font-extrabold tabular-nums text-neutral-900 dark:text-white">{formatNaira(collections.TRANSFER)}</p>
-        </div>
-      </div>
+      <Tabs defaultValue="tickets" className="w-full">
+        <TabsList className="mb-3 w-full flex overflow-x-auto overflow-y-hidden flex-nowrap bg-transparent border-b border-neutral-200/80 dark:border-neutral-800 rounded-none p-0 h-auto justify-start items-end">
+          <TabsTrigger value="tickets" className={tabTriggerClass}>
+            <Ticket className="h-3.5 w-3.5" />
+            Tickets
+            <span className="text-[10px] font-semibold tabular-nums text-neutral-400">{tickets.length}</span>
+          </TabsTrigger>
+          <TabsTrigger value="staff" className={tabTriggerClass}>
+            <Users className="h-3.5 w-3.5" />
+            Staff collections
+            {collections.staff.length > 0 && (
+              <span className="text-[10px] font-semibold tabular-nums text-neutral-400">{collections.staff.length}</span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="activity" className={tabTriggerClass}>
+            <ScrollText className="h-3.5 w-3.5" />
+            Activity log
+          </TabsTrigger>
+        </TabsList>
 
-      {collections.staff.length > 0 && (
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Staff collections</p>
-          <ul className="space-y-1.5">
-            {collections.staff.map((s) => (
-              <li key={s.id} className="flex items-center justify-between gap-2 text-xs">
-                <span className="font-semibold text-neutral-800 dark:text-neutral-200 truncate">{s.name}</span>
-                <span className="text-neutral-500 tabular-nums shrink-0">
-                  {s.tickets} tix · Cash {formatNaira(s.cash)} · POS {formatNaira(s.pos)} · Trf {formatNaira(s.transfer)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+        <TabsContent value="tickets" className="mt-0 focus-visible:outline-none">
+          {isLoading ? (
+            <DataTableSkeleton rows={8} columns={7} />
+          ) : (
+            <DataTable
+              columns={columns}
+              rows={filteredTickets}
+              getRowId={(t) => t.id}
+              searchValue={search}
+              onSearchChange={setSearch}
+              searchPlaceholder="Search buyer, email, event, or QR code…"
+              pageSize={12}
+              toolbar={
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  <Select value={eventFilter} onValueChange={setEventFilter}>
+                    <SelectTrigger className="w-full sm:w-[210px] h-9 text-xs rounded-xl">
+                      <SelectValue placeholder="All events" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      <SelectItem value="all">All Events ({eventsList.length})</SelectItem>
+                      {eventsList.map((ev) => (
+                        <SelectItem key={ev.id} value={String(ev.id)}>
+                          {ev.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-      {auditLogs.length > 0 && (
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Activity log</p>
-          <ul className="space-y-1.5 max-h-56 overflow-y-auto">
-            {auditLogs.map((log) => {
-              const actor = log.user ? `${log.user.firstName} ${log.user.lastName}`.trim() : 'Unknown';
-              const meta = log.metadata || {};
-              const when = new Date(log.createdAt).toLocaleString('en-NG', {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              });
-              let detail = String(log.action || '').replace(/_/g, ' ').toLowerCase();
-              if (log.action === 'GATE_SALE') {
-                const pay = paymentLabel(meta.paymentMethod);
-                detail = `sold ${meta.quantity || 1} × ${meta.ticketTypeName || 'ticket'}${pay !== '—' ? ` · ${pay}` : ''}${meta.amountPaid ? ` · ${formatNaira(Number(meta.amountPaid))}` : ''}`;
-              } else if (log.action === 'CHECK_IN') {
-                detail = `checked in ${meta.attendee || 'a guest'}${meta.ticketType ? ` (${meta.ticketType})` : ''}`;
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full sm:w-[130px] h-9 text-xs rounded-xl">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="VALID">VALID</SelectItem>
+                      <SelectItem value="USED">USED</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {(eventFilter !== 'all' || statusFilter !== 'all') && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 px-2 text-xs font-semibold text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+                      onClick={() => {
+                        setEventFilter('all');
+                        setStatusFilter('all');
+                      }}
+                    >
+                      Reset
+                    </Button>
+                  )}
+
+                  <Button
+                    variant="outline"
+                    className="rounded-xl text-xs font-bold h-9"
+                    onClick={handleExportCSV}
+                    disabled={filteredTickets.length === 0}
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1.5" />
+                    Export
+                  </Button>
+                </div>
               }
-              return (
-                <li key={log.id} className="text-xs text-neutral-600 dark:text-neutral-400 flex gap-2">
-                  <span className="text-neutral-400 shrink-0 tabular-nums w-[92px]">{when}</span>
-                  <span className="min-w-0">
-                    <span className="font-semibold text-neutral-800 dark:text-neutral-200">{actor}</span>{' '}
-                    {detail}
-                    {log.event?.title ? <span className="text-neutral-400"> · {log.event.title}</span> : null}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+              emptyTitle="No tickets found"
+              emptyDescription="Try another search, event, or status filter."
+            />
+          )}
+        </TabsContent>
 
-      {isLoading ? (
-        <DataTableSkeleton rows={8} columns={7} />
-      ) : (
-        <DataTable
-          columns={columns}
-          rows={filteredTickets}
-          getRowId={(t) => t.id}
-          searchValue={search}
-          onSearchChange={setSearch}
-          searchPlaceholder="Search buyer, email, event, or QR code…"
-          pageSize={12}
-          toolbar={
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <Select value={eventFilter} onValueChange={setEventFilter}>
-                <SelectTrigger className="w-full sm:w-[210px] h-9 text-xs rounded-xl">
-                  <SelectValue placeholder="All events" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  <SelectItem value="all">All Events ({eventsList.length})</SelectItem>
-                  {eventsList.map((ev) => (
-                    <SelectItem key={ev.id} value={String(ev.id)}>
-                      {ev.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <TabsContent value="staff" className="mt-0 focus-visible:outline-none space-y-3">
+          <div className="grid grid-cols-3 divide-x divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200/80 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900">
+            {collectionCards.map((card) => (
+              <div key={card.label} className="min-w-0 px-3 py-2.5">
+                <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                  <card.icon className={cn('h-3.5 w-3.5', card.iconClass)} />
+                  {card.label}
+                </p>
+                <p className="mt-1 text-sm sm:text-base font-bold tabular-nums text-neutral-900 dark:text-white">
+                  {formatNaira(card.amount)}
+                </p>
+              </div>
+            ))}
+          </div>
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-[130px] h-9 text-xs rounded-xl">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="VALID">VALID</SelectItem>
-                  <SelectItem value="USED">USED</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {(eventFilter !== 'all' || statusFilter !== 'all') && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-9 px-2 text-xs font-semibold text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
-                  onClick={() => {
-                    setEventFilter('all');
-                    setStatusFilter('all');
-                  }}
-                >
-                  Reset
-                </Button>
-              )}
+          {collections.staff.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800 px-4 py-10 text-center">
+              <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">No staff collections yet</p>
+              <p className="text-xs text-neutral-500 mt-1">Gate sales tagged to a staff member show up here.</p>
             </div>
-          }
-          emptyTitle="No tickets found"
-          emptyDescription="Try another search, event, or status filter."
-        />
-      )}
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-neutral-50 dark:bg-neutral-950/50 text-[10px] uppercase tracking-wider text-neutral-500">
+                  <tr>
+                    <th className="px-3 py-2.5 font-semibold">Staff</th>
+                    <th className="px-3 py-2.5 font-semibold text-right">Tickets</th>
+                    <th className="px-3 py-2.5 font-semibold text-right">Cash</th>
+                    <th className="px-3 py-2.5 font-semibold text-right">POS</th>
+                    <th className="px-3 py-2.5 font-semibold text-right">Transfer</th>
+                    <th className="px-3 py-2.5 font-semibold text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                  {collections.staff.map((s) => (
+                    <tr key={s.id}>
+                      <td className="px-3 py-2.5 font-semibold text-neutral-800 dark:text-neutral-200">{s.name}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{s.tickets}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{formatNaira(s.cash)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{formatNaira(s.pos)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{formatNaira(s.transfer)}</td>
+                      <td className="px-3 py-2.5 text-right font-bold tabular-nums">
+                        {formatNaira(s.cash + s.pos + s.transfer)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="activity" className="mt-0 focus-visible:outline-none">
+          {auditLogs.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800 px-4 py-10 text-center">
+              <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">No activity yet</p>
+              <p className="text-xs text-neutral-500 mt-1">Gate sales and check-ins are recorded here.</p>
+            </div>
+          ) : (
+            <ul className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 divide-y divide-neutral-100 dark:divide-neutral-800 max-h-[70vh] overflow-y-auto">
+              {auditLogs.map((log) => {
+                const actor = log.user ? `${log.user.firstName} ${log.user.lastName}`.trim() : 'Unknown';
+                const meta = log.metadata || {};
+                const when = new Date(log.createdAt);
+                const day = when.toLocaleDateString('en-NG', { day: 'numeric', month: 'short' });
+                const time = when.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' });
+                let detail = String(log.action || '').replace(/_/g, ' ').toLowerCase();
+                if (log.action === 'GATE_SALE') {
+                  const pay = paymentLabel(meta.paymentMethod);
+                  detail = `sold ${meta.quantity || 1} × ${meta.ticketTypeName || 'ticket'}${pay !== '—' ? ` · ${pay}` : ''}${meta.amountPaid ? ` · ${formatNaira(Number(meta.amountPaid))}` : ''}`;
+                } else if (log.action === 'CHECK_IN') {
+                  detail = `checked in ${meta.attendee || 'a guest'}${meta.ticketType ? ` (${meta.ticketType})` : ''}`;
+                }
+                return (
+                  <li key={log.id} className="px-3 py-2.5 flex gap-3 text-xs">
+                    <span className="shrink-0 w-[72px] tabular-nums text-neutral-400">
+                      <span className="block font-semibold text-neutral-600 dark:text-neutral-300">{day}</span>
+                      {time}
+                    </span>
+                    <span className="min-w-0 text-neutral-600 dark:text-neutral-400">
+                      <span className="font-semibold text-neutral-800 dark:text-neutral-200">{actor}</span>{' '}
+                      {detail}
+                      {log.event?.title ? <span className="text-neutral-400"> · {log.event.title}</span> : null}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

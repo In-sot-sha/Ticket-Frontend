@@ -17,6 +17,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { LastScanNote, type LastScan } from '../components/scanner/LastScanNote';
 import {
   iosCameraSetupMessage,
   isIosDevice,
@@ -60,6 +61,7 @@ const TicketScanner: React.FC = () => {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const [lastScan, setLastScan] = useState<LastScan | null>(null);
   const [ticketData, setTicketData] = useState<any>(null);
   const [manualCode, setManualCode] = useState('');
   const [tab, setTab] = useState<'camera' | 'manual'>('camera');
@@ -100,6 +102,7 @@ const TicketScanner: React.FC = () => {
     setCameraActive(false);
     setScanStatus('loading');
     setMessage('');
+    setLastScan(null);
     setTicketData(null);
     // Scroll to top so result is immediately visible
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -108,10 +111,13 @@ const TicketScanner: React.FC = () => {
     try {
       const response = await api.tickets.validate(cleaned, selectedEventId || undefined);
       setScanStatus('success');
+      setLastScan(null);
       setMessage(response.data.message || 'Ticket validated — entry approved');
       setTicketData(response.data.ticket);
     } catch (err: any) {
       setScanStatus('error');
+      const prior = err?.response?.data?.lastScan;
+      setLastScan(prior?.at || prior?.scannedBy ? prior : null);
 
       const serverMsg: string = err?.response?.data?.message ?? '';
       const serverStatus: string = err?.response?.data?.status ?? '';
@@ -272,6 +278,7 @@ const TicketScanner: React.FC = () => {
   const resetScanner = () => {
     setScanStatus('idle');
     setMessage('');
+    setLastScan(null);
     setTicketData(null);
     setManualCode('');
     isVerifyingRef.current = false;
@@ -292,6 +299,7 @@ const TicketScanner: React.FC = () => {
     setSelectedEventTitle('');
     setScanStatus('idle');
     setMessage('');
+    setLastScan(null);
     setTicketData(null);
   };
 
@@ -528,6 +536,7 @@ const TicketScanner: React.FC = () => {
               <p className="text-sm text-neutral-700 dark:text-neutral-300 text-center mb-1 leading-snug font-medium">
                 {message}
               </p>
+              <LastScanNote lastScan={lastScan} />
 
               <button
                 onClick={resetScanner}

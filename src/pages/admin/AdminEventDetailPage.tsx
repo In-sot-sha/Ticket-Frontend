@@ -601,132 +601,37 @@ const AdminEventDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* PartyStorm take — dedicated editor (admin only) */}
           <section
             id="platform-fees"
-            className="rounded-2xl border border-rose-200/80 dark:border-rose-900/50 bg-white dark:bg-neutral-900 overflow-hidden shadow-2xs scroll-mt-20"
+            className="scroll-mt-20 overflow-hidden rounded-xl border border-neutral-200/80 bg-white dark:border-neutral-800 dark:bg-neutral-900"
           >
-            <div className="px-3.5 py-2.5 border-b border-rose-100 dark:border-rose-900/40 bg-rose-50/50 dark:bg-rose-950/20">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">
-                PartyStorm take per ticket
-              </h3>
-              <p className="mt-0.5 text-[11px] text-neutral-500">
-                Type the ₦ we keep per sold ticket (host gets the rest). Leave blank for the default 7.5% + ₦100 fee.
-              </p>
+            <div className="flex flex-wrap items-end justify-between gap-2 border-b border-neutral-100 px-3.5 py-2.5 dark:border-neutral-800">
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
+                  Ticket tiers
+                </h3>
+                <p className="mt-0.5 text-[11px] text-neutral-500">
+                  Our take is the ₦ kept per sold ticket. Leave it blank to use 7.5% + ₦100. The host keeps the rest.
+                </p>
+              </div>
+              <p className="text-[11px] tabular-nums text-neutral-500">{ticketRows.length} tiers</p>
             </div>
 
             {feeMsg && (
               <div
-                className={`px-3.5 py-2 text-[11px] font-medium border-b border-neutral-100 dark:border-neutral-800 ${
+                className={`border-b border-neutral-100 px-3.5 py-2 text-[11px] font-medium dark:border-neutral-800 ${
                   feeMsg.error
-                    ? 'bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400'
-                    : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
+                    ? 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400'
+                    : 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400'
                 }`}
               >
                 {feeMsg.text}
               </div>
             )}
 
-            <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
-              {ticketRows.length === 0 ? (
-                <p className="px-3.5 py-4 text-xs text-neutral-400">No ticket tiers on this event.</p>
-              ) : (
-                ticketRows.map((tt) => {
-                  const defaultTake = platformFeeForUnit(tt.price);
-                  const draft = feeDrafts[tt.id] ?? '';
-                  const saved =
-                    tt.platformFeeNaira == null
-                      ? ''
-                      : String(Math.round(Number(tt.platformFeeNaira)));
-                  const dirty = draft !== saved;
-                  const takeNow = draft === '' ? defaultTake : Math.round(Number(draft) || 0);
-                  const hostGets = tt.price <= 0 ? 0 : Math.max(0, Math.round(tt.price) - takeNow);
-
-                  return (
-                    <div key={tt.id} className="px-3.5 py-3 space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-neutral-900 dark:text-white truncate">
-                            {tt.name}
-                          </p>
-                          <p className="text-[11px] text-neutral-500">
-                            Ticket {tt.price === 0 ? 'Free' : formatNaira(tt.price)}
-                            {tt.price > 0 ? ` · Host keeps ~${formatNaira(hostGets)}` : ''}
-                          </p>
-                        </div>
-                        {saved !== '' ? (
-                          <span className="shrink-0 rounded-full bg-rose-100 dark:bg-rose-950/40 px-2 py-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400">
-                            Custom {formatNaira(Number(saved))}
-                          </span>
-                        ) : tt.price > 0 ? (
-                          <span className="shrink-0 rounded-full bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-[10px] font-bold text-neutral-500">
-                            Default {formatNaira(defaultTake)}
-                          </span>
-                        ) : null}
-                      </div>
-
-                      {tt.price <= 0 ? (
-                        <p className="text-[11px] text-neutral-400">Free tickets — no platform take.</p>
-                      ) : (
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="relative">
-                            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400">
-                              ₦
-                            </span>
-                            <input
-                              type="number"
-                              min={0}
-                              step={1}
-                              inputMode="numeric"
-                              placeholder={String(defaultTake)}
-                              value={draft}
-                              onChange={(e) =>
-                                setFeeDrafts((prev) => ({ ...prev, [tt.id]: e.target.value }))
-                              }
-                              className="w-32 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950 pl-6 pr-2.5 py-2 text-sm font-bold tabular-nums focus:outline-hidden focus:ring-2 focus:ring-rose-500/25 focus:border-rose-500"
-                            />
-                          </div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            disabled={!dirty || savingFeeId === tt.id}
-                            onClick={() => void saveTierPlatformFee(tt.id)}
-                            className="h-9 rounded-xl bg-rose-500 hover:bg-rose-600 text-white border-0 text-xs font-bold px-3.5 disabled:opacity-40"
-                          >
-                            {savingFeeId === tt.id ? 'Saving…' : 'Save'}
-                          </Button>
-                          {saved !== '' && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              disabled={savingFeeId === tt.id}
-                              onClick={() => void saveTierPlatformFee(tt.id, null)}
-                              className="h-9 rounded-xl text-xs px-3"
-                            >
-                              Use default
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </section>
-
-          {/* Ticket Inventory Breakdown Table */}
-          <section className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden shadow-2xs">
-            <div className="px-3.5 py-2.5 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <Ticket className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-white">
-                  Ticket Tiers ({ticketRows.length})
-                </h3>
-              </div>
-            </div>
-
+            {ticketRows.length === 0 ? (
+              <p className="px-3.5 py-4 text-xs text-neutral-500">No ticket tiers on this event.</p>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-neutral-50 dark:bg-neutral-800/50 text-neutral-400 font-bold uppercase tracking-wider text-[10px] border-b border-neutral-100 dark:border-neutral-800">
@@ -734,6 +639,7 @@ const AdminEventDetailPage: React.FC = () => {
                     <th className="py-2 px-3">Tier Name</th>
                     <th className="py-2 px-3">Price</th>
                     <th className="py-2 px-3">Our take</th>
+                    <th className="py-2 px-3">Host keeps</th>
                     <th className="py-2 px-3">Sold / Cap</th>
                     <th className="py-2 px-3">Sell-Through</th>
                     <th className="py-2 px-3">Checked In</th>
@@ -748,12 +654,15 @@ const AdminEventDetailPage: React.FC = () => {
                     const left = qty != null ? Math.max(qty - sold, 0) : null;
                     const isSoldOut = qty != null && left === 0;
                     const pct = qty && qty > 0 ? Math.min(Math.round((sold / qty) * 100), 100) : 0;
-                    const take =
-                      tt.price <= 0
-                        ? 0
-                        : tt.platformFeeNaira != null
-                          ? Math.round(Number(tt.platformFeeNaira))
-                          : platformFeeForUnit(tt.price);
+                    const defaultTake = platformFeeForUnit(tt.price);
+                    const draft = feeDrafts[tt.id] ?? '';
+                    const saved =
+                      tt.platformFeeNaira == null
+                        ? ''
+                        : String(Math.round(Number(tt.platformFeeNaira)));
+                    const dirty = draft !== saved;
+                    const takeNow = tt.price <= 0 ? 0 : draft === '' ? defaultTake : Math.round(Number(draft) || 0);
+                    const hostGets = tt.price <= 0 ? 0 : Math.max(0, Math.round(tt.price) - takeNow);
 
                     return (
                       <tr key={tt.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/30 transition-colors">
@@ -770,10 +679,54 @@ const AdminEventDetailPage: React.FC = () => {
                         <td className="py-2 px-3 font-extrabold text-rose-600 dark:text-rose-400 tabular-nums">
                           {tt.price === 0 ? 'Free' : formatNaira(tt.price)}
                         </td>
-                        <td className="py-2 px-3 tabular-nums font-semibold text-neutral-700 dark:text-neutral-300">
-                          {tt.price === 0 ? '—' : formatNaira(take)}
-                          {tt.price > 0 && tt.platformFeeNaira == null && (
-                            <span className="ml-1 text-[9px] font-bold uppercase text-neutral-400">auto</span>
+                        <td className="py-2 px-3">
+                          {tt.price <= 0 ? (
+                            <span className="text-neutral-400">—</span>
+                          ) : (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <label className="relative">
+                                <span className="sr-only">PartyStorm take for {tt.name}</span>
+                                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-neutral-400">
+                                  ₦
+                                </span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={1}
+                                  inputMode="numeric"
+                                  placeholder={String(defaultTake)}
+                                  value={draft}
+                                  onChange={(e) =>
+                                    setFeeDrafts((prev) => ({ ...prev, [tt.id]: e.target.value }))
+                                  }
+                                  className="h-8 w-24 rounded-lg border border-neutral-200 bg-white pl-5 pr-2 text-xs font-semibold tabular-nums text-neutral-900 focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500/30 dark:border-neutral-700 dark:bg-neutral-950 dark:text-white"
+                                />
+                              </label>
+                              <button
+                                type="button"
+                                disabled={!dirty || savingFeeId === tt.id}
+                                onClick={() => void saveTierPlatformFee(tt.id)}
+                                className="h-8 rounded-lg bg-rose-500 px-2.5 text-[11px] font-semibold text-white hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                {savingFeeId === tt.id ? 'Saving…' : 'Save'}
+                              </button>
+                              {saved !== '' && (
+                                <button
+                                  type="button"
+                                  disabled={savingFeeId === tt.id}
+                                  onClick={() => void saveTierPlatformFee(tt.id, null)}
+                                  className="h-8 rounded-lg px-1.5 text-[11px] font-semibold text-neutral-500 hover:text-neutral-900 disabled:opacity-40 dark:hover:text-white"
+                                >
+                                  Default
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 tabular-nums text-neutral-700 dark:text-neutral-300">
+                          {tt.price <= 0 ? '—' : formatNaira(hostGets)}
+                          {tt.price > 0 && saved === '' && (
+                            <span className="ml-1 text-[10px] font-medium text-neutral-400">auto</span>
                           )}
                         </td>
                         <td className="py-2 px-3 tabular-nums">
@@ -809,6 +762,7 @@ const AdminEventDetailPage: React.FC = () => {
                       <td className="py-2.5 px-3 text-neutral-900 dark:text-white font-extrabold">Total</td>
                       <td className="py-2.5 px-3 text-neutral-400">—</td>
                       <td className="py-2.5 px-3 text-neutral-400">—</td>
+                      <td className="py-2.5 px-3 text-neutral-400">—</td>
                       <td className="py-2.5 px-3 text-neutral-900 dark:text-white tabular-nums">
                         {totalSold} {totalInventory > 0 ? `/ ${totalInventory}` : ''}
                       </td>
@@ -826,6 +780,7 @@ const AdminEventDetailPage: React.FC = () => {
                 )}
               </table>
             </div>
+            )}
           </section>
         </TabsContent>
 

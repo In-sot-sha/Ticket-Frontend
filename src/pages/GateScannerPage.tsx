@@ -31,6 +31,7 @@ import {
 } from '../lib/qrCamera';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
+import { LastScanNote, type LastScan } from '../components/scanner/LastScanNote';
 import { Skeleton } from '../components/ui/skeleton';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -281,6 +282,7 @@ const GateScanner: React.FC<{
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError,  setCameraError]  = useState<string | null>(null);
   const [message,      setMessage]      = useState('');
+  const [lastScan,     setLastScan]     = useState<LastScan | null>(null);
   const [ticketData,   setTicketData]   = useState<any>(null);
   const [manualCode,   setManualCode]   = useState('');
   const [tab,          setTab]          = useState<'camera' | 'manual'>('camera');
@@ -382,17 +384,21 @@ const GateScanner: React.FC<{
     setCameraActive(false);
     setScanStatus('loading');
     setMessage('');
+    setLastScan(null);
     setTicketData(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     try {
-      const res = await api.tickets.validate(cleaned, selectedEventId || undefined);
+      const res = await api.tickets.validate(cleaned, selectedEventId || undefined, staffName || undefined);
       setScanStatus('success');
+      setLastScan(null);
       setMessage(res.data.message || 'Ticket validated — entry approved');
       setTicketData(res.data.ticket);
       setScanCount(c => c + 1);
     } catch (err: any) {
       setScanStatus('error');
+      const prior = err?.response?.data?.lastScan;
+      setLastScan(prior?.at || prior?.scannedBy ? prior : null);
       const serverMsg:    string = err?.response?.data?.message ?? '';
       const serverStatus: string = err?.response?.data?.status  ?? '';
       const httpStatus:   number = err?.response?.status        ?? 0;
@@ -423,7 +429,7 @@ const GateScanner: React.FC<{
       }
       setMessage(displayMessage);
     } finally { isVerifyingRef.current = false; }
-  }, [selectedEventId]);
+  }, [selectedEventId, staffName]);
 
   useEffect(() => { handleVerifRef.current = handleVerification; }, [handleVerification]);
 
@@ -665,7 +671,7 @@ const GateScanner: React.FC<{
   }, [tab, selectedEventId]);
 
   const resetScanner = () => {
-    setScanStatus('idle'); setMessage(''); setTicketData(null); setManualCode('');
+    setScanStatus('idle'); setMessage(''); setLastScan(null); setTicketData(null); setManualCode('');
     isVerifyingRef.current = false;
     if (tab === 'camera' && selectedEventId) {
       setTimeout(() => {
@@ -686,6 +692,7 @@ const GateScanner: React.FC<{
     setSelectedEventTitle('');
     setScanStatus('idle');
     setMessage('');
+    setLastScan(null);
     setTicketData(null);
   };
 
@@ -888,6 +895,7 @@ const GateScanner: React.FC<{
               </div>
               <h2 className={`text-xl font-extrabold mb-1 ${errorMeta.heading}`}>{errorMeta.title}</h2>
               <p className="text-xs text-neutral-700 dark:text-neutral-300 text-center mb-3 leading-snug font-medium">{message}</p>
+              <LastScanNote lastScan={lastScan} />
               <button onClick={resetScanner} className="w-full py-3 rounded-xl text-xs font-extrabold bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 active:scale-[0.98] transition-transform flex items-center justify-center gap-1.5">
                 <RefreshCw className="h-3.5 w-3.5" /> Scan Another
               </button>

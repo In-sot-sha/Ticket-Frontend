@@ -14,7 +14,8 @@ import {
   SelectValue,
 } from '../ui/select';
 import { downloadCSV } from '../../lib/exportCSV';
-import { eventDayList, shortDayChip, todayYmd, ymdFromUnknown } from '../../lib/ticketValidity';
+import { formatNaira } from '../../lib/eventOrganizer';
+import { eventDayList, longDayLabel, shortDayChip, todayYmd, ymdFromUnknown } from '../../lib/ticketValidity';
 
 interface AttendeesTabProps {
   eventId?: number;
@@ -39,6 +40,27 @@ const personName = (ticket: any) => {
   return ticket.buyerName || 'Guest';
 };
 
+const saleChannel = (ticket: any) => {
+  const method = String(ticket.paymentMethod || '');
+  if (method === 'CASH') return 'Cash';
+  if (method === 'POS') return 'POS';
+  if (method === 'TRANSFER') return 'Transfer';
+  if (method === 'FREE' || ticket.ticketType?.price === 0) return 'Free';
+  if (ticket.purchaseType === 'GATE') return 'Gate';
+  if (ticket.order || ticket.purchaseType === 'ONLINE') return 'Online';
+  return '';
+};
+
+const saleAmount = (ticket: any) => {
+  const gate = Number(ticket.amountPaid) || 0;
+  if (gate > 0) return gate;
+  const face = Number(ticket.ticketType?.price) || 0;
+  const charge = Number(ticket.order?.chargeAmount) || 0;
+  const count = Number(ticket.order?._count?.tickets) || 0;
+  if (charge > 0 && count === 1) return charge;
+  return face;
+};
+
 export const AttendeesTab: React.FC<AttendeesTabProps> = ({
   eventId,
   eventSlug,
@@ -50,6 +72,8 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all');
 
   const today = todayYmd();
 
@@ -93,6 +117,9 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({
           acceptedTerms: false,
           acceptedMarketing: false,
           termsAcceptedAt: null as string | null,
+          boughtDays: new Set<string>(),
+          channels: new Set<string>(),
+          paid: 0,
         });
       }
       const group = map.get(key);
@@ -104,6 +131,11 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({
       }
       const typeName = ticket.ticketType?.name || 'Ticket';
       group.ticketTypeCounts.set(typeName, (group.ticketTypeCounts.get(typeName) || 0) + 1);
+      const bought = ymdFromUnknown(ticket.order?.createdAt || ticket.createdAt);
+      if (bought) group.boughtDays.add(bought);
+      const channel = saleChannel(ticket);
+      if (channel) group.channels.add(channel);
+      group.paid += saleAmount(ticket);
       if (ticket.ticketType && !group.ticketTypeDetails.has(typeName)) {
         group.ticketTypeDetails.set(typeName, ticket.ticketType);
       }
@@ -156,6 +188,24 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({
     return list.sort((a, b) => a.name.localeCompare(b.name));
   }, [attendees, eventDays, today]);
 
+  const ticketTypeOptions = useMemo(() => {
+    const names = new Set<string>();
+    attendees.forEach((ticket) => names.add(ticket.ticketType?.name || 'Ticket'));
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [attendees]);
+
+  const dateOptions = useMemo(() => {
+    const days = new Set<string>();
+    attendees.forEach((ticket) => {
+      const bought = ymdFromUnknown(ticket.order?.createdAt || ticket.createdAt);
+      if (bought) days.add(bought);
+      (ticket.checkIns || []).forEach((ci: any) => {
+        if (ci.eventDay) days.add(ci.eventDay);
+      });
+    });
+    return Array.from(days).sort().reverse();
+  }, [attendees]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return groupedAttendees.filter((a) => {
@@ -164,6 +214,10 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({
         a.name.toLowerCase().includes(q) ||
         a.email.toLowerCase().includes(q) ||
         (a.phone && String(a.phone).toLowerCase().includes(q));
+
+      const matchesType = typeFilter === 'all' || a.ticketTypeCounts.has(typeFilter);
+      const matchesDate =
+        dateFilter === 'all' || a.boughtDays.has(dateFilter) || a.attendedDays.has(dateFilter);
 
       const matchesStatus = (() => {
         if (statusFilter === 'all') return true;
@@ -177,9 +231,9 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({
         return true;
       })();
 
-      return matchesQuery && matchesStatus;
+      return matchesQuery && matchesStatus && matchesType && matchesDate;
     });
-  }, [groupedAttendees, query, statusFilter, today]);
+  }, [groupedAttendees, query, statusFilter, typeFilter, dateFilter, today]);
 
   const totalTickets = attendees.length;
   const checkedInTickets = attendees.filter(
@@ -442,6 +496,26 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({
               ),
             },
             {
+              id: 'sale',
+              header: 'Bought',
+              className: 'min-w-[140px]',
+              cell: (a) => {
+                const dates = (Array.from(a.boughtDays) as string[]).sort();
+                const channels = Array.from(a.channels) as string[];
+                return (
+                  <div className="py-0.5">
+                    <p className="text-xs font-medium text-neutral-900 dark:text-white">
+                      {dates.length ? dates.map((day) => longDayLabel(day)).join(', ') : '—'}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-neutral-500">
+                      {channels.filter((c) => c !== 'Free').join(' · ') || (a.paid <= 0 ? 'Free' : '—')}
+                      {a.paid > 0 ? ` · ${formatNaira(a.paid)}` : ''}
+                    </p>
+                  </div>
+                );
+              },
+            },
+            {
               id: 'status',
               header: 'Check-in Status',
               className: 'min-w-[260px]',
@@ -531,9 +605,36 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({
         searchPlaceholder="Search name, email, phone…"
         pageSize={10}
         toolbar={
-          <div className="flex items-center gap-2">
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="grid w-full min-w-0 grid-cols-3 gap-2 sm:w-[28rem]">
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="h-9 w-full min-w-0 rounded-lg border-neutral-200 bg-white text-xs shadow-none dark:border-neutral-700 dark:bg-neutral-900">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                {ticketTypeOptions.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger className="h-9 w-full min-w-0 rounded-lg border-neutral-200 bg-white text-xs shadow-none dark:border-neutral-700 dark:bg-neutral-900">
+                <SelectValue placeholder="Date" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All dates</SelectItem>
+                {dateOptions.map((day) => (
+                  <SelectItem key={day} value={day}>
+                    {longDayLabel(day)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value)}>
-              <SelectTrigger className="h-9 min-w-[150px] rounded-xl border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-xs font-semibold shadow-none">
+              <SelectTrigger className="h-9 w-full min-w-0 rounded-lg border-neutral-200 bg-white text-xs shadow-none dark:border-neutral-700 dark:bg-neutral-900">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -546,14 +647,15 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({
                 </SelectGroup>
               </SelectContent>
             </Select>
+            </div>
             {/* Export button commented out for now as requested */}
             {/* <Button onClick={exportCsv} variant="outline" size="sm" className="rounded-xl text-xs gap-1.5 h-9">
               <Download className="h-3.5 w-3.5" />
               Export
             </Button> */}
             {!readOnly && (
-              <Link to={`/organizer/events/${eventSlug || eventId}/add-attendee`}>
-                <Button size="sm" className="rounded-xl text-xs h-9 bg-rose-500 hover:bg-rose-600 text-white border-0 font-bold px-3">
+              <Link to={`/organizer/events/${eventSlug || eventId}/add-attendee`} className="w-full sm:w-auto">
+                <Button size="sm" className="h-9 w-full rounded-lg bg-rose-500 px-3 text-xs font-semibold text-white hover:bg-rose-600 sm:w-auto">
                   <Plus className="h-3.5 w-3.5 mr-1" />
                   Add
                 </Button>

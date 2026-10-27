@@ -499,8 +499,8 @@ export const api = {
         data
       ),
     
-    validate: (qrCode: string, eventId?: number) => 
-      apiRequest<any>('POST', '/tickets/validate', { qrCode, eventId }),
+    validate: (qrCode: string, eventId?: number, scannerName?: string) =>
+      apiRequest<any>('POST', '/tickets/validate', { qrCode, eventId, scannerName }),
   },
 
   // Vendor endpoints
@@ -901,6 +901,9 @@ export const api = {
         incomeCount: number;
         expenseCount: number;
       }>('GET', `${basePath}/summary`, undefined, { params }),
+
+    events: (basePath: string) =>
+      apiRequest<Array<{ id: number; title: string }>>('GET', `${basePath}/events`),
 
     create: (
       basePath: string,

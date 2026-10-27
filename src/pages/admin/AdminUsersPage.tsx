@@ -1,20 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import {
-  Shield,
-  User as UserIcon,
-  Search,
-  Building2,
-  Ticket,
-  Mail,
-  Copy,
-  Check,
-  Eye,
-  CheckCircle2,
-  Briefcase,
-  HardHat,
-  Phone,
-  Calendar,
-} from 'lucide-react';
+import { Ticket, Mail, Copy, Check, CheckCircle2, Phone, Calendar } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, DataTableSkeleton, type DataTableColumn } from '../../components/ui/data-table';
 import {
@@ -34,36 +19,12 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog';
 import { useAdminUsers, useUpdateUserRole } from '../../hooks/queries/useAdmin';
-import { cn } from '../../lib/utils';
 
-const ROLE_CONFIG: Record<
-  string,
-  { label: string; badge: string; border: string; icon: React.ElementType }
-> = {
-  ADMIN: {
-    label: 'Admin',
-    badge: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200 dark:border-rose-800',
-    border: 'border-rose-500',
-    icon: Shield,
-  },
-  ORGANIZER: {
-    label: 'Organizer',
-    badge: 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200 dark:border-purple-800',
-    border: 'border-purple-500',
-    icon: Briefcase,
-  },
-  VENDOR: {
-    label: 'Vendor',
-    badge: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 dark:border-blue-800',
-    border: 'border-blue-500',
-    icon: Building2,
-  },
-  USER: {
-    label: 'Member',
-    badge: 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700',
-    border: 'border-neutral-400',
-    icon: UserIcon,
-  },
+const ROLE_LABEL: Record<string, string> = {
+  ADMIN: 'Admin',
+  ORGANIZER: 'Organizer',
+  VENDOR: 'Vendor',
+  USER: 'Member',
 };
 
 const AdminUsersPage = () => {
@@ -120,37 +81,21 @@ const AdminUsersPage = () => {
       id: 'user',
       header: 'User',
       cell: (u) => {
-        const roleCfg = ROLE_CONFIG[u.role] || ROLE_CONFIG.USER;
         const initials = `${u.firstName?.[0] || ''}${u.lastName?.[0] || ''}`.toUpperCase() || 'U';
 
         return (
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="relative shrink-0">
-              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center text-xs font-bold text-white shadow-xs">
-                {u.role === 'ADMIN' ? <Shield className="h-4 w-4" /> : initials}
-              </div>
-              {u.isStaff && (
-                <span
-                  title="Staff Member"
-                  className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full bg-amber-500 border-2 border-white dark:border-neutral-900 flex items-center justify-center"
-                >
-                  <HardHat className="h-2 w-2 text-white" />
-                </span>
-              )}
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-[11px] font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+              {initials}
             </div>
-
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <p className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white truncate">
-                  {u.firstName} {u.lastName}
-                </p>
-                {u.isStaff && (
-                  <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-md bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                    Staff
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 truncate">
+              <p className="truncate text-sm font-semibold text-neutral-900 dark:text-white">
+                {u.firstName} {u.lastName}
+                {u.isStaff ? (
+                  <span className="ml-1.5 text-[11px] font-medium text-neutral-500">Staff</span>
+                ) : null}
+              </p>
+              <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-neutral-500">
                 <span className="truncate">{u.email}</span>
                 <button
                   type="button"
@@ -159,10 +104,10 @@ const AdminUsersPage = () => {
                     handleCopyEmail(u.email);
                   }}
                   title="Copy email"
-                  className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+                  className="shrink-0 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
                 >
                   {copiedEmail === u.email ? (
-                    <Check className="h-3 w-3 text-emerald-500" />
+                    <Check className="h-3 w-3 text-emerald-600" />
                   ) : (
                     <Copy className="h-3 w-3" />
                   )}
@@ -176,67 +121,29 @@ const AdminUsersPage = () => {
     {
       id: 'role',
       header: 'Role',
-      cell: (u) => {
-        const cfg = ROLE_CONFIG[u.role] || ROLE_CONFIG.USER;
-        return (
-          <div onClick={(e) => e.stopPropagation()}>
-            <Select
-              value={u.role}
-              onValueChange={(newRole) => handleRoleChange(u.id, newRole)}
-              disabled={updateRole.isPending}
-            >
-              <SelectTrigger
-                className={cn(
-                  'h-7 w-[115px] rounded-full border text-[10px] font-bold uppercase tracking-wider shadow-2xs transition-all',
-                  cfg.badge
-                )}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="USER">USER</SelectItem>
-                <SelectItem value="ORGANIZER">ORGANIZER</SelectItem>
-                <SelectItem value="VENDOR">VENDOR</SelectItem>
-                <SelectItem value="ADMIN">ADMIN</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        );
-      },
+      cell: (u) => (
+        <span className="text-xs text-neutral-700 dark:text-neutral-300">
+          {ROLE_LABEL[u.role] || u.role}
+        </span>
+      ),
     },
     {
       id: 'orgs',
       header: 'Organizations',
       hideOnMobile: true,
       cell: (u) => (
-        <div className="flex flex-wrap gap-1 max-w-[200px]">
-          {u.ownedOrganizations?.length > 0 ? (
-            u.ownedOrganizations.map((o: any) => (
-              <span
-                key={o.id}
-                className={cn(
-                  'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-lg border',
-                  o.isVerified
-                    ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-300 border-purple-200 dark:border-purple-800'
-                    : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                )}
-              >
-                <Building2 className="h-2.5 w-2.5" />
-                <span className="truncate max-w-[120px]">{o.name}</span>
-              </span>
-            ))
-          ) : (
-            <span className="text-xs text-neutral-400">—</span>
-          )}
-        </div>
+        <span className="block max-w-[220px] truncate text-xs text-neutral-600 dark:text-neutral-400">
+          {u.ownedOrganizations?.length
+            ? u.ownedOrganizations.map((o: any) => o.name).join(' · ')
+            : '—'}
+        </span>
       ),
     },
     {
       id: 'tickets',
       header: 'Tickets',
       cell: (u) => (
-        <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 inline-flex items-center gap-1.5">
-          <Ticket className="h-3 w-3 text-rose-500" />
+        <span className="text-xs tabular-nums text-neutral-700 dark:text-neutral-300">
           {u._count?.tickets ?? 0}
         </span>
       ),
@@ -260,18 +167,16 @@ const AdminUsersPage = () => {
       header: '',
       cell: (u) => (
         <div className="flex items-center justify-end">
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-lg text-xs h-7 px-2 font-semibold"
+          <button
+            type="button"
+            className="inline-flex h-8 items-center rounded-lg px-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 dark:text-rose-400 dark:hover:bg-rose-950/40"
             onClick={(e) => {
               e.stopPropagation();
               setSelectedUser(u);
             }}
           >
-            <Eye className="h-3 w-3 mr-1 text-neutral-400" />
-            Inspect
-          </Button>
+            View
+          </button>
         </div>
       ),
     },
@@ -282,7 +187,7 @@ const AdminUsersPage = () => {
       <PageHeader
         title="User"
         accent="Directory"
-        description="Inspect registered member profiles, manage role authorizations, and audit activity."
+        description="Accounts on PartyStorm. Open a person to change their role."
       />
 
       {roleSuccess && (
@@ -324,23 +229,18 @@ const AdminUsersPage = () => {
           pageSize={12}
           onRowClick={(u) => setSelectedUser(u)}
           toolbar={
-            <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
-              {(['all', 'ADMIN', 'ORGANIZER', 'VENDOR', 'USER'] as const).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRoleFilter(r)}
-                  className={cn(
-                    'px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all capitalize',
-                    roleFilter === r
-                      ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 shadow-xs font-bold'
-                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
-                  )}
-                >
-                  {r === 'all' ? 'All Roles' : r.toLowerCase()}
-                </button>
-              ))}
-            </div>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="h-8 w-[140px] rounded-lg text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All roles</SelectItem>
+                <SelectItem value="ADMIN">Admin</SelectItem>
+                <SelectItem value="ORGANIZER">Organizer</SelectItem>
+                <SelectItem value="VENDOR">Vendor</SelectItem>
+                <SelectItem value="USER">Member</SelectItem>
+              </SelectContent>
+            </Select>
           }
           emptyTitle="No users found"
           emptyDescription="Try another search or role filter."
@@ -349,34 +249,21 @@ const AdminUsersPage = () => {
 
       {/* User Inspection Modal */}
       <Dialog open={Boolean(selectedUser)} onOpenChange={(o) => !o && setSelectedUser(null)}>
-        <DialogContent className="sm:max-w-md w-full max-h-[85vh] overflow-y-auto p-4 sm:p-5 rounded-2xl">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md min-w-0 max-h-[85vh] overflow-x-hidden overflow-y-auto p-4 sm:p-5">
           {selectedUser && (
             <>
-              <DialogHeader className="border-b border-neutral-150 dark:border-neutral-800 pb-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center text-white text-sm font-bold shadow-md shadow-rose-500/20 shrink-0">
-                    {selectedUser.role === 'ADMIN' ? (
-                      <Shield className="h-5 w-5" />
-                    ) : (
-                      `${selectedUser.firstName?.[0] || ''}${selectedUser.lastName?.[0] || ''}`.toUpperCase()
-                    )}
+              <DialogHeader className="border-b border-neutral-200 pb-3 dark:border-neutral-800">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-xs font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                    {`${selectedUser.firstName?.[0] || ''}${selectedUser.lastName?.[0] || ''}`.toUpperCase() || 'U'}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <DialogTitle className="text-base font-extrabold truncate">
-                        {selectedUser.firstName} {selectedUser.lastName}
-                      </DialogTitle>
-                      <span
-                        className={cn(
-                          'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border',
-                          (ROLE_CONFIG[selectedUser.role] || ROLE_CONFIG.USER).badge
-                        )}
-                      >
-                        {selectedUser.role}
-                      </span>
-                    </div>
-                    <DialogDescription className="text-xs text-neutral-400 mt-0.5 truncate">
-                      User ID #{selectedUser.id}
+                    <DialogTitle className="truncate text-base font-semibold">
+                      {selectedUser.firstName} {selectedUser.lastName}
+                    </DialogTitle>
+                    <DialogDescription className="mt-0.5 truncate text-xs text-neutral-500">
+                      {ROLE_LABEL[selectedUser.role] || selectedUser.role}
+                      {selectedUser.isStaff ? ' · Staff' : ''} · #{selectedUser.id}
                     </DialogDescription>
                   </div>
                 </div>
@@ -442,26 +329,18 @@ const AdminUsersPage = () => {
                     Owned Organizations ({selectedUser.ownedOrganizations?.length || 0})
                   </p>
                   {(selectedUser.ownedOrganizations || []).length === 0 ? (
-                    <p className="text-xs text-neutral-400 italic">No organizations owned.</p>
+                    <p className="text-xs text-neutral-500">None</p>
                   ) : (
                     <div className="space-y-1.5">
                       {selectedUser.ownedOrganizations.map((o: any) => (
                         <div
                           key={o.id}
-                          className="flex items-center justify-between p-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
+                          className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-neutral-200 px-2.5 py-2 dark:border-neutral-800"
                         >
-                          <div className="flex items-center gap-2">
-                            <Building2 className="h-3.5 w-3.5 text-purple-500" />
-                            <span className="font-bold text-xs">{o.name}</span>
-                          </div>
-                          <span
-                            className={cn(
-                              'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border',
-                              o.isVerified
-                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                                : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                            )}
-                          >
+                          <span className="truncate text-xs font-medium text-neutral-900 dark:text-white">
+                            {o.name}
+                          </span>
+                          <span className="shrink-0 text-[11px] text-neutral-500">
                             {o.isVerified ? 'Verified' : 'Pending'}
                           </span>
                         </div>
@@ -484,10 +363,10 @@ const AdminUsersPage = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="USER">USER (Regular Guest)</SelectItem>
-                      <SelectItem value="ORGANIZER">ORGANIZER (Event Host)</SelectItem>
-                      <SelectItem value="VENDOR">VENDOR (Stall / Booth Host)</SelectItem>
-                      <SelectItem value="ADMIN">ADMIN (Full Superadmin Access)</SelectItem>
+                      <SelectItem value="USER">Member</SelectItem>
+                      <SelectItem value="ORGANIZER">Organizer</SelectItem>
+                      <SelectItem value="VENDOR">Vendor</SelectItem>
+                      <SelectItem value="ADMIN">Admin</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

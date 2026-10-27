@@ -85,7 +85,7 @@ export function DataTable<T>({
         ) : (
           <div />
         )}
-        {toolbar && <div className="flex flex-wrap items-center gap-2">{toolbar}</div>}
+        {toolbar && <div className="min-w-0 w-full sm:w-auto">{toolbar}</div>}
       </div>
 
       {rows.length === 0 ? (
@@ -138,11 +138,11 @@ export function DataTable<T>({
                   {columns
                     .filter((c) => !c.hideOnMobile)
                     .map((col) => (
-                      <div key={col.id} className="flex items-start justify-between gap-3 text-sm">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 shrink-0 pt-0.5">
+                      <div key={col.id} className="min-w-0 space-y-0.5 text-sm">
+                        <span className="text-[11px] font-medium text-neutral-500">
                           {col.header}
                         </span>
-                        <div className="text-right min-w-0 text-neutral-900 dark:text-neutral-100">
+                        <div className="min-w-0 text-neutral-900 dark:text-neutral-100">
                           {col.cell(row)}
                         </div>
                       </div>
@@ -218,7 +218,7 @@ export function DataTableSkeleton({
         ) : (
           <div />
         )}
-        {toolbar ? <div className="flex flex-wrap items-center gap-2">{toolbar}</div> : null}
+        {toolbar ? <div className="min-w-0 w-full sm:w-auto">{toolbar}</div> : null}
       </div>
 
       <div className="hidden md:block overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">

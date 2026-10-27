@@ -8,8 +8,8 @@ import {
   ExternalLink,
   MapPin,
   Building2,
-  Eye,
   CheckCircle2,
+  ChevronDown,
   TrendingUp,
 } from 'lucide-react';
 import { api } from '../../services/api';
@@ -31,6 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { useHostApplications } from '../../hooks/queries/useAdmin';
 import { formatNaira } from '../../lib/eventOrganizer';
 import { platformFeeForUnit } from '../../lib/fees';
@@ -123,6 +124,98 @@ export function getEventStatus(ev: {
       'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-200 dark:border-sky-800',
     dotClass: 'bg-sky-500',
   };
+}
+
+function EventManageMenu({
+  promoted,
+  ended,
+  onPromote,
+  onClear,
+  onMove,
+}: {
+  promoted: boolean;
+  ended: boolean;
+  onPromote: () => void;
+  onClear: () => void;
+  onMove: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const itemClass =
+    'flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 dark:hover:bg-neutral-800';
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-neutral-600 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          aria-haspopup="menu"
+          aria-expanded={open}
+        >
+          Manage
+          <ChevronDown className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-52 p-1">
+        {!ended && (
+          <button
+            type="button"
+            className={itemClass}
+            onClick={() => {
+              setOpen(false);
+              onPromote();
+            }}
+          >
+            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold text-neutral-900 dark:text-white">
+                {promoted ? 'Promotion' : 'Promote'}
+              </span>
+              <span className="block text-[11px] text-neutral-600 dark:text-neutral-400">
+                {promoted ? 'On the homepage' : 'Homepage carousel'}
+              </span>
+            </span>
+          </button>
+        )}
+        {ended && promoted && (
+          <button
+            type="button"
+            className={itemClass}
+            onClick={() => {
+              setOpen(false);
+              onClear();
+            }}
+          >
+            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-500" />
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold text-neutral-900 dark:text-white">
+                Remove promotion
+              </span>
+              <span className="block text-[11px] text-neutral-600 dark:text-neutral-400">
+                Ended events stay off the homepage
+              </span>
+            </span>
+          </button>
+        )}
+        <button
+          type="button"
+          className={itemClass}
+          onClick={() => {
+            setOpen(false);
+            onMove();
+          }}
+        >
+          <ArrowRightLeft className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-500" />
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold text-neutral-900 dark:text-white">Move host</span>
+            <span className="block text-[11px] text-neutral-600 dark:text-neutral-400">
+              Another organization
+            </span>
+          </span>
+        </button>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 const AdminEventsPage: React.FC = () => {
@@ -308,8 +401,8 @@ const AdminEventsPage: React.FC = () => {
       setTimeout(() => setSuccess(null), 3000);
       setPromoteFor(null);
       fetchEvents();
-    } catch {
-      setError('Failed to update promotion.');
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to update promotion.');
     } finally {
       setSaving(false);
     }
@@ -365,7 +458,7 @@ const AdminEventsPage: React.FC = () => {
                 <p className="font-bold text-xs sm:text-sm truncate text-neutral-900 dark:text-white">
                   {ev.title}
                 </p>
-                {ev.isPromoted && (
+                {ev.isPromoted && getEventStatus(ev).key !== 'ended' && (
                   <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                     Promoted
                   </span>
@@ -425,64 +518,42 @@ const AdminEventsPage: React.FC = () => {
     {
       id: 'actions',
       header: '',
-      hideOnMobile: true,
       cell: (ev) => (
-        <div className="flex items-center gap-1.5 justify-end">
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-lg text-xs h-7 px-2.5 font-semibold"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate(`/admin/events/${ev.id}`);
-            }}
+        <div className="flex items-center justify-end gap-0.5">
+          <button
+            type="button"
+            className="inline-flex h-8 items-center rounded-lg px-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 dark:text-rose-400 dark:hover:bg-rose-950/40"
+            onClick={() => navigate(`/admin/events/${ev.id}`)}
           >
-            <Eye className="h-3 w-3 mr-1 text-neutral-400" />
             View
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-lg text-xs h-7 px-2.5 font-semibold text-rose-600 border-rose-200 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/30"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate(`/admin/events/${ev.id}#platform-fees`);
-            }}
-          >
-            Fees
-          </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-lg text-xs h-7 px-2 font-semibold"
-            onClick={(e) => {
-              e.stopPropagation();
+          </button>
+          <EventManageMenu
+            promoted={ev.isPromoted}
+            ended={getEventStatus(ev).key === 'ended'}
+            onPromote={() => {
               setPromoteFor(ev);
               setDurationMode('7');
               setCustomDate(
-                ev.promotedUntil
-                  ? new Date(ev.promotedUntil).toISOString().slice(0, 10)
-                  : ''
+                ev.promotedUntil ? new Date(ev.promotedUntil).toISOString().slice(0, 10) : ''
               );
             }}
-          >
-            <Sparkles className="h-3 w-3 mr-1 text-amber-500" />
-            {ev.isPromoted ? 'Promo' : 'Promote'}
-          </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-lg text-xs h-7 px-2 font-semibold text-neutral-500"
-            onClick={(e) => {
-              e.stopPropagation();
+            onClear={() => {
+              void api.admin
+                .promoteEvent(ev.id, { isPromoted: false, promotedUntil: null })
+                .then(() => {
+                  setSuccess('Promotion removed.');
+                  setTimeout(() => setSuccess(null), 3000);
+                  fetchEvents();
+                })
+                .catch((err: any) => {
+                  setError(err?.response?.data?.message || 'Failed to update promotion.');
+                });
+            }}
+            onMove={() => {
               setTransferFor(ev);
               setTargetOrgId('');
             }}
-          >
-            <ArrowRightLeft className="h-3 w-3" />
-          </Button>
+          />
         </div>
       ),
     },
@@ -523,7 +594,6 @@ const AdminEventsPage: React.FC = () => {
           onSearchChange={setSearch}
           searchPlaceholder="Search events by title…"
           pageSize={12}
-          onRowClick={(ev) => navigate(`/admin/events/${ev.id}`)}
           toolbar={
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
@@ -850,73 +920,100 @@ const AdminEventsPage: React.FC = () => {
       {/* Promote Modal */}
       {promoteFor && (
         <Dialog open={Boolean(promoteFor)} onOpenChange={(o) => !o && setPromoteFor(null)}>
-          <DialogContent className="sm:max-w-md p-4 sm:p-5">
+          <DialogContent className="sm:max-w-md p-5">
             <DialogHeader>
-              <DialogTitle className="text-base font-extrabold">
-                Promote — {promoteFor.title}
-              </DialogTitle>
-              <DialogDescription className="text-xs text-neutral-400">
-                Featured events receive prime placement in the homepage hero carousel.
+              <DialogTitle className="text-base font-bold">Homepage promotion</DialogTitle>
+              <DialogDescription className="text-xs text-neutral-500">
+                {promoteFor.title} shows in the homepage carousel for the time you pick.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-3 mt-2">
-              <div className="grid grid-cols-5 gap-1.5">
-                {(['1', '7', '30', 'indefinite', 'custom'] as const).map((m) => (
+            <fieldset className="mt-3 space-y-1.5">
+              <legend className="mb-1.5 text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                How long
+              </legend>
+              {(
+                [
+                  ['1', '1 day', 'Comes down tomorrow'],
+                  ['7', '7 days', 'A week on the homepage'],
+                  ['30', '30 days', 'A month on the homepage'],
+                  ['indefinite', 'Until removed', 'Stays up until you take it down'],
+                  ['custom', 'Until a date', 'Pick the last day'],
+                ] as const
+              ).map(([id, label, hint]) => {
+                const selected = durationMode === id;
+                return (
                   <button
-                    key={m}
+                    key={id}
                     type="button"
-                    onClick={() => setDurationMode(m)}
+                    onClick={() => setDurationMode(id)}
                     className={cn(
-                      'text-xs font-bold py-2 rounded-xl border transition-all',
-                      durationMode === m
-                        ? 'bg-rose-500 text-white border-rose-500 shadow-xs'
-                        : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-neutral-300'
+                      'flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40',
+                      selected
+                        ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/30'
+                        : 'border-neutral-200 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-800/40'
                     )}
                   >
-                    {m === 'indefinite' ? 'Ongoing' : m === 'custom' ? 'Custom' : `${m}d`}
+                    <span>
+                      <span className="block text-xs font-semibold text-neutral-900 dark:text-white">{label}</span>
+                      <span className="block text-[11px] text-neutral-500">{hint}</span>
+                    </span>
+                    <span
+                      className={cn(
+                        'h-3.5 w-3.5 shrink-0 rounded-full border',
+                        selected ? 'border-[5px] border-rose-500' : 'border-neutral-300 dark:border-neutral-600'
+                      )}
+                      aria-hidden
+                    />
                   </button>
-                ))}
-              </div>
+                );
+              })}
+            </fieldset>
 
-              {durationMode === 'custom' && (
+            {durationMode === 'custom' && (
+              <label className="mt-3 block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                Last day
                 <input
                   type="date"
                   value={customDate}
                   onChange={(e) => setCustomDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs"
+                  className="mt-1.5 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-900 focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
                 />
-              )}
-            </div>
+              </label>
+            )}
 
-            <DialogFooter className="mt-3 gap-2">
-              {promoteFor.isPromoted && (
+            <DialogFooter className="mt-4 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              {promoteFor.isPromoted ? (
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  className="rounded-xl text-xs text-red-500 border-red-200 hover:bg-red-50"
+                  className="h-8 rounded-lg px-2 text-xs font-semibold text-red-600 hover:bg-red-50 hover:text-red-700"
                   disabled={saving}
                   onClick={() => handlePromote(false)}
                 >
-                  Remove Promotion
+                  Remove
                 </Button>
+              ) : (
+                <span />
               )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="rounded-xl text-xs"
-                onClick={() => setPromoteFor(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold"
-                disabled={saving}
-                onClick={() => handlePromote(true)}
-              >
-                {saving ? 'Saving…' : 'Save Promotion'}
-              </Button>
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 rounded-lg text-xs"
+                  onClick={() => setPromoteFor(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8 rounded-lg bg-rose-500 text-xs font-bold text-white hover:bg-rose-600"
+                  disabled={saving || (durationMode === 'custom' && !customDate)}
+                  onClick={() => handlePromote(true)}
+                >
+                  {saving ? 'Saving…' : 'Save'}
+                </Button>
+              </div>
             </DialogFooter>
           </DialogContent>
         </Dialog>

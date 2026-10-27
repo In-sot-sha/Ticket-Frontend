@@ -38,7 +38,8 @@ import { formatNaira } from '../lib/eventOrganizer';
 type BookType = 'INCOME' | 'EXPENSE';
 
 type BookEntry = {
-  id: number;
+  id: number | string;
+  source?: 'MANUAL' | 'TICKET';
   type: BookType;
   amount: number;
   category: string;
@@ -50,7 +51,7 @@ type BookEntry = {
     firstName: string;
     lastName: string;
     email?: string | null;
-  };
+  } | null;
 };
 
 const INCOME_CATEGORIES = ['Bank credit', 'Refund received', 'Other income'];
@@ -161,6 +162,7 @@ const CompanyBooksPage: React.FC = () => {
   const queryClient = useQueryClient();
 
   const [typeFilter, setTypeFilter] = useState<'all' | BookType>('all');
+  const [eventId, setEventId] = useState('all');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [search, setSearch] = useState('');
@@ -173,28 +175,43 @@ const CompanyBooksPage: React.FC = () => {
   const listParams = useMemo(() => {
     const params: Record<string, string> = {};
     if (typeFilter !== 'all') params.type = typeFilter;
+    if (eventId !== 'all') params.eventId = eventId;
     if (from) params.from = from;
     if (to) params.to = to;
     if (search.trim()) params.search = search.trim();
     return params;
-  }, [typeFilter, from, to, search]);
+  }, [typeFilter, eventId, from, to, search]);
 
   const summaryParams = useMemo(() => {
     const params: Record<string, string> = {};
+    if (eventId !== 'all') params.eventId = eventId;
     if (from) params.from = from;
     if (to) params.to = to;
     if (search.trim()) params.search = search.trim();
     return params;
-  }, [from, to, search]);
+  }, [eventId, from, to, search]);
 
-  const hasActiveFilters = typeFilter !== 'all' || !!from || !!to || !!search.trim();
+  const hasActiveFilters = typeFilter !== 'all' || eventId !== 'all' || !!from || !!to || !!search.trim();
 
   const clearFilters = () => {
     setTypeFilter('all');
+    setEventId('all');
     setFrom('');
     setTo('');
     setSearch('');
   };
+
+  const { data: bookEvents = [] } = useQuery({
+    queryKey: ['company-books-events', booksBase],
+    queryFn: async () => {
+      const res = await api.books.events(booksBase);
+      return res.data || [];
+    },
+    enabled: isAdmin || canFinance,
+  });
+
+  const selectedEventTitle =
+    eventId === 'all' ? '' : bookEvents.find((ev) => String(ev.id) === eventId)?.title || 'this event';
 
   const { data: entries = [], isLoading: listLoading } = useQuery({
     queryKey: ['company-books', booksBase, listParams],
@@ -254,6 +271,9 @@ const CompanyBooksPage: React.FC = () => {
       };
 
       if (editing) {
+        if (typeof editing.id !== 'number') {
+          throw new Error('Ticket cuts are recorded from sales and can’t be edited here.');
+        }
         return api.books.update(booksBase, editing.id, payload);
       }
       return api.books.create(booksBase, payload);
@@ -321,9 +341,9 @@ const CompanyBooksPage: React.FC = () => {
 
   const kpis = [
     {
-      label: 'Income',
+      label: eventId === 'all' ? 'Income' : 'From event',
       value: summary?.income ?? 0,
-      blurb: `${summary?.incomeCount ?? 0}`,
+      blurb: eventId === 'all' ? `${summary?.incomeCount ?? 0}` : `${summary?.incomeCount ?? 0} sales`,
       tone: 'text-emerald-600 dark:text-emerald-400',
     },
     {
@@ -348,7 +368,7 @@ const CompanyBooksPage: React.FC = () => {
       <PageHeader
         title="Company"
         accent="Books"
-        description="PartyStorm cash in / out — not host ticket sales."
+        description="PartyStorm cash in and out. Online sales add our cut automatically. Gate sales stay with the host."
         actions={
           <Button
             size="sm"
@@ -381,6 +401,12 @@ const CompanyBooksPage: React.FC = () => {
           </div>
         ))}
       </div>
+      {eventId !== 'all' && (
+        <p className="mb-2 text-[11px] text-neutral-500">
+          Online cut from{' '}
+          <span className="font-semibold text-neutral-800 dark:text-neutral-200">{selectedEventTitle}</span>.
+        </p>
+      )}
 
       {/* Compact filters — one row on desktop */}
       <div className="mb-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
@@ -406,6 +432,19 @@ const CompanyBooksPage: React.FC = () => {
           ))}
         </div>
         <div className="flex flex-1 flex-wrap items-center gap-1.5 min-w-0">
+          <Select value={eventId} onValueChange={setEventId}>
+            <SelectTrigger className="h-7 w-full sm:w-[200px] rounded-lg text-[11px]">
+              <SelectValue placeholder="All events" />
+            </SelectTrigger>
+            <SelectContent className="max-h-60">
+              <SelectItem value="all">All events</SelectItem>
+              {bookEvents.map((ev) => (
+                <SelectItem key={ev.id} value={String(ev.id)}>
+                  {ev.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <input
             type="date"
             value={from}
@@ -480,9 +519,12 @@ const CompanyBooksPage: React.FC = () => {
           <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
             {entries.map((entry) => {
               const isIncome = entry.type === 'INCOME';
-              const who = entry.recordedBy
-                ? `${entry.recordedBy.firstName} ${entry.recordedBy.lastName}`.trim()
-                : '—';
+              const isTicketCut = entry.source === 'TICKET';
+              const who = isTicketCut
+                ? 'Ticket sale'
+                : entry.recordedBy
+                  ? `${entry.recordedBy.firstName} ${entry.recordedBy.lastName}`.trim()
+                  : '—';
               const pay = paymentLabel(entry.paymentMethod);
               return (
                 <li
@@ -519,6 +561,11 @@ const CompanyBooksPage: React.FC = () => {
                         >
                           {isIncome ? 'In' : 'Out'}
                         </span>
+                        {isTicketCut && (
+                          <span className="shrink-0 text-[8px] font-bold uppercase tracking-wider px-1 py-px rounded bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                            Auto
+                          </span>
+                        )}
                       </div>
                       <p className="text-[10px] text-neutral-500 truncate">
                         {formatDateLabel(entry.occurredAt)}
@@ -540,22 +587,26 @@ const CompanyBooksPage: React.FC = () => {
                       {isIncome ? '+' : '−'}
                       {formatNaira(entry.amount)}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => openEdit(entry)}
-                      className="p-1 rounded-md text-neutral-400 hover:text-neutral-700 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                      aria-label="Edit"
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteId(entry.id)}
-                      className="p-1 rounded-md text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                      aria-label="Delete"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                    {!isTicketCut && typeof entry.id === 'number' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openEdit(entry)}
+                          className="p-1 rounded-md text-neutral-400 hover:text-neutral-700 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                          aria-label="Edit"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteId(entry.id as number)}
+                          className="p-1 rounded-md text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                          aria-label="Delete"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </li>
               );
@@ -575,30 +626,30 @@ const CompanyBooksPage: React.FC = () => {
 
       {/* Add / Edit — roomy dialog (page stays compact) */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-2xl">
-          <DialogHeader className="space-y-1 pb-1">
-            <DialogTitle className="text-base font-bold">
-              {editing ? 'Edit entry' : 'Add entry'}
+        <DialogContent className="w-[calc(100%-1.5rem)] max-w-md min-w-0 max-h-[90vh] overflow-x-hidden overflow-y-auto p-4 sm:p-5">
+          <DialogHeader className="space-y-1 text-left">
+            <DialogTitle className="text-base font-semibold">
+              {editing ? 'Edit entry' : form.type === 'INCOME' ? 'Record income' : 'Record expense'}
             </DialogTitle>
             <DialogDescription className="text-xs text-neutral-500">
               {form.type === 'INCOME'
-                ? 'Money coming into PartyStorm (bank credit, refund, etc.).'
-                : 'Money going out (fuel, ads, salary, etc.).'}
+                ? 'Cash in that is not a ticket sale.'
+                : 'Cash out, such as fuel, ads, or salary.'}
             </DialogDescription>
           </DialogHeader>
 
           <form
-            className="space-y-4 pt-1"
+            className="min-w-0 space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
               setFormError(null);
               saveMutation.mutate();
             }}
           >
-            <div className="inline-flex w-full rounded-lg sm:rounded-xl bg-neutral-100 dark:bg-neutral-800 p-0.5 sm:p-1 text-[11px] sm:text-xs font-semibold">
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-neutral-100 p-1 text-xs font-semibold dark:bg-neutral-800">
               {([
-                { id: 'EXPENSE' as const, label: 'Expense', hint: 'Cash out' },
-                { id: 'INCOME' as const, label: 'Income', hint: 'Cash in' },
+                { id: 'EXPENSE' as const, label: 'Expense' },
+                { id: 'INCOME' as const, label: 'Income' },
               ]).map((t) => (
                 <button
                   key={t.id}
@@ -612,36 +663,27 @@ const CompanyBooksPage: React.FC = () => {
                     }))
                   }
                   className={cn(
-                    'flex-1 py-1.5 sm:py-2.5 rounded-md sm:rounded-lg transition-all',
+                    'h-9 rounded-md',
                     form.type === t.id
-                      ? t.id === 'INCOME'
-                        ? 'bg-emerald-500 text-white shadow-sm font-bold'
-                        : 'bg-rose-500 text-white shadow-sm font-bold'
+                      ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-950 dark:text-white'
                       : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-white'
                   )}
                 >
-                  <span className="block">{t.label}</span>
-                  <span
-                    className={cn(
-                      'hidden sm:block text-[9px] font-medium mt-0.5',
-                      form.type === t.id ? 'text-white/80' : 'text-neutral-400'
-                    )}
-                  >
-                    {t.hint}
-                  </span>
+                  {t.label}
                 </button>
               ))}
             </div>
 
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+            <div className="min-w-0">
+              <label className="text-xs font-medium text-neutral-600 dark:text-neutral-300" htmlFor="book-amount">
                 Amount
               </label>
-              <div className="mt-1.5 flex items-stretch overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus-within:ring-2 focus-within:ring-rose-500/30 focus-within:border-rose-400">
-                <span className="flex items-center px-3 text-sm font-bold text-neutral-400 bg-neutral-50 dark:bg-neutral-950 border-r border-neutral-200 dark:border-neutral-700">
+              <div className="mt-1 flex min-w-0 items-stretch overflow-hidden rounded-lg border border-neutral-200 bg-white focus-within:border-rose-500 focus-within:ring-2 focus-within:ring-rose-500/30 dark:border-neutral-700 dark:bg-neutral-950">
+                <span className="flex items-center border-r border-neutral-200 px-3 text-sm text-neutral-500 dark:border-neutral-700">
                   ₦
                 </span>
                 <input
+                  id="book-amount"
                   type="text"
                   inputMode="decimal"
                   autoComplete="off"
@@ -649,145 +691,111 @@ const CompanyBooksPage: React.FC = () => {
                   onChange={(e) =>
                     setForm((p) => ({ ...p, amount: formatAmountInput(e.target.value) }))
                   }
-                  className="flex-1 min-w-0 bg-transparent px-3 py-3 text-lg font-bold tabular-nums outline-none"
+                  className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-base font-semibold tabular-nums outline-none"
                   placeholder="0"
-                  aria-label="Amount in naira"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+            <div className="min-w-0">
+              <label className="text-xs font-medium text-neutral-600 dark:text-neutral-300">
                 Category
               </label>
-              {/* Mobile: select · Desktop: chips */}
-              <div className="mt-1.5 sm:hidden">
-                <Select
-                  value={form.category}
-                  onValueChange={(v) =>
-                    setForm((p) => ({ ...p, category: v, customCategory: '' }))
-                  }
-                >
-                  <SelectTrigger className="w-full rounded-xl text-xs h-10">
-                    <SelectValue placeholder="Pick a category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categoryOptions.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="mt-1.5 hidden sm:flex flex-wrap gap-1.5">
-                {categoryOptions.map((c) => {
-                  const selected = form.category === c;
-                  return (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setForm((p) => ({ ...p, category: c, customCategory: '' }))}
-                      className={cn(
-                        'rounded-full px-3 py-1.5 text-[11px] font-semibold border transition-colors',
-                        selected
-                          ? form.type === 'INCOME'
-                            ? 'bg-emerald-500 border-emerald-500 text-white'
-                            : 'bg-rose-500 border-rose-500 text-white'
-                          : 'bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-neutral-300'
-                      )}
-                    >
+              <Select
+                value={form.category}
+                onValueChange={(v) =>
+                  setForm((p) => ({ ...p, category: v, customCategory: '' }))
+                }
+              >
+                <SelectTrigger className="mt-1 h-10 w-full min-w-0 rounded-lg text-sm">
+                  <SelectValue placeholder="Choose a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categoryOptions.map((c) => (
+                    <SelectItem key={c} value={c}>
                       {c}
-                    </button>
-                  );
-                })}
-              </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {needsCustom && (
                 <input
                   value={form.customCategory}
                   onChange={(e) => setForm((p) => ({ ...p, customCategory: e.target.value }))}
-                  placeholder="Describe category"
-                  className="mt-2 w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2.5 text-xs"
+                  placeholder="Name this category"
+                  className="mt-2 w-full min-w-0 rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-sm dark:border-neutral-700 dark:bg-neutral-950"
                   autoFocus
                 />
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="min-w-0">
+                <label className="text-xs font-medium text-neutral-600 dark:text-neutral-300" htmlFor="book-date">
                   Date
                 </label>
                 <input
+                  id="book-date"
                   type="date"
                   value={form.occurredAt}
                   onChange={(e) => setForm((p) => ({ ...p, occurredAt: e.target.value }))}
-                  className="mt-1.5 w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2.5 text-xs"
+                  className="mt-1 w-full min-w-0 rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-sm dark:border-neutral-700 dark:bg-neutral-950"
                 />
               </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+              <div className="min-w-0">
+                <label className="text-xs font-medium text-neutral-600 dark:text-neutral-300">
                   Payment
                 </label>
-                <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-                  {PAYMENT_OPTIONS.map((m) => {
-                    const selected = form.paymentMethod === m.value;
-                    return (
-                      <button
-                        key={m.value}
-                        type="button"
-                        onClick={() => setForm((p) => ({ ...p, paymentMethod: m.value }))}
-                        className={cn(
-                          'rounded-xl px-2 py-2 text-[11px] font-semibold border transition-colors',
-                          selected
-                            ? 'bg-neutral-900 border-neutral-900 text-white dark:bg-white dark:text-neutral-900 dark:border-white'
-                            : 'bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300'
-                        )}
-                      >
+                <Select
+                  value={form.paymentMethod}
+                  onValueChange={(v) => setForm((p) => ({ ...p, paymentMethod: v as typeof form.paymentMethod }))}
+                >
+                  <SelectTrigger className="mt-1 h-10 w-full min-w-0 rounded-lg text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAYMENT_OPTIONS.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
                         {m.label}
-                      </button>
-                    );
-                  })}
-                </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Note <span className="font-medium normal-case tracking-normal">(optional)</span>
+            <div className="min-w-0">
+              <label className="text-xs font-medium text-neutral-600 dark:text-neutral-300" htmlFor="book-note">
+                Note
               </label>
               <textarea
+                id="book-note"
                 value={form.description}
                 onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
                 rows={2}
-                className="mt-1.5 w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2.5 text-xs resize-none"
-                placeholder="e.g. Filling station on Lekki–Epe for gate ops"
+                className="mt-1 w-full min-w-0 resize-none rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+                placeholder="Optional. Where it went or why."
               />
             </div>
 
             {formError && (
-              <p className="rounded-xl bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-xs font-medium text-rose-600 dark:text-rose-400">
+              <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 dark:bg-rose-950/30 dark:text-rose-400">
                 {formError}
               </p>
             )}
 
-            <DialogFooter className="gap-2 sm:gap-2 pt-1">
+            <DialogFooter className="gap-2 pt-1">
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-xl text-xs"
+                className="h-10 w-full rounded-lg text-xs sm:w-auto"
                 onClick={() => setDialogOpen(false)}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className={cn(
-                  'rounded-xl text-white border-0 text-xs font-bold',
-                  form.type === 'INCOME'
-                    ? 'bg-emerald-500 hover:bg-emerald-600'
-                    : 'bg-rose-500 hover:bg-rose-600'
-                )}
+                className="h-10 w-full rounded-lg border-0 bg-rose-500 text-xs font-semibold text-white hover:bg-rose-600 sm:w-auto"
                 disabled={saveMutation.isPending}
               >
                 {saveMutation.isPending

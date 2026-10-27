@@ -65,6 +65,11 @@ function formatTxAmount(amount: number | null | undefined) {
   return n <= 0 ? 'Free' : formatNaira(n);
 }
 
+/** PartyStorm cash that lands after Paystack is deducted from the platform fee. */
+function ourCutAmount(platformFee: number, processingFee: number) {
+  return Math.max(0, Math.round((Number(platformFee) || 0) - (Number(processingFee) || 0)));
+}
+
 function lagosWeekday(date: Date) {
   return new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Lagos', weekday: 'short' }).format(date);
 }
@@ -611,8 +616,8 @@ const AdminTransactionsPage: React.FC = () => {
                       <div>
                         <p className="font-bold text-xs tabular-nums">{formatTxAmount(tx.totalAmount)}</p>
                         {!free && (
-                          <p className="text-[10px] text-rose-500 tabular-nums">
-                            Fee {formatNaira(tx.platformFee)}
+                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 tabular-nums">
+                            Our cut {formatNaira(ourCutAmount(tx.platformFee, tx.processingFee))}
                           </p>
                         )}
                       </div>
@@ -1110,22 +1115,27 @@ const AdminTransactionsPage: React.FC = () => {
                         <span className="text-neutral-500">Paid</span>
                         <span className="font-bold">{formatTxAmount(selectedTx.totalAmount)}</span>
                       </div>
-                      {(selectedTx.platformFee > 0 || selectedTx.processingFee > 0) && (
-                        <>
-                          <div className="flex justify-between text-neutral-500">
-                            <span>PartyStorm</span>
-                            <span>{formatNaira(selectedTx.platformFee)}</span>
-                          </div>
-                          <div className="flex justify-between text-neutral-500">
-                            <span>Paystack</span>
-                            <span>{formatNaira(selectedTx.processingFee)}</span>
-                          </div>
-                          <div className="flex justify-between font-semibold text-emerald-600 dark:text-emerald-400 pt-1 border-t border-neutral-100 dark:border-neutral-800">
-                            <span>Host net</span>
-                            <span>{formatNaira(selectedTx.netAmount)}</span>
-                          </div>
-                        </>
-                      )}
+                      <div className="flex justify-between text-neutral-500">
+                        <span>PartyStorm fee</span>
+                        <span>{formatNaira(selectedTx.platformFee)}</span>
+                      </div>
+                      <div className="flex justify-between text-neutral-500">
+                        <span>Paystack</span>
+                        <span>{formatNaira(selectedTx.processingFee)}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-emerald-700 dark:text-emerald-400 pt-1 border-t border-neutral-100 dark:border-neutral-800">
+                        <span>Our cut</span>
+                        <span className="tabular-nums">
+                          {formatNaira(ourCutAmount(selectedTx.platformFee, selectedTx.processingFee))}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-neutral-400">
+                        Fee minus Paystack. This is the cash in on company books.
+                      </p>
+                      <div className="flex justify-between font-semibold text-neutral-800 dark:text-neutral-200">
+                        <span>Host net</span>
+                        <span>{formatNaira(selectedTx.netAmount)}</span>
+                      </div>
                       {bank && (
                         <p className="text-[11px] text-neutral-500 pt-0.5">Bank: {bank.text}</p>
                       )}

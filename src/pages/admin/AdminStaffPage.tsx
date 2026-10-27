@@ -19,8 +19,6 @@ import {
   Headphones,
   UserPlus,
   Phone,
-  Shield,
-  Trash2,
   Wallet,
 } from 'lucide-react';
 import api from '../../services/api';
@@ -483,125 +481,117 @@ const AdminStaffPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Staff Roster Table */}
-      <div className="border border-neutral-200/80 dark:border-neutral-800 rounded-xl sm:rounded-2xl bg-white dark:bg-neutral-900 shadow-2xs overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
         {isLoading ? (
-          <div className="p-4 space-y-3">
+          <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="flex items-center gap-3">
+              <div key={i} className="flex items-center gap-3 px-3 py-3">
                 <Skeleton className="h-8 w-8 rounded-full shrink-0" />
                 <div className="flex-1 space-y-1.5">
-                  <Skeleton className="h-3.5 w-1/4 rounded" />
-                  <Skeleton className="h-2.5 w-1/3 rounded" />
+                  <Skeleton className="h-3.5 w-32 rounded" />
+                  <Skeleton className="h-2.5 w-44 rounded" />
                 </div>
               </div>
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="p-8 sm:p-10 text-center">
-            <Users className="h-8 w-8 text-neutral-300 dark:text-neutral-700 mx-auto mb-2" />
-            <p className="text-xs sm:text-sm font-bold text-neutral-700 dark:text-neutral-300">
-              No staff members found
-            </p>
-            <p className="text-[11px] sm:text-xs text-neutral-400 mt-0.5">
-              Try adjusting your search or add a new staff account above.
+          <div className="px-4 py-12 text-center">
+            <Users className="mx-auto mb-2 h-6 w-6 text-neutral-300 dark:text-neutral-700" />
+            <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">No staff match</p>
+            <p className="mt-1 text-xs text-neutral-500">
+              {search || statusFilter !== 'all'
+                ? 'Clear the search or status filter.'
+                : 'Add a staff account to start assigning gates.'}
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto divide-y divide-neutral-100 dark:divide-neutral-800/80">
-            {filtered.map((s: any) => {
-              const active = s.staffProfile?.active !== false;
-              const caps = parseCaps(s.staffProfile?.capabilities);
-              const assignedEvents = (s.staffProjectAssignments || [])
-                .map((a: any) => a.project?.event)
-                .filter(Boolean);
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-xs">
+              <thead className="bg-neutral-50 text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:bg-neutral-950/50">
+                <tr>
+                  <th className="px-3 py-2.5 font-semibold">Staff</th>
+                  <th className="px-3 py-2.5 font-semibold">Roles</th>
+                  <th className="px-3 py-2.5 font-semibold">Events</th>
+                  <th className="px-3 py-2.5 font-semibold">Status</th>
+                  <th className="px-3 py-2.5 font-semibold text-right"> </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                {filtered.map((s: any) => {
+                  const active = s.staffProfile?.active !== false;
+                  const caps = parseCaps(s.staffProfile?.capabilities);
+                  const assignedEvents = (s.staffProjectAssignments || [])
+                    .map((a: any) => a.project?.event)
+                    .filter(Boolean);
+                  const roleLabels = caps.map((c) => CAP_CONFIG[c]?.label || c);
 
-              return (
-                <div
-                  key={s.id}
-                  onClick={() => openManage(s)}
-                  className="px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-3 hover:bg-neutral-50/70 dark:hover:bg-neutral-800/40 transition-colors cursor-pointer group"
-                >
-                  {/* Left: Avatar + Names */}
-                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center text-white text-[10px] sm:text-[11px] font-extrabold shrink-0 shadow-2xs">
-                      {getInitials(s.firstName, s.lastName)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className="text-xs font-bold text-neutral-900 dark:text-white truncate group-hover:text-rose-500 transition-colors">
-                          {s.firstName} {s.lastName}
-                        </p>
-                        <span
-                          className={cn(
-                            'inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-bold uppercase tracking-wider',
-                            active
-                              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
-                              : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-400'
-                          )}
-                        >
+                  return (
+                    <tr
+                      key={s.id}
+                      onClick={() => openManage(s)}
+                      className="cursor-pointer hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40"
+                    >
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-[11px] font-bold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+                            {getInitials(s.firstName, s.lastName)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-neutral-900 dark:text-white">
+                              {s.firstName} {s.lastName}
+                            </p>
+                            <p className="truncate text-[11px] text-neutral-500">
+                              {s.email}
+                              {s.phone ? ` · ${s.phone}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-neutral-600 dark:text-neutral-300">
+                        {roleLabels.length === 0 ? (
+                          <span className="text-neutral-400">None</span>
+                        ) : (
+                          <span className="line-clamp-2">
+                            {roleLabels.slice(0, 3).join(' · ')}
+                            {roleLabels.length > 3 ? ` · +${roleLabels.length - 3}` : ''}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 tabular-nums text-neutral-700 dark:text-neutral-300">
+                        {assignedEvents.length === 0 ? (
+                          <span className="text-neutral-400">None</span>
+                        ) : (
+                          assignedEvents.length
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="inline-flex items-center gap-1.5 font-semibold text-neutral-700 dark:text-neutral-300">
+                          <span
+                            className={cn(
+                              'h-1.5 w-1.5 rounded-full',
+                              active ? 'bg-emerald-500' : 'bg-neutral-400'
+                            )}
+                          />
                           {active ? 'Active' : 'Disabled'}
                         </span>
-                      </div>
-                      <p className="text-[11px] text-neutral-400 truncate">
-                        {s.email}
-                        {s.phone ? ` · ${s.phone}` : ''}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Middle: Capabilities */}
-                  <div className="hidden md:flex flex-wrap items-center gap-1 max-w-[260px]">
-                    {caps.slice(0, 3).map((c) => {
-                      const cfg = CAP_CONFIG[c];
-                      return (
-                        <span
-                          key={c}
-                          className={cn(
-                            'text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md border',
-                            cfg ? cfg.color : 'bg-neutral-100 text-neutral-500'
-                          )}
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <button
+                          type="button"
+                          className="inline-flex h-8 items-center rounded-lg px-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openManage(s);
+                          }}
                         >
-                          {cfg ? cfg.label : c}
-                        </span>
-                      );
-                    })}
-                    {caps.length > 3 && (
-                      <span className="text-[10px] text-neutral-400 font-semibold px-1">
-                        +{caps.length - 3}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Middle: Assigned Events */}
-                  <div className="hidden lg:flex items-center gap-1.5 max-w-[220px] truncate text-xs">
-                    <Calendar className="h-3.5 w-3.5 shrink-0 text-rose-500" />
-                    {assignedEvents.length > 0 ? (
-                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 truncate">
-                        {assignedEvents.length} Event{assignedEvents.length === 1 ? '' : 's'} Assigned
-                      </span>
-                    ) : (
-                      <span className="text-[11px] italic text-neutral-400">No events assigned</span>
-                    )}
-                  </div>
-
-                  {/* Right: Manage Button */}
-                  <div className="shrink-0">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="rounded-lg h-7 px-2.5 text-[11px] font-semibold"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openManage(s);
-                      }}
-                    >
-                      Manage
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
+                          Manage
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -610,42 +600,32 @@ const AdminStaffPage: React.FC = () => {
       {/* MODAL 1: Manage Staff Modal */}
       {/* ────────────────────────────────────────────────────────────────────────── */}
       <Dialog open={Boolean(manageStaff)} onOpenChange={(o) => !o && setManageId(null)}>
-        <DialogContent className="sm:max-w-lg w-full max-h-[88vh] overflow-y-auto p-4 sm:p-5 rounded-2xl">
+        <DialogContent className="sm:max-w-lg w-[calc(100%-2rem)] max-w-lg min-w-0 max-h-[88vh] overflow-x-hidden overflow-y-auto p-4 sm:p-5">
           {manageStaff && (
             <>
-              <DialogHeader className="border-b border-neutral-150 dark:border-neutral-800 pb-3">
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-rose-500 via-rose-600 to-pink-600 flex items-center justify-center text-white text-sm font-black shadow-xs shrink-0">
-                      {getInitials(manageStaff.firstName, manageStaff.lastName)}
-                    </div>
-                    <span
-                      className={cn(
-                        'absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-neutral-900',
-                        manageStaff.staffProfile?.active !== false ? 'bg-emerald-500' : 'bg-neutral-400'
-                      )}
-                      title={manageStaff.staffProfile?.active !== false ? 'Active' : 'Disabled'}
-                    />
+              <DialogHeader className="pb-1">
+                <div className="flex items-center gap-3 pr-6">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-sm font-bold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+                    {getInitials(manageStaff.firstName, manageStaff.lastName)}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <DialogTitle className="text-base font-extrabold text-neutral-900 dark:text-white truncate">
+                      <DialogTitle className="truncate text-base font-bold text-neutral-900 dark:text-white">
                         {manageStaff.firstName} {manageStaff.lastName}
                       </DialogTitle>
-                      <span
-                        className={cn(
-                          'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border',
-                          manageStaff.staffProfile?.active !== false
-                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                            : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700'
-                        )}
-                      >
-                        {manageStaff.staffProfile?.active !== false ? 'Active Staff' : 'Disabled'}
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">
+                        <span
+                          className={cn(
+                            'h-1.5 w-1.5 rounded-full',
+                            manageStaff.staffProfile?.active !== false ? 'bg-emerald-500' : 'bg-neutral-400'
+                          )}
+                        />
+                        {manageStaff.staffProfile?.active !== false ? 'Active' : 'Disabled'}
                       </span>
                     </div>
-                    <DialogDescription className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 flex items-center gap-2 flex-wrap">
-                      <span>{manageStaff.email}</span>
-                      {manageStaff.phone && <span>· {manageStaff.phone}</span>}
+                    <DialogDescription className="mt-0.5 text-xs text-neutral-500">
+                      {manageStaff.email}
+                      {manageStaff.phone ? ` · ${manageStaff.phone}` : ''}
                     </DialogDescription>
                   </div>
                 </div>
@@ -670,46 +650,28 @@ const AdminStaffPage: React.FC = () => {
               )}
 
               {/* Tabs */}
-              <div className="flex items-center gap-1.5 bg-neutral-100 dark:bg-neutral-800/70 p-1 rounded-xl mt-3 text-xs font-semibold">
-                <button
-                  type="button"
-                  onClick={() => setManageTab('caps')}
-                  className={cn(
-                    'flex-1 py-1.5 px-2 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 text-xs',
-                    manageTab === 'caps'
-                      ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs font-bold'
-                      : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
-                  )}
-                >
-                  <Shield className="h-3.5 w-3.5 text-rose-500" />
-                  <span>Capabilities ({editingCaps.length})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setManageTab('events')}
-                  className={cn(
-                    'flex-1 py-1.5 px-2 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 text-xs',
-                    manageTab === 'events'
-                      ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs font-bold'
-                      : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
-                  )}
-                >
-                  <Calendar className="h-3.5 w-3.5 text-rose-500" />
-                  <span>Events ({manageStaffAssignedEvents.length})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setManageTab('access')}
-                  className={cn(
-                    'flex-1 py-1.5 px-2 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 text-xs',
-                    manageTab === 'access'
-                      ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs font-bold'
-                      : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
-                  )}
-                >
-                  <Key className="h-3.5 w-3.5 text-amber-500" />
-                  <span>Security</span>
-                </button>
+              <div className="mt-3 flex border-b border-neutral-200 dark:border-neutral-800 text-xs font-semibold">
+                {(
+                  [
+                    ['caps', `Roles (${editingCaps.length})`],
+                    ['events', `Events (${manageStaffAssignedEvents.length})`],
+                    ['access', 'Security'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setManageTab(id)}
+                    className={cn(
+                      '-mb-px border-b-2 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40',
+                      manageTab === id
+                        ? 'border-rose-500 text-rose-600 dark:text-rose-400'
+                        : 'border-transparent text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
 
               {/* Tab 1: Capabilities */}
@@ -752,27 +714,29 @@ const AdminStaffPage: React.FC = () => {
                         <div
                           key={cap}
                           onClick={() => toggleCap(cap, editingCaps, setEditingCaps)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              toggleCap(cap, editingCaps, setEditingCaps);
+                            }
+                          }}
+                          role="checkbox"
+                          aria-checked={isSelected}
+                          tabIndex={0}
                           className={cn(
-                            'flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer select-none',
+                            'flex cursor-pointer select-none items-center justify-between rounded-lg border px-2.5 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40',
                             isSelected
-                              ? 'border-rose-400/50 bg-rose-50/20 dark:bg-rose-950/20'
-                              : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700'
+                              ? 'border-rose-300 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/30'
+                              : 'border-neutral-200 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-800/40'
                           )}
                         >
                           <div className="flex items-center gap-2.5">
-                            <div
-                              className={cn(
-                                'h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border',
-                                cfg.color
-                              )}
-                            >
-                              <Icon className="h-3.5 w-3.5" />
-                            </div>
+                            <Icon className={cn('h-3.5 w-3.5 shrink-0', isSelected ? 'text-rose-600' : 'text-neutral-400')} />
                             <div>
-                              <p className="text-xs font-bold text-neutral-900 dark:text-white">
+                              <p className="text-xs font-semibold text-neutral-900 dark:text-white">
                                 {cfg.label}
                               </p>
-                              <p className="text-[10px] text-neutral-400">{cfg.desc}</p>
+                              <p className="text-[11px] text-neutral-500">{cfg.desc}</p>
                             </div>
                           </div>
                           <div
@@ -790,24 +754,7 @@ const AdminStaffPage: React.FC = () => {
                     })}
                   </div>
 
-                  <div className="pt-2 flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="rounded-xl text-xs h-8"
-                      disabled={upsert.isPending}
-                      onClick={() =>
-                        upsert.mutate({
-                          userId: manageStaff.id,
-                          isStaff: true,
-                          capabilities: editingCaps,
-                          active: !(manageStaff.staffProfile?.active !== false),
-                        })
-                      }
-                    >
-                      {manageStaff.staffProfile?.active !== false ? 'Disable Staff' : 'Enable Staff'}
-                    </Button>
-
+                  <div className="pt-2 flex items-center justify-end border-t border-neutral-100 dark:border-neutral-800">
                     <Button
                       size="sm"
                       className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs h-8 font-semibold shadow-xs"
@@ -829,44 +776,39 @@ const AdminStaffPage: React.FC = () => {
 
               {/* Tab 2: Assigned Events */}
               {manageTab === 'events' && (
-                <div className="space-y-3 pt-2">
+                <div className="min-w-0 space-y-3 overflow-hidden pt-2">
                   <p className="text-[11px] text-neutral-500">
-                    Assign this staff member to specific events for gate check-in scanning and attendee walk-in sales:
+                    Events this person can scan and sell at the gate.
                   </p>
 
-                  {/* List of currently assigned events */}
-                  <div className="space-y-2">
+                  <div className="min-w-0 space-y-2">
                     {manageStaffAssignedEvents.length === 0 ? (
-                      <div className="p-4 rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 text-center">
-                        <Calendar className="h-5 w-5 text-neutral-300 dark:text-neutral-700 mx-auto mb-1" />
-                        <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
-                          Not assigned to any events
+                      <div className="rounded-lg border border-dashed border-neutral-200 bg-neutral-50 px-3 py-4 text-center dark:border-neutral-800 dark:bg-neutral-900/50">
+                        <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                          No events yet
                         </p>
-                        <p className="text-[11px] text-neutral-400 mt-0.5">
-                          Select an upcoming event below to grant gate access.
+                        <p className="mt-0.5 text-[11px] text-neutral-500">
+                          Choose one below to grant gate access.
                         </p>
                       </div>
                     ) : (
                       manageStaffAssignedEvents.map((ev: any) => (
                         <div
                           key={ev.id}
-                          className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-2xs gap-2"
+                          className="flex min-w-0 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-2.5 py-2 dark:border-neutral-800 dark:bg-neutral-900"
                         >
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-bold text-neutral-900 dark:text-white truncate">
+                            <p className="truncate text-xs font-semibold text-neutral-900 dark:text-white">
                               {ev.title}
                             </p>
-                            <p className="text-[10px] text-neutral-400 truncate mt-0.5">
+                            <p className="mt-0.5 truncate text-[11px] text-neutral-500">
                               {formatEventDate(ev.startDate)}
                               {ev.organization?.name ? ` · ${ev.organization.name}` : ''}
-                              {ev.location ? ` · ${ev.location}` : ''}
                             </p>
                           </div>
-                          <Button
+                          <button
                             type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg shrink-0"
+                            className="shrink-0 text-[11px] font-semibold text-neutral-500 hover:text-red-600 disabled:opacity-50"
                             disabled={removeEvent.isPending}
                             onClick={() =>
                               removeEvent.mutate({
@@ -875,20 +817,16 @@ const AdminStaffPage: React.FC = () => {
                               })
                             }
                           >
-                            <Trash2 className="h-3.5 w-3.5 mr-1" />
                             Remove
-                          </Button>
+                          </button>
                         </div>
                       ))
                     )}
                   </div>
 
-                  {/* Assign to event section */}
-                  <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                        Assign to New Event
-                      </p>
+                  <div className="min-w-0 space-y-2 border-t border-neutral-100 pt-2 dark:border-neutral-800">
+                    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                      <p className="text-[11px] font-semibold text-neutral-500">Add an event</p>
                       {unassignedEvents.length > 0 && (
                         <button
                           type="button"
@@ -899,38 +837,35 @@ const AdminStaffPage: React.FC = () => {
                               eventId: 'all',
                             });
                           }}
-                          className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors cursor-pointer select-none"
+                          className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 disabled:opacity-50 dark:text-rose-400"
                         >
-                          <Check className="h-3 w-3 stroke-[3]" />
-                          Assign to All Events ({unassignedEvents.length})
+                          Assign all ({unassignedEvents.length})
                         </button>
                       )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex min-w-0 flex-col gap-2">
                       <Select
                         value={selectedEventId || 'none'}
                         onValueChange={(v) => setSelectedEventId(v === 'none' ? '' : v)}
                       >
-                        <SelectTrigger className="flex-1 h-8.5 rounded-xl text-xs">
-                          <SelectValue placeholder="Choose an event to assign…" />
+                        <SelectTrigger className="h-9 w-full min-w-0 rounded-lg text-xs">
+                          <SelectValue placeholder="Choose an event" />
                         </SelectTrigger>
-                        <SelectContent className="max-h-60">
-                          <SelectItem value="none">Choose an event…</SelectItem>
+                        <SelectContent className="max-h-60 max-w-[var(--radix-select-trigger-width)]">
+                          <SelectItem value="none">Choose an event</SelectItem>
                           {unassignedEvents.length > 1 && (
-                            <SelectItem value="all" className="font-bold text-rose-600 dark:text-rose-400">
-                              ⚡ All Events ({unassignedEvents.length} remaining)
-                            </SelectItem>
+                            <SelectItem value="all">All remaining ({unassignedEvents.length})</SelectItem>
                           )}
                           {unassignedEvents.map((ev: any) => (
-                            <SelectItem key={ev.id} value={String(ev.id)}>
-                              {ev.title} ({formatEventDate(ev.startDate)})
+                            <SelectItem key={ev.id} value={String(ev.id)} className="truncate">
+                              {ev.title} · {formatEventDate(ev.startDate)}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                       <Button
                         size="sm"
-                        className="rounded-xl h-9 text-xs font-bold bg-rose-500 hover:bg-rose-600 text-white shrink-0"
+                        className="h-8 w-full rounded-lg bg-rose-500 text-xs font-semibold text-white hover:bg-rose-600"
                         disabled={!selectedEventId || selectedEventId === 'none' || assignEvent.isPending}
                         onClick={() => {
                           assignEvent.mutate({
@@ -939,7 +874,7 @@ const AdminStaffPage: React.FC = () => {
                           });
                         }}
                       >
-                        {assignEvent.isPending ? 'Assigning…' : 'Assign Event'}
+                        {assignEvent.isPending ? 'Assigning…' : 'Assign'}
                       </Button>
                     </div>
                   </div>
@@ -954,13 +889,13 @@ const AdminStaffPage: React.FC = () => {
                   </p>
 
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800">
-                      <div>
-                        <p className="text-xs font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
-                          <Mail className="h-3.5 w-3.5 text-neutral-400" /> Resend Welcome Invite
+                    <div className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-neutral-200 p-2.5 dark:border-neutral-800">
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-neutral-900 dark:text-white">
+                          <Mail className="h-3.5 w-3.5 shrink-0 text-neutral-400" /> Resend welcome invite
                         </p>
-                        <p className="text-[10px] text-neutral-400">
-                          Send staff invite link to {manageStaff.email}
+                        <p className="truncate text-[11px] text-neutral-500">
+                          Send the invite link to {manageStaff.email}
                         </p>
                       </div>
                       <Button
@@ -976,13 +911,13 @@ const AdminStaffPage: React.FC = () => {
                       </Button>
                     </div>
 
-                    <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800">
-                      <div>
-                        <p className="text-xs font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
-                          <Key className="h-3.5 w-3.5 text-neutral-400" /> Reset Password & Invite
+                    <div className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-neutral-200 p-2.5 dark:border-neutral-800">
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-neutral-900 dark:text-white">
+                          <Key className="h-3.5 w-3.5 shrink-0 text-neutral-400" /> Reset password
                         </p>
-                        <p className="text-[10px] text-neutral-400">
-                          Generate a temporary password and email it
+                        <p className="text-[11px] text-neutral-500">
+                          Email a temporary password
                         </p>
                       </div>
                       <Button
@@ -998,13 +933,42 @@ const AdminStaffPage: React.FC = () => {
                       </Button>
                     </div>
 
-                    <div className="flex items-center justify-between p-2.5 rounded-xl border border-red-200/50 dark:border-red-950/40 bg-red-50/10">
-                      <div>
-                        <p className="text-xs font-bold text-red-600 dark:text-red-400">
-                          Revoke Staff Access
+                    <div className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 p-2.5 dark:border-neutral-800">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-neutral-900 dark:text-white">
+                          {manageStaff.staffProfile?.active !== false ? 'Disable staff' : 'Enable staff'}
                         </p>
-                        <p className="text-[10px] text-neutral-400">
-                          Demote user to normal guest status
+                        <p className="text-[11px] text-neutral-500">
+                          {manageStaff.staffProfile?.active !== false
+                            ? 'Keeps the staff role, but they cannot sign in to work.'
+                            : 'Turns gate access back on with the current roles.'}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 shrink-0 rounded-lg px-2 text-xs"
+                        disabled={upsert.isPending}
+                        onClick={() =>
+                          upsert.mutate({
+                            userId: manageStaff.id,
+                            isStaff: true,
+                            capabilities: editingCaps,
+                            active: !(manageStaff.staffProfile?.active !== false),
+                          })
+                        }
+                      >
+                        {manageStaff.staffProfile?.active !== false ? 'Disable' : 'Enable'}
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 rounded-lg border border-red-200/70 p-2.5 dark:border-red-950/50">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-red-600 dark:text-red-400">
+                          Revoke staff access
+                        </p>
+                        <p className="text-[11px] text-neutral-500">
+                          Removes the staff role. They stay a normal account.
                         </p>
                       </div>
                       <Button
