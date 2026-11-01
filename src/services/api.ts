@@ -749,6 +749,37 @@ export const api = {
         platformFeeNaira,
       }),
 
+    /** Admin-only: Issue assisted pre-event direct sale with customized or standard PartyStorm cut. */
+    issueAssistedSale: (data: {
+      eventId: number;
+      ticketTypeId: number;
+      quantity: number;
+      buyerName: string;
+      buyerEmail?: string;
+      buyerPhone?: string;
+      paymentMethod?: string;
+      platformFee?: number;
+      notes?: string;
+      checkInNow?: boolean;
+      attendees?: Array<{ name?: string; email?: string; phone?: string }>;
+      discountAmount?: number;
+      discountReason?: string;
+    }) =>
+      apiRequest<{
+        message: string;
+        order: any;
+        tickets?: any[];
+        ticketsCount: number;
+        breakdown: {
+          originalAmount?: number;
+          discountAmount?: number;
+          discountReason?: string | null;
+          gross: number;
+          platformFee: number;
+          netAmount: number;
+        };
+      }>('POST', '/admin/orders/assisted-sale', data),
+
     getPayouts: (status?: string) =>
       apiRequest<any[]>('GET', '/admin/payouts', undefined, { params: status ? { status } : undefined }),
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, User as UserIcon, Download, Banknote, CreditCard, ArrowLeftRight, Ticket, Users, ScrollText } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Calendar, User as UserIcon, Download, Banknote, CreditCard, ArrowLeftRight, Ticket, Users, ScrollText, Plus } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, DataTableSkeleton, type DataTableColumn } from '../../components/ui/data-table';
 import {
@@ -16,13 +17,15 @@ import { cn } from '../../lib/utils';
 import { Button } from '../../components/ui/Button';
 import { api } from '../../services/api';
 import { formatNaira } from '../../lib/eventOrganizer';
+import { IssueAssistedSaleModal } from '../../components/admin/IssueAssistedSaleModal';
 
 const statusBadgeClass: Record<string, string> = {
   VALID: 'bg-green-50 dark:bg-green-950/30 text-green-600 border border-green-200/50',
   USED: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 border border-neutral-200/50',
 };
 
-const paymentLabel = (method?: string | null, hasOrder?: boolean) => {
+const paymentLabel = (method?: string | null, hasOrder?: boolean, purchaseType?: string) => {
+  if (purchaseType === 'ASSISTED') return 'Assisted Direct';
   if (method === 'CASH') return 'Cash';
   if (method === 'POS') return 'POS';
   if (method === 'TRANSFER') return 'Transfer';
@@ -59,7 +62,8 @@ const AdminTicketsPage = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [eventFilter, setEventFilter] = useState<string>('all');
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
-  const { data: tickets = [], isLoading } = useAdminTickets();
+  const [assistedModalOpen, setAssistedModalOpen] = useState(false);
+  const { data: tickets = [], isLoading, refetch } = useAdminTickets();
 
   useEffect(() => {
     api.tickets
@@ -131,7 +135,7 @@ const AdminTicketsPage = () => {
         t.user?.email || t.buyerEmail || 'N/A',
         t.ticketType?.name || 'N/A',
         ticketPaid(t),
-        paymentLabel(t.paymentMethod, Boolean(t.order)),
+        paymentLabel(t.paymentMethod, Boolean(t.order), t.purchaseType),
         t.soldBy ? `${t.soldBy.firstName} ${t.soldBy.lastName}`.trim() : '—',
         t.status || 'VALID',
         `${issued.day} ${issued.time}`,
@@ -192,7 +196,7 @@ const AdminTicketsPage = () => {
       header: 'Paid',
       cell: (t) => {
         const paid = ticketPaid(t);
-        const method = paymentLabel(t.paymentMethod, Boolean(t.order));
+        const method = paymentLabel(t.paymentMethod, Boolean(t.order), t.purchaseType);
         const orderStatus = t.order?.status as string | undefined;
         return (
           <div>
@@ -258,6 +262,16 @@ const AdminTicketsPage = () => {
         title="Ticket"
         accent="Audit"
         description="Every ticket issued on the platform. Staff totals and the activity log sit in their own tabs."
+        actions={
+          <Link to="/admin/assisted-sales">
+            <Button
+              className="flex items-center gap-1.5 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-xs rounded-xl"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Issue Assisted Ticket</span>
+            </Button>
+          </Link>
+        }
       />
 
       <Tabs defaultValue="tickets" className="w-full">
@@ -441,6 +455,14 @@ const AdminTicketsPage = () => {
           )}
         </TabsContent>
       </Tabs>
+
+      <IssueAssistedSaleModal
+        open={assistedModalOpen}
+        onOpenChange={setAssistedModalOpen}
+        onSuccess={() => {
+          refetch();
+        }}
+      />
     </div>
   );
 };

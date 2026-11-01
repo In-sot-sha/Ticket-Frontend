@@ -13,6 +13,7 @@ import {
   Calendar,
   UserCog,
   Wallet,
+  ShoppingBag,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../context/AuthContext';
@@ -32,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { title: 'Staff', icon: UserCog, href: '/admin/staff', exact: true },
   { title: 'Events', icon: Calendar, href: '/admin/events', exact: true },
   { title: 'Tickets', icon: Ticket, href: '/admin/tickets', exact: true },
+  { title: 'Direct Sales', icon: ShoppingBag, href: '/admin/assisted-sales', exact: false },
   { title: 'Organizations', icon: Building2, href: '/admin/organizations', exact: true, badgeKey: 'pendingHosts' },
   { title: 'Transactions', icon: CreditCard, href: '/admin/transactions', exact: true },
   { title: 'Books', icon: Wallet, href: '/admin/books', exact: true },

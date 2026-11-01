@@ -4,11 +4,28 @@ import { AlertCircle } from 'lucide-react';
 import { Skeleton } from '../components/ui/skeleton';
 import { useOrganizerAnalytics } from '../hooks/useOrganizerAnalytics';
 import { formatNaira } from '../lib/eventOrganizer';
+import { cn } from '../lib/utils';
 import { api } from '../services/api';
 
 type LedgerData = {
   totalEarnings: number;
+  grossSales?: number;
+  platformFees?: number;
   settlementMode?: string;
+  breakdown?: {
+    online: {
+      gross: number;
+      platformFee: number;
+      netAmount: number;
+      ordersCount: number;
+    };
+    assisted: {
+      gross: number;
+      partyStormCut: number;
+      netAmount: number;
+      ordersCount: number;
+    };
+  };
   bankSettings: {
     payoutBankName: string | null;
     payoutAccountNumber: string | null;
@@ -222,7 +239,14 @@ const FinanceDashboard = () => {
                     <p className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
                       {tx.buyerName}
                     </p>
-                    <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">
+                    <span
+                      className={cn(
+                        'rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                        tx.channel === 'Assisted Direct'
+                          ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300 border border-rose-200/50 dark:border-rose-800/50'
+                          : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300'
+                      )}
+                    >
                       {tx.channel || 'Online'}
                     </span>
                     {tx.status === 'checked_in' && (
@@ -238,6 +262,11 @@ const FinanceDashboard = () => {
                     {' · '}
                     {tx.ticketType}
                   </p>
+                  {tx.channel === 'Assisted Direct' && tx.platformFee != null && (
+                    <p className="text-[11px] font-medium text-neutral-500 mt-0.5">
+                      Fee: -{formatNaira(tx.platformFee)} · Organizer Net: {formatNaira(tx.netAmount ?? (tx.amount - tx.platformFee))}
+                    </p>
+                  )}
                   <p className="text-xs text-neutral-400 mt-0.5">
                     {new Date(tx.date).toLocaleString('en-NG', {
                       month: 'short',

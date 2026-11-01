@@ -57,6 +57,7 @@ import AdminLayout from '../components/layout/AdminLayout';
 import AdminDashboard from '../pages/admin/AdminDashboard';
 import OrganizationsPage from '../pages/admin/OrganizationsPage';
 import AdminTicketsPage from '../pages/admin/AdminTicketsPage';
+import AdminAssistedSalesPage from '../pages/admin/AdminAssistedSalesPage';
 import AdminUsersPage from '../pages/admin/AdminUsersPage';
 import AdminTransactionsPage from '../pages/admin/AdminTransactionsPage';
 import AdminSupportPage from '../pages/admin/AdminSupportPage';
@@ -347,6 +348,14 @@ const AppRoutes: React.FC = () => {
         {
           path: "tickets",
           element: <AdminTicketsPage />,
+        },
+        {
+          path: "assisted-sales",
+          element: <AdminAssistedSalesPage />,
+        },
+        {
+          path: "assisted-sales/:id",
+          element: <AdminAssistedSalesPage />,
         },
         {
           path: "users",

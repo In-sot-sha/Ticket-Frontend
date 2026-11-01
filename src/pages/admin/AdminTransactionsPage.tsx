@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronDown,
   ChevronLeft,
@@ -13,6 +14,7 @@ import {
   CheckCircle2,
   Mail,
   Search,
+  Plus,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Skeleton } from '../../components/ui/skeleton';
@@ -33,6 +35,7 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog';
 import { Button } from '../../components/ui/Button';
+import IssueAssistedSaleModal from '../../components/admin/IssueAssistedSaleModal';
 import {
   useAdminTransactions,
   useAdminRevenue,
@@ -103,10 +106,13 @@ function formatSettleDay(date: Date) {
 }
 
 function bankPayoutLabel(
-  tx: { status: string; createdAt: string; paymentReference?: string | null },
+  tx: { status: string; createdAt: string; paymentReference?: string | null; purchaseType?: string },
   hit?: { status: string; settlementDate: string | null },
 ) {
   if (tx.status !== 'PAID') return null;
+  if (tx.purchaseType === 'ASSISTED' || (tx.paymentReference && tx.paymentReference.startsWith('AST_'))) {
+    return { text: 'Direct (No Paystack)', tone: 'muted' as const };
+  }
   if (!tx.paymentReference) return { text: 'Not Paystack', tone: 'muted' as const };
   if (hit?.status === 'success') {
     const when = hit.settlementDate ? formatSettleDay(new Date(hit.settlementDate)) : '';
@@ -199,6 +205,9 @@ const AdminTransactionsPage: React.FC = () => {
   const [resendBusy, setResendBusy] = useState(false);
   const [resendNotice, setResendNotice] = useState<string | null>(null);
   const [resendError, setResendError] = useState('');
+  const [assistedModalOpen, setAssistedModalOpen] = useState(false);
+
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -410,39 +419,49 @@ const AdminTransactionsPage: React.FC = () => {
         accent="Revenue"
         description="Paid orders, platform earnings, and Paystack bank payouts."
         actions={
-          <div className="inline-flex rounded-xl bg-neutral-100 dark:bg-neutral-800 p-0.5 text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => setActiveTab('transactions')}
-              className={cn(
-                'px-3 py-1.5 rounded-lg transition-all',
-                activeTab === 'transactions'
-                  ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs font-bold'
-                  : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
-              )}
-            >
-              Transactions & Revenue
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('payouts')}
-              className={cn(
-                'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5',
-                activeTab === 'payouts'
-                  ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs font-bold'
-                  : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
-              )}
-            >
-              <span>Bank payouts</span>
-              {(settlementData?.settlements || []).filter((s) => s.status !== 'success').length +
-                payouts.filter((p: any) => p.status === 'PENDING').length >
-                0 && (
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-white">
-                  {(settlementData?.settlements || []).filter((s) => s.status !== 'success').length +
-                    payouts.filter((p: any) => p.status === 'PENDING').length}
-                </span>
-              )}
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to="/admin/assisted-sales">
+              <Button
+                className="flex items-center gap-1.5 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-xs rounded-xl h-8 px-3"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Assisted Direct Sale</span>
+              </Button>
+            </Link>
+            <div className="inline-flex rounded-xl bg-neutral-100 dark:bg-neutral-800 p-0.5 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setActiveTab('transactions')}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg transition-all',
+                  activeTab === 'transactions'
+                    ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs font-bold'
+                    : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
+                )}
+              >
+                Transactions & Revenue
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('payouts')}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5',
+                  activeTab === 'payouts'
+                    ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs font-bold'
+                    : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
+                )}
+              >
+                <span>Bank payouts</span>
+                {(settlementData?.settlements || []).filter((s) => s.status !== 'success').length +
+                  payouts.filter((p: any) => p.status === 'PENDING').length >
+                  0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-white">
+                    {(settlementData?.settlements || []).filter((s) => s.status !== 'success').length +
+                      payouts.filter((p: any) => p.status === 'PENDING').length}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         }
       />
@@ -580,16 +599,23 @@ const AdminTransactionsPage: React.FC = () => {
                   id: 'type',
                   header: 'Type',
                   cell: (tx: TransactionItem) => (
-                    <span
-                      className={cn(
-                        'px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider',
-                        tx.type === 'VENDOR'
-                          ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
-                          : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                    <div className="flex flex-col gap-1 items-start">
+                      <span
+                        className={cn(
+                          'px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider',
+                          tx.type === 'VENDOR'
+                            ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
+                            : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                        )}
+                      >
+                        {tx.type}
+                      </span>
+                      {tx.purchaseType === 'ASSISTED' && (
+                        <span className="px-1.5 py-0.2 rounded text-[8px] font-bold uppercase tracking-wide bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                          Assisted
+                        </span>
                       )}
-                    >
-                      {tx.type}
-                    </span>
+                    </div>
                   ),
                 },
                 {
@@ -1089,6 +1115,15 @@ const AdminTransactionsPage: React.FC = () => {
                     </div>
                   )}
 
+                  {selectedTx.purchaseType === 'ASSISTED' && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2.5 dark:border-amber-900 dark:bg-amber-950/30">
+                      <p className="font-bold text-amber-800 dark:text-amber-300">Assisted Direct Sale</p>
+                      <p className="text-[11px] text-amber-700/80 dark:text-amber-400 mt-0.5">
+                        Issued directly prior to event. PartyStorm platform fee was retained without gateway fee.
+                      </p>
+                    </div>
+                  )}
+
                   {!isFree && selectedTx.paymentReference && (
                     <div className="flex items-center gap-2 rounded-xl border border-neutral-200 dark:border-neutral-800 px-3 py-2">
                       <p className="min-w-0 flex-1 font-mono text-[11px] truncate text-neutral-700 dark:text-neutral-300">
@@ -1204,7 +1239,9 @@ const AdminTransactionsPage: React.FC = () => {
                 </div>
 
                 <DialogFooter className="mt-3 gap-2 sm:justify-between">
-                  {selectedTx.paymentReference ? (
+                  {selectedTx.paymentReference &&
+                  !selectedTx.paymentReference.startsWith('AST_') &&
+                  !selectedTx.paymentReference.startsWith('FREE_') ? (
                     <Button
                       size="sm"
                       variant="outline"
@@ -1234,6 +1271,15 @@ const AdminTransactionsPage: React.FC = () => {
           })()}
         </DialogContent>
       </Dialog>
+
+      <IssueAssistedSaleModal
+        open={assistedModalOpen}
+        onOpenChange={setAssistedModalOpen}
+        onSuccess={() => {
+          refetchTransactions();
+          queryClient.invalidateQueries({ queryKey: queryKeys.admin.revenue() });
+        }}
+      />
     </div>
   );
 };
