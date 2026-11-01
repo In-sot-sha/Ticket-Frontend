@@ -10,6 +10,7 @@ import {
   Building2,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   TrendingUp,
 } from 'lucide-react';
 import { api } from '../../services/api';
@@ -518,6 +519,7 @@ const AdminEventsPage: React.FC = () => {
     {
       id: 'actions',
       header: '',
+      hideOnMobile: true,
       cell: (ev) => (
         <div className="flex items-center justify-end gap-0.5">
           <button
@@ -594,6 +596,113 @@ const AdminEventsPage: React.FC = () => {
           onSearchChange={setSearch}
           searchPlaceholder="Search events by title…"
           pageSize={12}
+          renderMobileCard={(ev) => {
+            const stats = getEventStats(ev);
+            const st = getEventStatus(ev);
+            return (
+              <div
+                onClick={() => navigate(`/admin/events/${ev.id}`)}
+                className="w-full text-left rounded-2xl border border-neutral-200/90 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3.5 shadow-2xs hover:border-neutral-300 dark:hover:border-neutral-700 active:bg-neutral-50 dark:active:bg-neutral-800/60 transition-all cursor-pointer space-y-2.5"
+              >
+                {/* Top Row: Event Image + Status Badges */}
+                <div className="flex items-start gap-3 min-w-0">
+                  {ev.imageUrl ? (
+                    <img
+                      src={ev.imageUrl}
+                      alt={ev.title}
+                      className="h-12 w-12 rounded-xl object-cover shrink-0 border border-neutral-200 dark:border-neutral-800"
+                    />
+                  ) : (
+                    <div className="h-12 w-12 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0 text-neutral-400">
+                      <Calendar className="h-6 w-6" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full border shadow-2xs shrink-0',
+                          st.badgeClass
+                        )}
+                      >
+                        <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', st.dotClass)} />
+                        {st.label}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {ev.isPromoted && st.key !== 'ended' && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                            Promoted
+                          </span>
+                        )}
+                        {!ev.isPromoted && ev.promotionRequestedAt && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                            Requested
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="font-bold text-sm text-neutral-900 dark:text-white truncate mt-1">
+                      {ev.title}
+                    </p>
+                    <p className="text-[11px] text-neutral-400 truncate mt-0.5">
+                      {ev.startDate ? new Date(ev.startDate).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : 'No date'}
+                      {ev.organization ? ` · ${ev.organization.name}` : ''}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Bottom Row: Stats & Action */}
+                <div className="flex items-center justify-between pt-2 border-t border-neutral-100 dark:border-neutral-800/80 text-xs">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-extrabold text-xs text-neutral-900 dark:text-white inline-flex items-center gap-1">
+                      <Ticket className="h-3 w-3 text-rose-500" />
+                      {stats.totalSold} sold
+                    </span>
+                    <span className="text-[10px] text-neutral-400">
+                      {stats.tiersCount} tier{stats.tiersCount !== 1 ? 's' : ''} · {formatNaira(stats.estRevenue)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="inline-flex h-7 items-center rounded-lg px-2 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400"
+                      onClick={() => navigate(`/admin/events/${ev.id}`)}
+                    >
+                      Manage →
+                    </button>
+                    <EventManageMenu
+                      promoted={ev.isPromoted}
+                      ended={st.key === 'ended'}
+                      onPromote={() => {
+                        setPromoteFor(ev);
+                        setDurationMode('7');
+                        setCustomDate(
+                          ev.promotedUntil ? new Date(ev.promotedUntil).toISOString().slice(0, 10) : ''
+                        );
+                      }}
+                      onClear={() => {
+                        void api.admin
+                          .promoteEvent(ev.id, { isPromoted: false, promotedUntil: null })
+                          .then(() => {
+                            setSuccess('Promotion removed.');
+                            setTimeout(() => setSuccess(null), 3000);
+                            fetchEvents();
+                          })
+                          .catch((err: any) => {
+                            setError(err?.response?.data?.message || 'Failed to update promotion.');
+                          });
+                      }}
+                      onMove={() => {
+                        setTransferFor(ev);
+                        setTargetOrgId('');
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          }}
           toolbar={
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
@@ -643,7 +752,7 @@ const AdminEventsPage: React.FC = () => {
 
       {/* Event Details & Tickets Modal */}
       <Dialog open={Boolean(selectedEvent)} onOpenChange={(o) => !o && setSelectedEvent(null)}>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto p-4 sm:p-5">
+        <DialogContent className="w-[calc(100%-1.5rem)] sm:w-full sm:max-w-lg max-h-[88vh] overflow-x-hidden overflow-y-auto p-4 sm:p-5 rounded-2xl sm:rounded-3xl">
           {selectedEvent && (
             <>
               <DialogHeader>

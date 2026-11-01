@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Ticket, Mail, Copy, Check, CheckCircle2, Phone, Calendar } from 'lucide-react';
+import { Ticket, Mail, Copy, Check, CheckCircle2, Phone, Calendar, ChevronRight } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, DataTableSkeleton, type DataTableColumn } from '../../components/ui/data-table';
 import {
@@ -165,6 +165,7 @@ const AdminUsersPage = () => {
     {
       id: 'actions',
       header: '',
+      hideOnMobile: true,
       cell: (u) => (
         <div className="flex items-center justify-end">
           <button
@@ -228,6 +229,57 @@ const AdminUsersPage = () => {
           searchPlaceholder="Search users by name or email…"
           pageSize={12}
           onRowClick={(u) => setSelectedUser(u)}
+          renderMobileCard={(u) => {
+            const initials = `${u.firstName?.[0] || ''}${u.lastName?.[0] || ''}`.toUpperCase() || 'U';
+            return (
+              <div
+                onClick={() => setSelectedUser(u)}
+                className="w-full text-left rounded-2xl border border-neutral-200/90 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3.5 shadow-2xs hover:border-neutral-300 dark:hover:border-neutral-700 active:bg-neutral-50 dark:active:bg-neutral-800/60 transition-all cursor-pointer space-y-2.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-neutral-100 dark:bg-neutral-800 text-xs font-bold text-neutral-700 dark:text-neutral-300">
+                      {initials}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm text-neutral-900 dark:text-white truncate">
+                        {u.firstName} {u.lastName}
+                      </p>
+                      <p className="text-xs text-neutral-500 truncate mt-0.5">
+                        {u.email}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700">
+                      {ROLE_LABEL[u.role] || u.role}
+                    </span>
+                    {u.isStaff && (
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                        Staff
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-neutral-100 dark:border-neutral-800/80 text-xs">
+                  <div className="flex items-center gap-2 text-neutral-500 text-[11px] min-w-0 truncate">
+                    <span className="shrink-0">{u._count?.tickets ?? 0} ticket{(u._count?.tickets ?? 0) !== 1 ? 's' : ''}</span>
+                    {u.ownedOrganizations?.length ? (
+                      <span className="truncate max-w-[160px]">
+                        · {u.ownedOrganizations.map((o: any) => o.name).join(', ')}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="inline-flex items-center gap-1 font-bold text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-lg shrink-0">
+                    <span>Manage</span>
+                    <ChevronRight className="h-3 w-3" />
+                  </div>
+                </div>
+              </div>
+            );
+          }}
           toolbar={
             <Select value={roleFilter} onValueChange={setRoleFilter}>
               <SelectTrigger className="h-8 w-[140px] rounded-lg text-xs">

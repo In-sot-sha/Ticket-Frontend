@@ -175,7 +175,7 @@ export const IssueAssistedSaleModal: React.FC<IssueAssistedSaleModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100%-1.5rem)] sm:w-full max-w-lg p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 max-h-[90dvh] overflow-y-auto">
         <DialogHeader className="mb-3">
           <DialogTitle className="text-lg font-bold flex items-center gap-2">
             <Ticket className="h-5 w-5 text-rose-500" />

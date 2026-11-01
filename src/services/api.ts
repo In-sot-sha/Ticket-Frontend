@@ -780,6 +780,51 @@ export const api = {
         };
       }>('POST', '/admin/orders/assisted-sale', data),
 
+    downloadOrderTicketsPdf: async (orderId: number | string): Promise<Blob> => {
+      const token = localStorage.getItem('token');
+      const base = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+      const res = await fetch(`${base}/admin/orders/${encodeURIComponent(String(orderId))}/tickets-pdf`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to download tickets PDF');
+      }
+      return res.blob();
+    },
+
+    downloadOrderTicketsZip: async (orderId: number | string): Promise<Blob> => {
+      const token = localStorage.getItem('token');
+      const base = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+      const res = await fetch(`${base}/admin/orders/${encodeURIComponent(String(orderId))}/tickets-zip`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to download tickets zip');
+      }
+      return res.blob();
+    },
+
+    downloadSingleTicketPdf: async (ticketId: number | string): Promise<Blob> => {
+      const token = localStorage.getItem('token');
+      const base = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+      const res = await fetch(`${base}/admin/tickets/${encodeURIComponent(String(ticketId))}/pdf`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to download ticket PDF');
+      }
+      return res.blob();
+    },
+
     getPayouts: (status?: string) =>
       apiRequest<any[]>('GET', '/admin/payouts', undefined, { params: status ? { status } : undefined }),
 

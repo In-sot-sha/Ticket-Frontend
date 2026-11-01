@@ -15,6 +15,8 @@ import {
   Mail,
   Search,
   Plus,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Skeleton } from '../../components/ui/skeleton';
@@ -207,6 +209,11 @@ const AdminTransactionsPage: React.FC = () => {
   const [resendError, setResendError] = useState('');
   const [assistedModalOpen, setAssistedModalOpen] = useState(false);
 
+  // Download state with timer
+  const [downloadingZip, setDownloadingZip] = useState(false);
+  const [zipTimer, setZipTimer] = useState(0);
+  const [zipDuration, setZipDuration] = useState<number | null>(null);
+
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -338,6 +345,35 @@ const AdminTransactionsPage: React.FC = () => {
       setResendError(err.response?.data?.message || err.message || 'Resend failed');
     } finally {
       setResendBusy(false);
+    }
+  };
+
+  const handleDownloadZip = async (txId: number) => {
+    setDownloadingZip(true);
+    setZipDuration(null);
+    setZipTimer(0);
+    const startTime = Date.now();
+    const interval = setInterval(() => {
+      setZipTimer(Number(((Date.now() - startTime) / 1000).toFixed(1)));
+    }, 100);
+    try {
+      const { api } = await import('../../services/api');
+      const blob = await api.admin.downloadOrderTicketsZip(txId);
+      const duration = Number(((Date.now() - startTime) / 1000).toFixed(1));
+      setZipDuration(duration);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `order-${txId}-tickets-separate.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err.message || 'Failed to download tickets ZIP');
+    } finally {
+      clearInterval(interval);
+      setDownloadingZip(false);
     }
   };
 
@@ -692,6 +728,7 @@ const AdminTransactionsPage: React.FC = () => {
                 {
                   id: 'actions',
                   header: '',
+                  hideOnMobile: true,
                   cell: (tx: TransactionItem) => (
                     <Button
                       size="sm"
@@ -711,6 +748,88 @@ const AdminTransactionsPage: React.FC = () => {
               getRowId={(tx) => tx.id}
               pageSize={Math.max(transactions.length, 1)}
               onRowClick={(tx) => setSelectedTx(tx)}
+              renderMobileCard={(tx: TransactionItem) => {
+                const free = isFreeTransaction(tx);
+                return (
+                  <div
+                    onClick={() => setSelectedTx(tx)}
+                    className="w-full text-left rounded-2xl border border-neutral-200/90 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3.5 shadow-2xs hover:border-neutral-300 dark:hover:border-neutral-700 active:bg-neutral-50 dark:active:bg-neutral-800/60 transition-all cursor-pointer space-y-2.5"
+                  >
+                    {/* Header Row: Order Number & Date on Left, Status + Type Badges on Right */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-mono text-xs font-bold text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-md shrink-0">
+                          #{tx.txId}
+                        </span>
+                        <span className="text-[11px] text-neutral-400 truncate">
+                          {formatTxDate(tx.createdAt)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span
+                          className={cn(
+                            'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block',
+                            free
+                              ? 'bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800'
+                              : statusBadge(tx.status)
+                          )}
+                        >
+                          {free ? 'Free' : tx.status}
+                        </span>
+                        <span
+                          className={cn(
+                            'px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider',
+                            tx.type === 'VENDOR'
+                              ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
+                              : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                          )}
+                        >
+                          {tx.type}
+                        </span>
+                        {tx.purchaseType === 'ASSISTED' && (
+                          <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wide bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                            Assisted
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Main Content: Event Title & Buyer Details */}
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="font-bold text-sm text-neutral-900 dark:text-white truncate">
+                        {tx.event?.title ?? '—'}
+                      </p>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+                        {tx.buyer?.name ?? 'Guest'}
+                        {tx.buyer?.email ? ` · ${tx.buyer.email}` : ''}
+                        {tx.detail ? ` · ${tx.detail}` : ''}
+                      </p>
+                    </div>
+
+                    {/* Footer: Amount & Inspect Button */}
+                    <div className="flex items-center justify-between pt-2 border-t border-neutral-100 dark:border-neutral-800/80 text-xs">
+                      <div>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="font-extrabold text-sm tabular-nums text-neutral-900 dark:text-white">
+                            {formatTxAmount(tx.totalAmount)}
+                          </span>
+                          {!free && (
+                            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                              Cut: {formatNaira(ourCutAmount(tx.platformFee, tx.processingFee))}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="inline-flex items-center gap-1 font-bold text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-lg">
+                        <span>Inspect</span>
+                        <ChevronRight className="h-3 w-3" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              }}
               hideSearch
               emptyTitle="No transactions found"
               emptyDescription="Try another status, event, or search."
@@ -1033,6 +1152,65 @@ const AdminTransactionsPage: React.FC = () => {
               getRowId={(p) => p.id}
               pageSize={12}
               hideSearch
+              renderMobileCard={(p: any) => (
+                <div className="w-full text-left rounded-2xl border border-neutral-200/90 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3.5 shadow-2xs space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-semibold text-neutral-400">
+                      {p.reference || `#${p.id}`}
+                    </span>
+                    <span
+                      className={cn(
+                        'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full',
+                        statusBadge(p.status)
+                      )}
+                    >
+                      {p.status}
+                    </span>
+                  </div>
+
+                  <div>
+                    <p className="font-bold text-sm text-neutral-900 dark:text-white">
+                      {p.organization?.name ?? 'Unknown'}
+                    </p>
+                    {p.organization?.owner && (
+                      <p className="text-xs text-neutral-400 mt-0.5">
+                        {p.organization.owner.firstName} {p.organization.owner.lastName}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl bg-neutral-50 dark:bg-neutral-950/60 p-2.5 flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-semibold text-neutral-800 dark:text-neutral-200">
+                        {p.bankName}
+                      </p>
+                      <p className="font-mono text-[11px] text-neutral-400">{p.accountNumber}</p>
+                    </div>
+                    <span className="font-extrabold text-sm text-rose-500 tabular-nums">
+                      {formatNaira(p.amount)}
+                    </span>
+                  </div>
+
+                  {p.status === 'PENDING' && (
+                    <div className="flex items-center gap-2 pt-1 border-t border-neutral-100 dark:border-neutral-800">
+                      <button
+                        disabled={approvePayoutMutation.isPending || rejectPayoutMutation.isPending}
+                        onClick={() => handleApprove(p.id)}
+                        className="flex-1 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-xs"
+                      >
+                        <Check className="h-3.5 w-3.5" /> Approve
+                      </button>
+                      <button
+                        disabled={approvePayoutMutation.isPending || rejectPayoutMutation.isPending}
+                        onClick={() => handleReject(p.id)}
+                        className="py-1.5 px-3 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-bold flex items-center justify-center gap-1 border border-rose-200 dark:border-rose-900"
+                      >
+                        <X className="h-3.5 w-3.5" /> Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               toolbar={
                 <Select value={payoutStatus} onValueChange={setPayoutStatus}>
                   <SelectTrigger className="w-[140px] h-9 rounded-xl text-xs">
@@ -1057,7 +1235,7 @@ const AdminTransactionsPage: React.FC = () => {
 
       {/* Transaction Details Modal */}
       <Dialog open={Boolean(selectedTx)} onOpenChange={(o) => !o && setSelectedTx(null)}>
-        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto p-4 sm:p-5 pr-12">
+        <DialogContent className="w-[calc(100%-1.5rem)] sm:w-full sm:max-w-xl md:max-w-3xl lg:max-w-4xl max-h-[90dvh] sm:max-h-[88vh] overflow-x-hidden overflow-y-auto p-4 sm:p-6 rounded-2xl sm:rounded-3xl">
           {selectedTx && (() => {
             const isFree = isFreeTransaction(selectedTx);
             const bank = !isFree
@@ -1071,9 +1249,9 @@ const AdminTransactionsPage: React.FC = () => {
 
             return (
               <>
-                <DialogHeader className="pr-2 text-left space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <DialogTitle className="text-base font-extrabold">
+                <DialogHeader className="pr-7 sm:pr-8 text-left space-y-1 pb-3 border-b border-neutral-100 dark:border-neutral-800">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    <DialogTitle className="text-base sm:text-lg font-extrabold">
                       {isFree ? 'Free order' : 'Order'} #{selectedTx.txId}
                     </DialogTitle>
                     <span
@@ -1084,6 +1262,11 @@ const AdminTransactionsPage: React.FC = () => {
                     >
                       {isFree ? 'Free' : selectedTx.status}
                     </span>
+                    {selectedTx.purchaseType === 'ASSISTED' && (
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                        Direct Assisted
+                      </span>
+                    )}
                   </div>
                   <DialogDescription className="text-xs text-neutral-400">
                     {selectedTx.event?.title || 'Event'} ·{' '}
@@ -1091,176 +1274,244 @@ const AdminTransactionsPage: React.FC = () => {
                   </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-3 mt-1 text-xs">
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-3 space-y-1.5">
-                    <p className="font-bold text-neutral-900 dark:text-white">
-                      {selectedTx.buyer?.name || 'Guest'}
-                    </p>
-                    <p className="text-neutral-500 truncate">
-                      {selectedTx.buyer?.email || 'No email'}
-                    </p>
-                    {selectedTx.event?.organization && (
-                      <p className="text-neutral-400 truncate">
-                        Host: {selectedTx.event.organization}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mt-3 text-xs min-w-0">
+                  {/* LEFT COLUMN: Customer & Financial Information */}
+                  <div className="space-y-3 min-w-0">
+                    <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-3 space-y-1.5 bg-neutral-50/50 dark:bg-neutral-900/50 min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                        Buyer Details
                       </p>
+                      <p className="font-bold text-neutral-900 dark:text-white text-sm truncate">
+                        {selectedTx.buyer?.name || 'Guest'}
+                      </p>
+                      <p className="text-neutral-500 break-all text-xs">
+                        {selectedTx.buyer?.email || 'No email provided'}
+                      </p>
+                      {selectedTx.event?.organization && (
+                        <p className="text-neutral-400 truncate text-[11px]">
+                          Host: {selectedTx.event.organization}
+                        </p>
+                      )}
+                    </div>
+
+                    {isFree && (
+                      <div className="rounded-xl border border-sky-200 bg-sky-50/60 px-3 py-2.5 dark:border-sky-900 dark:bg-sky-950/30">
+                        <p className="font-bold text-sky-800 dark:text-sky-300">Free — issued automatically</p>
+                        <p className="text-[11px] text-sky-700/80 dark:text-sky-400 mt-0.5">
+                          No Paystack payment. Verify / Clean is only for paid checkouts.
+                        </p>
+                      </div>
+                    )}
+
+                    {selectedTx.purchaseType === 'ASSISTED' && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2.5 dark:border-amber-900 dark:bg-amber-950/30">
+                        <p className="font-bold text-amber-800 dark:text-amber-300">Assisted Direct Sale</p>
+                        <p className="text-[11px] text-amber-700/80 dark:text-amber-400 mt-0.5">
+                          Issued directly prior to event. PartyStorm platform fee was retained without gateway fee.
+                        </p>
+                      </div>
+                    )}
+
+                    {!isFree && selectedTx.paymentReference && (
+                      <div className="space-y-1 min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                          Payment Reference
+                        </p>
+                        <div className="flex items-center gap-2 rounded-xl border border-neutral-200 dark:border-neutral-800 px-3 py-2 bg-white dark:bg-neutral-950 min-w-0">
+                          <p className="min-w-0 flex-1 font-mono text-[11px] truncate text-neutral-700 dark:text-neutral-300">
+                            {selectedTx.paymentReference}
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 shrink-0 rounded-lg text-xs"
+                            onClick={() => copyReference(selectedTx.paymentReference!)}
+                          >
+                            {copiedRef ? (
+                              <Check className="h-3.5 w-3.5 text-emerald-500" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {!isFree && (
+                      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-3 sm:p-3.5 space-y-1.5 bg-white dark:bg-neutral-900 min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1">
+                          Financial Settlement
+                        </p>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-neutral-500">Paid by Buyer</span>
+                          <span className="font-bold tabular-nums">{formatTxAmount(selectedTx.totalAmount)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs text-neutral-500">
+                          <span>PartyStorm fee</span>
+                          <span className="tabular-nums">{formatNaira(selectedTx.platformFee)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs text-neutral-500">
+                          <span>Paystack</span>
+                          <span className="tabular-nums">{formatNaira(selectedTx.processingFee)}</span>
+                        </div>
+                        <div className="flex justify-between items-center font-bold text-emerald-700 dark:text-emerald-400 pt-1 border-t border-neutral-100 dark:border-neutral-800">
+                          <span>Our cut</span>
+                          <span className="tabular-nums">
+                            {formatNaira(ourCutAmount(selectedTx.platformFee, selectedTx.processingFee))}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-neutral-400 leading-tight">
+                          Fee minus Paystack. This is the cash in on company books.
+                        </p>
+                        <div className="flex justify-between items-center font-semibold text-neutral-800 dark:text-neutral-200 pt-1">
+                          <span>Host net</span>
+                          <span className="tabular-nums">{formatNaira(selectedTx.netAmount)}</span>
+                        </div>
+                        {bank && (
+                          <p className="text-[11px] text-neutral-500 pt-0.5 border-t border-neutral-100 dark:border-neutral-800">
+                            Bank status: <span className="font-medium">{bank.text}</span>
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
 
-                  {isFree && (
-                    <div className="rounded-xl border border-sky-200 bg-sky-50/60 px-3 py-2.5 dark:border-sky-900 dark:bg-sky-950/30">
-                      <p className="font-bold text-sky-800 dark:text-sky-300">Free — issued automatically</p>
-                      <p className="text-[11px] text-sky-700/80 dark:text-sky-400 mt-0.5">
-                        No Paystack payment. Verify / Clean is only for paid checkouts.
-                      </p>
-                    </div>
-                  )}
+                  {/* RIGHT COLUMN: Tickets list, Resend box, and Direct ZIP download */}
+                  <div className="space-y-3 min-w-0">
+                    {/* Tickets list */}
+                    {selectedTx.tickets && selectedTx.tickets.length > 0 && (
+                      <div className="space-y-1.5 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                            Tickets ({selectedTx.tickets.length})
+                          </p>
+                          <span className="text-[10px] text-neutral-400">All issued</span>
+                        </div>
+                        <div className="space-y-1.5 max-h-36 sm:max-h-44 overflow-y-auto pr-1">
+                          {selectedTx.tickets.map((t) => (
+                            <div
+                              key={t.id}
+                              className="flex items-center justify-between gap-2 rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2 bg-neutral-50/50 dark:bg-neutral-900/50 min-w-0"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <span className="font-semibold text-neutral-800 dark:text-neutral-200 truncate block text-xs">
+                                  {t.ticketType?.name || 'General'}
+                                </span>
+                                <span className="text-[10px] font-mono text-neutral-400">
+                                  #{t.id}
+                                </span>
+                              </div>
+                              <span className="text-[9px] sm:text-[10px] font-bold uppercase text-emerald-600 shrink-0 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md">
+                                {t.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
-                  {selectedTx.purchaseType === 'ASSISTED' && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2.5 dark:border-amber-900 dark:bg-amber-950/30">
-                      <p className="font-bold text-amber-800 dark:text-amber-300">Assisted Direct Sale</p>
-                      <p className="text-[11px] text-amber-700/80 dark:text-amber-400 mt-0.5">
-                        Issued directly prior to event. PartyStorm platform fee was retained without gateway fee.
-                      </p>
-                    </div>
-                  )}
+                    {/* Resend tickets card */}
+                    {selectedTx.type === 'TICKET' &&
+                      selectedTx.tickets &&
+                      selectedTx.tickets.length > 0 && (
+                        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-3 space-y-2 bg-neutral-50/30 dark:bg-neutral-900/30 min-w-0">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1">
+                            <Mail className="h-3 w-3 text-rose-500 shrink-0" /> Resend to email
+                          </p>
+                          <div className="flex items-center gap-1.5 sm:gap-2">
+                            <input
+                              type="email"
+                              value={resendEmail}
+                              onChange={(e) => setResendEmail(e.target.value)}
+                              placeholder="email@example.com"
+                              className="h-8 min-w-0 flex-1 rounded-lg border border-neutral-200 bg-white px-2.5 text-xs dark:border-neutral-700 dark:bg-neutral-950"
+                            />
+                            <Button
+                              size="sm"
+                              disabled={resendBusy || !resendEmail.trim()}
+                              onClick={() => void handleResendTickets()}
+                              className="h-8 shrink-0 rounded-lg bg-rose-500 px-3 text-xs font-bold text-white hover:bg-rose-600"
+                            >
+                              {resendBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Send'}
+                            </Button>
+                          </div>
+                          {resendError && (
+                            <p className="text-[11px] text-red-500 flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3 shrink-0" /> {resendError}
+                            </p>
+                          )}
+                          {resendNotice && (
+                            <p className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3 shrink-0" /> {resendNotice}
+                            </p>
+                          )}
+                        </div>
+                      )}
 
-                  {!isFree && selectedTx.paymentReference && (
-                    <div className="flex items-center gap-2 rounded-xl border border-neutral-200 dark:border-neutral-800 px-3 py-2">
-                      <p className="min-w-0 flex-1 font-mono text-[11px] truncate text-neutral-700 dark:text-neutral-300">
-                        {selectedTx.paymentReference}
+                    {/* Download ZIP card */}
+                    <div className="rounded-xl border border-blue-200/80 dark:border-blue-900/40 bg-blue-50/20 dark:bg-blue-950/10 p-3 space-y-2 min-w-0">
+                      <div className="flex items-center justify-between gap-1 flex-wrap">
+                        <div className="flex items-center gap-1.5">
+                          <Download className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                          <span className="text-[11px] font-bold text-blue-900 dark:text-blue-300">
+                            Tickets ZIP (Separate PDFs)
+                          </span>
+                        </div>
+                        {zipDuration !== null && !downloadingZip && (
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-0.5">
+                            <Check className="h-3 w-3" /> Done in {zipDuration}s
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] sm:text-[11px] text-neutral-500 leading-normal">
+                        Zips individual single-page PDF tickets for each person to easily send via WhatsApp.
                       </p>
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 rounded-lg px-2 shrink-0"
-                        onClick={() => copyReference(selectedTx.paymentReference!)}
+                        disabled={downloadingZip}
+                        className="w-full h-8 sm:h-9 rounded-lg text-xs gap-1.5 border-blue-300 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 font-bold"
+                        onClick={() => handleDownloadZip(selectedTx.txId)}
                       >
-                        {copiedRef ? (
-                          <Check className="h-3.5 w-3.5 text-emerald-500" />
+                        {downloadingZip ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <span>Generating ZIP... ({zipTimer}s)</span>
+                          </>
                         ) : (
-                          <Copy className="h-3.5 w-3.5" />
+                          <>
+                            <Download className="h-3.5 w-3.5" />
+                            <span>Download ZIP ({selectedTx.tickets?.length || 1} tickets)</span>
+                          </>
                         )}
                       </Button>
                     </div>
-                  )}
-
-                  {!isFree && (
-                    <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 px-3 py-2.5 space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-neutral-500">Paid</span>
-                        <span className="font-bold">{formatTxAmount(selectedTx.totalAmount)}</span>
-                      </div>
-                      <div className="flex justify-between text-neutral-500">
-                        <span>PartyStorm fee</span>
-                        <span>{formatNaira(selectedTx.platformFee)}</span>
-                      </div>
-                      <div className="flex justify-between text-neutral-500">
-                        <span>Paystack</span>
-                        <span>{formatNaira(selectedTx.processingFee)}</span>
-                      </div>
-                      <div className="flex justify-between font-bold text-emerald-700 dark:text-emerald-400 pt-1 border-t border-neutral-100 dark:border-neutral-800">
-                        <span>Our cut</span>
-                        <span className="tabular-nums">
-                          {formatNaira(ourCutAmount(selectedTx.platformFee, selectedTx.processingFee))}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-neutral-400">
-                        Fee minus Paystack. This is the cash in on company books.
-                      </p>
-                      <div className="flex justify-between font-semibold text-neutral-800 dark:text-neutral-200">
-                        <span>Host net</span>
-                        <span>{formatNaira(selectedTx.netAmount)}</span>
-                      </div>
-                      {bank && (
-                        <p className="text-[11px] text-neutral-500 pt-0.5">Bank: {bank.text}</p>
-                      )}
-                    </div>
-                  )}
-
-                  {selectedTx.tickets && selectedTx.tickets.length > 0 && (
-                    <div className="space-y-1.5">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                        Tickets ({selectedTx.tickets.length})
-                      </p>
-                      <div className="space-y-1 max-h-28 overflow-y-auto">
-                        {selectedTx.tickets.map((t) => (
-                          <div
-                            key={t.id}
-                            className="flex items-center justify-between rounded-lg border border-neutral-200 dark:border-neutral-800 px-2.5 py-1.5"
-                          >
-                            <span className="font-semibold text-neutral-800 dark:text-neutral-200 truncate">
-                              {t.ticketType?.name || 'General'}
-                            </span>
-                            <span className="text-[10px] font-bold uppercase text-emerald-600 shrink-0 ml-2">
-                              {t.status}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedTx.type === 'TICKET' &&
-                    selectedTx.tickets &&
-                    selectedTx.tickets.length > 0 && (
-                      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1">
-                          <Mail className="h-3 w-3 text-rose-500" /> Resend to email
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="email"
-                            value={resendEmail}
-                            onChange={(e) => setResendEmail(e.target.value)}
-                            placeholder="email@example.com"
-                            className="h-8 min-w-0 flex-1 rounded-lg border border-neutral-200 bg-white px-2.5 text-xs dark:border-neutral-700 dark:bg-neutral-950"
-                          />
-                          <Button
-                            size="sm"
-                            disabled={resendBusy || !resendEmail.trim()}
-                            onClick={() => void handleResendTickets()}
-                            className="h-8 shrink-0 rounded-lg bg-rose-500 px-3 text-xs font-bold text-white hover:bg-rose-600"
-                          >
-                            {resendBusy ? '…' : 'Send'}
-                          </Button>
-                        </div>
-                        {resendError && (
-                          <p className="text-[11px] text-red-500 flex items-center gap-1">
-                            <AlertCircle className="h-3 w-3" /> {resendError}
-                          </p>
-                        )}
-                        {resendNotice && (
-                          <p className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                            <CheckCircle2 className="h-3 w-3" /> {resendNotice}
-                          </p>
-                        )}
-                      </div>
-                    )}
+                  </div>
                 </div>
 
-                <DialogFooter className="mt-3 gap-2 sm:justify-between">
-                  {selectedTx.paymentReference &&
-                  !selectedTx.paymentReference.startsWith('AST_') &&
-                  !selectedTx.paymentReference.startsWith('FREE_') ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="rounded-xl text-xs"
-                      onClick={() => {
-                        const reference = selectedTx.paymentReference!;
-                        setResolveRef(reference);
-                        setSelectedTx(null);
-                        handleResolvePayment(reference);
-                      }}
-                    >
-                      <RefreshCw className="h-3 w-3 mr-1" /> Re-verify
-                    </Button>
-                  ) : (
-                    <span />
-                  )}
+                <DialogFooter className="mt-4 pt-3 border-t border-neutral-100 dark:border-neutral-800 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    {selectedTx.paymentReference &&
+                    !selectedTx.paymentReference.startsWith('AST_') &&
+                    !selectedTx.paymentReference.startsWith('FREE_') && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl text-xs h-9 w-full sm:w-auto font-semibold"
+                        onClick={() => {
+                          const reference = selectedTx.paymentReference!;
+                          setResolveRef(reference);
+                          setSelectedTx(null);
+                          handleResolvePayment(reference);
+                        }}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5 mr-1" /> Re-verify
+                      </Button>
+                    )}
+                  </div>
                   <Button
                     size="sm"
-                    className="bg-rose-500 text-white rounded-xl text-xs font-bold"
+                    className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold w-full sm:w-auto h-9"
                     onClick={() => setSelectedTx(null)}
                   >
                     Done

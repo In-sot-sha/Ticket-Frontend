@@ -20,6 +20,7 @@ import {
   UserPlus,
   Phone,
   Wallet,
+  ChevronRight,
 } from 'lucide-react';
 import api from '../../services/api';
 import { queryKeys } from '../../lib/queryKeys';
@@ -505,94 +506,174 @@ const AdminStaffPage: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-xs">
-              <thead className="bg-neutral-50 text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:bg-neutral-950/50">
-                <tr>
-                  <th className="px-3 py-2.5 font-semibold">Staff</th>
-                  <th className="px-3 py-2.5 font-semibold">Roles</th>
-                  <th className="px-3 py-2.5 font-semibold">Events</th>
-                  <th className="px-3 py-2.5 font-semibold">Status</th>
-                  <th className="px-3 py-2.5 font-semibold text-right"> </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                {filtered.map((s: any) => {
-                  const active = s.staffProfile?.active !== false;
-                  const caps = parseCaps(s.staffProfile?.capabilities);
-                  const assignedEvents = (s.staffProjectAssignments || [])
-                    .map((a: any) => a.project?.event)
-                    .filter(Boolean);
-                  const roleLabels = caps.map((c) => CAP_CONFIG[c]?.label || c);
+          <>
+            {/* Mobile Cards View */}
+            <div className="md:hidden divide-y divide-neutral-100 dark:divide-neutral-800">
+              {filtered.map((s: any) => {
+                const active = s.staffProfile?.active !== false;
+                const caps = parseCaps(s.staffProfile?.capabilities);
+                const assignedEvents = (s.staffProjectAssignments || [])
+                  .map((a: any) => a.project?.event)
+                  .filter(Boolean);
+                const roleLabels = caps.map((c) => CAP_CONFIG[c]?.label || c);
 
-                  return (
-                    <tr
-                      key={s.id}
-                      onClick={() => openManage(s)}
-                      className="cursor-pointer hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40"
-                    >
-                      <td className="px-3 py-2.5">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-[11px] font-bold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
-                            {getInitials(s.firstName, s.lastName)}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold text-neutral-900 dark:text-white">
-                              {s.firstName} {s.lastName}
-                            </p>
-                            <p className="truncate text-[11px] text-neutral-500">
-                              {s.email}
-                              {s.phone ? ` · ${s.phone}` : ''}
-                            </p>
-                          </div>
+                return (
+                  <div
+                    key={s.id}
+                    onClick={() => openManage(s)}
+                    className="p-3.5 space-y-2.5 active:bg-neutral-50 dark:active:bg-neutral-800/60 transition-all cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-xs font-bold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+                          {getInitials(s.firstName, s.lastName)}
                         </div>
-                      </td>
-                      <td className="px-3 py-2.5 text-neutral-600 dark:text-neutral-300">
-                        {roleLabels.length === 0 ? (
-                          <span className="text-neutral-400">None</span>
-                        ) : (
-                          <span className="line-clamp-2">
-                            {roleLabels.slice(0, 3).join(' · ')}
-                            {roleLabels.length > 3 ? ` · +${roleLabels.length - 3}` : ''}
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-sm text-neutral-900 dark:text-white">
+                            {s.firstName} {s.lastName}
+                          </p>
+                          <p className="truncate text-xs text-neutral-500">
+                            {s.email}
+                            {s.phone ? ` · ${s.phone}` : ''}
+                          </p>
+                        </div>
+                      </div>
+
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0',
+                          active
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800'
+                            : 'bg-neutral-100 text-neutral-500 border-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:border-neutral-700'
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'h-1.5 w-1.5 rounded-full',
+                            active ? 'bg-emerald-500' : 'bg-neutral-400'
+                          )}
+                        />
+                        {active ? 'Active' : 'Disabled'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-neutral-100 dark:border-neutral-800/80 text-xs">
+                      <div className="min-w-0 flex-1 pr-2">
+                        <p className="text-[11px] text-neutral-500 truncate">
+                          {roleLabels.length === 0 ? (
+                            'No roles assigned'
+                          ) : (
+                            roleLabels.slice(0, 3).join(' · ') +
+                            (roleLabels.length > 3 ? ` · +${roleLabels.length - 3}` : '')
+                          )}
+                        </p>
+                        <p className="text-[10px] text-neutral-400 mt-0.5">
+                          {assignedEvents.length === 0
+                            ? '0 events assigned'
+                            : `${assignedEvents.length} event${assignedEvents.length !== 1 ? 's' : ''} assigned`}
+                        </p>
+                      </div>
+
+                      <div className="inline-flex items-center gap-1 font-bold text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-lg shrink-0">
+                        <span>Manage</span>
+                        <ChevronRight className="h-3 w-3" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-xs">
+                <thead className="bg-neutral-50 text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:bg-neutral-950/50">
+                  <tr>
+                    <th className="px-3 py-2.5 font-semibold">Staff</th>
+                    <th className="px-3 py-2.5 font-semibold">Roles</th>
+                    <th className="px-3 py-2.5 font-semibold">Events</th>
+                    <th className="px-3 py-2.5 font-semibold">Status</th>
+                    <th className="px-3 py-2.5 font-semibold text-right"> </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                  {filtered.map((s: any) => {
+                    const active = s.staffProfile?.active !== false;
+                    const caps = parseCaps(s.staffProfile?.capabilities);
+                    const assignedEvents = (s.staffProjectAssignments || [])
+                      .map((a: any) => a.project?.event)
+                      .filter(Boolean);
+                    const roleLabels = caps.map((c) => CAP_CONFIG[c]?.label || c);
+
+                    return (
+                      <tr
+                        key={s.id}
+                        onClick={() => openManage(s)}
+                        className="cursor-pointer hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40"
+                      >
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-[11px] font-bold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+                              {getInitials(s.firstName, s.lastName)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold text-neutral-900 dark:text-white">
+                                {s.firstName} {s.lastName}
+                              </p>
+                              <p className="truncate text-[11px] text-neutral-500">
+                                {s.email}
+                                {s.phone ? ` · ${s.phone}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-neutral-600 dark:text-neutral-300">
+                          {roleLabels.length === 0 ? (
+                            <span className="text-neutral-400">None</span>
+                          ) : (
+                            <span className="line-clamp-2">
+                              {roleLabels.slice(0, 3).join(' · ')}
+                              {roleLabels.length > 3 ? ` · +${roleLabels.length - 3}` : ''}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 tabular-nums text-neutral-700 dark:text-neutral-300">
+                          {assignedEvents.length === 0 ? (
+                            <span className="text-neutral-400">None</span>
+                          ) : (
+                            assignedEvents.length
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className="inline-flex items-center gap-1.5 font-semibold text-neutral-700 dark:text-neutral-300">
+                            <span
+                              className={cn(
+                                'h-1.5 w-1.5 rounded-full',
+                                active ? 'bg-emerald-500' : 'bg-neutral-400'
+                              )}
+                            />
+                            {active ? 'Active' : 'Disabled'}
                           </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 tabular-nums text-neutral-700 dark:text-neutral-300">
-                        {assignedEvents.length === 0 ? (
-                          <span className="text-neutral-400">None</span>
-                        ) : (
-                          assignedEvents.length
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className="inline-flex items-center gap-1.5 font-semibold text-neutral-700 dark:text-neutral-300">
-                          <span
-                            className={cn(
-                              'h-1.5 w-1.5 rounded-full',
-                              active ? 'bg-emerald-500' : 'bg-neutral-400'
-                            )}
-                          />
-                          {active ? 'Active' : 'Disabled'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-right">
-                        <button
-                          type="button"
-                          className="inline-flex h-8 items-center rounded-lg px-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 dark:text-rose-400 dark:hover:bg-rose-950/40"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openManage(s);
-                          }}
-                        >
-                          Manage
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <button
+                            type="button"
+                            className="inline-flex h-8 items-center rounded-lg px-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openManage(s);
+                            }}
+                          >
+                            Manage
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

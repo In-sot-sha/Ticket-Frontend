@@ -306,6 +306,59 @@ const AdminTicketsPage = () => {
               onSearchChange={setSearch}
               searchPlaceholder="Search buyer, email, event, or QR code…"
               pageSize={12}
+              renderMobileCard={(t) => {
+                const name = t.user ? `${t.user.firstName} ${t.user.lastName}` : t.buyerName || 'Guest';
+                const email = t.user?.email || t.buyerEmail || 'N/A';
+                const paid = ticketPaid(t);
+                const issued = formatIssued(t.createdAt);
+                return (
+                  <div
+                    className="w-full text-left rounded-2xl border border-neutral-200/90 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3.5 shadow-2xs space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-mono text-xs font-bold text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-md shrink-0">
+                          #{t.id}
+                        </span>
+                        <span className="text-[11px] text-neutral-400 truncate">
+                          {issued.day} · {issued.time}
+                        </span>
+                      </div>
+                      <span
+                        className={cn(
+                          'inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0',
+                          statusBadgeClass[t.status] || statusBadgeClass.VALID
+                        )}
+                      >
+                        {t.status || 'VALID'}
+                      </span>
+                    </div>
+
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="font-bold text-sm text-neutral-900 dark:text-white truncate">
+                        {t.event?.title || 'Unknown Event'}
+                      </p>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+                        {name} {email !== 'N/A' ? `· ${email}` : ''}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-neutral-100 dark:border-neutral-800/80 text-xs">
+                      <div>
+                        <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+                          {t.ticketType?.name || 'General'}
+                        </span>
+                        <span className="text-[10px] text-neutral-400 font-mono ml-1.5">
+                          {t.qrCode?.substring(0, 8).toUpperCase() || ''}
+                        </span>
+                      </div>
+                      <span className="font-extrabold text-sm tabular-nums text-neutral-900 dark:text-white">
+                        {paid > 0 ? formatNaira(paid) : 'Free'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              }}
               toolbar={
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                   <Select value={eventFilter} onValueChange={setEventFilter}>

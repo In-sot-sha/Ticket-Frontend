@@ -32,6 +32,8 @@ import {
   Filter,
   Percent,
   Tag,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -186,6 +188,7 @@ export const AdminAssistedSalesPage: React.FC = () => {
   // Success state
   const [successResult, setSuccessResult] = useState<{
     reference: string;
+    orderId?: number;
     originalAmount?: number;
     discountAmount?: number;
     discountReason?: string | null;
@@ -201,6 +204,19 @@ export const AdminAssistedSalesPage: React.FC = () => {
     ticketTypeName: string;
     attendeesSummary?: Array<{ name: string; email?: string; phone?: string }>;
   } | null>(null);
+
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingZip, setDownloadingZip] = useState(false);
+  const [downloadingTicketId, setDownloadingTicketId] = useState<number | null>(null);
+  const [pdfDownloadError, setPdfDownloadError] = useState<string | null>(null);
+  const [downloadTimer, setDownloadTimer] = useState<number>(0);
+  const [downloadDuration, setDownloadDuration] = useState<number | null>(null);
+
+  // Quick download modal for past orders
+  const [quickOrderRef, setQuickOrderRef] = useState('');
+  const [quickFormat, setQuickFormat] = useState<'zip' | 'pdf'>('zip');
+  const [quickDownloading, setQuickDownloading] = useState(false);
+  const [showQuickDownloadModal, setShowQuickDownloadModal] = useState(false);
 
   // Session stats tracking
   const [sessionTally, setSessionTally] = useState<{ count: number; gross: number; cut: number; discount: number }>({
@@ -438,6 +454,7 @@ export const AdminAssistedSalesPage: React.FC = () => {
 
       setSuccessResult({
         reference: ref,
+        orderId: data?.order?.id,
         originalAmount: data?.breakdown?.originalAmount ?? faceSubtotal,
         discountAmount: actualDiscount,
         discountReason: data?.breakdown?.discountReason ?? discountReason,
@@ -505,6 +522,131 @@ export const AdminAssistedSalesPage: React.FC = () => {
     await navigator.clipboard.writeText(successResult.reference);
     setCopiedRef(true);
     setTimeout(() => setCopiedRef(false), 2000);
+  };
+
+  const handleDownloadPdf = async (orderIdentifier?: number | string) => {
+    const target = orderIdentifier || successResult?.orderId || successResult?.reference;
+    if (!target) return;
+    setDownloadingPdf(true);
+    setPdfDownloadError(null);
+    setDownloadDuration(null);
+    setDownloadTimer(0);
+    const startTime = Date.now();
+    const timer = setInterval(() => {
+      setDownloadTimer(Number(((Date.now() - startTime) / 1000).toFixed(1)));
+    }, 100);
+    try {
+      const blob = await api.admin.downloadOrderTicketsPdf(target);
+      const finalSec = Number(((Date.now() - startTime) / 1000).toFixed(1));
+      setDownloadDuration(finalSec);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const titleSlug = (successResult?.eventTitle || 'event')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .slice(0, 30);
+      a.download = `${titleSlug}-tickets-${successResult?.count || 'order'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error('Failed to download tickets PDF', err);
+      setPdfDownloadError(err?.message || 'Failed to download tickets PDF. Try again or verify order ID.');
+    } finally {
+      clearInterval(timer);
+      setDownloadingPdf(false);
+    }
+  };
+
+  const handleDownloadZip = async (orderIdentifier?: number | string) => {
+    const target = orderIdentifier || successResult?.orderId || successResult?.reference;
+    if (!target) return;
+    setDownloadingZip(true);
+    setPdfDownloadError(null);
+    setDownloadDuration(null);
+    setDownloadTimer(0);
+    const startTime = Date.now();
+    const timer = setInterval(() => {
+      setDownloadTimer(Number(((Date.now() - startTime) / 1000).toFixed(1)));
+    }, 100);
+    try {
+      const blob = await api.admin.downloadOrderTicketsZip(target);
+      const finalSec = Number(((Date.now() - startTime) / 1000).toFixed(1));
+      setDownloadDuration(finalSec);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const titleSlug = (successResult?.eventTitle || 'event')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .slice(0, 30);
+      a.download = `${titleSlug}-tickets-separate-${successResult?.count || 'order'}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error('Failed to download tickets zip', err);
+      setPdfDownloadError(err?.message || 'Failed to download tickets zip.');
+    } finally {
+      clearInterval(timer);
+      setDownloadingZip(false);
+    }
+  };
+
+  const handleDownloadSingleTicket = async (ticketId: number, serial?: string) => {
+    setDownloadingTicketId(ticketId);
+    try {
+      const blob = await api.admin.downloadSingleTicketPdf(ticketId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ticket-${serial || ticketId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err.message || 'Failed to download single ticket PDF');
+    } finally {
+      setDownloadingTicketId(null);
+    }
+  };
+
+  const handleQuickDownload = async () => {
+    if (!quickOrderRef.trim()) return;
+    setQuickDownloading(true);
+    setDownloadDuration(null);
+    setDownloadTimer(0);
+    const startTime = Date.now();
+    const timer = setInterval(() => {
+      setDownloadTimer(Number(((Date.now() - startTime) / 1000).toFixed(1)));
+    }, 100);
+    try {
+      const blob =
+        quickFormat === 'zip'
+          ? await api.admin.downloadOrderTicketsZip(quickOrderRef.trim())
+          : await api.admin.downloadOrderTicketsPdf(quickOrderRef.trim());
+      const finalSec = Number(((Date.now() - startTime) / 1000).toFixed(1));
+      setDownloadDuration(finalSec);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `order-${quickOrderRef.trim()}-tickets.${quickFormat}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      setShowQuickDownloadModal(false);
+      setQuickOrderRef('');
+    } catch (err: any) {
+      alert(err.message || 'Could not find or download tickets for this order reference/ID');
+    } finally {
+      clearInterval(timer);
+      setQuickDownloading(false);
+    }
   };
 
   const handleChangeEvent = () => {
@@ -634,6 +776,15 @@ export const AdminAssistedSalesPage: React.FC = () => {
                 <span>Change Event</span>
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowQuickDownloadModal(true)}
+              className="h-8 rounded-xl text-xs gap-1.5 border-blue-300 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 font-semibold"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>Download PDF</span>
+            </Button>
             <Link to="/admin/tickets">
               <Button variant="outline" size="sm" className="h-8 rounded-xl text-xs gap-1.5 font-semibold">
                 <Ticket className="h-3.5 w-3.5 text-rose-500" />
@@ -649,6 +800,92 @@ export const AdminAssistedSalesPage: React.FC = () => {
           </div>
         }
       />
+
+      {/* Quick Download Tickets PDF Modal */}
+      {showQuickDownloadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 shadow-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Download className="h-5 w-5 text-blue-600" />
+                <h3 className="text-base font-bold text-neutral-900 dark:text-white">Download Tickets (PDF)</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuickDownloadModal(false)}
+                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-xs text-neutral-500">
+              Enter any Order ID or Reference (e.g. <code className="text-neutral-700 dark:text-neutral-300 font-mono">AST_...</code> or Order #) to download all tickets as a consolidated multi-page PDF for manual WhatsApp dispatch.
+            </p>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300">Order Reference or ID</label>
+              <input
+                type="text"
+                autoFocus
+                placeholder="e.g. AST_1730000000 or 123"
+                value={quickOrderRef}
+                onChange={(e) => setQuickOrderRef(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleQuickDownload()}
+                className="w-full h-10 px-3 text-sm rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300">Download Format</label>
+              <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setQuickFormat('zip')}
+                  className={cn(
+                    'p-2 rounded-xl border text-center transition-all',
+                    quickFormat === 'zip'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 font-bold'
+                      : 'border-neutral-200 dark:border-neutral-800 text-neutral-500'
+                  )}
+                >
+                  ZIP (Separate Files)
+                  <span className="block text-[10px] font-normal text-neutral-400">1 ticket per PDF for WhatsApp</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQuickFormat('pdf')}
+                  className={cn(
+                    'p-2 rounded-xl border text-center transition-all',
+                    quickFormat === 'pdf'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 font-bold'
+                      : 'border-neutral-200 dark:border-neutral-800 text-neutral-500'
+                  )}
+                >
+                  Single PDF
+                  <span className="block text-[10px] font-normal text-neutral-400">All tickets in 1 booklet</span>
+                </button>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowQuickDownloadModal(false)}
+                className="rounded-xl"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={quickDownloading || !quickOrderRef.trim()}
+                onClick={handleQuickDownload}
+                className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold gap-2"
+              >
+                {quickDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                <span>{quickDownloading ? `Generating... (${downloadTimer}s)` : 'Download'}</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Global Error Banner */}
       {error && (
@@ -832,26 +1069,170 @@ export const AdminAssistedSalesPage: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Individual Passes List for WhatsApp manual sending */}
+            {successResult.tickets && successResult.tickets.length > 0 && (
+              <div className="pt-2.5 border-t border-neutral-200/80 dark:border-neutral-800 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-neutral-800 dark:text-neutral-200">
+                    Individual Tickets ({successResult.tickets.length} total · separate per person):
+                  </span>
+                  <span className="text-[10px] text-neutral-400 font-medium">Download each guest's PDF</span>
+                </div>
+                <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+                  {successResult.tickets.map((t, idx) => {
+                    const att = successResult.attendeesSummary?.[idx];
+                    const displayName = att?.name || (idx === 0 ? successResult.buyerName : `Guest #${idx + 1}`);
+                    const serial = `TKT-${String(t.id).padStart(6, '0')}`;
+                    const isBusy = downloadingTicketId === t.id;
+                    return (
+                      <div
+                        key={t.id || idx}
+                        className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono font-bold text-rose-600 dark:text-rose-400">
+                              {serial}
+                            </span>
+                            <span className="font-semibold text-neutral-900 dark:text-white truncate max-w-[11rem]">
+                              {displayName}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-neutral-400 truncate mt-0.5">
+                            {t.ticketType?.name || successResult.ticketTypeName}
+                            {att?.phone ? ` · ${att.phone}` : ''}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={isBusy}
+                            onClick={() => handleDownloadSingleTicket(t.id, serial)}
+                            className="h-7 px-2 text-[10px] gap-1 rounded-lg border-neutral-200 dark:border-neutral-800 font-bold"
+                            title="Download single PDF"
+                          >
+                            {isBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                            <span>PDF</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => shareViaWhatsApp(att?.phone, displayName)}
+                            className="h-7 px-2 text-[10px] gap-1 rounded-lg text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:border-emerald-900/40 font-bold"
+                            title="Send on WhatsApp"
+                          >
+                            <MessageSquare className="h-3 w-3" />
+                            <span>WA</span>
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <Button
-              type="button"
-              onClick={() => shareViaWhatsApp()}
-              className="h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-2"
-            >
-              <MessageSquare className="h-4 w-4" />
-              <span>Share on WhatsApp</span>
-            </Button>
-            <Button
-              type="button"
-              onClick={handleStartNewSale}
-              className="h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs gap-2"
-            >
-              <RotateCcw className="h-4 w-4" />
-              <span>Issue Another Ticket</span>
-            </Button>
+          <div className="space-y-2.5">
+            {successResult.count > 1 ? (
+              <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    disabled={downloadingZip}
+                    onClick={() => handleDownloadZip()}
+                    className="h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs sm:text-sm gap-2 shadow-sm"
+                  >
+                    {downloadingZip ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                    <span>
+                      {downloadingZip
+                        ? `Generating ZIP... (${downloadTimer}s)`
+                        : `Download All (${successResult.count} Separate PDFs .ZIP)`}
+                    </span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    disabled={downloadingPdf}
+                    onClick={() => handleDownloadPdf()}
+                    variant="outline"
+                    className="h-12 rounded-xl border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 font-bold text-xs gap-1.5"
+                  >
+                    {downloadingPdf ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                    <span>
+                      {downloadingPdf
+                        ? `Generating PDF... (${downloadTimer}s)`
+                        : 'Download Combined PDF'}
+                    </span>
+                  </Button>
+                </div>
+                {downloadDuration !== null && !downloadingZip && !downloadingPdf && (
+                  <p className="text-center text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1 pt-1">
+                    <Check className="h-3.5 w-3.5" /> Download ready in {downloadDuration}s
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  disabled={downloadingPdf}
+                  onClick={() => handleDownloadPdf()}
+                  className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs sm:text-sm gap-2 shadow-sm"
+                >
+                  {downloadingPdf ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  <span>
+                    {downloadingPdf
+                      ? `Generating PDF... (${downloadTimer}s)`
+                      : 'Download Ticket (PDF)'}
+                  </span>
+                </Button>
+                {downloadDuration !== null && !downloadingPdf && (
+                  <p className="text-center text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1 pt-1">
+                    <Check className="h-3.5 w-3.5" /> Download ready in {downloadDuration}s
+                  </p>
+                )}
+              </div>
+            )}
+
+            {pdfDownloadError && (
+              <p className="text-xs text-rose-500 text-center font-medium">{pdfDownloadError}</p>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <Button
+                type="button"
+                onClick={() => shareViaWhatsApp()}
+                className="h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-2"
+              >
+                <MessageSquare className="h-4 w-4" />
+                <span>Share on WhatsApp</span>
+              </Button>
+              <Button
+                type="button"
+                onClick={handleStartNewSale}
+                className="h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs gap-2"
+              >
+                <RotateCcw className="h-4 w-4" />
+                <span>Issue Another Ticket</span>
+              </Button>
+            </div>
           </div>
         </div>
       )}

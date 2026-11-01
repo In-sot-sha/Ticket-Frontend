@@ -27,6 +27,8 @@ export interface DataTableProps<T> {
   hideSearch?: boolean;
   /** Mobile card tap — use when primary actions are desktop-only */
   onRowClick?: (row: T) => void;
+  /** Optional custom mobile card renderer */
+  renderMobileCard?: (row: T) => React.ReactNode;
 }
 
 export function DataTable<T>({
@@ -43,6 +45,7 @@ export function DataTable<T>({
   className,
   hideSearch = false,
   onRowClick,
+  renderMobileCard,
 }: DataTableProps<T>) {
   const [page, setPage] = useState(0);
   const [internalSearch, setInternalSearch] = useState('');
@@ -124,6 +127,14 @@ export function DataTable<T>({
           {/* Mobile cards */}
           <div className="md:hidden space-y-2">
             {pageRows.map((row) => {
+              if (renderMobileCard) {
+                return (
+                  <div key={getRowId(row)}>
+                    {renderMobileCard(row)}
+                  </div>
+                );
+              }
+
               const CardTag = onRowClick ? 'button' : 'div';
               return (
                 <CardTag
