@@ -784,7 +784,7 @@ export const api = {
       try {
         const res = await apiClient.get<Blob>(
           `/admin/orders/${encodeURIComponent(String(orderId))}/tickets-pdf`,
-          { responseType: 'blob' }
+          { responseType: 'blob', timeout: 120000 }
         );
         return res.data;
       } catch (err: any) {
@@ -801,11 +801,14 @@ export const api = {
       }
     },
 
+    getOrderTicketsData: (orderId: number | string) =>
+      apiRequest<any>('GET', `/admin/orders/${encodeURIComponent(String(orderId))}/tickets-data`),
+
     downloadOrderTicketsZip: async (orderId: number | string): Promise<Blob> => {
       try {
         const res = await apiClient.get<Blob>(
           `/admin/orders/${encodeURIComponent(String(orderId))}/tickets-zip`,
-          { responseType: 'blob' }
+          { responseType: 'blob', timeout: 120000 }
         );
         return res.data;
       } catch (err: any) {
@@ -826,7 +829,7 @@ export const api = {
       try {
         const res = await apiClient.get<Blob>(
           `/admin/tickets/${encodeURIComponent(String(ticketId))}/pdf`,
-          { responseType: 'blob' }
+          { responseType: 'blob', timeout: 120000 }
         );
         return res.data;
       } catch (err: any) {

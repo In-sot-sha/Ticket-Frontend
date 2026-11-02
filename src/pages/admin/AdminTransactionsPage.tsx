@@ -213,6 +213,7 @@ const AdminTransactionsPage: React.FC = () => {
   const [downloadingZip, setDownloadingZip] = useState(false);
   const [zipTimer, setZipTimer] = useState(0);
   const [zipDuration, setZipDuration] = useState<number | null>(null);
+  const [zipStatusText, setZipStatusText] = useState('');
 
   const queryClient = useQueryClient();
 
@@ -348,32 +349,82 @@ const AdminTransactionsPage: React.FC = () => {
     }
   };
 
-  const handleDownloadZip = async (txId: number) => {
+  const handleDownloadTickets = async (txId: number) => {
     setDownloadingZip(true);
     setZipDuration(null);
     setZipTimer(0);
+    const ticketCount = selectedTx?.tickets?.length ?? 1;
+    const isSingle = ticketCount === 1;
+    setZipStatusText(isSingle ? 'Preparing ticket...' : 'Preparing tickets...');
     const startTime = Date.now();
     const interval = setInterval(() => {
       setZipTimer(Number(((Date.now() - startTime) / 1000).toFixed(1)));
     }, 100);
+
     try {
       const { api } = await import('../../services/api');
-      const blob = await api.admin.downloadOrderTicketsZip(txId);
+      const { downloadOrderTicketsZipClient } = await import('../../lib/clientTicketZip');
+
+      // 1. Fetch lightweight JSON data (returns in ~30ms)
+      setZipStatusText('Loading ticket data...');
+      const orderDataRes = await api.admin.getOrderTicketsData(txId);
+      const orderData = orderDataRes.data || orderDataRes;
+
+      // 2. Generate PDF directly if 1 ticket, or ZIP if multiple tickets (100% client-side in the browser)
+      await downloadOrderTicketsZipClient(orderData, ({ message }) => {
+        setZipStatusText(message);
+      });
+
       const duration = Number(((Date.now() - startTime) / 1000).toFixed(1));
       setZipDuration(duration);
+    } catch (clientErr: any) {
+      console.warn('[Admin] Client generation failed, trying backend fallback:', clientErr);
+      setZipStatusText(isSingle ? 'Downloading ticket PDF...' : 'Downloading from server...');
+      try {
+        const { api } = await import('../../services/api');
+        let blob: Blob;
+        let downloadName: string;
+        if (isSingle) {
+          blob = await api.admin.downloadOrderTicketsPdf(txId);
+          downloadName = `order-${txId}-ticket.pdf`;
+        } else {
+          blob = await api.admin.downloadOrderTicketsZip(txId);
+          downloadName = `order-${txId}-tickets-separate.zip`;
+        }
+        const duration = Number(((Date.now() - startTime) / 1000).toFixed(1));
+        setZipDuration(duration);
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = downloadName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } catch (err: any) {
+        alert(err.message || 'Failed to download ticket(s)');
+      }
+    } finally {
+      clearInterval(interval);
+      setDownloadingZip(false);
+      setZipStatusText('');
+    }
+  };
+
+  const handleDownloadSingleTicket = async (ticketId: number) => {
+    try {
+      const { api } = await import('../../services/api');
+      const blob = await api.admin.downloadSingleTicketPdf(ticketId);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `order-${txId}-tickets-separate.zip`;
+      a.download = `ticket-TKT-${String(ticketId).padStart(6, '0')}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
-      alert(err.message || 'Failed to download tickets ZIP');
-    } finally {
-      clearInterval(interval);
-      setDownloadingZip(false);
+      alert(err.message || 'Failed to download ticket PDF');
     }
   };
 
@@ -1401,9 +1452,22 @@ const AdminTransactionsPage: React.FC = () => {
                                   #{t.id}
                                 </span>
                               </div>
-                              <span className="text-[9px] sm:text-[10px] font-bold uppercase text-emerald-600 shrink-0 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md">
-                                {t.status}
-                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  title="Download single PDF ticket"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleDownloadSingleTicket(t.id);
+                                  }}
+                                  className="p-1 rounded text-neutral-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
+                                >
+                                  <Download className="h-3 w-3" />
+                                </button>
+                                <span className="text-[9px] sm:text-[10px] font-bold uppercase text-emerald-600 shrink-0 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md">
+                                  {t.status}
+                                </span>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1448,44 +1512,52 @@ const AdminTransactionsPage: React.FC = () => {
                         </div>
                       )}
 
-                    {/* Download ZIP card */}
-                    <div className="rounded-xl border border-blue-200/80 dark:border-blue-900/40 bg-blue-50/20 dark:bg-blue-950/10 p-3 space-y-2 min-w-0">
-                      <div className="flex items-center justify-between gap-1 flex-wrap">
-                        <div className="flex items-center gap-1.5">
-                          <Download className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                          <span className="text-[11px] font-bold text-blue-900 dark:text-blue-300">
-                            Tickets ZIP (Separate PDFs)
-                          </span>
+                    {/* Download ticket card (direct PDF for 1 ticket, ZIP for multiple tickets) */}
+                    {(() => {
+                      const ticketCount = selectedTx.tickets?.length ?? 1;
+                      const isSingle = ticketCount === 1;
+                      return (
+                        <div className="rounded-xl border border-blue-200/80 dark:border-blue-900/40 bg-blue-50/20 dark:bg-blue-950/10 p-3 space-y-2 min-w-0">
+                          <div className="flex items-center justify-between gap-1 flex-wrap">
+                            <div className="flex items-center gap-1.5">
+                              <Download className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                              <span className="text-[11px] font-bold text-blue-900 dark:text-blue-300">
+                                {isSingle ? 'Download Ticket (PDF)' : 'Tickets ZIP (Separate PDFs)'}
+                              </span>
+                            </div>
+                            {zipDuration !== null && !downloadingZip && (
+                              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-0.5">
+                                <Check className="h-3 w-3" /> Done in {zipDuration}s
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] sm:text-[11px] text-neutral-500 leading-normal">
+                            {isSingle
+                              ? 'Download single vertical portrait PDF ticket ready to print or share directly.'
+                              : 'Zips individual single-page PDF tickets for each person to easily send via WhatsApp.'}
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={downloadingZip}
+                            className="w-full h-8 sm:h-9 rounded-lg text-xs gap-1.5 border-blue-300 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 font-bold"
+                            onClick={() => handleDownloadTickets(selectedTx.txId)}
+                          >
+                            {downloadingZip ? (
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                <span>{zipStatusText || (isSingle ? 'Generating PDF...' : 'Generating ZIP...')} ({zipTimer}s)</span>
+                              </>
+                            ) : (
+                              <>
+                                <Download className="h-3.5 w-3.5" />
+                                <span>{isSingle ? 'Download Ticket (PDF)' : `Download ZIP (${ticketCount} tickets)`}</span>
+                              </>
+                            )}
+                          </Button>
                         </div>
-                        {zipDuration !== null && !downloadingZip && (
-                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-0.5">
-                            <Check className="h-3 w-3" /> Done in {zipDuration}s
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] sm:text-[11px] text-neutral-500 leading-normal">
-                        Zips individual single-page PDF tickets for each person to easily send via WhatsApp.
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={downloadingZip}
-                        className="w-full h-8 sm:h-9 rounded-lg text-xs gap-1.5 border-blue-300 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 font-bold"
-                        onClick={() => handleDownloadZip(selectedTx.txId)}
-                      >
-                        {downloadingZip ? (
-                          <>
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            <span>Generating ZIP... ({zipTimer}s)</span>
-                          </>
-                        ) : (
-                          <>
-                            <Download className="h-3.5 w-3.5" />
-                            <span>Download ZIP ({selectedTx.tickets?.length || 1} tickets)</span>
-                          </>
-                        )}
-                      </Button>
-                    </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
