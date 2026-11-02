@@ -86,23 +86,171 @@ function truncate(text: string, font: PDFFont, size: number, maxWidth: number): 
   return `${t}…`;
 }
 
+async function convertBlobToJpegBytes(blob: Blob): Promise<{ bytes: Uint8Array; kind: 'jpg' } | null> {
+  try {
+    if (typeof window === 'undefined') return null;
+
+    let bitmap: ImageBitmap | HTMLImageElement | null = null;
+    if (typeof createImageBitmap === 'function') {
+      try {
+        bitmap = await createImageBitmap(blob);
+      } catch {
+        bitmap = null;
+      }
+    }
+
+    if (!bitmap) {
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      const loaded = await new Promise<boolean>((resolve) => {
+        img.onload = () => resolve(true);
+        img.onerror = () => resolve(false);
+        img.src = url;
+      });
+      URL.revokeObjectURL(url);
+      if (!loaded || !img.naturalWidth || !img.naturalHeight) return null;
+      bitmap = img;
+    }
+
+    const width = 'width' in bitmap ? bitmap.width : (bitmap as HTMLImageElement).naturalWidth;
+    const height = 'height' in bitmap ? bitmap.height : (bitmap as HTMLImageElement).naturalHeight;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.drawImage(bitmap, 0, 0);
+
+    return new Promise((resolve) => {
+      canvas.toBlob(
+        async (jpegBlob) => {
+          if (!jpegBlob) return resolve(null);
+          const buf = new Uint8Array(await jpegBlob.arrayBuffer());
+          resolve({ bytes: buf, kind: 'jpg' });
+        },
+        'image/jpeg',
+        0.82,
+      );
+    });
+  } catch (err) {
+    console.warn('[clientTicketZip] convertBlobToJpegBytes error:', err);
+    return null;
+  }
+}
+
+async function fetchImageViaCanvas(url: string): Promise<{ bytes: Uint8Array; kind: 'jpg' } | null> {
+  try {
+    if (typeof window === 'undefined') return null;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const loaded = await new Promise<boolean>((resolve) => {
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = url;
+    });
+    if (!loaded || !img.naturalWidth || !img.naturalHeight) return null;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.drawImage(img, 0, 0);
+
+    return new Promise((resolve) => {
+      canvas.toBlob(
+        async (jpegBlob) => {
+          if (!jpegBlob) return resolve(null);
+          const buf = new Uint8Array(await jpegBlob.arrayBuffer());
+          resolve({ bytes: buf, kind: 'jpg' });
+        },
+        'image/jpeg',
+        0.82,
+      );
+    });
+  } catch {
+    return null;
+  }
+}
+
 async function fetchImageBuffer(url?: string | null): Promise<{ bytes: Uint8Array; kind: 'png' | 'jpg' } | null> {
   if (!url?.trim()) return null;
   let cleanUrl = url.trim();
 
-  // Cloudinary mobile optimization
+  // Cloudinary mobile optimization (force f_jpg)
   if (cleanUrl.includes('res.cloudinary.com') && cleanUrl.includes('/upload/') && !cleanUrl.includes('/upload/w_')) {
     cleanUrl = cleanUrl.replace('/upload/', '/upload/w_600,c_fill,q_75,f_jpg/');
   }
 
+  // Unsplash: force fm=jpg (never auto=format which produces AVIF)
+  if (cleanUrl.includes('images.unsplash.com')) {
+    const base = cleanUrl.split('?')[0];
+    cleanUrl = `${base}?w=600&q=75&fm=jpg&fit=crop`;
+  }
+
+  // Relative URLs
+  if (cleanUrl.startsWith('/')) {
+    cleanUrl = `https://api.partystorm.ng${cleanUrl}`;
+  }
+
   try {
-    const res = await fetch(cleanUrl, { signal: AbortSignal.timeout(4000) });
-    if (!res.ok) return null;
-    const buf = new Uint8Array(await res.arrayBuffer());
-    const ct = (res.headers.get('content-type') || '').toLowerCase();
-    const kind = ct.includes('png') || cleanUrl.toLowerCase().includes('.png') ? 'png' : 'jpg';
-    return { bytes: buf, kind };
-  } catch {
+    const res = await fetch(cleanUrl, {
+      headers: { Accept: 'image/jpeg,image/png' },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (res.ok) {
+      const blob = await res.blob();
+      const ct = (blob.type || res.headers.get('content-type') || '').toLowerCase();
+      const buf = new Uint8Array(await blob.arrayBuffer());
+
+      // Check for JPEG SOI marker (0xFF, 0xD8)
+      if ((ct.includes('jpeg') || ct.includes('jpg')) && buf.length > 2 && buf[0] === 0xff && buf[1] === 0xd8) {
+        return { bytes: buf, kind: 'jpg' };
+      }
+
+      // Check for PNG magic header (0x89, 0x50, 0x4E, 0x47)
+      if (ct.includes('png') && buf.length > 4 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+        return { bytes: buf, kind: 'png' };
+      }
+
+      // For any other format (AVIF, WebP, etc.), convert to JPEG via browser canvas
+      const converted = await convertBlobToJpegBytes(blob);
+      if (converted) return converted;
+    }
+  } catch (err) {
+    console.warn('[clientTicketZip] fetchImageBuffer fetch failed, trying canvas fallback:', err);
+  }
+
+  // Fallback: try loading directly via HTML Image element + Canvas
+  return await fetchImageViaCanvas(cleanUrl);
+}
+
+async function embedImageSafely(
+  doc: PDFDocument,
+  imageItem?: { bytes: Uint8Array; kind: 'png' | 'jpg' } | null,
+): Promise<PDFImage | null> {
+  if (!imageItem?.bytes || imageItem.bytes.length === 0) return null;
+  try {
+    if (imageItem.kind === 'jpg') {
+      return await doc.embedJpg(imageItem.bytes);
+    } else {
+      return await doc.embedPng(imageItem.bytes);
+    }
+  } catch (primaryErr) {
+    console.warn('[clientTicketZip] doc.embed error, attempting fallback conversion:', primaryErr);
+    try {
+      const blob = new Blob([imageItem.bytes as unknown as BlobPart]);
+      const converted = await convertBlobToJpegBytes(blob);
+      if (converted) {
+        return await doc.embedJpg(converted.bytes);
+      }
+    } catch (fallbackErr) {
+      console.warn('[clientTicketZip] fallback conversion also failed:', fallbackErr);
+    }
     return null;
   }
 }
@@ -151,27 +299,8 @@ async function renderSingleTicketPdfDoc(
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
 
-  let banner: PDFImage | null = null;
-  if (preloadedImages.banner) {
-    try {
-      banner = preloadedImages.banner.kind === 'jpg'
-        ? await doc.embedJpg(preloadedImages.banner.bytes)
-        : await doc.embedPng(preloadedImages.banner.bytes);
-    } catch {
-      banner = null;
-    }
-  }
-
-  let logo: PDFImage | null = null;
-  if (preloadedImages.logo) {
-    try {
-      logo = preloadedImages.logo.kind === 'jpg'
-        ? await doc.embedJpg(preloadedImages.logo.bytes)
-        : await doc.embedPng(preloadedImages.logo.bytes);
-    } catch {
-      logo = null;
-    }
-  }
+  const banner = await embedImageSafely(doc, preloadedImages.banner);
+  const logo = await embedImageSafely(doc, preloadedImages.logo);
 
   const accentHex = resolveAccent(orderData.ticketStyle, orderData.accentColor);
   const accent = hexToRgb(accentHex);
@@ -303,10 +432,15 @@ async function renderSingleTicketPdfDoc(
     color: rgb(1, 1, 1),
   });
 
-  y -= 14;
+  // Date & Time anchored near the bottom of the photo section (above splitY)
+  const dividerY = splitY + 46;
+  const dateLabelY = splitY + 32;
+  const dateValueY = splitY + 18;
+
+  // Subtle divider line
   page.drawRectangle({
     x: pad,
-    y: y + 4,
+    y: dividerY,
     width: W - pad * 2,
     height: 0.5,
     color: rgb(1, 1, 1),
@@ -315,31 +449,40 @@ async function renderSingleTicketPdfDoc(
 
   page.drawText('DATE', {
     x: pad,
-    y,
+    y: dateLabelY,
     size: 6.5,
     font: fontBold,
     color: rgb(0.7, 0.7, 0.72),
   });
-  y -= 11;
-  page.drawText(truncate((orderData.eventDate || 'TBA').toUpperCase(), fontBold, 9.5, orderData.eventTime ? 160 : W - pad * 2), {
+  page.drawText(truncate((orderData.eventDate || 'TBA').toUpperCase(), fontBold, 9.5, orderData.eventTime ? 150 : W - pad * 2), {
     x: pad,
-    y,
+    y: dateValueY,
     size: 9.5,
     font: fontBold,
     color: rgb(1, 1, 1),
   });
 
   if (orderData.eventTime) {
+    // Subtle vertical separator between DATE and TIME
+    page.drawRectangle({
+      x: pad + 160,
+      y: dateValueY - 1,
+      width: 0.5,
+      height: 22,
+      color: rgb(1, 1, 1),
+      opacity: 0.2,
+    });
+
     page.drawText('TIME', {
       x: pad + 175,
-      y: y + 11,
+      y: dateLabelY,
       size: 6.5,
       font: fontBold,
       color: rgb(0.7, 0.7, 0.72),
     });
     page.drawText(truncate(orderData.eventTime.toUpperCase(), fontBold, 9.5, 120), {
       x: pad + 175,
-      y,
+      y: dateValueY,
       size: 9.5,
       font: fontBold,
       color: rgb(1, 1, 1),
