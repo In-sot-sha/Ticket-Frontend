@@ -125,7 +125,7 @@ function CompactEventCard({ event }: { event: OrganizerEvent }) {
   const cover = resolveImageUrl(event.imageUrl);
   const stats = event.stats;
   const sold = stats?.ticketsSold ?? event.attendees ?? 0;
-  const earned = stats?.actualRevenue ?? event.revenue ?? 0;
+  const earned = stats?.netRevenue ?? event.netRevenue ?? (stats?.actualRevenue ?? event.revenue ?? 0);
   const pct = stats?.sellThroughPercent ?? 0;
   const eventPath = `/organizer/events/${event.slug || event.id}`;
 

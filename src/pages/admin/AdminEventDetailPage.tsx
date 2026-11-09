@@ -791,6 +791,7 @@ const AdminEventDetailPage: React.FC = () => {
             eventSlug={event.slug}
             event={event}
             readOnly={true}
+            isAdmin={true}
           />
         </TabsContent>
       </Tabs>

@@ -24,7 +24,7 @@ const OrganizerDashboard = () => {
 
   const liveEvents = events.filter((e: OrganizerEvent) => e.phase === 'live' || e.phase === 'upcoming').length;
   const totalTickets = events.reduce((sum: number, e: OrganizerEvent) => sum + (e.stats?.ticketsSold ?? e.attendees ?? 0), 0);
-  const totalRevenue = events.reduce((sum: number, e: OrganizerEvent) => sum + (e.stats?.actualRevenue ?? e.revenue ?? 0), 0);
+  const totalSales = events.reduce((sum: number, e: OrganizerEvent) => sum + (e.stats?.netRevenue ?? e.netRevenue ?? (e.stats?.actualRevenue ?? e.revenue ?? 0)), 0);
 
   const formatEventDate = (dateStr: string) =>
     new Date(dateStr).toLocaleDateString('en-NG', {
@@ -74,9 +74,9 @@ const OrganizerDashboard = () => {
             blurb: 'Includes drafts',
           },
           {
-            label: 'Revenue',
-            value: totalRevenue,
-            blurb: 'From ticket sales',
+            label: 'Sales',
+            value: totalSales,
+            blurb: 'Your net earnings',
             isCurrency: true,
             tone: 'text-rose-600 dark:text-rose-400',
           },
@@ -145,7 +145,7 @@ const OrganizerDashboard = () => {
               events.slice(0, 5).map((event: OrganizerEvent) => {
                 const cover = resolveImageUrl(event.imageUrl);
                 const sold = event.stats?.ticketsSold ?? event.attendees ?? 0;
-                const earned = event.stats?.actualRevenue ?? event.revenue ?? 0;
+                const earned = event.stats?.netRevenue ?? event.netRevenue ?? (event.stats?.actualRevenue ?? event.revenue ?? 0);
                 return (
                   <div
                     key={event.id}
