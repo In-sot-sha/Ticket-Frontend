@@ -4,6 +4,7 @@ export interface EventStats {
   ticketsSold: number;
   ticketsCheckedIn: number;
   actualRevenue: number;
+  netRevenue?: number;
   expectedRevenue: number;
   capacity: number;
   ticketInventory: number;
@@ -16,6 +17,7 @@ export interface EventStats {
     sold: number;
     checkedIn: number;
     revenue: number;
+    netRevenue?: number;
     expectedRevenue: number;
   }>;
 }
@@ -38,6 +40,7 @@ export interface OrganizerEvent {
   capacity?: number;
   phase?: EventPhase;
   revenue?: number;
+  netRevenue?: number;
   attendees?: number;
   stats?: EventStats;
   ticketTypes?: Array<{
@@ -158,6 +161,7 @@ export interface OrganizerAnalytics {
     id: number;
     title: string;
     revenue: number;
+    netRevenue?: number;
     expectedRevenue: number;
     ticketsSold: number;
     phase: string;

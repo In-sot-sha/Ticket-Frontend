@@ -34,11 +34,14 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
   const sold = stats?.ticketsSold ?? event.attendees ?? 0;
   const checkedIn = stats?.ticketsCheckedIn ?? 0;
   const pct = stats?.sellThroughPercent ?? 0;
-  const earned = stats?.actualRevenue ?? event.revenue ?? 0;
+  const ticketStats = stats?.ticketTypeStats ?? [];
+  const totalTicketNet = ticketStats.reduce(
+    (acc, tt) => acc + (tt.netRevenue != null ? tt.netRevenue : tt.revenue),
+    0
+  );
+  const earned = stats?.netRevenue ?? totalTicketNet;
   const inventory = stats?.ticketInventory ?? 0;
   const remaining = Math.max(inventory - sold, 0);
-
-  const ticketStats = stats?.ticketTypeStats ?? [];
 
   const stallTypes =
     event.vendorTypes?.length
@@ -74,7 +77,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
       <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-2.5 py-2">
         <div className="grid grid-cols-3 gap-2">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Revenue</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Sales</p>
             <p className="text-sm font-bold text-rose-500 tabular-nums">{formatNaira(earned)}</p>
           </div>
           <div>
@@ -92,7 +95,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
         <div className="mt-1.5 h-1 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
           <div className="h-full bg-rose-500 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
         </div>
-        <p className="mt-1 text-[10px] text-neutral-500">{pct}% sold · {remaining} left</p>
+        <p className="mt-1 text-[10px] text-neutral-500">{pct}% sold · {remaining} left · Organiser net</p>
       </section>
 
       {/* Ticket sales — tickets only */}
@@ -116,7 +119,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                       </p>
                     </div>
                     <p className="text-sm font-bold text-rose-500 tabular-nums">
-                      {formatNaira(tt.revenue)}
+                      {formatNaira(tt.netRevenue != null ? tt.netRevenue : tt.revenue)}
                     </p>
                   </div>
                   <p className="text-xs text-neutral-600 dark:text-neutral-400">
@@ -139,7 +142,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                   <th className="px-2.5 py-1.5 text-right">Sold</th>
                   <th className="px-2.5 py-1.5 text-right">Left</th>
                   <th className="px-2.5 py-1.5 text-right">In</th>
-                  <th className="px-2.5 py-1.5 text-right">Revenue</th>
+                  <th className="px-2.5 py-1.5 text-right">Sales</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -167,7 +170,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                         {tt.checkedIn}
                       </td>
                       <td className="px-2.5 py-1.5 text-right font-semibold text-rose-500 tabular-nums">
-                        {formatNaira(tt.revenue)}
+                        {formatNaira(tt.netRevenue != null ? tt.netRevenue : tt.revenue)}
                       </td>
                     </tr>
                   );
@@ -191,7 +194,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                     {checkedIn}
                   </td>
                   <td className="px-2.5 py-1.5 text-right text-xs font-bold text-rose-500 tabular-nums">
-                    {formatNaira(earned)}
+                    {formatNaira(totalTicketNet)}
                   </td>
                 </tr>
               </tfoot>

@@ -17,6 +17,8 @@ export interface DataTableProps<T> {
   rows: T[];
   getRowId: (row: T) => string | number;
   pageSize?: number;
+  pageSizeOptions?: number[];
+  onPageSizeChange?: (size: number) => void;
   searchPlaceholder?: string;
   searchValue?: string;
   onSearchChange?: (value: string) => void;
@@ -36,6 +38,8 @@ export function DataTable<T>({
   rows,
   getRowId,
   pageSize = 10,
+  pageSizeOptions,
+  onPageSizeChange,
   searchPlaceholder = 'Search…',
   searchValue,
   onSearchChange,
@@ -49,17 +53,24 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
   const [page, setPage] = useState(0);
   const [internalSearch, setInternalSearch] = useState('');
+  const [internalPageSize, setInternalPageSize] = useState(pageSize);
+
+  const effectivePageSize = onPageSizeChange ? pageSize : (pageSizeOptions ? internalPageSize : pageSize);
 
   const controlled = searchValue !== undefined;
   const q = controlled ? searchValue! : internalSearch;
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
-  const safePage = Math.min(page, totalPages - 1);
+  const totalPages = Math.max(1, Math.ceil(rows.length / effectivePageSize));
+  const safePage = Math.max(0, Math.min(page, totalPages - 1));
 
   const pageRows = useMemo(() => {
-    const start = safePage * pageSize;
-    return rows.slice(start, start + pageSize);
-  }, [rows, safePage, pageSize]);
+    const start = safePage * effectivePageSize;
+    return rows.slice(start, start + effectivePageSize);
+  }, [rows, safePage, effectivePageSize]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [rows.length, effectivePageSize, q]);
 
   useEffect(() => {
     setPage(0);
@@ -168,13 +179,41 @@ export function DataTable<T>({
             })}
           </div>
 
-          <div className="flex items-center justify-between gap-3 pt-1">
-            <p className="text-xs text-neutral-500">
-              {rows.length === 0
-                ? '0'
-                : `${safePage * pageSize + 1}–${Math.min((safePage + 1) * pageSize, rows.length)} of ${rows.length}`}
-            </p>
-            <div className="flex items-center gap-1">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-xs text-neutral-500">
+                {rows.length === 0
+                  ? '0'
+                  : `${safePage * effectivePageSize + 1}–${Math.min((safePage + 1) * effectivePageSize, rows.length)} of ${rows.length}`}
+              </p>
+              {pageSizeOptions && pageSizeOptions.length > 0 && (
+                <div className="flex items-center gap-1.5 text-xs text-neutral-500">
+                  <span className="text-neutral-400">Show</span>
+                  <select
+                    value={effectivePageSize}
+                    onChange={(e) => {
+                      const next = Number(e.target.value);
+                      if (onPageSizeChange) {
+                        onPageSizeChange(next);
+                      } else {
+                        setInternalPageSize(next);
+                      }
+                      setPage(0);
+                    }}
+                    className="h-8 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 focus:outline-none focus:ring-1 focus:ring-rose-500 cursor-pointer"
+                  >
+                    {pageSizeOptions.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-neutral-400">records</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1 self-end sm:self-auto">
               <button
                 type="button"
                 disabled={safePage <= 0}

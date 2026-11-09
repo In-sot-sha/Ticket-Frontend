@@ -74,6 +74,7 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
+  const [pageSize, setPageSize] = useState(10);
 
   const today = todayYmd();
 
@@ -603,7 +604,9 @@ export const AttendeesTab: React.FC<AttendeesTabProps> = ({
         searchValue={query}
         onSearchChange={setQuery}
         searchPlaceholder="Search name, email, phone…"
-        pageSize={10}
+        pageSize={pageSize}
+        pageSizeOptions={[10, 25, 50, 100]}
+        onPageSizeChange={setPageSize}
         toolbar={
           <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
             <div className="grid w-full min-w-0 grid-cols-3 gap-2 sm:w-[28rem]">

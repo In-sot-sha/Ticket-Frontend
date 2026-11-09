@@ -47,6 +47,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   // Key metrics calculations
   const totalSold = stats?.ticketsSold ?? (event.attendees || 0);
   const totalRevenue = stats?.actualRevenue ?? (event.revenue || 0);
+  const netEarnings = stats?.netRevenue ?? event.netRevenue ?? totalRevenue;
   const checkedInCount = stats?.ticketsCheckedIn ?? 0;
   const totalInventory =
     stats?.ticketInventory ??
@@ -165,16 +166,18 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
       {/* ── 2. Compact Key Metrics (3 Tight Cards) ── */}
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-        {/* Metric 1: Revenue */}
+        {/* Metric 1: Net Sales (Host Take-Home) */}
         <div className="rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 sm:p-3.5 shadow-2xs space-y-0.5">
           <div className="flex items-center justify-between text-neutral-500">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Gross Sales</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">Net Sales</span>
             <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
           </div>
           <p className="text-base sm:text-lg font-black text-neutral-900 dark:text-white tabular-nums tracking-tight">
-            {formatNaira(totalRevenue)}
+            {formatNaira(netEarnings)}
           </p>
-          <p className="text-[10px] text-neutral-400">Total ticket revenue</p>
+          <p className="text-[10px] text-neutral-400">
+            Your take-home earnings
+          </p>
         </div>
 
         {/* Metric 2: Tickets Sold */}

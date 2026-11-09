@@ -11,7 +11,11 @@ type LedgerData = {
   totalEarnings: number;
   grossSales?: number;
   platformFees?: number;
+  availableBalance?: number;
+  totalPaidOut?: number;
+  totalPending?: number;
   settlementMode?: string;
+  payouts?: any[];
   breakdown?: {
     online: {
       gross: number;
@@ -35,7 +39,7 @@ type LedgerData = {
 };
 
 type BankPayout = {
-  id: number;
+  id: string | number;
   status: string;
   amount: number;
   settlementDate: string | null;
@@ -69,8 +73,11 @@ function paymentBankLabel(tx: { date: string; channel?: string; paymentReference
     return when ? `Paid out ${when}` : 'Paid out';
   }
   if (hit?.status === 'failed') return 'Payout failed';
-  if (hit) return 'On the way to your bank';
-  return `Settles ${formatSettleDay(nextBusinessDay(tx.date))}`;
+  if (hit?.status === 'pending') return 'On the way to your bank';
+
+  const settleDate = nextBusinessDay(tx.date);
+  const isPast = settleDate.getTime() <= Date.now();
+  return isPast ? `Paid out ${formatSettleDay(settleDate)}` : `Settles ${formatSettleDay(settleDate)}`;
 }
 
 const FinanceDashboard = () => {
@@ -213,6 +220,7 @@ const FinanceDashboard = () => {
         )}
       </div>
 
+      {/* Payments section commented out for now as requested
       <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
         <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800">
           <h2 className="text-sm font-semibold">Payments</h2>
@@ -286,6 +294,7 @@ const FinanceDashboard = () => {
           </div>
         )}
       </div>
+      */}
     </div>
   );
 };
