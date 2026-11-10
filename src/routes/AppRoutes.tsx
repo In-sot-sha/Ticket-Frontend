@@ -64,6 +64,7 @@ import AdminSupportPage from '../pages/admin/AdminSupportPage';
 import AdminStaffPage from '../pages/admin/AdminStaffPage';
 import AdminEventsPage from '../pages/admin/AdminEventsPage';
 import AdminEventDetailPage from '../pages/admin/AdminEventDetailPage';
+import AdminEventReconciliationPage from '../pages/admin/AdminEventReconciliationPage';
 import AdminWhatsAppPage from '../pages/admin/AdminWhatsAppPage';
 import StaffHomePage from '../pages/StaffHomePage';
 import StaffWalkInPage from '../pages/StaffWalkInPage';
@@ -392,6 +393,10 @@ const AppRoutes: React.FC = () => {
         {
           path: "events/:id",
           element: <AdminEventDetailPage />,
+        },
+        {
+          path: "events/:id/reconciliation",
+          element: <AdminEventReconciliationPage />,
         },
         {
           path: "whatsapp",

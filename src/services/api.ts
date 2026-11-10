@@ -650,6 +650,9 @@ export const api = {
     getEvents: (params?: { search?: string }) =>
       apiRequest<any[]>('GET', '/admin/events', undefined, { params }),
 
+    getEventFinancialReport: (id: number | string) =>
+      apiRequest<any>('GET', `/admin/events/${id}/financial-report`),
+
     promoteEvent: (id: number, data: { isPromoted: boolean; promotedUntil?: string | null }) =>
       apiRequest<any>('PUT', `/admin/events/${id}/promote`, data),
 

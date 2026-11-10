@@ -377,6 +377,17 @@ const AdminEventDetailPage: React.FC = () => {
             <Share2 className="h-3 w-3 text-rose-500" />
             <span className="hidden sm:inline">Share</span>
           </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/admin/events/${event.id}/reconciliation`)}
+            className="rounded-lg text-xs px-2.5 h-7 border-neutral-200 dark:border-neutral-700 hover:border-rose-400 hover:text-rose-500 cursor-pointer gap-1 font-semibold"
+          >
+            <FileText className="h-3 w-3 text-rose-500" />
+            <span className="hidden sm:inline">Report</span>
+          </Button>
         </div>
       </div>
 

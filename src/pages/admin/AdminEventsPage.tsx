@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronRight,
   TrendingUp,
+  FileText,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { Button } from '../../components/ui/Button';
@@ -133,16 +134,18 @@ function EventManageMenu({
   onPromote,
   onClear,
   onMove,
+  onReport,
 }: {
   promoted: boolean;
   ended: boolean;
   onPromote: () => void;
   onClear: () => void;
   onMove: () => void;
+  onReport?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const itemClass =
-    'flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 dark:hover:bg-neutral-800';
+    'flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 dark:hover:bg-neutral-800 cursor-pointer';
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -157,7 +160,27 @@ function EventManageMenu({
           <ChevronDown className="h-3.5 w-3.5" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-52 p-1">
+      <PopoverContent align="end" className="w-56 p-1">
+        {onReport && (
+          <button
+            type="button"
+            className={itemClass}
+            onClick={() => {
+              setOpen(false);
+              onReport();
+            }}
+          >
+            <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-500" />
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold text-neutral-900 dark:text-white">
+                Financial Report
+              </span>
+              <span className="block text-[11px] text-neutral-600 dark:text-neutral-400">
+                Reconciliation & statement
+              </span>
+            </span>
+          </button>
+        )}
         {!ended && (
           <button
             type="button"
@@ -555,6 +578,7 @@ const AdminEventsPage: React.FC = () => {
               setTransferFor(ev);
               setTargetOrgId('');
             }}
+            onReport={() => navigate(`/admin/events/${ev.id}/reconciliation`)}
           />
         </div>
       ),
@@ -697,6 +721,7 @@ const AdminEventsPage: React.FC = () => {
                         setTransferFor(ev);
                         setTargetOrgId('');
                       }}
+                      onReport={() => navigate(`/admin/events/${ev.id}/reconciliation`)}
                     />
                   </div>
                 </div>
