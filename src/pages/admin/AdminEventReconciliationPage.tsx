@@ -133,6 +133,27 @@ export const AdminEventReconciliationPage: React.FC = () => {
 
   const { event, summary, reconciliation, channels, settlement, generatedAt } = data;
 
+  const onlineTickets = channels?.online?.ticketsCount || 0;
+  const onlineGross = channels?.online?.gross || 0;
+  const onlineNet = channels?.online?.net || 0;
+
+  // Gate is part of assisted
+  const gateTickets = channels?.gate?.ticketsCount || 0;
+  const gateGross = channels?.gate?.grossCollected || 0;
+  const gateNet = channels?.gate?.net || 0;
+
+  const assistedTickets = (channels?.assisted?.ticketsCount || 0) + gateTickets;
+  const assistedGross = (channels?.assisted?.grossCollected || 0) + gateGross;
+  const assistedNet = (channels?.assisted?.net || 0) + gateNet;
+
+  const totalTickets = onlineTickets + assistedTickets + (channels?.vendor?.stallsCount || 0);
+  const totalGross = onlineGross + assistedGross + (channels?.vendor?.gross || 0);
+  const totalNet = onlineNet + assistedNet + (channels?.vendor?.net || 0);
+
+  const paystackSettlement = settlement?.paystack?.netPayable ?? onlineNet;
+  const directSettlement = (settlement?.directTransfer?.netPayable ?? channels?.assisted?.net ?? 0) + gateNet;
+  const totalSettlement = summary?.netOrganizerProceeds ?? (paystackSettlement + directSettlement);
+
   const formattedDate = new Date(generatedAt).toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'long',
@@ -218,33 +239,15 @@ export const AdminEventReconciliationPage: React.FC = () => {
           </div>
         </div>
 
-        {/* ── TOP 4 KPI SUMMARY BLOCK (Wider 4-column responsive grid) ── */}
+        {/* ── TOP KPI SUMMARY BLOCK (Total tickets sold & Net organizer proceeds) ── */}
         <div className="border-t border-neutral-200 dark:border-neutral-800 pt-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
+          <div className="grid grid-cols-2 gap-6 sm:gap-12">
             <div>
               <p className="text-xs sm:text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-1">
                 Total tickets sold
               </p>
               <p className="text-2xl sm:text-3xl font-black tracking-tight text-neutral-900 dark:text-white font-mono">
                 {summary.totalTicketsSold}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-xs sm:text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-1">
-                Gross revenue
-              </p>
-              <p className="text-2xl sm:text-3xl font-black tracking-tight text-neutral-900 dark:text-white font-mono">
-                {formatNaira(summary.grossRevenue)}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-xs sm:text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-1">
-                Total deductions
-              </p>
-              <p className="text-2xl sm:text-3xl font-black tracking-tight text-neutral-900 dark:text-white font-mono">
-                {formatNaira(summary.totalDeductions)}
               </p>
             </div>
 
@@ -259,190 +262,63 @@ export const AdminEventReconciliationPage: React.FC = () => {
           </div>
         </div>
 
-        {/* ── 1. FINANCIAL RECONCILIATION TABLE ── */}
-        <div className="border-t border-neutral-200 dark:border-neutral-800 pt-6 space-y-4">
-          <h2 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
-            Financial reconciliation
-          </h2>
-
-          <div className="w-full">
-            <table className="w-full text-left text-xs sm:text-sm border-collapse">
-              <thead className="text-neutral-500 dark:text-neutral-400 text-xs font-semibold border-b border-neutral-200 dark:border-neutral-800">
-                <tr>
-                  <th className="py-2.5 px-0 font-semibold">Description</th>
-                  <th className="py-2.5 px-0 text-right font-semibold">Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-200/80 dark:divide-neutral-800/80 text-neutral-700 dark:text-neutral-300">
-                <tr>
-                  <td className="py-3 px-0 font-medium text-neutral-900 dark:text-white">
-                    Gross ticket revenue
-                  </td>
-                  <td className="py-3 px-0 text-right font-mono font-bold text-neutral-900 dark:text-white">
-                    {formatNaira(reconciliation.grossTicketRevenue)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-0 font-medium">Gateway charges</td>
-                  <td className="py-3 px-0 text-right font-mono text-neutral-500 dark:text-neutral-400">
-                    {reconciliation.gatewayCharges > 0 ? `-${formatNaira(reconciliation.gatewayCharges)}` : '₦0'}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-0 font-medium">PartyStorm fees</td>
-                  <td className="py-3 px-0 text-right font-mono text-neutral-500 dark:text-neutral-400">
-                    {reconciliation.partyStormFees > 0 ? `-${formatNaira(reconciliation.partyStormFees)}` : '₦0'}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-0 font-medium">Other deductions</td>
-                  <td className="py-3 px-0 text-right font-mono text-neutral-500 dark:text-neutral-400">
-                    {reconciliation.otherDeductions > 0 ? `-${formatNaira(reconciliation.otherDeductions)}` : '₦0'}
-                  </td>
-                </tr>
-                <tr className="border-t-2 border-neutral-300 dark:border-neutral-700">
-                  <td className="py-3.5 px-0 text-sm sm:text-base font-bold text-neutral-900 dark:text-white">
-                    Net payable
-                  </td>
-                  <td className="py-3.5 px-0 text-right text-sm sm:text-base font-mono font-bold text-neutral-900 dark:text-white">
-                    {formatNaira(reconciliation.netPayable)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* ── 2. SALES BY CHANNEL TABLE (ONLINE AND DIRECT NUMBERS) ── */}
+        {/* ── SALES BY CHANNEL TABLE (ONLINE & ASSISTED TICKETS ONLY - NO MONEY) ── */}
         <div className="border-t border-neutral-200 dark:border-neutral-800 pt-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
               Sales by channel
             </h2>
-            <span className="text-[11px] text-neutral-400 font-medium">Online & Direct Sales Breakdown</span>
+            <span className="text-[11px] text-neutral-400 font-medium">Tickets Breakdown</span>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="w-full">
             <table className="w-full text-left text-xs sm:text-sm border-collapse">
               <thead className="text-neutral-500 dark:text-neutral-400 text-xs font-semibold border-b border-neutral-200 dark:border-neutral-800">
                 <tr>
-                  <th className="py-3 px-0 font-semibold">Channel</th>
-                  <th className="py-3 px-4 text-left font-semibold">Payment Method</th>
-                  <th className="py-3 px-4 text-center font-semibold">Tickets Sold</th>
-                  <th className="py-3 px-4 text-right font-semibold">Gross Revenue</th>
-                  <th className="py-3 px-4 text-right font-semibold">Deductions</th>
-                  <th className="py-3 px-0 text-right font-semibold">Net Proceeds</th>
+                  <th className="py-2.5 px-0 font-semibold">Channel</th>
+                  <th className="py-2.5 px-0 text-right font-semibold">Tickets Sold</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200/80 dark:divide-neutral-800/80 text-neutral-700 dark:text-neutral-300">
                 {/* 1. Online Sales */}
                 <tr>
-                  <td className="py-3.5 px-0 font-medium text-neutral-900 dark:text-white">
+                  <td className="py-3 px-0 font-medium text-neutral-900 dark:text-white">
                     Online Sales
                   </td>
-                  <td className="py-3.5 px-4 text-xs text-neutral-500">
-                    Card / Bank Transfer (Paystack)
-                  </td>
-                  <td className="py-3.5 px-4 text-center font-mono font-semibold text-neutral-900 dark:text-white">
-                    {channels.online.ticketsCount}
-                  </td>
-                  <td className="py-3.5 px-4 text-right font-mono font-medium">
-                    {formatNaira(channels.online.gross)}
-                  </td>
-                  <td className="py-3.5 px-4 text-right font-mono text-neutral-500 dark:text-neutral-400">
-                    -{formatNaira(channels.online.gatewayCharges + channels.online.partyStormFees)}
-                  </td>
-                  <td className="py-3.5 px-0 text-right font-mono font-bold text-neutral-900 dark:text-white">
-                    {formatNaira(channels.online.net)}
+                  <td className="py-3 px-0 text-right font-mono font-bold text-neutral-900 dark:text-white">
+                    {onlineTickets}
                   </td>
                 </tr>
 
-                {/* 2. Direct Sales */}
+                {/* 2. Direct / Assisted Sales (Gate Included) */}
                 <tr>
-                  <td className="py-3.5 px-0 font-medium text-neutral-900 dark:text-white">
+                  <td className="py-3 px-0 font-medium text-neutral-900 dark:text-white">
                     Direct / Assisted Sales
                   </td>
-                  <td className="py-3.5 px-4 text-xs text-neutral-500">
-                    Direct Transfer / POS / Cash
-                  </td>
-                  <td className="py-3.5 px-4 text-center font-mono font-semibold text-neutral-900 dark:text-white">
-                    {channels.assisted.ticketsCount}
-                  </td>
-                  <td className="py-3.5 px-4 text-right font-mono font-medium">
-                    {formatNaira(channels.assisted.grossCollected)}
-                  </td>
-                  <td className="py-3.5 px-4 text-right font-mono text-neutral-500 dark:text-neutral-400">
-                    -{formatNaira(channels.assisted.partyStormFees + channels.assisted.discountAmount)}
-                  </td>
-                  <td className="py-3.5 px-0 text-right font-mono font-bold text-neutral-900 dark:text-white">
-                    {formatNaira(channels.assisted.net)}
+                  <td className="py-3 px-0 text-right font-mono font-bold text-neutral-900 dark:text-white">
+                    {assistedTickets}
                   </td>
                 </tr>
 
-                {/* Gate Walk-in Sales (if any) */}
-                {channels.gate?.ticketsCount > 0 && (
-                  <tr>
-                    <td className="py-3.5 px-0 font-medium text-neutral-900 dark:text-white">
-                      Gate Walk-In Sales
-                    </td>
-                    <td className="py-3.5 px-4 text-xs text-neutral-500">
-                      Cash / POS at Gate
-                    </td>
-                    <td className="py-3.5 px-4 text-center font-mono font-semibold text-neutral-900 dark:text-white">
-                      {channels.gate.ticketsCount}
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-mono font-medium">
-                      {formatNaira(channels.gate.grossCollected)}
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-mono text-neutral-500 dark:text-neutral-400">
-                      ₦0
-                    </td>
-                    <td className="py-3.5 px-0 text-right font-mono font-bold text-neutral-900 dark:text-white">
-                      {formatNaira(channels.gate.net)}
-                    </td>
-                  </tr>
-                )}
-
                 {/* Vendor Stalls (if any) */}
-                {channels.vendor?.stallsCount > 0 && (
+                {channels?.vendor?.stallsCount > 0 && (
                   <tr>
-                    <td className="py-3.5 px-0 font-medium text-neutral-900 dark:text-white">
-                      Vendor Stall Fees
+                    <td className="py-3 px-0 font-medium text-neutral-900 dark:text-white">
+                      Vendor Stalls
                     </td>
-                    <td className="py-3.5 px-4 text-xs text-neutral-500">
-                      Online Booking
-                    </td>
-                    <td className="py-3.5 px-4 text-center font-mono font-semibold text-neutral-900 dark:text-white">
+                    <td className="py-3 px-0 text-right font-mono font-bold text-neutral-900 dark:text-white">
                       {channels.vendor.stallsCount}
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-mono font-medium">
-                      {formatNaira(channels.vendor.gross)}
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-mono text-neutral-500 dark:text-neutral-400">
-                      -{formatNaira(channels.vendor.partyStormFees + channels.vendor.gatewayCharges)}
-                    </td>
-                    <td className="py-3.5 px-0 text-right font-mono font-bold text-neutral-900 dark:text-white">
-                      {formatNaira(channels.vendor.net)}
                     </td>
                   </tr>
                 )}
 
                 {/* Total Row */}
-                <tr className="border-t-2 border-neutral-300 dark:border-neutral-700 font-bold">
-                  <td className="py-4 px-0 font-bold text-neutral-900 dark:text-white" colSpan={2}>
-                    Total Across Channels
+                <tr className="border-t-2 border-neutral-300 dark:border-neutral-700">
+                  <td className="py-3.5 px-0 text-sm sm:text-base font-bold text-neutral-900 dark:text-white">
+                    Total tickets sold
                   </td>
-                  <td className="py-4 px-4 text-center font-mono font-bold text-neutral-900 dark:text-white">
-                    {summary.totalTicketsSold}
-                  </td>
-                  <td className="py-4 px-4 text-right font-mono font-bold text-neutral-900 dark:text-white">
-                    {formatNaira(summary.grossRevenue)}
-                  </td>
-                  <td className="py-4 px-4 text-right font-mono text-neutral-600 dark:text-neutral-400 font-bold">
-                    -{formatNaira(summary.totalDeductions)}
-                  </td>
-                  <td className="py-4 px-0 text-right font-mono font-bold text-neutral-900 dark:text-white">
-                    {formatNaira(summary.netOrganizerProceeds)}
+                  <td className="py-3.5 px-0 text-right text-sm sm:text-base font-mono font-bold text-neutral-900 dark:text-white">
+                    {totalTickets}
                   </td>
                 </tr>
               </tbody>
@@ -450,7 +326,7 @@ export const AdminEventReconciliationPage: React.FC = () => {
           </div>
         </div>
 
-        {/* ── 3. SETTLEMENT STATUS TABLE (TOTAL ON PAYSTACK & TOTAL ON DIRECT) ── */}
+        {/* ── SETTLEMENT STATUS TABLE (TOTAL ON PAYSTACK & TOTAL ON DIRECT) ── */}
         <div className="border-t border-neutral-200 dark:border-neutral-800 pt-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
@@ -474,17 +350,17 @@ export const AdminEventReconciliationPage: React.FC = () => {
                     Paystack (Online Sales)
                   </td>
                   <td className="py-3 px-0 text-right font-mono font-bold text-neutral-900 dark:text-white">
-                    {formatNaira(settlement.paystack?.netPayable ?? channels.online.net)}
+                    {formatNaira(paystackSettlement)}
                   </td>
                 </tr>
 
-                {/* 2. Total on Direct */}
+                {/* 2. Total on Direct (incl. Gate) */}
                 <tr>
                   <td className="py-3 px-0 font-medium text-neutral-900 dark:text-white">
                     Direct Transfer (Assisted Sales)
                   </td>
                   <td className="py-3 px-0 text-right font-mono font-bold text-neutral-900 dark:text-white">
-                    {formatNaira(settlement.directTransfer?.netPayable ?? channels.assisted.net)}
+                    {formatNaira(directSettlement)}
                   </td>
                 </tr>
 
@@ -494,7 +370,7 @@ export const AdminEventReconciliationPage: React.FC = () => {
                     Total settlement paid
                   </td>
                   <td className="py-3.5 px-0 text-right text-sm sm:text-base font-mono font-bold text-neutral-900 dark:text-white">
-                    {formatNaira(reconciliation.netPayable)}
+                    {formatNaira(totalSettlement)}
                   </td>
                 </tr>
               </tbody>
