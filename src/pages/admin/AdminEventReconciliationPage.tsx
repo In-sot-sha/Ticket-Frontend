@@ -133,19 +133,69 @@ export const AdminEventReconciliationPage: React.FC = () => {
 
   const { event, summary, reconciliation, channels, settlement, generatedAt } = data;
 
-  const tiers = (data?.tiers && data.tiers.length > 0)
-    ? data.tiers
-    : (() => {
-        const map = new Map<string, { id: string; name: string; soldCount: number }>();
-        for (const tx of (data?.transactions || [])) {
-          const name = tx.tierName || 'General Admission';
-          if (!map.has(name)) {
-            map.set(name, { id: name, name, soldCount: 0 });
+  // Strictly resolve the event's official ticket tiers
+  const officialTicketTypes: any[] = data?.event?.ticketTypes || [];
+
+  const tiers = (() => {
+    // 1. If backend explicitly returned tiers:
+    if (Array.isArray(data?.tiers) && data.tiers.length > 0) {
+      const valid = data.tiers.filter((t: any) => {
+        const name = (t.name || '').trim();
+        return name && !name.includes(',') && name.toLowerCase() !== 'ticket' && !name.toLowerCase().startsWith('stall');
+      });
+      if (valid.length > 0) return valid;
+    }
+
+    // 2. If event has ticketTypes defined (e.g. 3 tiers in production):
+    if (officialTicketTypes.length > 0) {
+      const counts: Record<string, number> = {};
+      for (const tt of officialTicketTypes) {
+        counts[tt.name] = 0;
+      }
+
+      for (const tx of (data?.transactions || [])) {
+        if (tx.channelType === 'VENDOR') continue;
+        const txTier = (tx.tierName || '').trim();
+        const qty = tx.ticketsCount || 1;
+
+        if (counts[txTier] !== undefined) {
+          counts[txTier] += qty;
+        } else if (txTier.includes(',')) {
+          // Multi-tier order, e.g. "Early Birds, Children Only"
+          const parts = txTier.split(',').map((p: string) => p.trim()).filter((p: string) => counts[p] !== undefined);
+          if (parts.length > 0) {
+            const perPart = Math.floor(qty / parts.length);
+            const remainder = qty % parts.length;
+            parts.forEach((p: string, idx: number) => {
+              counts[p] += perPart + (idx < remainder ? 1 : 0);
+            });
           }
-          map.get(name)!.soldCount += (tx.ticketsCount || 1);
         }
-        return Array.from(map.values());
-      })();
+      }
+
+      return officialTicketTypes.map((tt) => ({
+        id: tt.id,
+        name: tt.name,
+        price: tt.price,
+        soldCount: counts[tt.name] || 0,
+      }));
+    }
+
+    // 3. Fallback: filter out compound and phantom tiers
+    const map = new Map<string, { id: string; name: string; soldCount: number }>();
+    for (const tx of (data?.transactions || [])) {
+      if (tx.channelType === 'VENDOR') continue;
+      const name = (tx.tierName || '').trim();
+      if (!name || name.toLowerCase() === 'ticket' || name.toLowerCase().startsWith('stall') || name.includes(',')) {
+        continue;
+      }
+      if (!map.has(name)) {
+        map.set(name, { id: name, name, soldCount: 0 });
+      }
+      map.get(name)!.soldCount += (tx.ticketsCount || 1);
+    }
+    return Array.from(map.values());
+  })();
 
   const onlineTickets = channels?.online?.ticketsCount || 0;
   const onlineGross = channels?.online?.gross || 0;
