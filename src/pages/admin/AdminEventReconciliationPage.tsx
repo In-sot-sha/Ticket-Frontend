@@ -133,6 +133,20 @@ export const AdminEventReconciliationPage: React.FC = () => {
 
   const { event, summary, reconciliation, channels, settlement, generatedAt } = data;
 
+  const tiers = (data?.tiers && data.tiers.length > 0)
+    ? data.tiers
+    : (() => {
+        const map = new Map<string, { id: string; name: string; soldCount: number }>();
+        for (const tx of (data?.transactions || [])) {
+          const name = tx.tierName || 'General Admission';
+          if (!map.has(name)) {
+            map.set(name, { id: name, name, soldCount: 0 });
+          }
+          map.get(name)!.soldCount += (tx.ticketsCount || 1);
+        }
+        return Array.from(map.values());
+      })();
+
   const onlineTickets = channels?.online?.ticketsCount || 0;
   const onlineGross = channels?.online?.gross || 0;
   const onlineNet = channels?.online?.net || 0;
@@ -319,6 +333,57 @@ export const AdminEventReconciliationPage: React.FC = () => {
                   </td>
                   <td className="py-3.5 px-0 text-right text-sm sm:text-base font-mono font-bold text-neutral-900 dark:text-white">
                     {totalTickets}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ── TICKET TIERS TABLE (HOW MANY ARE SOLD BY EACH TIER) ── */}
+        <div className="border-t border-neutral-200 dark:border-neutral-800 pt-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
+              Ticket tiers
+            </h2>
+            <span className="text-[11px] text-neutral-400 font-medium">Sold by Tier</span>
+          </div>
+
+          <div className="w-full">
+            <table className="w-full text-left text-xs sm:text-sm border-collapse">
+              <thead className="text-neutral-500 dark:text-neutral-400 text-xs font-semibold border-b border-neutral-200 dark:border-neutral-800">
+                <tr>
+                  <th className="py-2.5 px-0 font-semibold">Ticket Tier</th>
+                  <th className="py-2.5 px-0 text-right font-semibold">Tickets Sold</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-200/80 dark:divide-neutral-800/80 text-neutral-700 dark:text-neutral-300">
+                {tiers.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="py-3 px-0 text-neutral-500">
+                      No ticket tiers found.
+                    </td>
+                  </tr>
+                ) : (
+                  tiers.map((t: any) => (
+                    <tr key={t.id || t.name}>
+                      <td className="py-3 px-0 font-medium text-neutral-900 dark:text-white">
+                        {t.name}
+                      </td>
+                      <td className="py-3 px-0 text-right font-mono font-bold text-neutral-900 dark:text-white">
+                        {t.soldCount || 0}
+                      </td>
+                    </tr>
+                  ))
+                )}
+
+                {/* Total Row */}
+                <tr className="border-t-2 border-neutral-300 dark:border-neutral-700">
+                  <td className="py-3.5 px-0 text-sm sm:text-base font-bold text-neutral-900 dark:text-white">
+                    Total tickets sold
+                  </td>
+                  <td className="py-3.5 px-0 text-right text-sm sm:text-base font-mono font-bold text-neutral-900 dark:text-white">
+                    {tiers.reduce((sum: number, t: any) => sum + (t.soldCount || 0), 0) || totalTickets}
                   </td>
                 </tr>
               </tbody>
